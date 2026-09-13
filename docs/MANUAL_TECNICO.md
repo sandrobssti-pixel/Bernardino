@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.0.0
-**Etapa:** 2 — Nova base (migração para o `zappro-legado`)
+**Versão do documento:** 2.1.0
+**Etapa:** 2.1 — Identidade visual "tech" na nova base
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
@@ -167,16 +167,31 @@ agendamentos, listas de contato, respostas rápidas, entre outros.
 
 ---
 
-## 6. Identidade visual — pendente (Etapa 2.1)
+## 6. Identidade visual "tech" (Etapa 2.1)
 
-A migração desta versão trouxe o **código** do `zappro-legado`, mas **não** a identidade
-visual "tech" (tema escuro, gradiente, componentes `StatusPill`/`EmptyState`/etc.) criada
-na Etapa 1.1 — o frontend atual usa o Material UI padrão do projeto original.
+A identidade visual criada na Etapa 1.1 foi aplicada por cima da nova base através do
+**tema central do Material UI** (`frontend/src/App.js`), em vez de editar tela por tela:
 
-Aplicar essa identidade em ~45 telas é um trabalho grande à parte, planejado como
-**Etapa 2.1**. Enquanto isso não acontece, uma vitória rápida: o frontend já tem suporte a
-**whitelabel** embutido (nome da empresa, logo, cores) em `frontend/src/components/Settings/Whitelabel.js`
-— dá pra já personalizar nome e cores por ali sem mexer em código.
+| Token | Valor | Onde é usado |
+| --- | --- | --- |
+| Gradiente de marca | `linear-gradient(135deg, #6d5efc 0%, #22d3ee 100%)` | `palette.brandGradient`, botões `containedPrimary`, barra superior no modo escuro |
+| Cor de marca padrão (clara/escura) | `#6d5efc` / `#8b7bff` | Fallback de `primaryColorLight`/`primaryColorDark` quando a empresa não personalizou |
+| Título (display) | Space Grotesk | `typography.h1`–`h6` |
+| Texto/corpo | Inter | `typography.fontFamily` (já era usada no projeto original) |
+| Dados técnicos | JetBrains Mono | Carregada em `public/index.html`, disponível para uso pontual |
+
+Como é o tema central, o efeito se propaga **automaticamente** para as ~45 telas do
+sistema, sem precisar editar tela por tela. A tela de **Login**
+(`frontend/src/pages/Login/style.css`) foi redesenhada por completo à parte, por ter CSS
+próprio fora do tema (fundo escuro, cartão em vidro fosco, botão com gradiente).
+
+**Pendente**: telas com cores/gradientes escritos diretamente no componente (fora do tema
+central) continuam com a aparência original até serem revisadas individualmente — o tema
+central não alcança esses casos.
+
+Lembrete: o frontend já tem suporte a **whitelabel** embutido (nome da empresa, logo,
+cores) em `frontend/src/components/Settings/Whitelabel.js` — uma empresa cliente pode
+personalizar por cima da identidade padrão sem mexer em código.
 
 ---
 

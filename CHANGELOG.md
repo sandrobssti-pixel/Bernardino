@@ -3,6 +3,31 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.1.0] — Etapa 2.1: Identidade visual "tech" na nova base — 2026-09-13
+
+### Adicionado
+- Tema central do Material UI (`frontend/src/App.js`) atualizado com a identidade visual
+  "tech" criada na Etapa 1.1: cor de marca padrão trocada para o gradiente
+  violeta→ciano (`#6d5efc` → `#22d3ee`), tipografia de títulos em **Space Grotesk** (corpo
+  do texto continua em Inter, que já era usada no projeto), botões primários com gradiente
+  de marca e brilho (`boxShadow`), cantos mais suaves em botões/painéis. Como é o tema
+  central, o efeito se propaga automaticamente pras ~45 telas do sistema — sem precisar
+  editar tela por tela.
+- Barra superior (`frontend/src/layout/index.js`) ganhou um sutil brilho gradiente no modo
+  escuro, no mesmo estilo já usado no modo claro.
+- Tela de login (`frontend/src/pages/Login/style.css`) redesenhada por completo: fundo
+  escuro com halo gradiente, cartão em vidro fosco (glassmorphism), botão com gradiente de
+  marca — substituindo o gradiente verde/amarelo claro do projeto original.
+- Fontes Space Grotesk e JetBrains Mono adicionadas ao carregamento de fontes
+  (`frontend/public/index.html`), ao lado da Inter que já existia.
+- Prévia estática publicada mostrando a nova tela de login e o painel de atendimento lado a
+  lado com os tokens de design (cores e tipografia) para referência da equipe.
+
+### Ainda não migrado (fica para builds seguintes conforme necessidade)
+- Cores/gradientes escritos "na mão" em componentes específicos (fora do tema central) —
+  por exemplo, telas com CSS próprio como a de login — precisam ser ajustados
+  individualmente, um a um, à medida que forem sendo revisados.
+
 ## [2.0.0] — Etapa 2: Nova base (migração do zappro-legado) — 2026-09-13
 
 ### Alterado

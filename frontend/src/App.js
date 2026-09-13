@@ -50,7 +50,7 @@ const safeStorage = {
 
 const App = () => {
   const [locale, setLocale] = useState();
-  const appColorLocalStorage = safeStorage.getItem("primaryColorLight") || safeStorage.getItem("primaryColorDark") || "#065183";
+  const appColorLocalStorage = safeStorage.getItem("primaryColorLight") || safeStorage.getItem("primaryColorDark") || "#6d5efc";
   const appNameLocalStorage = safeStorage.getItem("appName", "");
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const preferredTheme = safeStorage.getItem("preferredTheme");
@@ -161,6 +161,7 @@ const App = () => {
           },
           typography: {
             fontFamily: [
+              "Inter",
               "DM Sans",
               "system-ui",
               "-apple-system",
@@ -172,6 +173,13 @@ const App = () => {
               "sans-serif",
             ].join(","),
             fontSize: 13,
+            // Titulos usam Space Grotesk - identidade visual "tech" (Etapa 2.1)
+            h1: { fontFamily: '"Space Grotesk", Inter, sans-serif' },
+            h2: { fontFamily: '"Space Grotesk", Inter, sans-serif' },
+            h3: { fontFamily: '"Space Grotesk", Inter, sans-serif' },
+            h4: { fontFamily: '"Space Grotesk", Inter, sans-serif' },
+            h5: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: 600 },
+            h6: { fontFamily: '"Space Grotesk", Inter, sans-serif', fontWeight: 600 },
           },
           palette: {
             type: mode,
@@ -219,6 +227,8 @@ const App = () => {
               md: 10,
               lg: 16,
             },
+            // Gradiente de marca (Etapa 2.1 - identidade visual "tech")
+            brandGradient: "linear-gradient(135deg, #6d5efc 0%, #22d3ee 100%)",
           },
           props: {
             MuiDialog: {
@@ -226,6 +236,31 @@ const App = () => {
             },
           },
           overrides: {
+            // Identidade visual "tech" (Etapa 2.1): botões com gradiente de marca,
+            // cantos mais suaves, sem caixa-alta forçada.
+            MuiButton: {
+              root: {
+                borderRadius: 10,
+                textTransform: "none",
+                fontWeight: 600,
+              },
+              containedPrimary: {
+                backgroundImage: "linear-gradient(135deg, #6d5efc 0%, #22d3ee 100%)",
+                boxShadow: "0 0 0 1px rgba(109,94,252,0.35), 0 6px 18px -6px rgba(109,94,252,0.55)",
+                "&:hover": {
+                  backgroundImage: "linear-gradient(135deg, #5945e0 0%, #06b6d4 100%)",
+                  boxShadow: "0 0 0 1px rgba(109,94,252,0.5), 0 8px 22px -6px rgba(109,94,252,0.7)",
+                },
+                "&.Mui-disabled": {
+                  backgroundImage: "none",
+                },
+              },
+            },
+            MuiPaper: {
+              rounded: {
+                borderRadius: 12,
+              },
+            },
             MuiDialog: {
               paperScrollPaper: {
                 "@media (max-height:820px)": {
@@ -330,8 +365,8 @@ const App = () => {
     ]).then((results) => {
       const val = (i) => results[i].status === "fulfilled" ? results[i].value : null;
       unstable_batchedUpdates(() => {
-        setPrimaryColorLight(val(0) || "#0000FF");
-        setPrimaryColorDark(val(1) || "#39ACE7");
+        setPrimaryColorLight(val(0) || "#6d5efc");
+        setPrimaryColorDark(val(1) || "#8b7bff");
         setAppLogoLightPersist(resolvePublicLogoUrl(val(2), defaultLogoLight));
         setAppLogoDarkPersist(resolvePublicLogoUrl(val(3), defaultLogoDark));
         setAppLogoFavicon(resolvePublicLogoUrl(val(4), defaultLogoFavicon));

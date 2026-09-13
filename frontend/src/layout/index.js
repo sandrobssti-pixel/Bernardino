@@ -101,7 +101,7 @@ const useStyles = makeStyles((theme) => ({
     background:
       theme.mode === "light"
         ? `linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 60%), ${theme.palette.barraSuperior}`
-        : theme.palette.barraSuperior,
+        : `linear-gradient(180deg, rgba(139,123,255,0.16) 0%, rgba(34,211,238,0) 60%), ${theme.palette.barraSuperior}`,
     gap: theme.spacing(1),
     overflow: "visible",
     minHeight: 56,

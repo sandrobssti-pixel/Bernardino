@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.0.0 (Etapa 2 — Nova base, migrada do projeto `zappro-legado`)**
+**Versão atual: 2.1.0 (Etapa 2.1 — Identidade visual "tech" na nova base)**
 
 ## Documentação
 
