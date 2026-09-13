@@ -181,9 +181,12 @@ A identidade visual criada na Etapa 1.1 foi aplicada por cima da nova base atrav
 | Dados técnicos | JetBrains Mono | Carregada em `public/index.html`, disponível para uso pontual |
 
 Como é o tema central, o efeito se propaga **automaticamente** para as ~45 telas do
-sistema, sem precisar editar tela por tela. A tela de **Login**
-(`frontend/src/pages/Login/style.css`) foi redesenhada por completo à parte, por ter CSS
-próprio fora do tema (fundo escuro, cartão em vidro fosco, botão com gradiente).
+sistema, sem precisar editar tela por tela. A tela de **Login** foi ajustada à parte, por
+ter estilo próprio fora do tema: os estilos reais estão em `frontend/src/pages/Login/index.js`
+(`makeStyles`) e num bloco de CSS com `!important` em `frontend/public/index.html` (que
+mantém a página de login com um visual fixo, independente do tema claro/escuro
+selecionado). Fundo escuro com halo gradiente, cartão em vidro fosco, campos escuros e
+botão com gradiente de marca.
 
 **Pendente**: telas com cores/gradientes escritos diretamente no componente (fora do tema
 central) continuam com a aparência original até serem revisadas individualmente — o tema

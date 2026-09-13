@@ -28,12 +28,12 @@ const useStyles = makeStyles((theme) => ({
     width: "100vw",
     height: "100vh",
     overflow: "hidden",
-    background: "#eef1f6",
+    background: "#0a0f1e",
     backgroundImage:
-      "radial-gradient(circle at 12% 12%, rgba(99, 102, 241, 0.16) 0%, rgba(99, 102, 241, 0) 45%), radial-gradient(circle at 88% 82%, rgba(56, 189, 248, 0.16) 0%, rgba(56, 189, 248, 0) 45%), linear-gradient(160deg, #eef1f6 0%, #e2e8f0 100%)",
+      "radial-gradient(60rem 30rem at 15% -10%, rgba(109, 94, 252, 0.24) 0%, rgba(109, 94, 252, 0) 60%), radial-gradient(50rem 25rem at 100% 0%, rgba(34, 211, 238, 0.18) 0%, rgba(34, 211, 238, 0) 55%), #0a0f1e",
   },
   rootWithBackground: {
-    backgroundColor: "#d1d5db",
+    backgroundColor: "#05070f",
   },
   backgroundOverlay: {
     position: "absolute",
@@ -63,12 +63,13 @@ const useStyles = makeStyles((theme) => ({
     zIndex: 2,
     width: "100%",
     maxWidth: "410px",
-    background: "rgba(255, 255, 255, 0.97)",
+    background: "rgba(255, 255, 255, 0.045)",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
     backdropFilter: "blur(20px) saturate(180%)",
     WebkitBackdropFilter: "blur(20px) saturate(180%)",
     borderRadius: "28px",
     boxShadow:
-      "0 40px 90px -25px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08)",
+      "0 40px 90px -25px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.02)",
     padding: "26px 34px 18px",
     margin: "24px",
     overflow: "hidden",
@@ -94,7 +95,8 @@ const useStyles = makeStyles((theme) => ({
   heading: {
     textAlign: "center",
     marginBottom: 4,
-    color: "#0f172a",
+    color: "#eef1fb",
+    fontFamily: '"Space Grotesk", "Inter", sans-serif',
     fontSize: "1.45rem",
     fontWeight: 700,
     letterSpacing: "-0.3px",
@@ -102,7 +104,7 @@ const useStyles = makeStyles((theme) => ({
   },
   subtitle: {
     textAlign: "center",
-    color: "#64748b",
+    color: "#9aa6c4",
     marginBottom: 10,
     fontSize: "0.82rem",
     fontWeight: 400,
@@ -111,7 +113,7 @@ const useStyles = makeStyles((theme) => ({
     position: "relative",
     overflow: "hidden",
     marginTop: "12px",
-    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+    backgroundImage: theme.palette.brandGradient || `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
     color: "#fff",
     borderRadius: "14px",
     padding: "13px",
@@ -119,11 +121,11 @@ const useStyles = makeStyles((theme) => ({
     textTransform: "none",
     fontSize: 14,
     width: "100%",
-    boxShadow: `0 14px 28px -12px ${theme.palette.primary.main}`,
+    boxShadow: `0 0 0 1px rgba(109,94,252,0.4), 0 14px 28px -12px ${theme.palette.primary.main}`,
     transition: "transform 0.2s ease, box-shadow 0.2s ease",
     "&:hover": {
       transform: "translateY(-2px)",
-      boxShadow: `0 18px 34px -12px ${theme.palette.primary.main}`,
+      boxShadow: `0 0 0 1px rgba(109,94,252,0.55), 0 18px 34px -12px ${theme.palette.primary.main}`,
     },
     "&:active": {
       transform: "translateY(0)",
@@ -153,7 +155,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     margin: "12px 0 4px",
-    color: "#94a3b8",
+    color: "#5c6790",
     fontSize: 11,
     fontWeight: 600,
     textTransform: "uppercase",
@@ -162,7 +164,7 @@ const useStyles = makeStyles((theme) => ({
       content: '""',
       flex: 1,
       height: "1px",
-      background: "rgba(148, 163, 184, 0.3)",
+      background: "rgba(255, 255, 255, 0.1)",
     },
     "&::before": { marginRight: 12 },
     "&::after": { marginLeft: 12 },
@@ -185,7 +187,7 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "center",
     fontSize: 10.5,
     fontWeight: 500,
-    color: "#94a3b8",
+    color: "#5c6790",
     letterSpacing: "0.04em",
   },
   whatsappButton: {
@@ -245,16 +247,17 @@ const useStyles = makeStyles((theme) => ({
   input: {
     "& .MuiOutlinedInput-root": {
       borderRadius: "14px",
-      backgroundColor: "#f8fafc",
+      backgroundColor: "rgba(255, 255, 255, 0.05)",
+      color: "#eef1fb",
       transition: "background-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease",
       "& fieldset": {
-        borderColor: "rgba(148, 163, 184, 0.35)",
+        borderColor: "rgba(255, 255, 255, 0.14)",
       },
       "&:hover fieldset": {
         borderColor: theme.palette.primary.main,
       },
       "&.Mui-focused": {
-        backgroundColor: "#fff",
+        backgroundColor: "rgba(255, 255, 255, 0.08)",
         boxShadow: `0 0 0 4px ${theme.palette.primary.main}26`,
         transform: "translateY(-1px)",
       },
@@ -262,6 +265,12 @@ const useStyles = makeStyles((theme) => ({
         borderColor: theme.palette.primary.main,
         borderWidth: "1.5px",
       },
+    },
+    "& .MuiInputLabel-root": {
+      color: "#9aa6c4",
+    },
+    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+      color: "#5c6790",
     },
   },
 }));

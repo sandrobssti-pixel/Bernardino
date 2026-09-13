@@ -301,14 +301,16 @@
       .splash-logo-bg img { max-width: 180px; max-height: 84px; }
     }
 
-    /* Inputs brancos no login (mantido do seu índice original) */
+    /* Inputs do login - identidade visual "tech" (Etapa 2.1): vidro fosco escuro
+       em vez de branco fixo. Mantido com !important porque assim já estava
+       (precisa vencer o CSS-in-JS do MUI, que é injetado depois). */
     body.login-page .MuiInputBase-root,
     body.login-page .MuiOutlinedInput-root,
     body.login-page .MuiOutlinedInput-input,
     body.login-page .MuiInputBase-input,
     body.login-page .MuiInputAdornment-root {
-      background-color: #ffffff !important;
-      color: #000000 !important;
+      background-color: rgba(255, 255, 255, 0.05) !important;
+      color: #eef1fb !important;
     }
     body.login-page .MuiOutlinedInput-root.Mui-focused,
     body.login-page .MuiOutlinedInput-root.Mui-disabled,
@@ -316,29 +318,29 @@
     body.login-page .MuiOutlinedInput-root.MuiInputBase-adornedStart,
     body.login-page .MuiOutlinedInput-root.MuiInputBase-adornedEnd,
     body.login-page .MuiOutlinedInput-root:hover {
-      background-color: #ffffff !important;
-      color: #000000 !important;
+      background-color: rgba(255, 255, 255, 0.08) !important;
+      color: #eef1fb !important;
     }
     body.login-page .MuiOutlinedInput-notchedOutline {
-      border-color: #e5e7eb !important;
+      border-color: rgba(255, 255, 255, 0.14) !important;
     }
     body.login-page .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-      border-color: #cbd5e1 !important;
+      border-color: #8b7bff !important;
     }
     body.login-page .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-      border-color: #10b981 !important;
+      border-color: #6d5efc !important;
     }
     body.login-page input:-webkit-autofill,
     body.login-page input:-webkit-autofill:hover,
     body.login-page input:-webkit-autofill:focus {
-      -webkit-text-fill-color: #000000 !important;
+      -webkit-text-fill-color: #eef1fb !important;
       transition: background-color 9999s ease-out 0s !important;
-      box-shadow: 0 0 0px 1000px #ffffff inset !important;
+      box-shadow: 0 0 0px 1000px #131f34 inset !important;
     }
     body.login-page input:-moz-ui-invalid,
     body.login-page input:-moz-ui-valid {
-      background-color: #ffffff !important;
-      color: #000000 !important;
+      background-color: rgba(255, 255, 255, 0.05) !important;
+      color: #eef1fb !important;
     }
   </style>
 

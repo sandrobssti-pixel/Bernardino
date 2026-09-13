@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.1.2] — Correção: tela de Login usava outro arquivo — 2026-09-13
+
+### Corrigido
+- A v2.1.0 redesenhou `frontend/src/pages/Login/style.css`, mas esse arquivo **não é
+  importado por lugar nenhum** — descoberto ao rodar o sistema de verdade e tirar
+  capturas de tela reais. A tela de Login de verdade usa estilos em
+  `frontend/src/pages/Login/index.js` (Material UI `makeStyles`) e um bloco de CSS com
+  `!important` em `frontend/public/index.html` (que força os campos e a página a ficarem
+  sempre num visual fixo, independente do tema claro/escuro escolhido).
+- `style.css` (morto) removido.
+- Identidade visual "tech" aplicada nos lugares certos: fundo com halo gradiente,
+  cartão em vidro fosco, campos de texto escuros, botão com gradiente de marca — tanto
+  no `useStyles` do componente quanto no bloco `!important` do `index.html`.
+- Validado rodando a aplicação de verdade (PostgreSQL + Redis + backend + frontend) e
+  tirando capturas de tela reais via Playwright, em vez de só ler o código.
+
+### Lição registrada
+- Antes de estilizar uma tela deste projeto, **confirmar qual arquivo ela realmente usa**
+  (`grep` pelo import) — o projeto tem CSS solto não referenciado em algumas pastas.
+
 ## [2.1.0] — Etapa 2.1: Identidade visual "tech" na nova base — 2026-09-13
 
 ### Adicionado
