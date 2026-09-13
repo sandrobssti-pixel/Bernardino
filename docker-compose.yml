@@ -12,5 +12,15 @@ services:
     volumes:
       - atendeflow_pgdata:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: atendeflow-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - atendeflow_redisdata:/data
+
 volumes:
   atendeflow_pgdata:
+  atendeflow_redisdata:

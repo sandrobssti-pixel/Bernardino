@@ -1,0 +1,24 @@
+import express from "express";
+import isAuth from "../middleware/isAuth";
+
+import * as CompanyController from "../controllers/CompanyController";
+
+const companyRoutes = express.Router();
+
+companyRoutes.get("/companies/list", isAuth, CompanyController.list);
+companyRoutes.get("/companies", isAuth, CompanyController.index);
+companyRoutes.get("/companies/public-folders/orphans", isAuth, CompanyController.listOrphanPublicFolders);
+companyRoutes.post("/companies/public-folders/orphans/delete", isAuth, CompanyController.deleteOrphanPublicFolders);
+companyRoutes.get("/companies/:id/storage-usage", isAuth, CompanyController.storageUsage);
+companyRoutes.get("/companies/:id/stats", isAuth, CompanyController.stats);
+companyRoutes.get("/companies/:id", isAuth, CompanyController.show);
+companyRoutes.post("/companies", isAuth, CompanyController.store);
+companyRoutes.put("/companies/:id", isAuth, CompanyController.update);
+companyRoutes.put("/companies/:id/schedules",isAuth,CompanyController.updateSchedules);
+companyRoutes.delete("/companies/:id", isAuth, CompanyController.remove);
+
+// Rota para listar o plano da empresa
+companyRoutes.get("/companies/listPlan/:id", isAuth, CompanyController.listPlan);
+companyRoutes.get("/companiesPlan", isAuth, CompanyController.indexPlan);
+
+export default companyRoutes;

@@ -1,31 +1,34 @@
 # AtendeFlow — Multi Atendimento CRM
 
-CRM de multi atendimento com integração ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys).
+CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
+builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 1.1.0 (Etapa 1.1 — Redesign da interface)**
+**Versão atual: 2.0.0 (Etapa 2 — Nova base, migrada do projeto `zappro-legado`)**
 
 ## Documentação
 
-- 📘 [Manual técnico completo](docs/MANUAL_TECNICO.md) — arquitetura, modelo de dados, API e como rodar o projeto.
+- 📘 [Manual técnico completo](docs/MANUAL_TECNICO.md) — arquitetura, modelo de dados e como rodar o projeto.
+- 📋 [Avaliação do projeto legado](docs/AVALIACAO_ZAPPRO_LEGADO.md) — relatório que embasou a migração de base.
 - 🗒️ [Changelog](CHANGELOG.md) — histórico de versões/etapas entregues e próximas etapas planejadas.
 
 ## Início rápido
 
 ```bash
-npm install
 docker compose up -d
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
-npm run prisma:migrate
-npm run dev
+npm run install:backend
+npm run install:frontend
+npm run db:migrate
+npm run db:seed
+npm run dev:backend    # num terminal
+npm run dev:frontend   # em outro terminal
 ```
 
-- Frontend: http://localhost:5173
-- Backend: http://localhost:3333
-
-Veja o [manual técnico](docs/MANUAL_TECNICO.md#4-como-rodar-o-projeto-localmente) para o passo a passo completo, incluindo a conexão do WhatsApp via QR Code.
+Veja o [manual técnico](docs/MANUAL_TECNICO.md#4-como-rodar-o-projeto-localmente) para o passo a passo completo.
 
 ## Stack
 
-- **Backend:** Node.js, TypeScript, Express, Prisma, PostgreSQL, Socket.io, Baileys
-- **Frontend:** React, TypeScript, Vite, Tailwind CSS, Zustand
+- **Backend:** Node.js, TypeScript, Express, Sequelize, PostgreSQL, Redis, Bull, Socket.io, Baileys
+- **Frontend:** React, Material UI, Create React App/CRACO
+- **API Oficial (Meta):** NestJS, Prisma (microsserviço separado)

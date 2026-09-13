@@ -1,0 +1,528 @@
+/* ═══════════════════════════════════════════════
+   CALENDAR — Modern SaaS Override
+   Prefixed with .schedule-calendar for specificity
+   ═══════════════════════════════════════════════ */
+
+/* ── Toolbar ─────────────────────────────────── */
+.schedule-calendar .rbc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px !important;
+  margin-bottom: 12px !important;
+  border-radius: 12px !important;
+  background: var(--rbc-toolbar-bg, rgba(255,255,255,0.92)) !important;
+  border: 1px solid var(--rbc-border, rgba(15,23,42,0.08)) !important;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.05) !important;
+  font-size: 13px !important;
+}
+
+.schedule-calendar .rbc-toolbar .rbc-toolbar-label {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.1px !important;
+  flex-grow: 1 !important;
+  text-align: center !important;
+}
+
+/* Reset default btn group margins */
+.schedule-calendar .rbc-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.schedule-calendar .rbc-btn-group button + button {
+  margin-left: 0 !important;
+}
+
+/* All toolbar buttons */
+.schedule-calendar .rbc-toolbar button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.1px !important;
+  color: inherit !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease, box-shadow 0.15s ease !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+
+.schedule-calendar .rbc-toolbar button:hover {
+  background: rgba(99,102,241,0.08) !important;
+  border-color: rgba(99,102,241,0.15) !important;
+  color: inherit !important;
+}
+
+.schedule-calendar .rbc-toolbar button.rbc-active,
+.schedule-calendar .rbc-toolbar button:active {
+  background: #4f46e5 !important;
+  border-color: #4f46e5 !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(79,70,229,0.28) !important;
+  background-image: none !important;
+}
+
+.schedule-calendar .rbc-toolbar button.rbc-active:hover {
+  background: #4338ca !important;
+  border-color: #4338ca !important;
+  color: #fff !important;
+}
+
+/* First/last btn in group — keep individual radius */
+.schedule-calendar .rbc-btn-group > button:first-child:not(:last-child) {
+  border-radius: 8px !important;
+}
+.schedule-calendar .rbc-btn-group > button:last-child:not(:first-child) {
+  border-radius: 8px !important;
+}
+.schedule-calendar .rbc-btn-group > button:not(:first-child):not(:last-child) {
+  border-radius: 8px !important;
+}
+
+/* ── Month view grid ─────────────────────────── */
+.schedule-calendar .rbc-month-view {
+  border-radius: 12px !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+
+.schedule-calendar .rbc-month-row + .rbc-month-row {
+  border-top: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+.schedule-calendar .rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+/* Day headers (Mon, Tue…) */
+.schedule-calendar .rbc-header {
+  padding: 10px 6px !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+  color: rgba(100,116,139,0.9) !important;
+  background: rgba(248,250,252,0.95) !important;
+  border-bottom: 1px solid rgba(15,23,42,0.07) !important;
+}
+
+.schedule-calendar .rbc-header + .rbc-header {
+  border-left: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+/* Date number cell */
+.schedule-calendar .rbc-date-cell {
+  padding: 5px 7px 2px !important;
+  text-align: right !important;
+}
+
+.schedule-calendar .rbc-date-cell .rbc-button-link {
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  color: #475569 !important;
+  border-radius: 6px !important;
+  padding: 2px 5px !important;
+  transition: background 0.12s ease !important;
+}
+
+.schedule-calendar .rbc-date-cell .rbc-button-link:hover {
+  background: rgba(99,102,241,0.08) !important;
+  color: #4f46e5 !important;
+}
+
+/* Today */
+.schedule-calendar .rbc-today {
+  background: rgba(238,242,255,0.6) !important;
+}
+
+.schedule-calendar .rbc-today .rbc-button-link {
+  background: #4f46e5 !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  border-radius: 6px !important;
+  padding: 2px 5px !important;
+}
+
+/* Off-range days (prev/next month) */
+.schedule-calendar .rbc-off-range-bg {
+  background: rgba(248,250,252,0.7) !important;
+}
+
+.schedule-calendar .rbc-off-range .rbc-button-link {
+  color: #cbd5e1 !important;
+}
+
+/* Row segment padding */
+.schedule-calendar .rbc-row-segment {
+  padding: 1px 3px 2px !important;
+}
+
+/* ── Events ──────────────────────────────────── */
+.schedule-calendar .rbc-event,
+.schedule-calendar .rbc-day-slot .rbc-background-event {
+  border: none !important;
+  border-radius: 6px !important;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%) !important;
+  box-shadow: 0 2px 6px rgba(79,70,229,0.25) !important;
+  color: #fff !important;
+  padding: 3px 7px !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  transition: transform 0.14s ease, box-shadow 0.14s ease !important;
+  cursor: pointer !important;
+}
+
+.schedule-calendar .rbc-event:hover,
+.schedule-calendar .rbc-day-slot .rbc-background-event:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 14px rgba(79,70,229,0.32) !important;
+}
+
+.schedule-calendar .rbc-event:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.3) !important;
+}
+
+.schedule-calendar .rbc-event.rbc-selected {
+  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%) !important;
+  box-shadow: 0 6px 16px rgba(79,70,229,0.4) !important;
+}
+
+/* Variant override by status */
+.schedule-calendar .rbc-event.schedule-event-sent {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  box-shadow: 0 2px 6px rgba(22,163,74,0.28) !important;
+}
+
+.schedule-calendar .rbc-event.schedule-event-sent:hover {
+  box-shadow: 0 6px 14px rgba(22,163,74,0.35) !important;
+}
+
+.schedule-calendar .rbc-event.schedule-event-sent.rbc-selected {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  box-shadow: 0 6px 16px rgba(21,128,61,0.38) !important;
+}
+
+.schedule-calendar .rbc-event.schedule-event-cancelled {
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%) !important;
+  box-shadow: 0 2px 6px rgba(100,116,139,0.28) !important;
+  opacity: 0.85 !important;
+}
+
+.schedule-calendar .rbc-event.schedule-event-cancelled:hover {
+  box-shadow: 0 6px 14px rgba(100,116,139,0.35) !important;
+}
+
+.schedule-calendar .rbc-event.schedule-event-cancelled.rbc-selected {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important;
+  box-shadow: 0 6px 16px rgba(71,85,105,0.38) !important;
+}
+
+.schedule-calendar .rbc-day-slot .rbc-event {
+  border: none !important;
+  border-left: 3px solid rgba(255,255,255,0.4) !important;
+  overflow: visible !important;
+}
+
+/* Show more */
+.schedule-calendar .rbc-show-more {
+  font-size: 0.69rem !important;
+  font-weight: 700 !important;
+  color: #4f46e5 !important;
+  background: transparent !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+}
+
+.schedule-calendar .rbc-show-more:hover {
+  background: rgba(79,70,229,0.08) !important;
+  color: #4338ca !important;
+}
+
+/* ── Event container (custom title) ─────────── */
+.schedule-calendar .event-container {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+}
+
+.schedule-calendar .event-title {
+  font-size: 0.73rem;
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  flex: 1;
+  letter-spacing: 0.1px;
+}
+
+.schedule-calendar .delete-icon,
+.schedule-calendar .edit-icon,
+.schedule-calendar .cancel-icon {
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform: translateY(2px);
+  font-size: 15px !important;
+  flex-shrink: 0;
+}
+
+.schedule-calendar .event-container:hover .delete-icon,
+.schedule-calendar .event-container:hover .edit-icon,
+.schedule-calendar .event-container:hover .cancel-icon {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+/* Week/Day views: trigger icons when hovering the event badge itself */
+.schedule-calendar .rbc-event:hover .delete-icon,
+.schedule-calendar .rbc-event:hover .edit-icon,
+.schedule-calendar .rbc-event:hover .cancel-icon,
+.schedule-calendar .rbc-day-slot .rbc-event:hover .delete-icon,
+.schedule-calendar .rbc-day-slot .rbc-event:hover .edit-icon,
+.schedule-calendar .rbc-day-slot .rbc-event:hover .cancel-icon {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+/* Keep icons visible inside tighter event wrappers used in time views */
+.schedule-calendar .rbc-event-content {
+  overflow: visible !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+}
+
+/* Week/Day: ensure icons are not clipped and can appear on hover */
+.schedule-calendar .rbc-time-view .rbc-event {
+  overflow: visible !important;
+}
+
+.schedule-calendar .rbc-time-view .event-container {
+  width: 100%;
+}
+
+.schedule-calendar .rbc-time-view .event-title {
+  min-width: 0;
+}
+
+.schedule-calendar .rbc-time-view .rbc-event:hover .delete-icon,
+.schedule-calendar .rbc-time-view .rbc-event:hover .edit-icon,
+.schedule-calendar .rbc-time-view .rbc-event:hover .cancel-icon {
+  opacity: 0.95 !important;
+  transform: translateY(0) !important;
+}
+
+.schedule-calendar .delete-icon:hover,
+.schedule-calendar .edit-icon:hover,
+.schedule-calendar .cancel-icon:hover {
+  opacity: 1 !important;
+}
+
+/* ── Time View ────────────────────────────────── */
+.schedule-calendar .rbc-time-view {
+  border-radius: 12px !important;
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  overflow: hidden !important;
+  background: #fff !important;
+}
+
+.schedule-calendar .rbc-time-view .rbc-allday-cell + .rbc-allday-cell {
+  border-left: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+.schedule-calendar .rbc-time-header {
+  border-bottom: 1px solid rgba(15,23,42,0.07) !important;
+  background: rgba(248,250,252,0.98) !important;
+}
+
+.schedule-calendar .rbc-time-header-content {
+  border-left: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+.schedule-calendar .rbc-time-header > .rbc-row:first-child {
+  border-bottom: 1px solid rgba(15,23,42,0.07) !important;
+}
+
+.schedule-calendar .rbc-timeslot-group {
+  border-bottom: 1px solid rgba(15,23,42,0.05) !important;
+  min-height: 44px !important;
+}
+
+.schedule-calendar .rbc-time-slot {
+  font-size: 0.68rem !important;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+}
+
+.schedule-calendar .rbc-day-slot .rbc-time-slot {
+  border-top: 1px solid rgba(15,23,42,0.04) !important;
+}
+
+.schedule-calendar .rbc-time-content {
+  border-top: 1px solid rgba(15,23,42,0.07) !important;
+}
+
+.schedule-calendar .rbc-time-content > * + * > * {
+  border-left: 1px solid rgba(15,23,42,0.06) !important;
+}
+
+.schedule-calendar .rbc-label {
+  padding: 0 10px !important;
+}
+
+/* Current time indicator */
+.schedule-calendar .rbc-current-time-indicator {
+  height: 2px !important;
+  background: #f63d68 !important;
+  opacity: 0.85 !important;
+}
+
+/* ── Agenda View ──────────────────────────────── */
+.schedule-calendar .rbc-agenda-view {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table {
+  border: 1px solid rgba(15,23,42,0.08) !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  padding: 10px 14px !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase !important;
+  color: #94a3b8 !important;
+  background: rgba(248,250,252,0.98) !important;
+  border-bottom: 1px solid rgba(15,23,42,0.07) !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  padding: 10px 14px !important;
+  font-size: 0.82rem !important;
+  vertical-align: middle !important;
+  border-bottom: 1px solid rgba(15,23,42,0.05) !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr > td + td {
+  border-left: 1px solid rgba(15,23,42,0.05) !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr + tr {
+  border-top: none !important;
+}
+
+.schedule-calendar .rbc-agenda-view table.rbc-agenda-table tbody > tr:hover > td {
+  background: rgba(99,102,241,0.04) !important;
+}
+
+.schedule-calendar .rbc-agenda-date-cell {
+  font-weight: 700 !important;
+  font-size: 0.78rem !important;
+  color: #334155 !important;
+  white-space: nowrap !important;
+}
+
+.schedule-calendar .rbc-agenda-time-cell {
+  font-size: 0.75rem !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  text-transform: none !important;
+}
+
+.schedule-calendar .rbc-agenda-event-cell {
+  width: 100% !important;
+}
+
+.schedule-calendar .rbc-agenda-event-cell .rbc-event {
+  color: #ffffff !important;
+}
+
+.schedule-calendar .rbc-agenda-event-cell .event-title {
+  color: #ffffff !important;
+}
+
+/* "Não há agendamentos" empty state */
+.schedule-calendar .rbc-agenda-empty {
+  padding: 32px !important;
+  text-align: center !important;
+  font-size: 0.85rem !important;
+  color: #94a3b8 !important;
+}
+
+/* ── Overlay (popup for +N more) ─────────────── */
+.schedule-calendar .rbc-overlay {
+  border-radius: 12px !important;
+  border: 1px solid rgba(15,23,42,0.1) !important;
+  box-shadow: 0 16px 40px rgba(15,23,42,0.14) !important;
+  padding: 10px !important;
+  background: #fff !important;
+}
+
+.schedule-calendar .rbc-overlay-header {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  padding: 4px 8px 8px !important;
+  border-bottom: 1px solid rgba(15,23,42,0.07) !important;
+  margin: -8px -8px 8px !important;
+  color: #475569 !important;
+}
+
+/* ── Mobile ───────────────────────────────────── */
+@media (hover: none), (pointer: coarse) {
+  .schedule-calendar .delete-icon,
+  .schedule-calendar .edit-icon,
+  .schedule-calendar .cancel-icon {
+    opacity: 0.9;
+    transform: translateY(0);
+  }
+
+  .schedule-calendar .event-title {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 599px) {
+  .schedule-calendar .rbc-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+  }
+
+  .schedule-calendar .rbc-toolbar .rbc-toolbar-label {
+    order: -1 !important;
+    font-size: 0.88rem !important;
+  }
+
+  .schedule-calendar .rbc-btn-group {
+    justify-content: center !important;
+    flex-wrap: wrap !important;
+  }
+
+  .schedule-calendar .rbc-toolbar button {
+    height: 30px !important;
+    padding: 0 9px !important;
+    font-size: 0.7rem !important;
+  }
+}

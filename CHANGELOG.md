@@ -3,6 +3,38 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.0.0] — Etapa 2: Nova base (migração do zappro-legado) — 2026-09-13
+
+### Alterado
+- **Substituída a base do AtendeFlow**: `backend/` e `frontend/` das Etapas 1/1.1 (Express +
+  Prisma + React simples) foram trocados pelo código do projeto avaliado `zappro-legado`
+  (ver [`docs/AVALIACAO_ZAPPRO_LEGADO.md`](docs/AVALIACAO_ZAPPRO_LEGADO.md)) — bem mais
+  maduro: multi-empresa (SaaS), multi-sessão de WhatsApp com sessão persistida no banco,
+  múltiplos canais (WhatsApp, API Oficial, Facebook, Instagram, webchat), builder de
+  fluxo/chatbot, campanhas, Kanban, relatórios e cobrança de clientes.
+- Adicionado o microsserviço `api_oficial/` (NestJS + Prisma), responsável pela integração
+  com a API Oficial do WhatsApp da Meta.
+- `docker-compose.yml` passou a incluir também **Redis** (necessário para as filas Bull).
+- `package.json` raiz deixou de ser um workspace npm e passou a ter scripts de conveniência
+  para instalar/rodar cada uma das 3 aplicações (agora independentes entre si).
+- Manual técnico reescrito (arquitetura, modelo de dados e como rodar) para refletir a nova
+  base; a versão anterior do manual permanece consultável no histórico do Git.
+
+### Removido (limpeza de dívida técnica, antes de trazer o código)
+- 86 arquivos de rascunho/lixo do projeto original: arquivos `*_old`, `*_backup`,
+  `*dontwork*`, cópias (`* copy*`), um `*_snippet*` e arquivos `*_Zone.Identifier`
+  (metadado do Windows sem função no projeto).
+- Um certificado `.p12` e um arquivo de log que estavam versionados no backup original
+  (já haviam sido removidos antes de publicar o `zappro-legado`, e continuam fora aqui).
+
+### Pendente (próximas etapas)
+- **Etapa 2.1**: aplicar a identidade visual "tech" criada na Etapa 1.1 sobre as ~45 telas
+  do frontend (hoje em Material UI padrão) — trabalho grande, tratado à parte.
+- Confirmar os termos de licenciamento do projeto original (sem `LICENSE` no repositório).
+- `npm install`/build completo de cada aplicação ainda não foi validado neste ambiente
+  (dependências pesadas — Puppeteer, ffmpeg — não foram instaladas durante a migração);
+  validar localmente ou no servidor de destino antes de colocar em produção.
+
 ## [Não versionado] — Runbook de migração de código legado — 2026-09-13
 
 Adicionada ao manual técnico (seção 9) a sequência completa e organizada de comandos usados

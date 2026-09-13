@@ -1,0 +1,623 @@
+import React, { useState, useEffect } from "react";
+
+import * as Yup from "yup";
+import { Formik, Form, Field } from "formik";
+import { toast } from "react-toastify";
+
+import {
+  Typography,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  CircularProgress,
+  Select,
+  InputLabel,
+  MenuItem,
+  FormControl,
+  TextField,
+  Grid,
+} from "@material-ui/core";
+
+import { makeStyles } from "@material-ui/core/styles";
+import { DeviceHub } from "@material-ui/icons";
+
+import { i18n } from "../../translate/i18n";
+
+import api from "../../services/api";
+import toastError from "../../errors/toastError";
+
+const useStyles = makeStyles((theme) => ({
+  dialogPaper: {
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+  dialogTitle: {
+    padding: theme.spacing(2.5, 3, 2),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    backgroundColor:
+      theme.palette.type === "dark"
+        ? "rgba(255,255,255,0.02)"
+        : "rgba(15,23,42,0.02)",
+  },
+  titleRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+  },
+  titleIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor:
+      theme.palette.type === "dark"
+        ? "rgba(99,102,241,0.18)"
+        : "rgba(99,102,241,0.1)",
+    border: "1px solid rgba(99,102,241,0.25)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  titleText: {
+    fontWeight: 700,
+    fontSize: "1.05rem",
+    letterSpacing: "-0.2px",
+    color: theme.palette.type === "dark" ? "#f1f5f9" : "#0f172a",
+    lineHeight: 1.2,
+  },
+  titleSubtext: {
+    fontSize: "0.76rem",
+    color: theme.palette.type === "dark" ? "#94a3b8" : "#64748b",
+    marginTop: 2,
+    fontWeight: 400,
+  },
+  dialogContent: {
+    padding: theme.spacing(2.5, 3),
+  },
+  formControl: {
+    width: "100%",
+  },
+  textField: {
+    width: "100%",
+  },
+  dialogActions: {
+    padding: theme.spacing(1.5, 3),
+    borderTop: `1px solid ${theme.palette.divider}`,
+    gap: theme.spacing(1),
+    backgroundColor:
+      theme.palette.type === "dark"
+        ? "rgba(255,255,255,0.02)"
+        : "rgba(15,23,42,0.02)",
+  },
+  btnLeft: {
+    marginRight: "auto",
+  },
+  btnCancel: {
+    borderRadius: 8,
+    fontWeight: 500,
+    fontSize: "0.78rem",
+    padding: theme.spacing(0.6, 1.6),
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
+    backgroundColor: "transparent",
+    "&:hover": {
+      backgroundColor:
+        theme.palette.type === "dark"
+          ? "rgba(255,255,255,0.06)"
+          : "rgba(15,23,42,0.04)",
+    },
+  },
+  btnGhost: {
+    borderRadius: 8,
+    fontWeight: 500,
+    fontSize: "0.78rem",
+    padding: theme.spacing(0.6, 1.6),
+    border: `1px solid ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
+    backgroundColor: "transparent",
+    "&:hover": {
+      backgroundColor:
+        theme.palette.type === "dark"
+          ? "rgba(255,255,255,0.06)"
+          : "rgba(15,23,42,0.04)",
+    },
+  },
+  btnPrimary: {
+    borderRadius: 8,
+    fontWeight: 600,
+    fontSize: "0.78rem",
+    padding: theme.spacing(0.7, 2),
+    boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
+    "&:hover": {
+      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+    },
+  },
+  btnWrapper: {
+    position: "relative",
+  },
+  buttonProgress: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -12,
+    marginLeft: -12,
+  },
+}));
+
+const DialogflowSchema = Yup.object().shape({
+  name: Yup.string()
+    .min(2, "Too Short!")
+    .max(50, "Too Long!")
+    .required("Required"),
+});
+
+const QueueIntegration = ({ open, onClose, integrationId }) => {
+  const classes = useStyles();
+
+  const initialState = {
+    type: "typebot",
+    name: "",
+    projectName: "",
+    jsonContent: "",
+    language: "",
+    urlN8N: "",
+    typebotDelayMessage: 1000,
+    typebotExpires: 1,
+    typebotKeywordFinish: "",
+    typebotKeywordRestart: "",
+    typebotRestartMessage: "",
+    typebotSlug: "",
+    typebotUnknownMessage: "",
+  };
+
+  const [integration, setIntegration] = useState(initialState);
+
+  useEffect(() => {
+    (async () => {
+      if (!integrationId) return;
+      try {
+        const { data } = await api.get(`/queueIntegration/${integrationId}`);
+        setIntegration((prevState) => {
+          return { ...prevState, ...data };
+        });
+      } catch (err) {
+        toastError(err);
+      }
+    })();
+
+    return () => {
+      setIntegration({
+        type: "dialogflow",
+        name: "",
+        projectName: "",
+        jsonContent: "",
+        language: "",
+        urlN8N: "",
+        typebotDelayMessage: 1000,
+      });
+    };
+  }, [integrationId, open]);
+
+  const handleClose = () => {
+    onClose();
+    setIntegration(initialState);
+  };
+
+  const handleTestSession = async (event, values) => {
+    try {
+      const { projectName, jsonContent, language } = values;
+
+      await api.post(`/queueIntegration/testSession`, {
+        projectName,
+        jsonContent,
+        language,
+      });
+
+      toast.success(i18n.t("queueIntegrationModal.messages.testSuccess"));
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  const handleSaveDialogflow = async (values) => {
+    try {
+      if (
+        values.type === "n8n" ||
+        values.type === "webhook" ||
+        values.type === "typebot" ||
+        values.type === "flowbuilder"
+      )
+        values.projectName = values.name;
+
+      if (integrationId) {
+        await api.put(`/queueIntegration/${integrationId}`, values);
+        toast.success(i18n.t("queueIntegrationModal.messages.editSuccess"));
+      } else {
+        await api.post("/queueIntegration", values);
+        toast.success(i18n.t("queueIntegrationModal.messages.addSuccess"));
+      }
+      handleClose();
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      fullWidth
+      maxWidth="md"
+      scroll="paper"
+      PaperProps={{ className: classes.dialogPaper }}
+    >
+      <DialogTitle disableTypography className={classes.dialogTitle}>
+        <div className={classes.titleRow}>
+          <div className={classes.titleIconWrap}>
+            <DeviceHub style={{ fontSize: 18, color: "#6366f1" }} />
+          </div>
+          <div>
+            <Typography className={classes.titleText}>
+              {integrationId
+                ? i18n.t("queueIntegrationModal.title.edit")
+                : i18n.t("queueIntegrationModal.title.add")}
+            </Typography>
+            <Typography className={classes.titleSubtext}>
+              {integrationId
+                ? "Edite as configurações da integração"
+                : "Configure uma nova integração externa"}
+            </Typography>
+          </div>
+        </div>
+      </DialogTitle>
+
+      <Formik
+        initialValues={integration}
+        enableReinitialize={true}
+        validationSchema={DialogflowSchema}
+        onSubmit={(values, actions) => {
+          setTimeout(() => {
+            handleSaveDialogflow(values);
+            actions.setSubmitting(false);
+          }, 400);
+        }}
+      >
+        {({ touched, errors, isSubmitting, values }) => (
+          <Form>
+            <DialogContent dividers className={classes.dialogContent}>
+              <Grid container spacing={2}>
+                <Grid item xs={12} md={6}>
+                  <FormControl
+                    variant="outlined"
+                    className={classes.formControl}
+                    margin="dense"
+                    fullWidth
+                  >
+                    <InputLabel id="type-selection-input-label">
+                      {i18n.t("queueIntegrationModal.form.type")}
+                    </InputLabel>
+
+                    <Field
+                      as={Select}
+                      label={i18n.t("queueIntegrationModal.form.type")}
+                      name="type"
+                      labelId="profile-selection-label"
+                      error={touched.type && Boolean(errors.type)}
+                      helpertext={touched.type && errors.type}
+                      id="type"
+                      required
+                    >
+                      <MenuItem value="dialogflow">DialogFlow</MenuItem>
+                      <MenuItem value="n8n">N8N</MenuItem>
+                      <MenuItem value="webhook">WebHooks</MenuItem>
+                      <MenuItem value="typebot">Typebot</MenuItem>
+                      <MenuItem value="flowbuilder">Flowbuilder</MenuItem>
+                    </Field>
+                  </FormControl>
+                </Grid>
+
+                {values.type === "dialogflow" && (
+                  <>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.name")}
+                        autoFocus
+                        name="name"
+                        fullWidth
+                        error={touched.name && Boolean(errors.name)}
+                        helpertext={touched.name && errors.name}
+                        variant="outlined"
+                        margin="dense"
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <FormControl
+                        variant="outlined"
+                        className={classes.formControl}
+                        margin="dense"
+                        fullWidth
+                      >
+                        <InputLabel id="language-selection-input-label">
+                          {i18n.t("queueIntegrationModal.form.language")}
+                        </InputLabel>
+
+                        <Field
+                          as={Select}
+                          label={i18n.t("queueIntegrationModal.form.language")}
+                          name="language"
+                          labelId="profile-selection-label"
+                          fullWidth
+                          error={touched.language && Boolean(errors.language)}
+                          helpertext={touched.language && errors.language}
+                          id="language-selection"
+                          required
+                        >
+                          <MenuItem value="pt-BR">Portugues</MenuItem>
+                          <MenuItem value="en">Inglês</MenuItem>
+                          <MenuItem value="es">Español</MenuItem>
+                        </Field>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.projectName")}
+                        name="projectName"
+                        error={touched.projectName && Boolean(errors.projectName)}
+                        helpertext={touched.projectName && errors.projectName}
+                        fullWidth
+                        variant="outlined"
+                        margin="dense"
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.jsonContent")}
+                        type="jsonContent"
+                        multiline
+                        maxRows={5}
+                        minRows={5}
+                        fullWidth
+                        name="jsonContent"
+                        error={touched.jsonContent && Boolean(errors.jsonContent)}
+                        helpertext={touched.jsonContent && errors.jsonContent}
+                        variant="outlined"
+                        margin="dense"
+                        className={classes.textField}
+                      />
+                    </Grid>
+                  </>
+                )}
+
+                {(values.type === "n8n" || values.type === "webhook") && (
+                  <>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.name")}
+                        autoFocus
+                        required
+                        name="name"
+                        error={touched.name && Boolean(errors.name)}
+                        helpertext={touched.name && errors.name}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.urlN8N")}
+                        name="urlN8N"
+                        error={touched.urlN8N && Boolean(errors.urlN8N)}
+                        helpertext={touched.urlN8N && errors.urlN8N}
+                        variant="outlined"
+                        margin="dense"
+                        required
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                  </>
+                )}
+
+                {values.type === "flowbuilder" && (
+                  <Grid item xs={12} md={6}>
+                    <Field
+                      as={TextField}
+                      label={i18n.t("queueIntegrationModal.form.name")}
+                      autoFocus
+                      name="name"
+                      fullWidth
+                      error={touched.name && Boolean(errors.name)}
+                      helpertext={touched.name && errors.name}
+                      variant="outlined"
+                      margin="dense"
+                      className={classes.textField}
+                    />
+                  </Grid>
+                )}
+
+                {values.type === "typebot" && (
+                  <>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.name")}
+                        autoFocus
+                        name="name"
+                        error={touched.name && Boolean(errors.name)}
+                        helpertext={touched.name && errors.name}
+                        variant="outlined"
+                        margin="dense"
+                        required
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.urlN8N")}
+                        name="urlN8N"
+                        error={touched.urlN8N && Boolean(errors.urlN8N)}
+                        helpertext={touched.urlN8N && errors.urlN8N}
+                        variant="outlined"
+                        margin="dense"
+                        required
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotSlug")}
+                        name="typebotSlug"
+                        error={touched.typebotSlug && Boolean(errors.typebotSlug)}
+                        helpertext={touched.typebotSlug && errors.typebotSlug}
+                        required
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotExpires")}
+                        name="typebotExpires"
+                        error={touched.typebotExpires && Boolean(errors.typebotExpires)}
+                        helpertext={touched.typebotExpires && errors.typebotExpires}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotDelayMessage")}
+                        name="typebotDelayMessage"
+                        error={touched.typebotDelayMessage && Boolean(errors.typebotDelayMessage)}
+                        helpertext={touched.typebotDelayMessage && errors.typebotDelayMessage}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotKeywordFinish")}
+                        name="typebotKeywordFinish"
+                        error={touched.typebotKeywordFinish && Boolean(errors.typebotKeywordFinish)}
+                        helpertext={touched.typebotKeywordFinish && errors.typebotKeywordFinish}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotKeywordRestart")}
+                        name="typebotKeywordRestart"
+                        error={touched.typebotKeywordRestart && Boolean(errors.typebotKeywordRestart)}
+                        helpertext={touched.typebotKeywordRestart && errors.typebotKeywordRestart}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotUnknownMessage")}
+                        name="typebotUnknownMessage"
+                        error={touched.typebotUnknownMessage && Boolean(errors.typebotUnknownMessage)}
+                        helpertext={touched.typebotUnknownMessage && errors.typebotUnknownMessage}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Field
+                        as={TextField}
+                        label={i18n.t("queueIntegrationModal.form.typebotRestartMessage")}
+                        name="typebotRestartMessage"
+                        error={touched.typebotRestartMessage && Boolean(errors.typebotRestartMessage)}
+                        helpertext={touched.typebotRestartMessage && errors.typebotRestartMessage}
+                        variant="outlined"
+                        margin="dense"
+                        fullWidth
+                        className={classes.textField}
+                      />
+                    </Grid>
+                  </>
+                )}
+              </Grid>
+            </DialogContent>
+
+            <DialogActions className={classes.dialogActions}>
+              {values.type === "dialogflow" && (
+                <Button
+                  onClick={(e) => handleTestSession(e, values)}
+                  disabled={isSubmitting}
+                  name="testSession"
+                  variant="outlined"
+                  className={`${classes.btnGhost} ${classes.btnLeft}`}
+                >
+                  {i18n.t("queueIntegrationModal.buttons.test")}
+                </Button>
+              )}
+
+              <Button
+                onClick={handleClose}
+                disabled={isSubmitting}
+                variant="outlined"
+                className={classes.btnCancel}
+              >
+                {i18n.t("queueIntegrationModal.buttons.cancel")}
+              </Button>
+
+              <div className={classes.btnWrapper}>
+                <Button
+                  type="submit"
+                  color="primary"
+                  disabled={isSubmitting}
+                  variant="contained"
+                  className={classes.btnPrimary}
+                >
+                  {integrationId
+                    ? i18n.t("queueIntegrationModal.buttons.okEdit")
+                    : i18n.t("queueIntegrationModal.buttons.okAdd")}
+                </Button>
+                {isSubmitting && (
+                  <CircularProgress size={24} className={classes.buttonProgress} />
+                )}
+              </div>
+            </DialogActions>
+          </Form>
+        )}
+      </Formik>
+    </Dialog>
+  );
+};
+
+export default QueueIntegration;

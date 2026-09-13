@@ -1,152 +1,116 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 1.1.0
-**Etapa:** 1.1 — Redesign da interface
+**Versão do documento:** 2.0.0
+**Etapa:** 2 — Nova base (migração para o `zappro-legado`)
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
 > [`CHANGELOG.md`](../CHANGELOG.md), na raiz do repositório.
 
+> ⚠️ **Mudança de base na v2.0.0**: a partir desta versão, o AtendeFlow deixou de usar a
+> estrutura enxuta criada nas Etapas 1/1.1 (Express + Prisma + React simples) e passou a
+> usar como base o sistema `zappro-legado` — um projeto de multi atendimento bem mais
+> maduro, recuperado de um backup e avaliado em
+> [`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md). As seções 1 a 7 abaixo
+> descrevem essa nova base. O histórico da versão anterior continua disponível nos commits
+> `c925da4` e `630ab4d` deste repositório, caso seja preciso consultar.
+
 ---
 
 ## 1. Visão geral
 
-O **AtendeFlow** é um CRM de **multi atendimento**: várias pessoas (atendentes) conseguem atender,
-simultaneamente, conversas de clientes vindas do WhatsApp, organizadas em uma caixa de entrada
-compartilhada, com atribuição de conversa por atendente e por fila (departamento).
-
-Nesta primeira versão (v1.0.0), a conexão com o WhatsApp é feita através da biblioteca
-[Baileys](https://github.com/WhiskeySockets/Baileys) (`@whiskeysockets/baileys`), que se conecta
-usando o protocolo do WhatsApp Web — o pareamento é feito escaneando um QR Code, sem depender de uma
-API paga.
+O **AtendeFlow** é um CRM de **multi atendimento**: várias empresas (multi-tenant) e,
+dentro de cada uma, vários atendentes conseguem atender simultaneamente conversas de
+clientes vindas de múltiplos canais — WhatsApp (via Baileys), API Oficial do WhatsApp
+(Meta), Facebook, Instagram e webchat — tudo numa caixa de entrada compartilhada, com
+filas, tags, automações e relatórios.
 
 ---
 
 ## 2. Arquitetura
 
+O sistema é dividido em **três aplicações independentes**, cada uma com seu próprio
+`package.json` e ciclo de vida:
+
 ```
 Bernardino/
-├── backend/     -> API REST + WebSocket + integração com WhatsApp (Baileys)
-├── frontend/    -> Interface web (inbox, conexão WhatsApp, configurações)
-├── docs/        -> Este manual técnico
-├── CHANGELOG.md -> Histórico de versões/etapas
-└── docker-compose.yml -> PostgreSQL para desenvolvimento
+├── backend/       -> API principal (Express + Sequelize) + WhatsApp (Baileys) + filas (Bull/Redis)
+├── frontend/      -> Interface web (React + Material UI)
+├── api_oficial/   -> Microsserviço isolado para a API Oficial do WhatsApp (Meta) — NestJS + Prisma
+├── docs/          -> Documentação técnica (este manual, avaliações, runbooks)
+├── instalador.sh  -> Script de atualização/rebuild para uma instância já provisionada
+└── docker-compose.yml -> PostgreSQL + Redis para desenvolvimento local
 ```
 
-### 2.1 Backend
+### 2.1 Backend (`backend/`)
 
 | Camada | Tecnologia |
 | --- | --- |
 | Linguagem | TypeScript (Node.js) |
 | Framework HTTP | Express |
-| Banco de dados | PostgreSQL |
-| ORM | Prisma |
-| Autenticação | JWT (`jsonwebtoken`) + hash de senha (`bcryptjs`) |
+| Banco de dados | PostgreSQL (ou MySQL) via **Sequelize** (não Prisma) |
+| Filas assíncronas | **Bull** + Redis (processamento de mensagens, evita travar a API em picos) |
+| WhatsApp | **Baileys** (multi-sessão, multi-empresa, reconexão automática) |
 | Tempo real | Socket.io |
-| WhatsApp | Baileys (`@whiskeysockets/baileys`) |
-| Validação de entrada | Zod |
+| IA | OpenAI, Google Gemini, Dialogflow, transcrição de áudio (Azure Cognitive Services) |
+| Cobrança | Mercado Pago, Efí/Gerencianet, Asaas, PushinPay |
+| Multi-instância | Suporta modo **cluster** (`server-cluster.ts`, um worker por núcleo de CPU) |
 
-Estrutura de pastas (`backend/src`):
+Pontos importantes:
+- **Multi-tenant real**: praticamente toda tabela tem `companyId` — várias empresas
+  isoladas na mesma instância, com planos/assinaturas/faturas.
+- **Sessão do WhatsApp persistida no banco de dados** (não em arquivo local como na versão
+  anterior) — funciona corretamente mesmo com múltiplas instâncias/cluster. Ver
+  `backend/src/helpers/authState.ts`.
+- Migrações do banco ficam em `backend/src/database/migrations/` (Sequelize CLI).
 
-```
-config/env.ts              -> variáveis de ambiente centralizadas
-lib/prisma.ts               -> instância única do Prisma Client
-lib/socket.ts                -> instância do Socket.io e helpers de emissão de eventos
-middleware/auth.ts          -> requireAuth / requireRole (proteção de rotas)
-middleware/errorHandler.ts  -> tratamento centralizado de erros
-utils/jwt.ts                 -> assinar/verificar token JWT
-utils/asyncHandler.ts        -> wrapper para rotas assíncronas do Express
-modules/auth.routes.ts       -> cadastro, login, sessão do usuário
-modules/users.routes.ts      -> listagem e papel (role) de atendentes
-modules/queues.routes.ts     -> filas de atendimento (departamentos)
-modules/contacts.routes.ts   -> contatos (clientes)
-modules/conversations.routes.ts -> conversas, atribuição e status
-modules/messages.routes.ts   -> envio de mensagens (dispara o envio via WhatsApp)
-modules/whatsapp/whatsapp.service.ts -> integração com Baileys (conectar, QR, enviar, receber)
-modules/whatsapp/whatsapp.routes.ts  -> endpoints para gerenciar sessões do WhatsApp
-app.ts                        -> montagem do Express e das rotas
-server.ts                     -> ponto de entrada (HTTP + Socket.io + restauração de sessões)
-```
-
-### 2.2 Frontend
+### 2.2 Frontend (`frontend/`)
 
 | Camada | Tecnologia |
 | --- | --- |
-| Linguagem | TypeScript (React) |
-| Build tool | Vite |
-| Estilo | Tailwind CSS |
-| Estado global | Zustand |
-| Requisições HTTP | Axios |
-| Tempo real | socket.io-client |
-| Rotas | React Router |
+| Linguagem | JavaScript (React 17) |
+| Estilo | Material UI (v4 **e** v5 coexistindo — ver seção 6) |
+| Build | Create React App + CRACO |
+| i18n | 4 idiomas (pt, en, es, tr) |
 
-Estrutura de pastas (`frontend/src`):
+~45 telas — ver inventário completo em
+[`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md#3-inventário-de-funcionalidades-o-que-já-existe-pronto).
 
-```
-pages/           -> LoginPage, RegisterPage, InboxPage, WhatsAppPage, SettingsPage
-components/      -> Sidebar, Topbar, ConversationList, ChatWindow, ProtectedRoute,
-                    Logo, StatusPill, StatCard, EmptyState, icons.tsx
-store/           -> authStore (sessão do usuário), inboxStore (conversas/mensagens)
-services/        -> api.ts (Axios + JWT), socket.ts (conexão Socket.io)
-types/           -> tipos TypeScript compartilhados (User, Contact, Conversation, Message)
-```
+### 2.3 API Oficial (`api_oficial/`)
 
-### 2.2.1 Design system (desde a v1.1.0)
+Microsserviço **separado** (processo/deploy independente do backend principal),
+responsável só pela integração com a API Oficial do WhatsApp da Meta.
 
-A interface segue uma identidade visual "tech", escura, definida em `tailwind.config.js` e
-`src/index.css`:
-
-| Token | Uso |
+| Camada | Tecnologia |
 | --- | --- |
-| `ink-900` / `ink-950` | Fundo da aplicação (azul-marinho bem escuro) |
-| `brand-500` (violeta) → `accent-400` (ciano) | Gradiente de marca (`bg-brand-gradient`), usado em botões primários, logo e mensagens enviadas |
-| `.glass` | Painéis translúcidos com desfoque (glassmorphism) |
-| `StatusPill` | Selo colorido com legenda para status (conversa, sessão do WhatsApp, atendente online/offline) |
-| `EmptyState` | Estado vazio com ícone, título e explicação — usado sempre que uma lista está sem dados |
-| Fontes | `Space Grotesk` (títulos), `Inter` (texto), `JetBrains Mono` (dados técnicos como nome de sessão) |
+| Framework | NestJS |
+| Banco de dados | PostgreSQL via **Prisma** (diferente do backend principal, que usa Sequelize) |
+| Filas | RabbitMQ + Redis |
 
-Esses tokens devem ser reaproveitados em novas telas para manter a identidade visual consistente.
-
-### 2.3 Fluxo de uma mensagem recebida
-
-```
-WhatsApp do cliente
-   │  (mensagem)
-   ▼
-Baileys (whatsapp.service.ts → messages.upsert)
-   │  cria/atualiza Contact e Conversation, grava Message (status DELIVERED)
-   ▼
-Socket.io → evento "message:new"
-   ▼
-Frontend (InboxPage) atualiza a lista de conversas e o chat em tempo real
-```
-
-### 2.4 Fluxo de uma mensagem enviada por um atendente
-
-```
-Atendente digita no ChatWindow → POST /messages
-   ▼
-messages.routes.ts grava Message (status PENDING)
-   ▼
-whatsapp.service.ts → socket.sendMessage(jid, texto) via Baileys
-   ▼
-Message atualizada para SENT (ou FAILED em caso de erro)
-```
+O backend principal se comunica com este microsserviço via HTTP (`URL_API_OFICIAL`) quando
+`USE_WHATSAPP_OFICIAL=true`.
 
 ---
 
-## 3. Modelo de dados (Prisma)
+## 3. Modelo de dados
+
+O modelo de dados é extenso (dezenas de tabelas) — a fonte da verdade são as migrações em
+`backend/src/database/migrations/`. Principais entidades:
 
 | Modelo | Descrição |
 | --- | --- |
-| `User` | Atendente/administrador do sistema (`role`: `ADMIN` ou `AGENT`; `status`: `ONLINE`/`OFFLINE`) |
-| `Queue` | Fila/departamento de atendimento (ex: Suporte, Vendas) |
-| `Contact` | Cliente identificado pelo número/JID do WhatsApp |
-| `Conversation` | Uma conversa entre um `Contact` e a empresa; pode estar `OPEN`, `PENDING` ou `CLOSED`; pode estar atribuída a um `User` e/ou `Queue` |
-| `Message` | Mensagem trocada em uma `Conversation`, com direção (`INBOUND`/`OUTBOUND`), remetente (`CONTACT`/`AGENT`/`SYSTEM`) e status de entrega |
-| `WhatsAppSession` | Sessão de conexão com o WhatsApp (nome, status, QR Code atual) |
-
-O arquivo-fonte da modelagem está em [`backend/prisma/schema.prisma`](../backend/prisma/schema.prisma).
+| `Company` | Empresa (tenant) — planos, assinatura, configurações, faturas |
+| `User` | Atendente/administrador, vinculado a uma `Company` |
+| `Whatsapp` | Conexão/sessão de canal (WhatsApp, oficial, facebook, instagram, webchat) |
+| `Contact` | Cliente final |
+| `Ticket` | Conversa (equivalente à `Conversation` da versão anterior) |
+| `Message` | Mensagem trocada num `Ticket` |
+| `Queue` | Fila de atendimento |
+| `Tag` | Etiqueta, com suporte a quadro Kanban |
+| `Campaign` / `CampaignShipping` | Campanha de disparo em massa e seus envios |
+| `FlowBuilder` | Fluxo de chatbot criado no builder visual |
+| `Schedule` / `ScheduledMessages` | Agendamentos de mensagem |
+| `Plan` / `Subscriptions` / `Invoices` | Cobrança da própria plataforma (SaaS) |
 
 ---
 
@@ -154,113 +118,102 @@ O arquivo-fonte da modelagem está em [`backend/prisma/schema.prisma`](../backen
 
 ### 4.1 Pré-requisitos
 
-- Node.js 18 ou superior
-- Docker (para subir o PostgreSQL) — ou um PostgreSQL já instalado
-- Um número de WhatsApp para escanear o QR Code (pode ser um número de testes)
+- Node.js 20
+- Docker (para PostgreSQL e Redis) — ou instalações locais equivalentes
+- Um número de WhatsApp para escanear o QR Code
 
 ### 4.2 Passo a passo
 
 ```bash
-# 1. Instalar as dependências do monorepo (backend + frontend)
-npm install
-
-# 2. Subir o banco de dados PostgreSQL
+# 1. Subir PostgreSQL e Redis
 docker compose up -d
 
-# 3. Configurar variáveis de ambiente
+# 2. Configurar variáveis de ambiente
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
+cp api_oficial/.env.exemplo api_oficial/.env   # opcional, só se for usar a API Oficial
 
-# 4. Rodar as migrações do banco (cria as tabelas)
-npm run prisma:migrate
+# 3. Instalar dependências (cada app é independente)
+npm run install:backend
+npm run install:frontend
+# npm run install:api-oficial   # opcional
 
-# 5. Subir backend e frontend juntos
-npm run dev
+# 4. Rodar as migrações do banco
+npm run db:migrate
+npm run db:seed   # cria empresa/usuário padrão
+
+# 5. Subir backend e frontend (em terminais separados)
+npm run dev:backend
+npm run dev:frontend
 ```
 
-- Backend: http://localhost:3333 (rota de saúde: `GET /health`)
-- Frontend: http://localhost:5173
+> Consulte `backend/.env.example` e `frontend/.env.example` para a lista completa de
+> variáveis — muitas são opcionais (só necessárias se for usar aquela integração
+> específica, como cobrança ou IA).
 
 ### 4.3 Primeiro acesso
 
-1. Acesse `http://localhost:5173/register` e crie a primeira conta — ela vira automaticamente
-   `ADMIN`.
-2. Vá até **Conexão WhatsApp**, informe um nome para a sessão e clique em **Nova conexão**.
-3. Escaneie o QR Code exibido na tela com o WhatsApp do celular
-   (**Configurações > Aparelhos conectados > Conectar um aparelho**).
-4. Assim que conectar, mensagens recebidas nesse número já aparecem na **Caixa de entrada**.
+O seed (`npm run db:seed`) cria uma empresa e um usuário administrador padrão — veja os
+valores em `backend/src/database/seeds/`. Troque a senha no primeiro login.
 
 ---
 
-## 5. Referência da API (v1.0.0)
+## 5. Funcionalidades
 
-Todas as rotas abaixo (exceto `/health`, `/auth/register` e `/auth/login`) exigem o cabeçalho
-`Authorization: Bearer <token>`.
-
-| Método | Rota | Descrição |
-| --- | --- | --- |
-| GET | `/health` | Verifica se a API está no ar |
-| POST | `/auth/register` | Cria um usuário (o primeiro vira ADMIN) |
-| POST | `/auth/login` | Autentica e retorna o token JWT |
-| GET | `/auth/me` | Retorna o usuário autenticado |
-| POST | `/auth/logout` | Marca o usuário como offline |
-| GET | `/users` | Lista os atendentes |
-| PATCH | `/users/:id/role` | Altera o papel de um atendente (somente ADMIN) |
-| GET | `/queues` | Lista as filas |
-| POST | `/queues` | Cria uma fila (somente ADMIN) |
-| DELETE | `/queues/:id` | Remove uma fila (somente ADMIN) |
-| GET | `/contacts` | Lista/busca contatos |
-| GET | `/contacts/:id` | Detalhe de um contato |
-| GET | `/conversations` | Lista conversas (filtro opcional `?status=`) |
-| GET | `/conversations/:id/messages` | Histórico de mensagens de uma conversa |
-| PATCH | `/conversations/:id/assign` | Atribui/remove um atendente da conversa |
-| PATCH | `/conversations/:id/status` | Altera o status da conversa |
-| POST | `/messages` | Envia uma mensagem (atendente → WhatsApp do contato) |
-| GET | `/whatsapp/sessions` | Lista as sessões do WhatsApp |
-| POST | `/whatsapp/sessions` | Cria/inicia uma sessão (gera QR Code) — somente ADMIN |
-| POST | `/whatsapp/sessions/:name/disconnect` | Desconecta uma sessão — somente ADMIN |
-
-### Eventos de tempo real (Socket.io)
-
-| Evento | Quando ocorre |
-| --- | --- |
-| `message:new` | Nova mensagem recebida do WhatsApp |
-| `conversation:updated` | Conversa atribuída ou com status alterado |
-| `whatsapp:qr` | Novo QR Code gerado para pareamento |
-| `whatsapp:status` | Sessão do WhatsApp conectou/desconectou |
+Inventário completo em
+[`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md#3-inventário-de-funcionalidades-o-que-já-existe-pronto) —
+inclui builder de fluxo/chatbot, campanhas, Kanban, relatórios, cobrança de clientes (SaaS),
+agendamentos, listas de contato, respostas rápidas, entre outros.
 
 ---
 
-## 6. Decisões técnicas e limitações da v1.0.0
+## 6. Identidade visual — pendente (Etapa 2.1)
 
-- **Baileys em vez de API oficial**: escolhido conforme decisão do projeto, por não depender de
-  aprovação/custo de API paga. Ponto de atenção: é uma biblioteca não-oficial que se conecta como
-  WhatsApp Web, então o número precisa ficar com o app do WhatsApp ativo no celular.
-- **Sessão do WhatsApp em arquivo local** (`backend/sessions/<nome-da-sessão>/`): simples e suficiente
-  para uma única instância do backend. **Não** deve ser usada assim se o sistema rodar em múltiplos
-  servidores/containers — nesse caso, migrar para um armazenamento compartilhado (banco de dados ou
-  Redis) nas próximas etapas.
-- **Uma única sessão conectada envia mensagens**: hoje o sistema usa a primeira sessão conectada para
-  enviar qualquer mensagem. Multiplicar isso por fila/número é trabalho da Etapa 2.
-- **Sem suporte a mídia** (imagem, áudio, vídeo, documento) nesta versão — apenas texto.
-- **Sem testes automatizados** nesta etapa.
+A migração desta versão trouxe o **código** do `zappro-legado`, mas **não** a identidade
+visual "tech" (tema escuro, gradiente, componentes `StatusPill`/`EmptyState`/etc.) criada
+na Etapa 1.1 — o frontend atual usa o Material UI padrão do projeto original.
+
+Aplicar essa identidade em ~45 telas é um trabalho grande à parte, planejado como
+**Etapa 2.1**. Enquanto isso não acontece, uma vitória rápida: o frontend já tem suporte a
+**whitelabel** embutido (nome da empresa, logo, cores) em `frontend/src/components/Settings/Whitelabel.js`
+— dá pra já personalizar nome e cores por ali sem mexer em código.
 
 ---
 
-## 7. Histórico de versões
+## 7. Decisões técnicas e riscos conhecidos
 
-Ver [`CHANGELOG.md`](../CHANGELOG.md) na raiz do repositório para o detalhamento de cada etapa
-entregue e as próximas etapas planejadas.
-
-## 8. Avaliação do projeto legado (zappro-legado)
-
-Um sistema antigo e mais maduro de multi atendimento, recuperado de um backup, foi avaliado
-como possível nova base para o AtendeFlow. Ver o relatório completo em
-[`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md).
+- **Sem arquivo de licença (`LICENSE`)** no projeto original — o `zappro-legado` aparenta
+  derivar do projeto open-source Whaticket. Antes de usar/revender comercialmente, vale
+  confirmar os termos de licenciamento.
+- **Duas versões de Material UI convivendo** (`@material-ui/*` v4 e `@mui/*` v5) —
+  indica uma migração incompleta no projeto original; ao mexer em telas antigas, prestar
+  atenção em qual versão cada componente usa.
+- **`api_oficial` usa Prisma enquanto o `backend` usa Sequelize** — dois ORMs diferentes no
+  mesmo sistema; são bancos de dados/processos separados, então não há conflito direto, mas
+  é bom ter isso em mente ao dar manutenção.
+- **`instalador.sh`** é, na prática, um script de **atualização** de uma instância já
+  provisionada (reinstala dependências, builda e reinicia via PM2) — não faz o setup
+  inicial completo (não roda migração de banco, não cria `.env`, não configura PM2 do
+  zero). Ver o script para o passo a passo exato.
+- Já removidos antes desta migração: um certificado `.p12` que estava versionado no
+  backup original, arquivos de rascunho/quebrados (`*_old`, `*_backup`, `*dontwork*`) e 86
+  arquivos de lixo do Windows (`*_Zone.Identifier`).
 
 ---
 
-## 9. Runbook: migrar código-fonte de um backup local para o GitHub
+## 8. Histórico de versões
+
+Ver [`CHANGELOG.md`](../CHANGELOG.md) na raiz do repositório para o detalhamento de cada
+etapa entregue e as próximas etapas planejadas.
+
+## 9. Avaliação do projeto legado (zappro-legado)
+
+Relatório completo da avaliação que embasou a decisão de adotar este projeto como nova
+base do AtendeFlow: [`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md).
+
+---
+
+## 10. Runbook: migrar código-fonte de um backup local para o GitHub
 
 **Ambiente testado:** Ubuntu 24.04 (também vale para outras distros baseadas em Debian/Ubuntu).
 
@@ -268,7 +221,7 @@ Roteiro usado para resgatar o `zappro-legado` de um backup de servidor (zip de 5
 publicá-lo num repositório GitHub, já limpo de dependências, mídia de cliente e backups
 redundantes. Serve de referência para qualquer migração parecida no futuro.
 
-### 9.1 Instalar o Git (se necessário)
+### 10.1 Instalar o Git (se necessário)
 
 ```bash
 sudo apt update
@@ -276,7 +229,7 @@ sudo apt install git -y
 git --version
 ```
 
-### 9.2 Configurar identidade do Git (uma vez por máquina)
+### 10.2 Configurar identidade do Git (uma vez por máquina)
 
 ```bash
 git config --global user.name "Seu Nome"
@@ -284,7 +237,7 @@ git config --global user.email "seu-email@exemplo.com"
 git config --global init.defaultBranch main
 ```
 
-### 9.3 Extrair o backup (se ainda estiver zipado)
+### 10.3 Extrair o backup (se ainda estiver zipado)
 
 ```bash
 mkdir -p ~/projeto-antigo
@@ -292,7 +245,7 @@ unzip "/caminho/para/o/arquivo.zip" -d ~/projeto-antigo
 cd ~/projeto-antigo
 ```
 
-### 9.4 Descobrir o que está ocupando espaço
+### 10.4 Descobrir o que está ocupando espaço
 
 Backups de servidor costumam vir com `node_modules`, builds, mídia de cliente e cópias
 redundantes — o código-fonte de verdade normalmente é uma fração pequena do total.
@@ -305,7 +258,7 @@ du -sh .
 du -h --max-depth=3 . 2>/dev/null | sort -rh | head -30
 ```
 
-### 9.5 Remover o que não é código-fonte
+### 10.5 Remover o que não é código-fonte
 
 ```bash
 # Dependências, builds e caches (seguros de apagar — são gerados de novo com npm install/build)
@@ -323,7 +276,7 @@ find caminho/para/public -maxdepth 1 -type d -name "empresaN*" -exec rm -rf {} +
 du -sh .
 ```
 
-### 9.6 ⚠️ Procurar credenciais sensíveis antes de subir
+### 10.6 ⚠️ Procurar credenciais sensíveis antes de subir
 
 **Nunca** suba certificados, chaves privadas ou arquivos `.env` reais para o Git — mesmo em
 repositório privado.
@@ -345,7 +298,7 @@ echo "caminho/para/arquivo-sensivel.p12" >> .gitignore
 Se a credencial já foi commitada (mesmo que depois removida), considere-a exposta e
 **revogue/troque-a** — remover do commit atual não apaga do histórico do Git.
 
-### 9.7 Inicializar o repositório e commitar
+### 10.7 Inicializar o repositório e commitar
 
 ```bash
 cd ~/projeto-antigo
@@ -355,7 +308,7 @@ git commit -m "Código-fonte do projeto antigo"
 git branch -M main
 ```
 
-### 9.8 Criar o repositório vazio no GitHub
+### 10.8 Criar o repositório vazio no GitHub
 
 No navegador, acesse **https://github.com/new**:
 - Dê um nome ao repositório
@@ -365,7 +318,7 @@ No navegador, acesse **https://github.com/new**:
 - Clique em **Create repository** e copie a URL mostrada (formato
   `https://github.com/usuario/nome-do-repo.git`)
 
-### 9.9 Gerar um token de acesso (Personal Access Token)
+### 10.9 Gerar um token de acesso (Personal Access Token)
 
 Desde 2021 o GitHub não aceita mais a senha normal da conta para operações Git por HTTPS —
 é obrigatório usar um token.
@@ -381,7 +334,7 @@ Desde 2021 o GitHub não aceita mais a senha normal da conta para operações Gi
 > seja o prompt do próprio terminal.** Se ele vazar, revogue imediatamente em
 > https://github.com/settings/tokens e gere outro.
 
-### 9.10 Subir o código
+### 10.10 Subir o código
 
 ```bash
 git remote add origin https://github.com/usuario/nome-do-repo.git
@@ -393,16 +346,17 @@ Quando pedir:
 - **Password** → cole o token gerado no passo anterior (não aparece nada na tela ao colar
   — é o comportamento normal do terminal, não quer dizer que falhou)
 
-### 9.11 Erros comuns e como resolver
+### 10.11 Erros comuns e como resolver
 
 | Mensagem de erro | Causa | Solução |
 | --- | --- | --- |
-| `Password authentication is not supported for Git operations` | Foi digitada a senha normal da conta em vez do token | Gerar um token (passo 9.9) e usá-lo no campo de senha |
+| `Password authentication is not supported for Git operations` | Foi digitada a senha normal da conta em vez do token | Gerar um token (passo 10.9) e usá-lo no campo de senha |
 | `remote: Repository not found` | A URL do remote (`git remote add origin ...`) está errada ou o repositório não existe | Confirmar com `git remote -v` e corrigir com `git remote set-url origin <url-correta>` |
-| `remote: Write access to repository not granted` (403) | O token usado é do tipo **fine-grained** sem permissão de escrita configurada, ou não tem o escopo certo | Gerar um token **classic** com o escopo `repo` marcado (passo 9.9) |
+| `remote: Write access to repository not granted` (403) | O token usado é do tipo **fine-grained** sem permissão de escrita configurada, ou não tem o escopo certo | Gerar um token **classic** com o escopo `repo` marcado (passo 10.9) |
 | `fatal: repositorio ... no encontrado` (com a URL literal `SEU-USUARIO/NOME-DO-REPO`) | Um comando de exemplo foi copiado sem substituir pelos dados reais | Rodar `git remote set-url origin <url-real-copiada-do-github>` |
+| `remote: Claude doesn't have GitHub access to <repo> for your organization` (403, ao dar push a partir de uma sessão do Claude Code) | O GitHub App do Claude não tem (ou perdeu) acesso a esse repositório específico | Acessar **https://github.com/apps/claude/installations/select_target**, abrir a instalação da conta/organização e adicionar o repositório à lista de acesso (ou marcar "All repositories") |
 
-### 9.12 Depois de subir
+### 10.12 Depois de subir
 
 - Se o repositório contiver algo que você já sabe que não devia estar lá (credencial,
   mídia grande demais), é mais seguro **apagar o repositório e recomeçar** do que tentar

@@ -7,10 +7,10 @@ build/
 npm-debug.log*
 *.tsbuildinfo
 
-# Sessões do WhatsApp (Baileys) - credenciais locais, nunca versionar
-backend/sessions/
-
-# Prisma
-backend/prisma/dev.db
+# Certificados e credenciais - nunca versionar
+*.p12
+*.pem
+*.pfx
+*.key
 
 .DS_Store

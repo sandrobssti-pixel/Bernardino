@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="minimum-scale=1, initial-scale=1, width=device-width, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="theme-color" content="#f8fafc" />
+  <meta name="color-scheme" content="light" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <title>Carregando...</title>
+  <meta property="og:title" content="" />
+  <meta name="twitter:title" content="" />
+  <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
+  <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+  <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Carregando..." />
+
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- DM Sans (usada no modal de conexão do Webchat) -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Força tema claro no login antes do primeiro paint -->
+  <script>
+    (function () {
+      var path = location.pathname || "/";
+      var isLogin = /\/(login|signup|forgot-password)(\/|$|\?)/i.test(path) || path === "/";
+      var storageAvailable = false;
+      try {
+        var testKey = "__test__";
+        localStorage.setItem(testKey, testKey);
+        localStorage.removeItem(testKey);
+        storageAvailable = true;
+      } catch (e) {
+        storageAvailable = false;
+      }
+      try {
+        if (storageAvailable) {
+          if (isLogin) {
+            localStorage.setItem("theme", "light");
+            document.documentElement.classList.remove("dark");
+            document.documentElement.setAttribute("data-theme", "light");
+
+            document.addEventListener("DOMContentLoaded", function () {
+              document.body.classList.add("login-page");
+            });
+          } else {
+            var theme = localStorage.getItem("theme");
+            if (theme === "dark") {
+              document.documentElement.classList.add("dark");
+              document.documentElement.setAttribute("data-theme", "dark");
+            } else {
+              document.documentElement.classList.remove("dark");
+              document.documentElement.setAttribute("data-theme", "light");
+            }
+          }
+        } else {
+          document.documentElement.classList.remove("dark");
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      } catch (e) {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.setAttribute("data-theme", "light");
+      }
+    })();
+  </script>
+
+  <style>
+    :root {
+      --brand: #22c55e;
+      --brand-dim: rgba(34, 197, 94, 0.12);
+      --bg: #f9fafb;
+      --bg-grad-a: #f8fafc;
+      --bg-grad-b: #eef2f7;
+      --title: #111827;
+      --muted: #6b7280;
+      --muted-light: #9ca3af;
+      --track: #e5e7eb;
+      --dot: #d1fae5;
+      --logo-bg: #ffffff;
+      --logo-shadow: rgba(15, 23, 42, 0.12);
+    }
+
+    :root[data-theme="dark"] {
+      --bg: #0b1220;
+      --bg-grad-a: #0b1220;
+      --bg-grad-b: #111b2e;
+      --title: #e6edf8;
+      --muted: #a9b6cc;
+      --muted-light: #7b8aa3;
+      --track: rgba(148, 163, 184, 0.18);
+      --logo-bg: #131f34;
+      --logo-shadow: rgba(0, 0, 0, 0.45);
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--muted);
+      background: var(--bg);
+    }
+
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 9999;
+      background: radial-gradient(circle at 50% 35%, var(--bg-grad-b) 0%, var(--bg-grad-a) 65%);
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .splash-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 0;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    /* Logo com brilho pulsante */
+    .splash-logo-wrap {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+    }
+
+    .splash-logo-glow {
+      position: absolute;
+      width: 220px;
+      height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--brand) 0%, transparent 70%);
+      opacity: 0.16;
+      filter: blur(6px);
+      animation: glow-pulse 2.6s ease-in-out infinite;
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { transform: scale(1); opacity: 0.16; }
+      50% { transform: scale(1.12); opacity: 0.28; }
+    }
+
+    .splash-logo-bg {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: icon-pulse 2.6s ease-in-out infinite;
+    }
+
+    .splash-logo-bg img {
+      display: block;
+      width: auto;
+      height: auto;
+      max-width: 220px;
+      max-height: 100px;
+      filter: drop-shadow(0 6px 16px var(--logo-shadow));
+    }
+
+    @keyframes icon-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+    }
+
+    /* Barra de progresso */
+    .progress-bar-container {
+      width: 100%;
+      height: 3px;
+      background: var(--track);
+      border-radius: 99px;
+      overflow: hidden;
+      margin-top: 28px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--brand);
+      border-radius: 99px;
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      will-change: width;
+      position: relative;
+    }
+
+    /* Brilho na ponta da barra */
+    .progress-bar::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #86efac;
+      box-shadow: 0 0 6px 2px rgba(134, 239, 172, 0.7);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .progress-bar.active::after {
+      opacity: 1;
+    }
+
+    /* Status / texto de fase */
+    .splash-status {
+      margin-top: 14px;
+      height: 18px;
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .status-text {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 12px;
+      letter-spacing: 0.02em;
+      color: var(--muted-light);
+      font-weight: 400;
+      transition: opacity 0.35s ease, transform 0.35s ease;
+      width: 100%;
+      text-align: center;
+    }
+
+    .status-text.fade-out {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-8px);
+    }
+
+    .status-text.fade-in {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Indicador de percentual */
+    .splash-percent {
+      margin-top: 8px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--brand);
+      letter-spacing: 0.04em;
+      font-variant-numeric: tabular-nums;
+      opacity: 0.8;
+    }
+
+    /* Pontos decorativos */
+    .splash-dots {
+      display: flex;
+      gap: 5px;
+      margin-top: 32px;
+    }
+
+    .splash-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--track);
+      transition: background 0.3s ease, transform 0.3s ease;
+    }
+
+    .splash-dot.active {
+      background: var(--brand);
+      transform: scale(1.3);
+    }
+
+    /* Saída */
+    .splash-hide {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.97);
+    }
+
+    @media (max-width: 640px) {
+      .splash-logo-glow { width: 170px; height: 170px; }
+      .splash-logo-bg img { max-width: 180px; max-height: 84px; }
+    }
+
+    /* Inputs brancos no login (mantido do seu índice original) */
+    body.login-page .MuiInputBase-root,
+    body.login-page .MuiOutlinedInput-root,
+    body.login-page .MuiOutlinedInput-input,
+    body.login-page .MuiInputBase-input,
+    body.login-page .MuiInputAdornment-root {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+    }
+    body.login-page .MuiOutlinedInput-root.Mui-focused,
+    body.login-page .MuiOutlinedInput-root.Mui-disabled,
+    body.login-page .MuiOutlinedInput-root.Mui-error,
+    body.login-page .MuiOutlinedInput-root.MuiInputBase-adornedStart,
+    body.login-page .MuiOutlinedInput-root.MuiInputBase-adornedEnd,
+    body.login-page .MuiOutlinedInput-root:hover {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+    }
+    body.login-page .MuiOutlinedInput-notchedOutline {
+      border-color: #e5e7eb !important;
+    }
+    body.login-page .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
+      border-color: #cbd5e1 !important;
+    }
+    body.login-page .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
+      border-color: #10b981 !important;
+    }
+    body.login-page input:-webkit-autofill,
+    body.login-page input:-webkit-autofill:hover,
+    body.login-page input:-webkit-autofill:focus {
+      -webkit-text-fill-color: #000000 !important;
+      transition: background-color 9999s ease-out 0s !important;
+      box-shadow: 0 0 0px 1000px #ffffff inset !important;
+    }
+    body.login-page input:-moz-ui-invalid,
+    body.login-page input:-moz-ui-valid {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+    }
+  </style>
+
+  <script>
+    // Compat SharedArrayBuffer
+    if (!crossOriginIsolated) { /* eslint-disable-next-line */ SharedArrayBuffer = ArrayBuffer; }
+  </script>
+</head>
+
+<body>
+  <!-- Splash Screen -->
+  <div id="splash">
+    <div class="splash-content">
+
+      <!-- Logo com brilho pulsante -->
+      <div class="splash-logo-wrap">
+        <div class="splash-logo-glow"></div>
+        <div class="splash-logo-bg">
+          <img id="splash-logo" src="%PUBLIC_URL%/logo.png" alt="" />
+        </div>
+      </div>
+
+      <!-- Barra de progresso -->
+      <div class="progress-bar-container">
+        <div id="progress" class="progress-bar active"></div>
+      </div>
+
+      <!-- Texto de status dinâmico -->
+      <div class="splash-status">
+        <span class="status-text fade-in" id="status-text">Iniciando...</span>
+      </div>
+
+      <!-- Percentual -->
+      <div class="splash-percent" id="progress-label">0%</div>
+
+      <!-- Dots indicadores de etapa -->
+      <div class="splash-dots">
+        <div class="splash-dot active" id="dot-0"></div>
+        <div class="splash-dot" id="dot-1"></div>
+        <div class="splash-dot" id="dot-2"></div>
+        <div class="splash-dot" id="dot-3"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Root da aplicação React -->
+  <div id="root"></div>
+  <noscript class="block px-6 py-4 text-sm">
+    Você precisa habilitar o JavaScript para executar este app.
+  </noscript>
+
+  <script>
+    // Setup inicial
+    (function setupSplash() {
+      try {
+        var storedColor = localStorage.getItem("primaryColorLight");
+        if (storedColor) {
+          document.documentElement.style.setProperty('--brand', storedColor);
+        }
+      } catch (e) {}
+
+      window.setSplashBrand = function (hex) {
+        try {
+          document.documentElement.style.setProperty('--brand', hex);
+        } catch (e) {}
+      };
+
+      // Logo do white label: usa primeiro a versão cacheada e também consulta a
+      // configuração pública. O cache ainda não existe para quem atualiza uma VPS
+      // já em uso, portanto ele não pode ser a única fonte da splash.
+      try {
+        var isDark = document.documentElement.getAttribute("data-theme") === "dark";
+        var logoStorageKey = isDark ? "splashLogoDark" : "splashLogoLight";
+        var cachedLogo = localStorage.getItem(logoStorageKey)
+          || localStorage.getItem("splashLogoLight");
+        var logoEl = document.getElementById("splash-logo");
+
+        var setSplashLogo = function (logoUrl) {
+          if (!logoEl || !logoUrl) return;
+          logoEl.onerror = function () {
+            logoEl.onerror = null;
+            logoEl.src = "%PUBLIC_URL%/logo.png";
+          };
+          logoEl.src = logoUrl;
+        };
+
+        if (cachedLogo) {
+          setSplashLogo(cachedLogo);
+        }
+
+        var backendUrl = "%REACT_APP_BACKEND_URL%".replace(/\/+$/, "");
+        if (backendUrl) {
+          var settingKey = isDark ? "appLogoDark" : "appLogoLight";
+          fetch(backendUrl + "/public-settings/" + settingKey + "?token=wtV")
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (logoPath) {
+              if (!logoPath || typeof logoPath !== "string") return;
+              var logoUrl = /^https?:\/\//i.test(logoPath)
+                ? logoPath
+                : backendUrl + "/public/" + logoPath.replace(/^\/+/, "");
+              localStorage.setItem(logoStorageKey, logoUrl);
+              setSplashLogo(logoUrl);
+            })
+            .catch(function () {});
+
+          fetch(backendUrl + "/public-settings/appName?token=wtV")
+            .then(function (response) {
+              return response.ok ? response.json() : null;
+            })
+            .then(function (appName) {
+              if (!appName || typeof appName !== "string") return;
+              var normalizedAppName = appName.trim();
+              if (!normalizedAppName) return;
+              localStorage.setItem("appName", normalizedAppName);
+              document.title = normalizedAppName;
+              var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+              if (appleTitle) appleTitle.setAttribute("content", normalizedAppName);
+              var ogTitle = document.querySelector('meta[property="og:title"]');
+              if (ogTitle) ogTitle.setAttribute("content", normalizedAppName);
+              var twitterTitle = document.querySelector('meta[name="twitter:title"]');
+              if (twitterTitle) twitterTitle.setAttribute("content", normalizedAppName);
+            })
+            .catch(function () {});
+        }
+      } catch (e) {}
+    })();
+
+    // Em caso de erro de runtime no boot, libera a interface para evitar aparência de "app travado".
+    window.addEventListener("error", function () {
+      try {
+        if (typeof window.finishProgress === "function") window.finishProgress();
+      } catch (e) {}
+    });
+    window.addEventListener("unhandledrejection", function () {
+      try {
+        if (typeof window.finishProgress === "function") window.finishProgress();
+      } catch (e) {}
+    });
+
+    // Controle de progresso / saída do splash
+    (function bootProgress() {
+      let p = 0;
+      const bar = document.getElementById("progress");
+      const label = document.getElementById("progress-label");
+      const splash = document.getElementById("splash");
+      const statusEl = document.getElementById("status-text");
+      let splashFinished = false;
+      let currentPhase = -1;
+
+      const phases = [
+        { threshold: 0,  dot: 0, label: "Iniciando sistema..." },
+        { threshold: 20, dot: 1, label: "Carregando recursos..." },
+        { threshold: 50, dot: 2, label: "Preparando interface..." },
+        { threshold: 80, dot: 3, label: "Quase pronto..." },
+      ];
+
+      function setStatusText(text) {
+        if (!statusEl) return;
+        statusEl.classList.remove("fade-in");
+        statusEl.classList.add("fade-out");
+        setTimeout(() => {
+          statusEl.textContent = text;
+          statusEl.classList.remove("fade-out");
+          statusEl.classList.add("fade-in");
+        }, 200);
+      }
+
+      function updateDot(dotIndex) {
+        for (var i = 0; i < 4; i++) {
+          var d = document.getElementById("dot-" + i);
+          if (d) d.classList.toggle("active", i === dotIndex);
+        }
+      }
+
+      function checkPhase(progress) {
+        for (var i = phases.length - 1; i >= 0; i--) {
+          if (progress >= phases[i].threshold && currentPhase < i) {
+            currentPhase = i;
+            setStatusText(phases[i].label);
+            updateDot(phases[i].dot);
+            break;
+          }
+        }
+      }
+
+      const timer = setInterval(() => {
+        if (p < 45) p += 8;
+        else if (p < 72) p += 4;
+        else if (p < 90) p += 1.5;
+        else if (p < 97) p += Math.max(0.3, (98 - p) / 20);
+
+        checkPhase(p);
+        if (bar) bar.style.width = p + "%";
+        if (label) label.textContent = Math.min(100, Math.round(p)) + "%";
+      }, 600);
+
+      window.finishProgress = () => {
+        if (splashFinished) return;
+        splashFinished = true;
+        p = 100;
+        if (bar) bar.style.width = "100%";
+        if (label) label.textContent = "100%";
+        setStatusText("Pronto!");
+        updateDot(3);
+        clearInterval(timer);
+        setTimeout(() => splash && splash.classList.add("splash-hide"), 300);
+        setTimeout(() => splash && splash.remove(), 800);
+      };
+
+      setTimeout(() => {
+        if (!splashFinished) window.finishProgress();
+      }, 8000);
+    })();
+  </script>
+</body>
+</html>
