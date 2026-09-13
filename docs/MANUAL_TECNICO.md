@@ -257,3 +257,155 @@ entregue e as próximas etapas planejadas.
 Um sistema antigo e mais maduro de multi atendimento, recuperado de um backup, foi avaliado
 como possível nova base para o AtendeFlow. Ver o relatório completo em
 [`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md).
+
+---
+
+## 9. Runbook: migrar código-fonte de um backup local para o GitHub
+
+**Ambiente testado:** Ubuntu 24.04 (também vale para outras distros baseadas em Debian/Ubuntu).
+
+Roteiro usado para resgatar o `zappro-legado` de um backup de servidor (zip de 5,1GB) e
+publicá-lo num repositório GitHub, já limpo de dependências, mídia de cliente e backups
+redundantes. Serve de referência para qualquer migração parecida no futuro.
+
+### 9.1 Instalar o Git (se necessário)
+
+```bash
+sudo apt update
+sudo apt install git -y
+git --version
+```
+
+### 9.2 Configurar identidade do Git (uma vez por máquina)
+
+```bash
+git config --global user.name "Seu Nome"
+git config --global user.email "seu-email@exemplo.com"
+git config --global init.defaultBranch main
+```
+
+### 9.3 Extrair o backup (se ainda estiver zipado)
+
+```bash
+mkdir -p ~/projeto-antigo
+unzip "/caminho/para/o/arquivo.zip" -d ~/projeto-antigo
+cd ~/projeto-antigo
+```
+
+### 9.4 Descobrir o que está ocupando espaço
+
+Backups de servidor costumam vir com `node_modules`, builds, mídia de cliente e cópias
+redundantes — o código-fonte de verdade normalmente é uma fração pequena do total.
+
+```bash
+# Tamanho total da pasta
+du -sh .
+
+# Lista as maiores subpastas (até 3 níveis), da maior pra menor
+du -h --max-depth=3 . 2>/dev/null | sort -rh | head -30
+```
+
+### 9.5 Remover o que não é código-fonte
+
+```bash
+# Dependências, builds e caches (seguros de apagar — são gerados de novo com npm install/build)
+find . -type d \( -name node_modules -o -name .git -o -name dist -o -name build \
+  -o -name .next -o -name vendor -o -name uploads -o -name storage \
+  -o -name logs -o -name tmp -o -name cache \) -prune -exec rm -rf {} +
+
+# Backups redundantes (ex.: pastas tipo nome_backup_AAAAMMDD_HHMMSS)
+rm -rf caminho/para/*_backup_*
+
+# Mídia de clientes/usuários (fotos, áudios, vídeos recebidos em produção — não é código)
+find caminho/para/public -maxdepth 1 -type d -name "empresaN*" -exec rm -rf {} +
+
+# Confirma o tamanho final (esperado: poucas dezenas de MB para código-fonte puro)
+du -sh .
+```
+
+### 9.6 ⚠️ Procurar credenciais sensíveis antes de subir
+
+**Nunca** suba certificados, chaves privadas ou arquivos `.env` reais para o Git — mesmo em
+repositório privado.
+
+```bash
+# Procura por extensões/nome comuns de credenciais
+find . -type f \( -iname "*.p12" -o -iname "*.pem" -o -iname "*.key" \
+  -o -iname ".env" -o -iname "*.pfx" \)
+```
+
+Se encontrar algo, remova do controle de versão (mantendo o arquivo no disco, se precisar
+dele localmente) e adicione ao `.gitignore` **antes** do primeiro push:
+
+```bash
+git rm --cached caminho/para/arquivo-sensivel.p12
+echo "caminho/para/arquivo-sensivel.p12" >> .gitignore
+```
+
+Se a credencial já foi commitada (mesmo que depois removida), considere-a exposta e
+**revogue/troque-a** — remover do commit atual não apaga do histórico do Git.
+
+### 9.7 Inicializar o repositório e commitar
+
+```bash
+cd ~/projeto-antigo
+git init
+git add .
+git commit -m "Código-fonte do projeto antigo"
+git branch -M main
+```
+
+### 9.8 Criar o repositório vazio no GitHub
+
+No navegador, acesse **https://github.com/new**:
+- Dê um nome ao repositório
+- Marque **Private** se não for público
+- **Não** marque nenhuma opção de README/.gitignore/license (o repositório precisa ficar
+  vazio para receber o `git push` inicial)
+- Clique em **Create repository** e copie a URL mostrada (formato
+  `https://github.com/usuario/nome-do-repo.git`)
+
+### 9.9 Gerar um token de acesso (Personal Access Token)
+
+Desde 2021 o GitHub não aceita mais a senha normal da conta para operações Git por HTTPS —
+é obrigatório usar um token.
+
+1. Acesse **https://github.com/settings/tokens/new** (token **clássico** — não confundir
+   com "fine-grained", que exige configuração extra de permissão por repositório)
+2. Em **Note**, dê um nome (ex.: `push-projeto-antigo`)
+3. Em **Expiration**, escolha um prazo (ex.: 30 dias)
+4. Marque a caixa **`repo`** (dá acesso completo de leitura/escrita aos repositórios)
+5. Clique em **Generate token** e copie o valor gerado (começa com `ghp_`)
+
+> ⚠️ **O token é como uma senha — nunca cole ele num chat, e-mail ou qualquer lugar que não
+> seja o prompt do próprio terminal.** Se ele vazar, revogue imediatamente em
+> https://github.com/settings/tokens e gere outro.
+
+### 9.10 Subir o código
+
+```bash
+git remote add origin https://github.com/usuario/nome-do-repo.git
+git push -u origin main
+```
+
+Quando pedir:
+- **Username** → seu usuário do GitHub
+- **Password** → cole o token gerado no passo anterior (não aparece nada na tela ao colar
+  — é o comportamento normal do terminal, não quer dizer que falhou)
+
+### 9.11 Erros comuns e como resolver
+
+| Mensagem de erro | Causa | Solução |
+| --- | --- | --- |
+| `Password authentication is not supported for Git operations` | Foi digitada a senha normal da conta em vez do token | Gerar um token (passo 9.9) e usá-lo no campo de senha |
+| `remote: Repository not found` | A URL do remote (`git remote add origin ...`) está errada ou o repositório não existe | Confirmar com `git remote -v` e corrigir com `git remote set-url origin <url-correta>` |
+| `remote: Write access to repository not granted` (403) | O token usado é do tipo **fine-grained** sem permissão de escrita configurada, ou não tem o escopo certo | Gerar um token **classic** com o escopo `repo` marcado (passo 9.9) |
+| `fatal: repositorio ... no encontrado` (com a URL literal `SEU-USUARIO/NOME-DO-REPO`) | Um comando de exemplo foi copiado sem substituir pelos dados reais | Rodar `git remote set-url origin <url-real-copiada-do-github>` |
+
+### 9.12 Depois de subir
+
+- Se o repositório contiver algo que você já sabe que não devia estar lá (credencial,
+  mídia grande demais), é mais seguro **apagar o repositório e recomeçar** do que tentar
+  limpar o histórico do Git — reescrever histórico já publicado é arriscado.
+- Conecte o novo repositório a uma sessão do Claude Code (ou clone normalmente) para dar
+  sequência ao trabalho de avaliação/integração do código.

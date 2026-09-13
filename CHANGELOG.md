@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [Não versionado] — Runbook de migração de código legado — 2026-09-13
+
+Adicionada ao manual técnico (seção 9) a sequência completa e organizada de comandos usados
+para resgatar código-fonte de um backup local, limpar dependências/mídia/backups
+redundantes, remover credenciais sensíveis e publicar num repositório GitHub novo —
+incluindo os erros mais comuns de autenticação (token vs. senha, tipos de token) e como
+resolvê-los. Testado em Ubuntu 24.04.
+
 ## [Não versionado] — Avaliação do projeto legado — 2026-09-13
 
 Recuperado o código-fonte de um sistema antigo de multi atendimento (`zappro-legado`),
