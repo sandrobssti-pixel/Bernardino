@@ -15,6 +15,8 @@ import Badge from "@material-ui/core/Badge";
 import Tooltip from "@material-ui/core/Tooltip";
 import ChatIcon from "@material-ui/icons/Chat";
 import NotificationsIcon from "@material-ui/icons/Notifications";
+import DeleteSweepIcon from "@material-ui/icons/DeleteSweep";
+import Typography from "@material-ui/core/Typography";
 
 import TicketListItem from "../TicketListItem";
 import useTickets from "../../hooks/useTickets";
@@ -66,6 +68,20 @@ const useStyles = makeStyles(theme => ({
 				: "rgba(226,232,240,0.4)",
 		fontSize: 13,
 		textAlign: "center",
+	},
+	popoverHeader: {
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "space-between",
+		padding: "10px 14px",
+		borderBottom:
+			theme.mode === "light"
+				? "1px solid rgba(0, 0, 0, 0.08)"
+				: "1px solid rgba(148, 163, 184, 0.1)",
+	},
+	popoverHeaderTitle: {
+		fontWeight: 700,
+		fontSize: 13,
 	},
 	noShadow: {
 		boxShadow: "none !important",
@@ -127,6 +143,16 @@ const NotificationsPopOver = ({ volume, notificationSound, notificationMuted, no
 		withUnreadMessages: "true",
 		queueIds: JSON.stringify(queueIds)
 	});
+
+	// Tickets de clientes ainda sem atendimento (aguardando na fila), para
+	// aparecerem no sino de notificações junto com as mensagens não lidas.
+	const { tickets: pendingTickets } = useTickets({
+		status: "pending",
+		queueIds: JSON.stringify(queueIds)
+	});
+
+	const canClearNotifications =
+		String(profile).toLowerCase() === "admin" || !!user?.super;
 
 	const selectedSound = SOUND_MAP[notificationSound] || SOUND_MAP.classic;
 	const soundAlertRef = useRef();
@@ -271,11 +297,19 @@ const NotificationsPopOver = ({ volume, notificationSound, notificationMuted, no
 
 	useEffect(() => {
 		const processNotifications = () => {
-			setNotifications(tickets.filter(canAccessTicket));
+			const merged = [...tickets, ...pendingTickets].filter(canAccessTicket);
+			const deduped = merged.filter(
+				(ticket, index) => merged.findIndex(t => t.id === ticket.id) === index
+			);
+			setNotifications(deduped);
 		}
 
 		processNotifications();
-	}, [tickets, showTicketWithoutQueue, queueIds, profile, user?.id, user?.allUserChat]);
+	}, [tickets, pendingTickets, showTicketWithoutQueue, queueIds, profile, user?.id, user?.allUserChat]);
+
+	const handleClearNotifications = () => {
+		setNotifications([]);
+	};
 
 	useEffect(() => {
 		ticketIdRef.current = ticketIdUrl;
@@ -546,6 +580,18 @@ const NotificationsPopOver = ({ volume, notificationSound, notificationMuted, no
 				classes={{ paper: classes.popoverPaper }}
 				onClose={handleClickAway}
 			>
+				<div className={classes.popoverHeader}>
+					<Typography className={classes.popoverHeaderTitle}>
+						{i18n.t("notifications.title", "Notificações")}
+					</Typography>
+					{canClearNotifications && notifications.length > 0 && (
+						<Tooltip title="Apagar notificações">
+							<IconButton size="small" onClick={handleClearNotifications} aria-label="Limpar notificações">
+								<DeleteSweepIcon fontSize="small" />
+							</IconButton>
+						</Tooltip>
+					)}
+				</div>
 				<List dense className={classes.tabContainer}>
 					{notifications.length === 0 ? (
 						<ListItem className={classes.emptyItem}>

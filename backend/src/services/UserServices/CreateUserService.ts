@@ -32,6 +32,7 @@ interface CreateUserRequest {
   canViewAllContacts?: boolean; // << adicionado
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
+  super?: boolean; // << Master (somente honrado se o solicitante já for super)
 }
 
 interface Response {
@@ -76,7 +77,8 @@ const CreateUserService = async ({
   allowConnections,
   canViewAllContacts,
   blockMultipleLogins = true,
-  birthDate
+  birthDate,
+  super: isSuperUser = false
 }: CreateUserRequest): Promise<Response> => {
   const normalizedEmail = String(email || "").trim().toLowerCase();
 
@@ -162,7 +164,8 @@ const CreateUserService = async ({
       allowConnections,
       canViewAllContacts: !!canViewAllContacts, // << persistência do novo campo
       blockMultipleLogins: !!blockMultipleLogins,
-      birthDate: parsedBirthDate
+      birthDate: parsedBirthDate,
+      super: !!isSuperUser
     },
     { include: ["queues", "company"] }
   );

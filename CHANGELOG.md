@@ -3,6 +3,61 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.0] — Etapa 3: papel Master, manual+versão na lateral, sino de notificações — 2026-09-13
+
+### Adicionado
+- **Papel "Master"**: terceiro nível de permissão além de Admin/Usuário. Tecnicamente
+  representado como `profile: "admin"` + `super: true` (reaproveita o campo `super` que
+  já existia no modelo `User` e a middleware `isSuper`, em vez de criar um novo enum de
+  perfil e duplicar todas as checagens `profile === "admin"` espalhadas pelo backend).
+  - Select de perfil em `UserModal` ganhou a opção "Master", visível/atribuível apenas
+    quando quem está logado já é `super` (evita escalonamento de privilégio por um
+    Admin comum). Editar um usuário que já é Master também exige ser Master.
+  - Backend (`CreateUserService`, `UpdateUserService`, `UserController`) só grava o
+    campo `super` enviado pelo front quando `req.user.super === true`; caso contrário
+    o valor é descartado silenciosamente.
+  - Usuário padrão do seed alterado de `admin@admin.com` para `master@atendeflow.com`
+    (mantém `super: true`).
+  - Tabela de usuários mostra "Master" (em vez de "admin") quando `user.super` é
+    verdadeiro.
+- **Status Ativo/Desativado**: `UserStatusIcon` (usado na listagem de usuários) já
+  calculava corretamente online/offline a partir do campo `online` do usuário — só o
+  texto exibido no tooltip foi ajustado de "Online"/"Offline" para "Ativo"/"Desativado",
+  conforme pedido.
+- **Manual técnico + versão na barra lateral**: novo item fixado ao final do menu
+  lateral (`MainListItems`), abaixo de "Painel SaaS", com um link para o manual técnico
+  (`frontend/public/manual/MANUAL_TECNICO.md`, copiado do `docs/` do repositório e
+  servido como arquivo estático — funciona em qualquer ambiente sem depender do
+  GitHub) e um chip com a versão atual do sistema, usando o hook `useVersion` e o
+  endpoint `/version` que já existiam no projeto mas não estavam conectados a nenhuma
+  tela (o estado `version` era descartado: `const [, setVersion] = useState(false)`).
+  `ListItemLink` ganhou suporte a link externo (`href`, abre em nova aba) além da
+  navegação interna via `react-router` que já tinha.
+- **Sino de notificações — tickets sem atendimento**: além das mensagens não lidas
+  (`withUnreadMessages`), o sino agora também busca tickets com `status: "pending"`
+  (clientes aguardando, sem atendente), mesclando as duas listas sem duplicar tickets
+  em comum.
+- **Apagar notificações do sino**: novo botão (ícone de vassoura) no cabeçalho do
+  popover de notificações, visível apenas para `profile === "admin"` ou `user.super`
+  (Master), que limpa a lista local de notificações exibidas.
+- Foto de perfil do usuário (`AvatarUploader` em `UserModal`) e logomarca/nome da
+  empresa (`Settings/Whitelabel.js`) já existiam prontos no projeto herdado — apenas
+  confirmados/mantidos, nenhuma mudança de código necessária.
+
+### Validado
+- `tsc --noEmit` (backend) sem erros.
+- `craco build` (frontend) compilado com sucesso após cada etapa da mudança.
+
+## [2.2.1] — Etapa 3.0: rebranding "Whaticket" → "AtendeFlow" — 2026-09-13
+
+### Corrigido
+- Removidos os últimos resquícios do nome do projeto original (`Whaticket`/
+  `zappro-legado`) usados como valor padrão de fallback em 12 arquivos (backend,
+  frontend e `public/`), como `appName || "Whaticket"` e nomes de arquivo temporário.
+  `grep -rni "whaticket"` não retorna mais nenhuma ocorrência em `backend/src`,
+  `frontend/src`, `frontend/public` e `api_oficial/src`.
+- Validado com build completo do backend (`tsc`) e do frontend (`craco build`).
+
 ## [2.2.0] — Correção de vulnerabilidades críticas — 2026-09-13
 
 ### Corrigido

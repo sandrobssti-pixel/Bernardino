@@ -35,6 +35,7 @@ interface UserData {
   canViewAllContacts?: boolean;
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
+  super?: boolean;
 }
 
 interface UpdateUserRequest {
@@ -124,6 +125,9 @@ const UpdateUserService = async ({
   if (userData.blockMultipleLogins !== undefined) {
     dataToUpdate.blockMultipleLogins = !!userData.blockMultipleLogins;
   }
+  if (userData.super !== undefined) {
+    dataToUpdate.super = !!userData.super;
+  }
   if (Object.prototype.hasOwnProperty.call(userData, "birthDate")) {
     if (!userData.birthDate) {
       dataToUpdate.birthDate = null;
@@ -186,7 +190,8 @@ const UpdateUserService = async ({
 
     // >>> IMPORTANTE: devolver para o front persistir o estado do select
     canViewAllContacts: !!user.canViewAllContacts,
-    blockMultipleLogins: !!user.blockMultipleLogins
+    blockMultipleLogins: !!user.blockMultipleLogins,
+    super: !!user.super
   };
 
   return serializedUser;

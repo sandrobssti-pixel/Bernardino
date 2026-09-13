@@ -280,6 +280,7 @@ const UserModal = ({ open, onClose, userId }) => {
 		email: "",
 		password: "",
 		profile: "user",
+		super: false,
 		startWork: "00:00",
 		endWork: "23:59",
 		farewellMessage: "",
@@ -328,6 +329,7 @@ const UserModal = ({ open, onClose, userId }) => {
 						farewellMessage: data?.farewellMessage ?? "",
 						canDeleteTickets: data?.canDeleteTickets ?? "disabled",
 						canViewAllContacts: !!data.canViewAllContacts,
+						super: !!data?.super,
 						blockMultipleLogins: data?.blockMultipleLogins !== false,
 						birthDate: data?.birthDate ? String(data.birthDate).split("T")[0] : ""
 					};
@@ -654,17 +656,30 @@ const UserModal = ({ open, onClose, userId }) => {
 																	{i18n.t("userModal.form.profile")}
 																</InputLabel>
 
-																<Field
-																	as={Select}
+																<Select
 																	label={i18n.t("userModal.form.profile")}
-																	name="profile"
 																	labelId="profile-selection-label"
 																	id="profile-selection"
 																	required
+																	value={values.super ? "master" : (values.profile || "user")}
+																	disabled={!loggedInUser.super && !!user.super}
+																	onChange={(e) => {
+																		const selected = e.target.value;
+																		if (selected === "master") {
+																			setFieldValue("profile", "admin");
+																			setFieldValue("super", true);
+																		} else {
+																			setFieldValue("profile", selected);
+																			setFieldValue("super", false);
+																		}
+																	}}
 																>
+																	<MenuItem value="master" disabled={!loggedInUser.super}>
+																		Master
+																	</MenuItem>
 																	<MenuItem value="admin">Admin</MenuItem>
 																	<MenuItem value="user">User</MenuItem>
-																</Field>
+																</Select>
 															</>
 														)}
 													/>

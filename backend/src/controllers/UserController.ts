@@ -284,7 +284,8 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     allowConnections,
     canViewAllContacts, // <<< NOVO: permissão
     blockMultipleLogins,
-    birthDate
+    birthDate,
+    super: superParam // <<< Master: só é honrado se quem solicita já for super
   } = req.body;
   let userCompanyId: number | null = null;
 
@@ -488,7 +489,9 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
         typeof blockMultipleLogins === "undefined"
           ? true
           : !!blockMultipleLogins,
-      birthDate
+      birthDate,
+      // Só permite conceder "Master" se quem está criando já for super.
+      super: req.user?.super ? !!superParam : false
     });
 
     if (userCompanyId) {
@@ -576,6 +579,11 @@ export const update = async (
   if (profile !== "admin") {
     delete userData.canViewAllContacts;
     delete userData.canDeleteTickets;
+  }
+
+  // Só quem já é Master (super) pode conceder ou revogar o papel de Master.
+  if (!req.user?.super) {
+    delete userData.super;
   }
 
   // coerção booleana se vier "1"/"0" ou true/false

@@ -487,7 +487,7 @@ const Users = () => {
                         {user.email}
                       </TableCell>
                       <TableCell className={classes.tableCell} align="center">
-                        {user.profile}
+                        {user.super ? "Master" : user.profile}
                       </TableCell>
                       <TableCell className={classes.tableCell} align="center">
                         {user.startWork}

@@ -40,13 +40,13 @@ const useStyles = makeStyles(() => ({
 const UserStatusIcon = ({ user }) => {
   const classes = useStyles();
   return user.online ? (
-    <Tooltip title="Online" arrow>
+    <Tooltip title="Ativo" arrow>
       <span className={classes.wrapper}>
         <span className={classes.dotOnline} />
       </span>
     </Tooltip>
   ) : (
-    <Tooltip title="Offline" arrow>
+    <Tooltip title="Desativado" arrow>
       <span className={classes.wrapper}>
         <span className={classes.dotOffline} />
       </span>

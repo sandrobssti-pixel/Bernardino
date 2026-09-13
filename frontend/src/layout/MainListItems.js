@@ -13,6 +13,8 @@ import Collapse from "@material-ui/core/Collapse";
 import List from "@material-ui/core/List";
 import Tooltip from "@material-ui/core/Tooltip";
 import Typography from "@material-ui/core/Typography";
+import Chip from "@material-ui/core/Chip";
+import MenuBookIcon from "@material-ui/icons/MenuBook";
 
 import WhatsAppIcon from "@material-ui/icons/WhatsApp";
 import DashboardOutlinedIcon from "@material-ui/icons/DashboardOutlined";
@@ -244,6 +246,7 @@ function ListItemLink(props) {
     icon,
     primary,
     to,
+    href,
     tooltip,
     showBadge,
     badgeContent,
@@ -254,15 +257,21 @@ function ListItemLink(props) {
   const classes = useStyles();
   const { activeMenu } = useActiveMenu();
   const location = useLocation();
-  const isActive = activeMenu === to || location.pathname === to;
+  const isActive = !href && (activeMenu === to || location.pathname === to);
   const iconColor = iconColors[iconKey] || iconColors.default;
 
+  // Para links externos (ex.: manual técnico) renderiza uma <a> normal em vez
+  // do RouterLink, já que essa navegação não é interna à SPA.
   const renderLink = React.useMemo(
     () =>
-      React.forwardRef((itemProps, ref) => (
-        <RouterLink to={to} ref={ref} {...itemProps} />
-      )),
-    [to]
+      href
+        ? React.forwardRef((itemProps, ref) => (
+            <a href={href} target="_blank" rel="noopener noreferrer" ref={ref} {...itemProps} />
+          ))
+        : React.forwardRef((itemProps, ref) => (
+            <RouterLink to={to} ref={ref} {...itemProps} />
+          )),
+    [to, href]
   );
 
   const isIconOnly = !!tooltip;
@@ -427,7 +436,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   const [pageNumber, setPageNumber] = useState(1);
   const [searchParam] = useState("");
   const [chats, dispatch] = useReducer(reducer, []);
-  const [, setVersion] = useState(false);
+  const [version, setVersion] = useState(false);
   const unreadRefreshTimeout = useRef(null);
   const fetchingUnreadCount = useRef(false);
   const fetchingTaskNotification = useRef(false);
@@ -1352,6 +1361,22 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 tooltip={collapsed}
               />
             )}
+
+            <Divider className={classes.sectionDivider} />
+            <ListItemLink
+              href={`${window.location.origin}/manual/MANUAL_TECNICO.md`}
+              primary="Manual técnico"
+              icon={<MenuBookIcon />}
+              iconKey="default"
+              tooltip={collapsed}
+            />
+            <div className={classes.versionWrap}>
+              <Chip
+                size="small"
+                label={version ? `AtendeFlow v${version}` : "AtendeFlow"}
+                className={classes.versionChip}
+              />
+            </div>
           </>
         )}
       />
