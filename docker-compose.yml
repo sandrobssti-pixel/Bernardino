@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: atendeflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atendeflow
+      POSTGRES_PASSWORD: atendeflow
+      POSTGRES_DB: atendeflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - atendeflow_pgdata:/var/lib/postgresql/data
+
+volumes:
+  atendeflow_pgdata:

@@ -1,0 +1,125 @@
+// AtendeFlow — Modelo de dados (Etapa 1 / v1.0.0)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  AGENT
+}
+
+enum UserStatus {
+  ONLINE
+  OFFLINE
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum SenderType {
+  CONTACT
+  AGENT
+  SYSTEM
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum SessionStatus {
+  DISCONNECTED
+  QR_PENDING
+  CONNECTED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  role          Role           @default(AGENT)
+  status        UserStatus     @default(OFFLINE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[] @relation("AssignedAgent")
+  messages      Message[]
+}
+
+model Queue {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  createdAt     DateTime       @default(now())
+  conversations Conversation[]
+}
+
+model Contact {
+  id            String         @id @default(cuid())
+  name          String?
+  phone         String         @unique
+  whatsappJid   String         @unique
+  avatarUrl     String?
+  createdAt     DateTime       @default(now())
+  conversations Conversation[]
+}
+
+model Conversation {
+  id              String              @id @default(cuid())
+  contact         Contact             @relation(fields: [contactId], references: [id])
+  contactId       String
+  assignedAgent   User?               @relation("AssignedAgent", fields: [assignedAgentId], references: [id])
+  assignedAgentId String?
+  queue           Queue?              @relation(fields: [queueId], references: [id])
+  queueId         String?
+  status          ConversationStatus  @default(OPEN)
+  lastMessageAt   DateTime?
+  createdAt       DateTime            @default(now())
+  messages        Message[]
+
+  @@index([status])
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  conversation      Conversation     @relation(fields: [conversationId], references: [id])
+  conversationId    String
+  direction         MessageDirection
+  senderType        SenderType
+  author            User?            @relation(fields: [authorId], references: [id])
+  authorId          String?
+  content           String?
+  mediaUrl          String?
+  mediaType         String?
+  status            MessageStatus    @default(PENDING)
+  whatsappMessageId String?          @unique
+  createdAt         DateTime         @default(now())
+
+  @@index([conversationId])
+}
+
+model WhatsAppSession {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  status      SessionStatus @default(DISCONNECTED)
+  qrCode      String?
+  connectedAt DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
