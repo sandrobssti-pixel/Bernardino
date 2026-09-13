@@ -118,8 +118,9 @@ O modelo de dados é extenso (dezenas de tabelas) — a fonte da verdade são as
 
 ### 4.1 Pré-requisitos
 
-- Node.js 20
-- Docker (para PostgreSQL e Redis) — ou instalações locais equivalentes
+- Node.js 18 ou 20 (testado também em 22 — ver nota no fim desta seção)
+- Docker (para PostgreSQL e Redis) — ou instalações locais equivalentes (`postgresql`,
+  `redis-server` via `apt`, por exemplo)
 - Um número de WhatsApp para escanear o QR Code
 
 ### 4.2 Passo a passo
@@ -127,6 +128,7 @@ O modelo de dados é extenso (dezenas de tabelas) — a fonte da verdade são as
 ```bash
 # 1. Subir PostgreSQL e Redis
 docker compose up -d
+# (sem Docker: sudo apt install -y postgresql redis-server && sudo service postgresql start && sudo service redis-server start)
 
 # 2. Configurar variáveis de ambiente
 cp backend/.env.example backend/.env
@@ -138,7 +140,10 @@ npm run install:backend
 npm run install:frontend
 # npm run install:api-oficial   # opcional
 
-# 4. Rodar as migrações do banco
+# 4. Compilar o backend e rodar as migrações do banco
+# (o Sequelize CLI lê os arquivos compilados em backend/dist/ — sem este build,
+# "npm run db:migrate" falha com "Cannot find .../dist/config/database.js")
+npm run build:backend
 npm run db:migrate
 npm run db:seed   # cria empresa/usuário padrão
 
@@ -151,10 +156,18 @@ npm run dev:frontend
 > variáveis — muitas são opcionais (só necessárias se for usar aquela integração
 > específica, como cobrança ou IA).
 
+> **Primeira subida do backend é lenta:** `npm run dev:backend` usa `ts-node-dev`, que
+> compila o TypeScript na hora — pode levar 10 a 20 segundos até aparecer
+> `✅ Server started on HOST:PORT`. Espere essa linha antes de testar o login/frontend.
+> Uma linha `ERROR ... Erro no startup do servidor` logo depois é um aviso conhecido e
+> inofensivo (tentativa de reconectar sessões do WhatsApp/filas no boot) — não impede
+> o uso do sistema.
+
 ### 4.3 Primeiro acesso
 
-O seed (`npm run db:seed`) cria uma empresa e um usuário administrador padrão — veja os
-valores em `backend/src/database/seeds/`. Troque a senha no primeiro login.
+O seed (`npm run db:seed`) cria a empresa padrão e o usuário Master
+`master@atendeflow.com` / `123456` (ver `backend/src/database/seeds/`). Troque a senha
+no primeiro login.
 
 ---
 

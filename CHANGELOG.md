@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.1] — Correção: confirmação de startup do backend não aparecia — 2026-09-13
+
+### Corrigido
+- **Backend "parecia travar" ao rodar localmente** (`npm run dev:backend`): a mensagem
+  de confirmação `Server started on HOST:PORT` usava o logger (`pino` com transporte
+  `pino-pretty`, que roda num worker thread) e podia ficar represada por muito tempo —
+  em alguns ambientes só aparecia quando o processo era encerrado, mesmo com o
+  servidor já de pé e respondendo normalmente. Reproduzido e confirmado via `curl`: a
+  porta já respondia (`/auth/login` funcionando) mesmo sem nenhuma confirmação visível
+  no terminal. Trocado para `console.log` (síncrono, sem intermediário) logo que a
+  porta abre — agora aparece imediatamente, sem depender de mais nada terminar.
+- Reforçado no manual técnico: a primeira subida do backend (`ts-node-dev` compilando
+  TypeScript na hora) pode levar 10–20s — aguardar a mensagem de confirmação antes de
+  testar login/frontend.
+- O log `Erro no startup do servidor` que aparece logo em seguida continua sendo um
+  aviso pré-existente e inofensivo (tentativa de reconectar sessões do WhatsApp/filas
+  no boot) — não impede login nem uso do sistema.
+
 ## [2.3.0] — Etapa 3: papel Master, manual+versão na lateral, sino de notificações — 2026-09-13
 
 ### Adicionado

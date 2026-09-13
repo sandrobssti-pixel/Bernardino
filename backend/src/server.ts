@@ -14,6 +14,13 @@ const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || "0.0.0.0";
 
 const server = app.listen(PORT, HOST, async () => {
+  // Confirmação impressa via console.log (síncrono) em vez do logger (pino-pretty
+  // roda num worker thread e pode atrasar/represar a impressão até o processo
+  // encerrar) — garante que quem estiver rodando localmente veja na hora que a
+  // porta já está de pé, mesmo que as etapas assíncronas abaixo (reconectar
+  // sessões, filas) ainda estejam em andamento ou falhem.
+  console.log(`✅ Server started on ${HOST}:${PORT}`);
+
   try {
     // 1. Busca no banco todas as conexões Baileys que deveriam estar ativas
     // (canais sem sessão persistente, como webchat/facebook/instagram/oficial,
