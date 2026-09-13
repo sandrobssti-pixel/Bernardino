@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useContext } from "react";
+import { useHistory } from "react-router-dom";
 
 import Grid from "@material-ui/core/Grid";
 import MenuItem from "@material-ui/core/MenuItem";
@@ -172,6 +173,7 @@ const DEFAULT_AI_REPLY_PROMPT =
 export default function Options(props) {
   const { oldSettings, settings, scheduleTypeChanged, user } = props;
 
+  const history = useHistory();
   const classes = useStyles();
   const [userRating, setUserRating] = useState("disabled");
   const [scheduleType, setScheduleType] = useState("disabled");
@@ -849,6 +851,28 @@ export default function Options(props) {
   return (
     <>
       <div className={classes.optionsList}>
+        {isSuper() && (
+          <Paper className={classes.optionRow} elevation={0}>
+            <div className={classes.optionHeader}>
+              <Box>
+                <div className={classes.optionTitle}>Identidade da empresa</div>
+                <div className={classes.optionDescription}>
+                  Nome e logomarca exibidos no menu e na tela de login.
+                </div>
+              </Box>
+              <Button
+                variant="outlined"
+                color="primary"
+                size="small"
+                className={classes.toggleButton}
+                onClick={() => history.push("/global-config")}
+              >
+                Editar
+              </Button>
+            </div>
+          </Paper>
+        )}
+
         {isSuper() &&
           renderEnabledDisabledRow({
             keyId: "userCreation",

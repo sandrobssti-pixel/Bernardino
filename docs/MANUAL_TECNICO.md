@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.1.0
-**Etapa:** 2.1 — Identidade visual "tech" na nova base
+**Versão do documento:** 2.3.3
+**Etapa:** 3 — Papel Master, manual+versão na lateral, sino de notificações, correções
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
@@ -259,6 +259,14 @@ personalizar por cima da identidade padrão sem mexer em código.
   [guia oficial de upgrade](https://sequelize.org/docs/v6/other-topics/upgrade-to-v6/),
   com testes extensivos antes de ir para produção. Rode `npm audit` periodicamente em
   cada app pra acompanhar novas vulnerabilidades.
+- ✅ **Bug crítico corrigido (v2.3.3)**: o modelo `Whatsapp` tinha o campo
+  `maxUseBotQueues` sem nenhuma migration correspondente — quebrava qualquer listagem de
+  conexões (`ListWhatsAppsService`, tela de Conexões) com `column ... does not exist`.
+  Adicionada a migration que faltava. **Após atualizar o código, rodar
+  `npm run build:backend && npm run db:migrate` para aplicar.**
+- **`frontend/src/pages/Settings/index.js` é um arquivo órfão** — a rota `/settings` usa
+  `frontend/src/pages/SettingsCustom/index.js`. Sempre confirmar em
+  `frontend/src/routes/index.js` qual componente uma rota realmente usa antes de editar.
 
 ---
 

@@ -3,6 +3,48 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.3] — Correção crítica: coluna "maxUseBotQueues" ausente + atalho de identidade — 2026-09-13
+
+### Corrigido
+- **Bug crítico pré-existente**: o modelo `Whatsapp` declarava o campo `maxUseBotQueues`
+  (`@Default(3)`) desde a base herdada, mas **nenhuma migration criava essa coluna** no
+  banco. Qualquer consulta que lê todos os campos de uma conexão — `ListWhatsAppsService`
+  (usado pela tela de **Conexões** e por outras telas que listam WhatsApps), e também o
+  boot do servidor (raiz do aviso "Erro no startup do servidor" já documentado) — quebrava
+  com `column Whatsapp.maxUseBotQueues does not exist`. Descoberto ao rodar a aplicação de
+  verdade e testar a tela de Conexões. Adicionada a migration
+  `20260827120000-add-maxUseBotQueues-to-whatsapps.ts` (mesmo padrão de default do
+  modelo: inteiro, valor 3). **Quem já tiver o sistema rodando precisa só puxar a
+  atualização e rodar `npm run build:backend && npm run db:migrate`** — não afeta dados
+  existentes.
+- Investigado a pedido do usuário se faltavam as opções de **cadastrar número/gerar QR
+  Code (Baileys)**, **editar/excluir conexão** e **editar/excluir empresa** —
+  confirmado rodando a aplicação de verdade que **todas já existem e funcionam**:
+  - Conexões → "+ Nova Conexão" → "WhatsApp (QR Code)" (Baileys) já lista essa opção,
+    com formulário completo e QR Code funcionando (o bug acima podia atrapalhar o
+    carregamento da lista antes de existir uma conexão — corrigido agora).
+  - Cada conexão na lista já tem botões de editar, excluir e carregar/atualizar QR Code.
+  - Configurações → aba "Empresas" (visível para Master) já lista empresas com editar e
+    excluir — mesma tela usada pelo Painel SaaS.
+
+### Adicionado
+- **Atalho "Identidade da empresa" em Configurações**: a edição de nome e logomarca da
+  empresa (usada no menu e na tela de login) só existia dentro do Painel SaaS → aba
+  "White Label", sem nenhum link a partir da tela normal de Configurações. Adicionado um
+  card no topo da aba "Opções" (visível para Master) com um botão "Editar" que leva
+  direto para lá — evita duplicar a lógica de upload já existente (bastante acoplada),
+  só resolve a falta de um caminho visível a partir de Configurações.
+- A tela de **Login já carrega e exibe a logomarca configurada** (`branding.loginLogo`,
+  via `/global-config/public-branding`) — confirmado lendo o código; não precisou de
+  nenhuma mudança.
+
+### Lição registrada
+- `frontend/src/pages/Settings/index.js` é um **arquivo órfão**: a rota `/settings` na
+  verdade usa `frontend/src/pages/SettingsCustom/index.js` (que já tem abas Opções/
+  Empresas/Planos/Ajuda). Antes de editar uma tela deste projeto, confirmar em
+  `frontend/src/routes/index.js` qual componente a rota realmente usa — mesma lição já
+  registrada para CSS solto (v2.1.2), agora vale também para páginas inteiras.
+
 ## [2.3.2] — Correção: idioma do navegador sobrepunha português — 2026-09-13
 
 ### Corrigido
