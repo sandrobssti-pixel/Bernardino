@@ -21,7 +21,7 @@ const Route = ({ component: Component, isPrivate = false, ...rest }) => {
 		message: `path=${rest.path || ""} isAuth=${isAuth} isPrivate=${isPrivate} loading=${loading}`,
 	});
 
-	// Evita "flash" da tela de login (com nome Whaticket/appName)
+	// Evita "flash" da tela de login (com nome AtendeFlow/appName)
 	// enquanto a sessão ainda está sendo revalidada.
 	if (loading) {
 		return <BackdropLoading />;

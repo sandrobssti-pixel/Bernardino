@@ -5,7 +5,7 @@ import handleWuzapiWebhook from "../services/WuzapiServices/HandleWuzapiWebhook"
 import logger from "../utils/logger";
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "whaticket";
+  const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "atendeflow";
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];

@@ -129,7 +129,7 @@ export const manifest = async (req: Request, res: Response): Promise<Response> =
     return `${backendUrl}/public/${value}`;
   };
 
-  const name = appName || "Whaticket";
+  const name = appName || "AtendeFlow";
   // O manifesto é servido pela API, mas o PWA é executado no domínio do
   // frontend. start_url e scope precisam apontar para o frontend para que o
   // service worker daquele domínio controle a página inicial do aplicativo.

@@ -92,7 +92,7 @@ const App = () => {
     }
   };
   const setAppNamePersist = (value) => {
-    const normalizedValue = String(value || "").trim() || "Whaticket";
+    const normalizedValue = String(value || "").trim() || "AtendeFlow";
     setAppName(normalizedValue);
     safeStorage.setItem("appName", normalizedValue);
   };

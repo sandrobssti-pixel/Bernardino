@@ -432,7 +432,7 @@ const LoggedInLayout = ({ children }) => {
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [systemVersion, setSystemVersion] = useState("-");
-  const [companyName, setCompanyName] = useState("Whaticket");
+  const [companyName, setCompanyName] = useState("AtendeFlow");
   const [anchorEl, setAnchorEl] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const { handleLogout, loading, isAuth } = useContext(AuthContext);
@@ -649,7 +649,7 @@ const LoggedInLayout = ({ children }) => {
       ]);
 
       setSystemVersion(versionData?.version || "-");
-      setCompanyName(String(publicAppName || "").trim() || "Whaticket");
+      setCompanyName(String(publicAppName || "").trim() || "AtendeFlow");
     } catch (error) {
       // O modal continua disponível mesmo se uma das informações não puder ser carregada.
       console.error("Erro ao carregar informações sobre o sistema:", error);

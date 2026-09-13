@@ -12,7 +12,7 @@ const createDialogflowSession = async (id:number, projectName:string, jsonConten
         return sessions.get(id);
     }
 
-    const keyFilename = dir.join(os.tmpdir(), `whaticket_${id}.json`);
+    const keyFilename = dir.join(os.tmpdir(), `atendeflow_${id}.json`);
 
     logger.info(`Openig new dialogflow session #${projectName} in '${keyFilename}'`)
 

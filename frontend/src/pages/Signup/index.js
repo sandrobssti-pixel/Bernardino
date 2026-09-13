@@ -501,7 +501,7 @@ const SignUp = () => {
     loginLogo: "/logo.png",
     loginBackground: "",
     loginWhatsapp: "https://wa.me/5500000000000",
-    companyName: "Whaticket",
+    companyName: "AtendeFlow",
     signupRequireCpfCnpj: "disabled"
   });
   const [userCreationEnabled, setUserCreationEnabled] = useState(true);
@@ -603,7 +603,7 @@ const SignUp = () => {
             ? ""
             : brandingData.loginBackground,
           loginWhatsapp: brandingData.loginWhatsapp || "https://wa.me/5500000000000",
-          companyName: String(publicAppName || "").trim() || "Whaticket",
+          companyName: String(publicAppName || "").trim() || "AtendeFlow",
           signupRequireCpfCnpj: brandingData.signupRequireCpfCnpj || "disabled"
         });
       } catch (err) {

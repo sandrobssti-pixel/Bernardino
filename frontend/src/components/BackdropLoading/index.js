@@ -69,7 +69,7 @@ const useStyles = makeStyles(theme => {
 
 const BackdropLoading = () => {
 	const classes = useStyles();
-	const [appName, setAppName] = useState("Whaticket");
+	const [appName, setAppName] = useState("AtendeFlow");
 
 	useEffect(() => {
 		// Tenta obter nome do app do localStorage
