@@ -54,11 +54,35 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)
 
 ### Pendente (próximas etapas)
 - **Etapa 2.1**: aplicar a identidade visual "tech" criada na Etapa 1.1 sobre as ~45 telas
-  do frontend (hoje em Material UI padrão) — trabalho grande, tratado à parte.
+  do frontend (hoje em Material UI padrão) — trabalho grande, tratado à parte. ✅ Concluída
+  (ver versão 2.1.0 abaixo).
 - Confirmar os termos de licenciamento do projeto original (sem `LICENSE` no repositório).
-- `npm install`/build completo de cada aplicação ainda não foi validado neste ambiente
-  (dependências pesadas — Puppeteer, ffmpeg — não foram instaladas durante a migração);
-  validar localmente ou no servidor de destino antes de colocar em produção.
+- ✅ `npm install` e build validados nesta sessão (backend, frontend e api_oficial) — ver
+  "Validação de build" na versão 2.1.0.
+
+## [2.1.1] — Validação de `npm install`/build — 2026-09-13
+
+### Validado
+- **`backend`**: `npm install` (1.419 pacotes) e `npm run build` (`tsc`) — compilou sem
+  nenhum erro de TypeScript.
+- **`frontend`**: `npm install --legacy-peer-deps` (2.599 pacotes) e `npx craco build` —
+  compilou com sucesso; confirmado que a nova identidade visual está no build final (cor de
+  marca e Space Grotesk no bundle JS do tema, gradiente/glassmorphism do Login no CSS).
+- **`api_oficial`**: `npm install` (827 pacotes), `npx prisma generate` e `npm run build`
+  (`nest build`) — compilou sem erros.
+
+### Corrigido
+- Adicionadas `ajv` e `ajv-keywords` como `devDependencies` do `frontend` — necessárias
+  para o build funcionar com as versões atuais de CRA/webpack (o `instalador.sh` já
+  instalava essas duas manualmente a cada atualização; agora ficam fixadas no
+  `package.json`, então um `npm install` simples já basta).
+
+### Observações
+- Todas as três aplicações reportaram vulnerabilidades de dependências desatualizadas no
+  `npm audit` (esperado — é um projeto com anos de dependências acumuladas). Recomenda-se
+  rodar `npm audit` em cada app antes de ir para produção e avaliar as de severidade alta/crítica.
+- Build e instalação validados neste ambiente de sessão (15GB RAM, sem necessidade da swap
+  de 6GB que o `instalador.sh` configura para VPS mais modestas).
 
 ## [Não versionado] — Runbook de migração de código legado — 2026-09-13
 

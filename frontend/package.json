@@ -127,6 +127,8 @@
   },
   "devDependencies": {
     "@craco/craco": "^7.1.0",
+    "ajv": "^8.20.0",
+    "ajv-keywords": "^5.1.0",
     "baseline-browser-mapping": "^2.10.17",
     "eslint-webpack-plugin": "^5.0.2",
     "node-polyfill-webpack-plugin": "^4.1.0",

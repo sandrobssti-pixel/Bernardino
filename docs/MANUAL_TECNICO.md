@@ -213,6 +213,10 @@ personalizar por cima da identidade padrão sem mexer em código.
 - Já removidos antes desta migração: um certificado `.p12` que estava versionado no
   backup original, arquivos de rascunho/quebrados (`*_old`, `*_backup`, `*dontwork*`) e 86
   arquivos de lixo do Windows (`*_Zone.Identifier`).
+- ✅ **`npm install` e build validados** nas três aplicações (v2.1.1) — sem erros de
+  compilação. Todas reportaram vulnerabilidades de dependências desatualizadas no
+  `npm audit` (esperado num projeto com anos de dependências acumuladas); rodar
+  `npm audit` em cada app e revisar as de severidade alta/crítica antes de produção.
 
 ---
 
