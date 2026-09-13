@@ -217,9 +217,14 @@ personalizar por cima da identidade padrão sem mexer em código.
   backup original, arquivos de rascunho/quebrados (`*_old`, `*_backup`, `*dontwork*`) e 86
   arquivos de lixo do Windows (`*_Zone.Identifier`).
 - ✅ **`npm install` e build validados** nas três aplicações (v2.1.1) — sem erros de
-  compilação. Todas reportaram vulnerabilidades de dependências desatualizadas no
-  `npm audit` (esperado num projeto com anos de dependências acumuladas); rodar
-  `npm audit` em cada app e revisar as de severidade alta/crítica antes de produção.
+  compilação.
+- ✅ **Vulnerabilidades críticas corrigidas** (v2.2.0) — de 13 para 2 no total (todas no
+  backend). As 2 restantes são do **Sequelize** (ORM principal): a correção exige subir de
+  v5 para v6, uma mudança de versão maior que afeta todos os modelos/migrações do
+  sistema. **Não foi aplicada** — precisa de uma migração dedicada, seguindo o
+  [guia oficial de upgrade](https://sequelize.org/docs/v6/other-topics/upgrade-to-v6/),
+  com testes extensivos antes de ir para produção. Rode `npm audit` periodicamente em
+  cada app pra acompanhar novas vulnerabilidades.
 
 ---
 

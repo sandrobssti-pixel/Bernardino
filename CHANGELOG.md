@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.2.0] — Correção de vulnerabilidades críticas — 2026-09-13
+
+### Corrigido
+- **backend** (7 → 2 críticas): `basic-ftp` via `npm audit fix`; `mysql2` 2.3.3→3.24.4;
+  `@google-cloud/dialogflow` 5.9.0→8.1.0 (corrige `protobufjs`); `bull-board` (pacote
+  abandonado, dependia de `ejs` vulnerável) substituído pelos pacotes mantidos
+  `@bull-board/api` + `@bull-board/express` (ajuste em `app.ts`) — testado em runtime,
+  `/admin/queues` responde 401 sem autenticação e 200 com autenticação correta.
+- **frontend** (5 → 2 críticas): `shell-quote`, `tar` e `websocket-driver` fixados via
+  `overrides` no `package.json` (dependências transitivas de ferramentas de
+  desenvolvimento — `react-scripts`/`webpack-dev-server` — não vão para o bundle
+  final). Build validado após a correção.
+- **api_oficial** (1 → 0 críticas): `bcrypt` 5.1.1→6.0.0 — build e hash/compare de senha
+  testados em runtime.
+- Todas as correções validadas com build completo (e testes de runtime, quando
+  aplicável) antes de serem commitadas.
+
+### Não corrigido (decisão pendente — risco alto demais para aplicar sem consulta)
+- **`sequelize` e `sequelize-typescript`** (2 críticas restantes no backend): a correção
+  exige subir de Sequelize v5 para v6 — mudança de versão maior no ORM usado por *todo*
+  o sistema (dezenas de modelos e centenas de migrações). Requer uma migração dedicada
+  seguindo o guia oficial de upgrade, com testes extensivos — não é seguro aplicar às
+  cegas. Ver seção 7 do manual técnico.
+- **`xlsx`** (backend e frontend) e **`html2pdf.js`/`jspdf`** (frontend, usado na
+  exportação de PDF): sem correção automática disponível — exigiriam trocar de
+  biblioteca. Baixo risco prático (não expostos a entrada não confiável na maioria dos
+  usos), mas registrados para avaliação futura.
+
 ## [2.1.2] — Correção: tela de Login usava outro arquivo — 2026-09-13
 
 ### Corrigido
