@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [1.1.0] — Etapa 1.1: Redesign da interface — 2026-09-13
+
+### Adicionado
+- Novo visual "tech" para todo o frontend: tema escuro com gradiente violeta → ciano, fontes
+  Space Grotesk (títulos) + Inter (texto) + JetBrains Mono (dados técnicos), painéis em vidro
+  fosco (glassmorphism) e grade sutil de fundo.
+- Ícones em SVG próprios (sem dependência externa) para navegação, status e ações.
+- Barra de estatísticas no topo da Caixa de entrada (total de conversas, aguardando atendimento,
+  sessões WhatsApp conectadas, atendentes online) — visão rápida do estado do atendimento.
+- Estados vazios explicativos em toda a aplicação (ex: "Nenhuma conversa ainda", "Nenhuma sessão
+  criada") com instruções de próximo passo, em vez de telas em branco.
+- Tela de conexão do WhatsApp reformulada em formato de passo a passo (1. nomear sessão,
+  2. escanear QR Code, 3. pronto para atender), com instruções diretas na tela.
+- Indicadores visuais de status (pílulas coloridas com legenda) para conversas, atendentes e
+  sessões do WhatsApp — sem precisar interpretar cores sozinho.
+- Cabeçalho (`Topbar`) em cada tela com título e explicação curta do que ela faz.
+
+### Sem mudanças de backend/API nesta versão — apenas camada visual do frontend.
+
 ## [1.0.0] — Etapa 1: Estrutura Base — 2026-09-13
 
 ### Adicionado

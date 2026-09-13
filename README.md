@@ -2,7 +2,7 @@
 
 CRM de multi atendimento com integração ao WhatsApp via [Baileys](https://github.com/WhiskeySockets/Baileys).
 
-**Versão atual: 1.0.0 (Etapa 1 — Estrutura Base)**
+**Versão atual: 1.1.0 (Etapa 1.1 — Redesign da interface)**
 
 ## Documentação
 

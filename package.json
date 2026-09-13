@@ -1,7 +1,7 @@
 {
   "name": "atendeflow",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AtendeFlow - CRM de multi atendimento com integração WhatsApp (Baileys)",
   "workspaces": [
     "backend",

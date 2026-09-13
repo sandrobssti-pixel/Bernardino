@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 1.0.0
-**Etapa:** 1 — Estrutura Base
+**Versão do documento:** 1.1.0
+**Etapa:** 1.1 — Redesign da interface
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
@@ -84,11 +84,28 @@ Estrutura de pastas (`frontend/src`):
 
 ```
 pages/           -> LoginPage, RegisterPage, InboxPage, WhatsAppPage, SettingsPage
-components/      -> Sidebar, ConversationList, ChatWindow, ProtectedRoute
+components/      -> Sidebar, Topbar, ConversationList, ChatWindow, ProtectedRoute,
+                    Logo, StatusPill, StatCard, EmptyState, icons.tsx
 store/           -> authStore (sessão do usuário), inboxStore (conversas/mensagens)
 services/        -> api.ts (Axios + JWT), socket.ts (conexão Socket.io)
 types/           -> tipos TypeScript compartilhados (User, Contact, Conversation, Message)
 ```
+
+### 2.2.1 Design system (desde a v1.1.0)
+
+A interface segue uma identidade visual "tech", escura, definida em `tailwind.config.js` e
+`src/index.css`:
+
+| Token | Uso |
+| --- | --- |
+| `ink-900` / `ink-950` | Fundo da aplicação (azul-marinho bem escuro) |
+| `brand-500` (violeta) → `accent-400` (ciano) | Gradiente de marca (`bg-brand-gradient`), usado em botões primários, logo e mensagens enviadas |
+| `.glass` | Painéis translúcidos com desfoque (glassmorphism) |
+| `StatusPill` | Selo colorido com legenda para status (conversa, sessão do WhatsApp, atendente online/offline) |
+| `EmptyState` | Estado vazio com ícone, título e explicação — usado sempre que uma lista está sem dados |
+| Fontes | `Space Grotesk` (títulos), `Inter` (texto), `JetBrains Mono` (dados técnicos como nome de sessão) |
+
+Esses tokens devem ser reaproveitados em novas telas para manter a identidade visual consistente.
 
 ### 2.3 Fluxo de uma mensagem recebida
 
