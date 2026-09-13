@@ -19,7 +19,9 @@ import Whatsapp from "./models/Whatsapp";
 import { messageQueue, sendScheduledMessages } from "./queues";
 import BullQueue from "./libs/queue"
 import { REDIS_URI_MSG_CONN } from "./config/redis";
-import BullBoard from 'bull-board';
+import { createBullBoard } from '@bull-board/api';
+import { BullAdapter } from '@bull-board/api/bullAdapter';
+import { ExpressAdapter } from '@bull-board/express';
 import basicAuth from 'basic-auth';
 
 // Função de middleware para autenticação básica
@@ -99,10 +101,18 @@ const resolveWebchatCorsOrigin = async (
   }
 };
 
-// Configuração do BullBoard
+// Configuração do BullBoard (pacotes @bull-board/* mantidos - o pacote antigo
+// "bull-board" foi descontinuado e tinha vulnerabilidade crítica via ejs)
 if (String(process.env.BULL_BOARD).toLocaleLowerCase() === 'true' && REDIS_URI_MSG_CONN !== '') {
-  BullBoard.setQueues(BullQueue.queues.map(queue => queue && queue.bull));
-  app.use('/admin/queues', isBullAuth, BullBoard.UI);
+  const serverAdapter = new ExpressAdapter();
+  serverAdapter.setBasePath('/admin/queues');
+  createBullBoard({
+    queues: BullQueue.queues
+      .filter(queue => queue && queue.bull)
+      .map(queue => new BullAdapter(queue.bull)),
+    serverAdapter,
+  });
+  app.use('/admin/queues', isBullAuth, serverAdapter.getRouter());
 }
 
 // Middlewares
