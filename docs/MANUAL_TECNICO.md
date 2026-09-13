@@ -251,3 +251,9 @@ Todas as rotas abaixo (exceto `/health`, `/auth/register` e `/auth/login`) exige
 
 Ver [`CHANGELOG.md`](../CHANGELOG.md) na raiz do repositório para o detalhamento de cada etapa
 entregue e as próximas etapas planejadas.
+
+## 8. Avaliação do projeto legado (zappro-legado)
+
+Um sistema antigo e mais maduro de multi atendimento, recuperado de um backup, foi avaliado
+como possível nova base para o AtendeFlow. Ver o relatório completo em
+[`docs/AVALIACAO_ZAPPRO_LEGADO.md`](AVALIACAO_ZAPPRO_LEGADO.md).

@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [Não versionado] — Avaliação do projeto legado — 2026-09-13
+
+Recuperado o código-fonte de um sistema antigo de multi atendimento (`zappro-legado`),
+resgatado de um backup de servidor. Avaliação completa registrada em
+[`docs/AVALIACAO_ZAPPRO_LEGADO.md`](docs/AVALIACAO_ZAPPRO_LEGADO.md): é um sistema maduro
+(1.638 arquivos, ~290 mil linhas) com multi-empresa, multi-sessão de WhatsApp, builder de
+fluxo/chatbot, campanhas, cobrança e API oficial da Meta. Recomendação registrada no
+documento: usá-lo como nova base do AtendeFlow em vez de reconstruir tudo do zero.
+
 ## [1.1.0] — Etapa 1.1: Redesign da interface — 2026-09-13
 
 ### Adicionado
