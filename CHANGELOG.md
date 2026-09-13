@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.2] — Correção: idioma do navegador sobrepunha português — 2026-09-13
+
+### Corrigido
+- O detector de idioma (`i18next-browser-languagedetector`) usava o idioma do
+  navegador/sistema operacional (`navigator`) quando não havia nenhuma escolha manual
+  salva, sobrepondo o `fallbackLng: "pt"` — um usuário com o navegador em espanhol ou
+  inglês via a interface traduzida sem pedir. Removido `"navigator"` da ordem de
+  detecção; sem escolha salva, agora cai direto no português. Quem trocar de idioma
+  manualmente (`UserLanguageSelector`) continua com a escolha salva e respeitada.
+
 ## [2.3.1] — Correção: confirmação de startup do backend não aparecia — 2026-09-13
 
 ### Corrigido
