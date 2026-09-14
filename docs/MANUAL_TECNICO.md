@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.16
-**Etapa:** 4 — Alerta de vencimento no Dashboard, Master com acesso completo a todas as funcionalidades, módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações
+**Versão do documento:** 2.3.17
+**Etapa:** 4 — correção da tela de assinatura pra empresa sem plano, alerta de vencimento no Dashboard, Master com acesso completo a todas as funcionalidades, módulo Financeiro completo (Fase 1: cadastros)
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra

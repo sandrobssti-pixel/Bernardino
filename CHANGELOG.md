@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.17] — Tela de "Minha assinatura" travava em empresa sem plano — 2026-09-14
+
+### Corrigido
+- Empresas cadastradas **antes** da correção da v2.3.15 (que passou a
+  exigir plano no cadastro) podem já estar sem `planId` vinculado no banco.
+  Nesse caso, Configurações → Assinatura ficava com a tela em branco/
+  carregando pra sempre — o componente só marcava o carregamento como
+  concluído depois de buscar o plano, e sem `planId` essa busca nunca
+  acontecia. Corrigido: agora o carregamento é marcado como concluído
+  independente de a empresa ter plano ou não, e sem plano aparece um aviso
+  claro ("Nenhum plano vinculado") com o botão de suporte, em vez de tela
+  em branco. `frontend/src/components/Settings/SubscriptionPanel.js`.
+- **Se algum cliente relatar essa tela em branco**: a causa é a empresa dele
+  estar sem plano no banco. Verificar com
+  `SELECT id, name, email, "planId" FROM "Companies" WHERE email = '<email da empresa>';`
+  e, se `planId` vier `NULL`, vincular um plano existente com
+  `UPDATE "Companies" SET "planId" = <id do plano> WHERE id = <id da empresa>;`.
+
 ## [2.3.16] — Alerta de vencimento da assinatura no Dashboard — 2026-09-14
 
 ### Adicionado

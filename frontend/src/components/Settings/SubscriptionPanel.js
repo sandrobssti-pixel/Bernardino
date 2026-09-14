@@ -352,6 +352,7 @@ const SubscriptionPanel = () => {
   const [selectedContactId, setSelectedContactId] = useState(null);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [companyPlan, setCompanyPlan] = useState(null);
+  const [planFetchDone, setPlanFetchDone] = useState(false);
   const [expiredLoginFlag, setExpiredLoginFlag] = useState(null);
 
   const readExpiredFlag = () => {
@@ -440,9 +441,15 @@ const SubscriptionPanel = () => {
             const planResponse = await api.get(`/plans/${company.planId}`);
             setCompanyPlan(planResponse.data);
           }
+          // Sem planId: empresa cadastrada sem plano vinculado (bug corrigido
+          // na v2.3.15, mas empresas antigas podem já estar assim). Sem isso,
+          // companyPlan nunca é setado e a tela fica presa no loading pra
+          // sempre — daí o "não aparece o plano do cliente".
         }
       } catch (err) {
         toastError(err);
+      } finally {
+        setPlanFetchDone(true);
       }
     };
     fetchCompanyPlan();
@@ -469,13 +476,53 @@ const SubscriptionPanel = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [searchParam, pageNumber]);
 
-  const isLoadingFallback = !user || !user.companyId || !companyPlan;
+  const isLoadingFallback = !user || !user.companyId || (!companyPlan && !planFetchDone);
 
   if (isLoadingFallback) {
     return (
       <div className={classes.pageRoot}>
         <Box display="flex" justifyContent="center" my={6}>
           <CircularProgress />
+        </Box>
+      </div>
+    );
+  }
+
+  // Já terminou de buscar e não tem plano vinculado à empresa — mostra um
+  // aviso em vez de ficar com a tela em branco/carregando pra sempre.
+  if (!companyPlan) {
+    return (
+      <div className={classes.pageRoot}>
+        <Box className={classes.pageHeader}>
+          <img src={confianzaLogo} alt="Confianza Technologies" className={classes.pageHeaderLogo} />
+          <Box className={classes.pageHeaderInfo}>
+            <Typography className={classes.pageHeaderTitle}>Minha assinatura</Typography>
+            <Typography className={classes.pageHeaderSubtitle}>
+              Plano contratado, vigência e cobranças emitidas por Confianza Technologies,
+              fornecedora do AtendeFlow.
+            </Typography>
+          </Box>
+        </Box>
+        <Box className={classes.expiredAlert}>
+          <Typography className={classes.expiredAlertTitle}>
+            Nenhum plano vinculado
+          </Typography>
+          <Typography className={classes.expiredAlertText}>
+            Sua empresa ainda não tem um plano vinculado no sistema. Fale com o
+            suporte (Confianza Technologies) pelo WhatsApp abaixo para regularizar.
+          </Typography>
+          <Button
+            variant="contained"
+            className={classes.whatsappButton}
+            startIcon={<WhatsAppIcon />}
+            component="a"
+            href={SUPPORT_WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginTop: 12 }}
+          >
+            Suporte
+          </Button>
         </Box>
       </div>
     );
