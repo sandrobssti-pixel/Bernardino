@@ -3,6 +3,42 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.19] — Fase 2 do Financeiro (backend) + permissão "Módulo Financeiro" respeitando o plano — 2026-09-14
+
+### Adicionado — Fase 2 do módulo Financeiro (backend)
+- **Contas a pagar** (`FinanceExpense`): descrição, categoria, tipo de custo
+  (fixo/variável), valor, vencimento, data de pagamento, status
+  (pendente/pago), fornecedor (opcional) e observações. CRUD completo em
+  `/finance/expenses`.
+- **Contas a receber** (`FinanceReceivable`): descrição, valor, vencimento,
+  data de recebimento, status (pendente/recebido), cliente (opcional) e
+  observações. CRUD completo em `/finance/receivables`.
+- **Relatórios** (`/finance/reports/summary`, `/cashflow`, `/expenses-by-category`):
+  cartões de resumo (pendências, vencidos, pago/recebido no mês, saldo
+  previsto), série de fluxo de caixa dos últimos N meses e despesas agrupadas
+  por categoria.
+- Migrações `20260914150000-create-finance-expenses` e
+  `20260914150100-create-finance-receivables` — **rodar `npm run db:migrate`
+  no deploy desta versão**.
+- Frontend (tabs "Contas a Pagar"/"Contas a Receber", painel com gráficos e
+  exportação em PDF) fica para a próxima entrega — ver seção 6.2 do
+  `docs/MANUAL_TECNICO.md`.
+
+### Corrigido
+- **Permissão "Módulo Financeiro" aparecia mesmo fora do plano contratado**:
+  o Admin de uma empresa com um plano que **não** inclui o add-on Financeiro
+  (ex.: um plano mais básico) via, na aba Permissões do cadastro de usuário,
+  a opção de habilitar o módulo mesmo assim — o acesso real já era bloqueado
+  no backend, mas a opção ficava visivelmente "aberta" na UI, dando a
+  impressão de que dava pra ligar algo que a empresa não contratou. Corrigido
+  ocultando o toggle quando o plano da empresa não inclui o módulo
+  (`GET /finance/access` → `planHasModule`).
+- Corrigido erro de tipagem/SQL no `FinanceReportService`: `SUM()` sobre a
+  coluna `value` (salva como `varchar` de propósito, pra evitar imprecisão de
+  ponto flutuante) quebrava no Postgres (`42883: function sum(character
+  varying) does not exist`) — corrigido com `CAST(... AS NUMERIC)` explícito
+  em todas as agregações.
+
 ## [2.3.18] — Corrigida a causa raiz da logo/nome "desconfigurando" no F5 — 2026-09-14
 
 ### Corrigido — bug crítico, arquitetural

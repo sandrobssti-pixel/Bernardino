@@ -27,6 +27,7 @@ import toastError from "../../errors/toastError";
 import QueueSelect from "../QueueSelect";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useWhatsApps from "../../hooks/useWhatsApps";
+import useFinance from "../../hooks/useFinance";
 
 import { Can } from "../Can";
 import { Grid, Paper, Tab, Tabs } from "@material-ui/core";
@@ -305,11 +306,18 @@ const UserModal = ({ open, onClose, userId }) => {
 	};
 
 	const { user: loggedInUser } = useContext(AuthContext);
+	const { getAccess: getFinanceAccess } = useFinance();
 
 	const [user, setUser] = useState(initialState);
 	const [selectedQueueIds, setSelectedQueueIds] = useState([]);
 	const [whatsappId, setWhatsappId] = useState("");
 	const { whatsApps } = useWhatsApps();
+	// Só mostra a permissão "Módulo Financeiro" se o PLANO da empresa
+	// realmente incluir o add-on — senão o Admin vê uma opção que nunca vai
+	// funcionar (a empresa não contratou), o que confunde e parece um erro.
+	// A checagem real de acesso continua no backend (EnsureFinancialAccess);
+	// isto é só pra não deixar a opção "aberta" na UI.
+	const [financeModuleAvailable, setFinanceModuleAvailable] = useState(false);
 	const [tab, setTab] = useState("general");
 	const [avatar, setAvatar] = useState(null);
 	const startWorkRef = useRef();
@@ -352,6 +360,20 @@ const UserModal = ({ open, onClose, userId }) => {
 
 		fetchUser();
 	}, [userId, open]);
+
+	useEffect(() => {
+		if (!open) return;
+		const fetchFinanceAccess = async () => {
+			try {
+				const { planHasModule } = await getFinanceAccess();
+				setFinanceModuleAvailable(!!planHasModule);
+			} catch (err) {
+				setFinanceModuleAvailable(false);
+			}
+		};
+		fetchFinanceAccess();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open]);
 
 	const handleClose = () => {
 		onClose();
@@ -444,7 +466,7 @@ const UserModal = ({ open, onClose, userId }) => {
 		},
 		financialAccess: {
 			label: "Módulo Financeiro",
-			description: "Acessa cadastros de clientes, fornecedores e produtos (só tem efeito se o plano da empresa incluir o módulo).",
+			description: "Acessa cadastros de clientes, fornecedores, produtos, contas a pagar/receber e relatórios.",
 		},
 		allTicket: {
 			label: "Tickets sem fila",
@@ -937,15 +959,17 @@ const UserModal = ({ open, onClose, userId }) => {
 															setFieldValue
 														})}
 													</Grid>
-													<Grid item xs={12} md={6}>
-														{renderPermissionButtonField({
-															fieldName: "financialAccess",
-															label: permissionContent.financialAccess.label,
-															description: permissionContent.financialAccess.description,
-															values,
-															setFieldValue
-														})}
-													</Grid>
+													{financeModuleAvailable && (
+														<Grid item xs={12} md={6}>
+															{renderPermissionButtonField({
+																fieldName: "financialAccess",
+																label: permissionContent.financialAccess.label,
+																description: permissionContent.financialAccess.description,
+																values,
+																setFieldValue
+															})}
+														</Grid>
+													)}
 													<Grid item xs={12} md={6}>
 														{renderPermissionButtonField({
 															fieldName: "allTicket",

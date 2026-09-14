@@ -64,6 +64,8 @@ import OfficialCampaignShipping from "../models/OfficialCampaignShipping";
 import FinanceCustomer from "../models/FinanceCustomer";
 import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
+import FinanceExpense from "../models/FinanceExpense";
+import FinanceReceivable from "../models/FinanceReceivable";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -135,7 +137,9 @@ const models = [
   OfficialCampaignShipping,
   FinanceCustomer,
   FinanceSupplier,
-  FinanceProduct
+  FinanceProduct,
+  FinanceExpense,
+  FinanceReceivable
 ];
 
 sequelize.addModels(models);

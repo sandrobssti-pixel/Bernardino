@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.18
-**Etapa:** 4 — corrigida causa raiz da logo/nome não persistindo no F5 (leitura hardcoded na empresa 1), botão salvar manual, layout lateral do módulo Financeiro
+**Versão do documento:** 2.3.19
+**Etapa:** 4 — Fase 2 do Financeiro (custos, contas a pagar/receber, relatórios com gráficos) e correção da permissão "Módulo Financeiro" aparecendo mesmo fora do plano contratado
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -316,23 +316,45 @@ nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano
   unidade, preço de venda/custo, controle de estoque opcional, campo `ncm` já
   previsto pra Fase 3 mas sem uso ainda).
 
-### Fase 2 — Financeiro operacional
-- Gestão de custos fixos e variáveis (contas a pagar, categorias de despesa)
-- Contas a receber ligadas aos clientes cadastrados
-- Painel com gráficos (usar a mesma linguagem visual dos dashboards já existentes —
-  ver skill de `dataviz` deste projeto ao desenhar os gráficos). O cliente enviou
-  uma referência visual (coleção de elementos de dashboard estilo escuro,
-  gradientes neon roxo/rosa/azul, anéis de progresso, gráficos de área com
-  gradiente) — usar como inspiração de estilo pros gráficos novos, sem
-  reproduzir o asset em si (é um stock de terceiros com licença própria).
-- Relatórios: financeiro (fluxo de caixa, DRE simplificado), estoque (se produtos
-  tiverem controle de estoque), desempenho de funcionários, fornecedores
+### Fase 2 — Financeiro operacional (backend ✅ concluído v2.3.19; frontend em andamento)
+- **Contas a pagar** (`FinanceExpense`): descrição, categoria (livre), tipo de custo
+  (`fixed`/`variable`), valor, vencimento, data de pagamento, status
+  (`pending`/`paid`), fornecedor (opcional, vínculo com `FinanceSupplier`),
+  observações. CRUD completo em `/finance/expenses`.
+- **Contas a receber** (`FinanceReceivable`): descrição, valor, vencimento, data de
+  recebimento, status (`pending`/`received`), cliente (opcional, vínculo com
+  `FinanceCustomer`), observações. CRUD completo em `/finance/receivables`.
+- **Relatórios** (`FinanceReportService`, rotas `/finance/reports/*`):
+  - `summary`: cartões de resumo (pendências, vencidos, pago/recebido no mês,
+    saldo previsto);
+  - `cashflow`: série de N meses (padrão 6) com entradas x saídas, baseada na
+    data real de pagamento/recebimento (não no vencimento);
+  - `expenses-by-category`: total de despesas agrupado por categoria.
+  - ⚠️ **Armadilha de tipagem/SQL encontrada e corrigida**: `value` é salvo como
+    `string` (varchar) nos modelos, de propósito, pra evitar imprecisão de ponto
+    flutuante — mas isso quebra `SUM()` no Postgres (`42883: function sum(character
+    varying) does not exist`). Toda soma precisa de `CAST("value" AS NUMERIC)`
+    explícito — ver o helper `sumValue()`/`sumWhere()` em `FinanceReportService.ts`.
+    Se `Model.sum("value", ...)` for usado em código novo sobre esse mesmo tipo de
+    coluna, vai quebrar da mesma forma — usar sempre o helper.
+- Painel com gráficos (`recharts`, já usado no `Dashboard`) — usar a mesma
+  linguagem visual dos dashboards já existentes (ver skill de `dataviz` deste
+  projeto: paleta categórica já validada `['#6366f1', '#10b981', '#f59e0b',
+  '#ef4444', '#8b5cf6']`, com alívio visual obrigatório — rótulo direto ou tabela
+  — nos tons âmbar/esmeralda por baixo contraste). O cliente enviou uma referência
+  visual (coleção de elementos de dashboard estilo escuro, gradientes neon
+  roxo/rosa/azul, anéis de progresso, gráficos de área com gradiente) — usar como
+  inspiração de estilo, sem reproduzir o asset em si (é um stock de terceiros com
+  licença própria). **Ainda não construído no frontend.**
 - Cada relatório precisa de exportação/impressão: botão de imprimir
   (`window.print()` com CSS `@media print` dedicado é o caminho mais simples) e
   exportação em **PDF profissional com os gráficos** — vale avaliar
   `jsPDF` + captura do canvas do gráfico, ou renderização server-side (Puppeteer,
   já usado no projeto para outros fins) se o resultado do `jsPDF` não ficar bom
-  o suficiente com gráficos.
+  o suficiente com gráficos. **Ainda não construído.**
+- Migrações: `20260914150000-create-finance-expenses.ts`,
+  `20260914150100-create-finance-receivables.ts` (já rodadas no ambiente do cliente
+  precisam de `npm run db:migrate` no deploy desta versão).
 
 ### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica / SEFAZ / Receita Federal)
 Esta é a fase de maior risco técnico e regulatório do roadmap — envolve comunicação
@@ -497,6 +519,20 @@ real/legal pra empresas-clientes que dependessem dela).
   salvamento/timing — não são a mesma coisa. Se o pedido volta descrito de
   forma quase idêntica depois de uma correção anterior, é sinal de que a
   correção anterior atacou um sintoma parecido mas não a causa raiz.
+- ✅ **Bug corrigido (v2.3.19) — permissão "Módulo Financeiro" aparecia mesmo
+  fora do plano contratado**: a aba Permissões do cadastro de usuário
+  (`UserModal.js`) sempre mostrava o toggle "Módulo Financeiro" pro Admin de
+  qualquer empresa, mesmo quando o plano contratado por aquela empresa **não**
+  inclui o add-on (ex.: um plano "Prata" mais barato, sem
+  `Plan.useFinancial`). O acesso real já era bloqueado no backend
+  (`EnsureFinancialAccess`), mas a opção ficava visível e "habilitável" na UI,
+  dando a falsa impressão de que o Admin podia ligar um módulo que a empresa
+  não pagou. Corrigido buscando `GET /finance/access` (mesmo endpoint que a
+  tela do Financeiro já usa) ao abrir o modal e só renderizando o toggle
+  quando `planHasModule === true`. Mesma lógica vale pra qualquer outra
+  permissão/toggle que dependa de um add-on por plano: **a UI não deve deixar
+  a opção "aberta" (visível/clicável) quando o plano não inclui aquela
+  funcionalidade** — esconder, não só bloquear no backend.
 
 ---
 
