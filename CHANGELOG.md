@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.26] — Painel RH e página pública com cara de dashboard — 2026-09-14
+
+### Adicionado
+- **Aba "Painel RH"** (primeira aba de `/rh`): cards de resumo (vagas abertas,
+  total de candidaturas, total de vagas, efetivados) + gráfico de candidaturas
+  por status (cor por identidade, mesma paleta dos Chips já usados no módulo)
+  e gráfico de candidaturas por vaga (barras horizontais, magnitude) — mesmo
+  padrão visual do Painel Financeiro. Novo endpoint `GET /hr/reports/summary`.
+- **Página pública de vagas** ganhou um cabeçalho "hero" (gradiente, ícone,
+  nome da empresa e contagem de vagas abertas) em vez do título simples —
+  os endpoints públicos agora retornam o nome da empresa junto da vaga.
+
 ## [2.3.25] — Módulo de RH/recrutamento (Fase 5) — 2026-09-14
 
 ### Adicionado

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.25 (Etapa 5 — módulo de RH/recrutamento: vagas com página pública sem login, candidatura com anexo de currículo, triagem interna e efetivação do candidato como usuário do sistema; add-on independente do Financeiro/Fiscal, controlado pelo Master por plano)**
+**Versão atual: 2.3.26 (Etapa 5.1 — Painel RH com cards de resumo e gráficos (candidaturas por status/por vaga), no mesmo estilo do Painel Financeiro; página pública de vagas com cabeçalho estilo "hero" mostrando o nome da empresa e a contagem de vagas abertas)**
 
 ## Documentação
 

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.25
-**Etapa:** 5 — módulo de RH/recrutamento (vagas + página pública de candidatura com anexo de currículo + triagem + efetivação como usuário do sistema)
+**Versão do documento:** 2.3.26
+**Etapa:** 5.1 — Painel RH com cards/gráficos (estilo dashboard) + cabeçalho "hero" na página pública de vagas
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -616,6 +616,32 @@ sem `Plan.useHR` → sem acesso; com o plano habilitado → Admin sempre tem ace
 funcionário comum só com `User.hrAccess` marcado; Master sempre tem acesso, isolado
 por `companyId`. Todos os dados de teste (vaga, candidatura, usuário efetivado,
 arquivo de currículo) foram removidos do banco depois dos testes.
+
+#### Etapa 5.1 — Painel RH e página pública com cara de dashboard (v2.3.26)
+
+Pedido do cliente depois de testar a Fase 5: deixar o painel administrativo e a
+página pública com uma cara mais "dashboard", no mesmo espírito visual do Painel
+Financeiro (cards de resumo + gráficos, `dataviz` do projeto).
+
+- **Nova aba "Painel RH"** (`frontend/src/components/HRPainel`, primeira aba de
+  `/rh`, mesma posição que "Painel Financeiro" ocupa dentro do Financeiro): 4 cards
+  de resumo (vagas abertas, total de candidaturas, total de vagas, candidatos
+  efetivados) + dois gráficos de barra (`recharts`):
+  - **Candidaturas por status**: cor por IDENTIDADE (conjunto fixo e pequeno de 5
+    status conhecidos — recebida/triagem/entrevista/aprovada/reprovada), reaproveitando
+    as mesmas cores já usadas nos `Chip`s de `JobApplicationsPanel`/
+    `JobApplicationDetailModal` (`Cell` do `recharts` por barra, nunca cor cíclica).
+  - **Candidaturas por vaga**: barras horizontais de um hue só (magnitude, não
+    identidade) — mesmo raciocínio já usado em "Despesas por categoria" no
+    `FinancePainel`, porque o título da vaga é texto livre cadastrado pelo Admin
+    (não dá pra atribuir uma cor fixa por vaga com um número não previsível delas).
+  - Endpoint novo: `GET /hr/reports/summary` (`HRReportService.summary`,
+    `HRReportController`) — agrega contagens com `COUNT`/`GROUP BY` no banco em vez
+    de trazer todas as candidaturas pro frontend só pra contar.
+- **Página pública de vagas com cabeçalho "hero"**: gradiente roxo/índigo, ícone,
+  nome da empresa (novo — os endpoints públicos `listPublicOpen`/`showPublic` agora
+  incluem `company.name` via `include`) e um badge com a contagem de vagas abertas.
+  Cards de vaga com efeito de elevação/leve translação no hover.
 
 ### Decisões em aberto antes de iniciar a Fase 3+
 Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir

@@ -142,9 +142,12 @@ export const remove = async (
 // Público (sem login) — página de vagas da empresa. Só mostra vagas "open".
 // ---------------------------------------------------------------------------
 
+const includeCompanyName = [{ association: "company", attributes: ["name"] }];
+
 export const listPublicOpen = async (companyId: string | number): Promise<JobPosting[]> => {
   return JobPosting.findAll({
     where: { companyId, status: "open" },
+    include: includeCompanyName,
     order: [["id", "DESC"]]
   });
 };
@@ -154,7 +157,8 @@ export const showPublic = async (
   id: string | number
 ): Promise<JobPosting> => {
   const record = await JobPosting.findOne({
-    where: { id, companyId, status: "open" }
+    where: { id, companyId, status: "open" },
+    include: includeCompanyName
   });
 
   if (!record) {

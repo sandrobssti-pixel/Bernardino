@@ -8,6 +8,7 @@ import Tab from "@material-ui/core/Tab";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useHR from "../../hooks/useHR";
+import HRPainel from "../../components/HRPainel";
 import JobPostingList from "../../components/JobPostingList";
 import JobApplicationsPanel from "../../components/JobApplicationsPanel";
 
@@ -82,7 +83,7 @@ const RH = () => {
   const { user } = useContext(AuthContext);
   const hr = useHR();
   const [hrAccess, setHrAccess] = useState(null);
-  const [tab, setTab] = useState("jobPostings");
+  const [tab, setTab] = useState("painel");
 
   useEffect(() => {
     (async () => {
@@ -137,11 +138,13 @@ const RH = () => {
           textColor="primary"
           className={classes.sideTabs}
         >
+          <Tab className={classes.sideTab} value="painel" label="Painel RH" />
           <Tab className={classes.sideTab} value="jobPostings" label="Vagas" />
           <Tab className={classes.sideTab} value="applications" label="Candidaturas" />
         </Tabs>
 
         <div className={classes.content}>
+          {tab === "painel" && <HRPainel hr={hr} />}
           {tab === "jobPostings" && <JobPostingList hr={hr} companyId={user.companyId} />}
           {tab === "applications" && <JobApplicationsPanel hr={hr} />}
         </div>

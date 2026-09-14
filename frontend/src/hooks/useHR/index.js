@@ -13,6 +13,13 @@ const useHR = () => {
     return data;
   };
 
+  const reports = {
+    summary: async () => {
+      const { data } = await api.get("/hr/reports/summary");
+      return data;
+    },
+  };
+
   const jobPostings = {
     list: async (params) => {
       const { data } = await api.get("/job-postings", { params });
@@ -79,7 +86,7 @@ const useHR = () => {
     },
   };
 
-  return { getAccess, jobPostings, jobApplications, publicJobs };
+  return { getAccess, reports, jobPostings, jobApplications, publicJobs };
 };
 
 export default useHR;

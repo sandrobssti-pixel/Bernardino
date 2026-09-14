@@ -13,6 +13,7 @@ import TextField from "@material-ui/core/TextField";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Divider from "@material-ui/core/Divider";
 import WorkOutlineIcon from "@material-ui/icons/WorkOutline";
+import PeopleAltIcon from "@material-ui/icons/PeopleAlt";
 import RoomIcon from "@material-ui/icons/Room";
 import AttachFileIcon from "@material-ui/icons/AttachFile";
 import ArrowBackIcon from "@material-ui/icons/ArrowBack";
@@ -26,17 +27,48 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.type === "light" ? "#f4f7fb" : theme.palette.background.default,
     padding: theme.spacing(4, 0),
   },
-  headerBox: {
+  hero: {
     marginBottom: theme.spacing(3),
     textAlign: "center",
+    padding: theme.spacing(4, 3),
+    borderRadius: 16,
+    background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+    color: "#fff",
+  },
+  heroIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    margin: "0 auto",
+    marginBottom: theme.spacing(1.5),
+    "& svg": { fontSize: 28 },
+  },
+  heroCompany: {
+    fontWeight: 700,
+    fontSize: "1.4rem",
+  },
+  heroCount: {
+    marginTop: theme.spacing(1),
+    display: "inline-flex",
+    alignItems: "center",
+    gap: theme.spacing(0.75),
+    padding: theme.spacing(0.5, 1.5),
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    fontSize: "0.82rem",
+    fontWeight: 600,
   },
   jobCard: {
     padding: theme.spacing(2.5),
     borderRadius: 12,
     marginBottom: theme.spacing(2),
     cursor: "pointer",
-    transition: "box-shadow 0.15s ease",
-    "&:hover": { boxShadow: theme.shadows[3] },
+    transition: "box-shadow 0.15s ease, transform 0.15s ease",
+    "&:hover": { boxShadow: theme.shadows[4], transform: "translateY(-2px)" },
   },
   jobTitle: {
     fontWeight: 700,
@@ -220,6 +252,11 @@ const PublicJobBoard = () => {
             Voltar para vagas
           </Button>
           <Paper className={classes.detailPaper}>
+            {jobPosting.company?.name && (
+              <Typography variant="body2" color="textSecondary" gutterBottom>
+                {jobPosting.company.name}
+              </Typography>
+            )}
             <Typography className={classes.jobTitle} variant="h5">{jobPosting.title}</Typography>
             <Box className={classes.chipsRow}>
               {jobPosting.department && <Chip size="small" label={jobPosting.department} />}
@@ -338,15 +375,28 @@ const PublicJobBoard = () => {
   }
 
   // ── Listagem de vagas abertas ─────────────────────────────────────────
+  const companyName = jobPostings[0]?.company?.name;
+
   return (
     <div className={classes.page}>
       <Container maxWidth="sm">
-        <Box className={classes.headerBox}>
-          <WorkOutlineIcon style={{ fontSize: 40, opacity: 0.5 }} />
-          <Typography variant="h5" style={{ fontWeight: 700, marginTop: 8 }}>
-            Vagas abertas
+        <Paper className={classes.hero} elevation={0}>
+          <Box className={classes.heroIcon}>
+            <WorkOutlineIcon />
+          </Box>
+          <Typography className={classes.heroCompany}>
+            {companyName || "Vagas abertas"}
           </Typography>
-        </Box>
+          {companyName && (
+            <Typography variant="body2" style={{ opacity: 0.9, marginTop: 4 }}>
+              Vagas abertas
+            </Typography>
+          )}
+          <Box className={classes.heroCount}>
+            <PeopleAltIcon style={{ fontSize: 16 }} />
+            {jobPostings.length} {jobPostings.length === 1 ? "vaga aberta" : "vagas abertas"}
+          </Box>
+        </Paper>
 
         {jobPostings.length === 0 && (
           <Paper className={classes.emptyState}>

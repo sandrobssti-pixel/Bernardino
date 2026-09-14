@@ -6,6 +6,7 @@ import resumeUploadConfig from "../config/resumeUpload";
 import * as JobPostingController from "../controllers/JobPostingController";
 import * as JobApplicationController from "../controllers/JobApplicationController";
 import * as HRAccessController from "../controllers/HRAccessController";
+import * as HRReportController from "../controllers/HRReportController";
 
 const hrRoutes = Router();
 const resumeUpload = multer(resumeUploadConfig);
@@ -14,6 +15,7 @@ const resumeUpload = multer(resumeUploadConfig);
 // docs/MANUAL_TECNICO.md, seção 6.2.
 
 hrRoutes.get("/hr/access", isAuth, HRAccessController.show);
+hrRoutes.get("/hr/reports/summary", isAuth, HRReportController.summary);
 
 // Admin (autenticado, escopado por empresa) — gestão de vagas.
 hrRoutes.get("/job-postings", isAuth, JobPostingController.index);
