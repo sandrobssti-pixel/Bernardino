@@ -10,3 +10,7 @@ yarn-error.log
 /coverage.data
 /coverage/
 
+# Dump gerado pelo redis-server quando rodado localmente (ex.: ambiente de
+# desenvolvimento) — não é conteúdo do projeto.
+dump.rdb
+
