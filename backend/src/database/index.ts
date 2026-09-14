@@ -66,6 +66,10 @@ import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceReceivable from "../models/FinanceReceivable";
+import FiscalConfig from "../models/FiscalConfig";
+import Sale from "../models/Sale";
+import SaleItem from "../models/SaleItem";
+import FiscalDocument from "../models/FiscalDocument";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -139,7 +143,11 @@ const models = [
   FinanceSupplier,
   FinanceProduct,
   FinanceExpense,
-  FinanceReceivable
+  FinanceReceivable,
+  FiscalConfig,
+  Sale,
+  SaleItem,
+  FiscalDocument
 ];
 
 sequelize.addModels(models);

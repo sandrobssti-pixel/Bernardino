@@ -9,8 +9,11 @@ import Tab from "@material-ui/core/Tab";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
 import useFinance from "../../hooks/useFinance";
+import useFiscal from "../../hooks/useFiscal";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
+import FiscalConfigPanel from "../../components/FiscalConfigPanel";
+import FiscalSalesPanel from "../../components/FiscalSalesPanel";
 import {
   financeCustomerColumns,
   financeCustomerFields,
@@ -102,6 +105,7 @@ const Financeiro = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
   const finance = useFinance();
+  const fiscal = useFiscal();
   const [financeAccess, setFinanceAccess] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
 
@@ -146,6 +150,12 @@ const Financeiro = () => {
           finance={finance}
         />
       );
+    }
+    if (financeTab === "sales") {
+      return <FiscalSalesPanel key={financeTab} finance={finance} fiscal={fiscal} />;
+    }
+    if (financeTab === "fiscalConfig") {
+      return <FiscalConfigPanel key={financeTab} fiscal={fiscal} />;
     }
     if (financeTab === "customers") {
       return (
@@ -234,6 +244,8 @@ const Financeiro = () => {
           <Tab className={classes.sideTab} value="customers" label="Clientes" />
           <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
           <Tab className={classes.sideTab} value="products" label="Produtos" />
+          <Tab className={classes.sideTab} value="sales" label="Vendas" />
+          <Tab className={classes.sideTab} value="fiscalConfig" label="Configuração Fiscal" />
         </Tabs>
 
         <div className={classes.content}>{renderPanel()}</div>

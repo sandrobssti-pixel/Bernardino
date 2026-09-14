@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.21
-**Etapa:** 4 — corrigido "não aparece o plano" em Minha assinatura (causa raiz: plano só era mostrado dentro de uma linha de fatura — sem fatura emitida, a tela ficava vazia mesmo com plano válido)
+**Versão do documento:** 2.3.22
+**Etapa:** 4 — Fase 3 do roadmap iniciada (módulo fiscal): Vendas com itens, Configuração Fiscal por empresa, emissão de NF-e/NFC-e/NFS-e via gateway Focus NFe
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -392,27 +392,116 @@ nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano
   do fetch, ou de um `key` que mude junto com o recurso — nunca as duas coisas
   de menos.
 
-### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica / SEFAZ / Receita Federal)
-Esta é a fase de maior risco técnico e regulatório do roadmap — envolve comunicação
-com webservices da SEFAZ de cada estado (ou SEFAZ Virtual, pra estados sem
-infraestrutura própria), certificado digital (A1 ou A3) por empresa, assinatura e
-validação de XML conforme o layout vigente da NF-e/NFC-e, contingência, e
-acompanhamento da **Reforma Tributária** (transição CBS/IBS iniciada em 2026,
-substituindo PIS/COFINS/ICMS/ISS ao longo dos próximos anos). Antes de começar a
-codificar esta fase, é preciso decidir com o cliente:
-- **Emissão direta na SEFAZ** (mais barato a longo prazo, mas exige implementar e
-  manter toda a integração — assinatura de XML, contingência, homologação em cada
-  estado) **vs. usar um gateway de NF-e como serviço** (Focus NFe, NFe.io, PlugNotas,
-  eNotas etc. — cobram por nota emitida, mas absorvem toda a complexidade de SEFAZ,
-  atualizações de layout e da Reforma Tributária). Pra um SaaS multi-empresa como o
-  AtendeFlow, um gateway tende a ser o caminho mais realista pra tocar isso num prazo
-  razoável.
-- Qual(is) documento(s) fiscal(is) emitir primeiro: NF-e (produto), NFS-e (serviço,
-  que varia por prefeitura) e/ou NFC-e (consumidor final)?
-- Seleção do regime tributário por empresa (Configurações da empresa): MEI, EI, SLU,
-  LTDA, S/A, e enquadramento por porte (MEI, ME até R$ 360 mil/ano, EPP até R$ 4,8
-  milhões/ano) — isso afeta qual regime de apuração de imposto e qual documento fiscal
-  a empresa pode/deve emitir.
+### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica) — iniciada v2.3.22
+
+Decisões tomadas com o cliente antes de começar (evitando o risco regulatório
+de emitir nota fiscal incorreta):
+- **Emissão via gateway** (não integração direta com a SEFAZ) — escolhido
+  **Focus NFe** como provedor padrão: cobre NF-e/NFC-e/NFS-e num único
+  contrato de API, documentação em português, bom encaixe pra um adapter só
+  cobrir os 3 tipos de documento.
+- **Todos os 3 documentos** (NF-e, NFC-e, NFS-e) fazem parte do escopo, com
+  NF-e sendo o mais padronizado e testado primeiro.
+- **Regime tributário**: suporte a MEI/ME/EPP (Simples Nacional) e
+  LTDA/S.A. (Lucro Presumido/Real) — campo `taxRegime` na Configuração
+  Fiscal cobre os 4 regimes.
+- **Origem da nota — decisão estrutural**: NF-e/NFC-e exigem itens
+  discriminados (produto, quantidade, NCM, CFOP); uma Conta a Receber
+  (Fase 2) é só um valor total, sem itens — não dá pra virar nota fiscal
+  sozinha. Criada uma nova tela **Vendas** com itens (reaproveitando o
+  catálogo de produtos da Fase 1, `FinanceProduct`, que já tinha o campo
+  `ncm` previsto) — confirmar uma venda gera automaticamente a conta a
+  receber correspondente, e a partir da venda confirmada é possível emitir
+  a nota fiscal.
+
+#### O que foi implementado
+
+- **`FiscalConfig`** (`/fiscal/config`, GET/PUT): um registro por empresa —
+  regime tributário, inscrição estadual (+ isenção), inscrição municipal,
+  CNAE, código IBGE do município, e as credenciais do gateway (token,
+  ambiente homologação/produção, séries de NF-e/NFC-e/NFS-e). Configurado
+  pelo **Admin da empresa-cliente**, não pelo Master — o token é da própria
+  empresa junto à Focus NFe (emite em nome do CNPJ dela), diferente das
+  credenciais de gateway de pagamento da assinatura do AtendeFlow (essas
+  sim geridas pelo Master, em `Company`).
+- **`Sale`/`SaleItem`** (`/sales`, CRUD + `/sales/:id/confirm` +
+  `/sales/:id/cancel`): venda com itens. Fluxo: `draft` (editável, itens
+  podem mudar) → `confirm` (trava os itens, gera uma `FinanceReceivable`
+  com o valor total, some `receivableId` na venda) → a partir daí pode
+  emitir nota fiscal. Uma venda confirmada não pode mais ser editada
+  (`ERR_SALE_NOT_EDITABLE`) — nota fiscal e conta a receber já emitidas não
+  podem refletir uma mudança retroativa nos itens.
+- **`FiscalDocument`** (`/sales/:saleId/fiscal-documents`, POST pra emitir;
+  `/fiscal-documents/:id/refresh-status`, `/fiscal-documents/:id/cancel`):
+  um registro por TENTATIVA de emissão (histórico completo — uma reemissão
+  depois de erro gera outro registro, nunca sobrescreve o anterior).
+  `externalRef` é a chave que este sistema gera e manda pro gateway
+  (idempotente do lado da Focus NFe); `accessKey` é a chave de acesso de 44
+  dígitos, só existe depois de autorizada pela SEFAZ.
+- **`FocusNFeService`** (`backend/src/services/FiscalService/FocusNFeService.ts`):
+  adapter HTTP pro gateway — `emit`, `getStatus`, `cancel`. Erros de
+  comunicação/gateway nunca derrubam a aplicação: ficam armazenados no
+  campo `errorMessage` do `FiscalDocument` com `status: "error"`, pra dar
+  pra investigar e reemitir depois.
+- Reaproveitado o mesmo gate de acesso do Financeiro (`Plan.useFinancial`,
+  `EnsureFinancialAccess`) em vez de criar um flag de plano próprio pro
+  fiscal — o comentário original do campo `useFinancial` no model `Plan`
+  já previa isso ("cadastro de clientes/fornecedores/produtos, custos,
+  relatórios, **fiscal**, contábil, RH").
+- Frontend: dentro do Financeiro (navegação lateral), duas abas novas —
+  **Vendas** (`SaleList`/`SaleModal`/`SaleDetailModal` — modal de
+  criação/edição com itens dinâmicos via `Formik` `FieldArray`, seleção de
+  produto autopreenche descrição/NCM/unidade/preço; modal de detalhe mostra
+  itens travados + histórico de notas fiscais + botões "Emitir NF-e/NFC-e/
+  NFS-e") e **Configuração Fiscal** (`FiscalConfigPanel` — formulário único
+  por empresa).
+
+#### ⚠️ Limitação de teste importante — leia antes de usar em produção
+
+**O adapter `FocusNFeService` nunca foi validado contra uma chave de
+sandbox real** — esta sessão de desenvolvimento não tinha acesso a
+credenciais da Focus NFe. Foi implementado a partir da documentação
+pública da Focus NFe (nomes de campos, formato de payload, parsing de
+resposta), e o teste end-to-end confirmou que:
+- o fluxo completo funciona (venda → confirmação → conta a receber →
+  tentativa de emissão → registro do resultado);
+- a chamada HTTP realmente alcança o servidor de homologação da Focus NFe
+  (testado com um token inválido de propósito — a resposta 403 de
+  autenticação confirma que a URL, o método de autenticação HTTP Basic e o
+  formato geral da requisição estão corretos);
+- erros do gateway são capturados e mostrados de forma clara pro usuário,
+  sem quebrar a aplicação.
+
+**O que ainda não foi confirmado**: se os NOMES EXATOS dos campos do
+payload (`buildNfePayload`/`buildNfcePayload`/`buildNfsePayload` em
+`FocusNFeService.ts`) batem 100% com o que a Focus NFe espera pra emitir
+uma nota de verdade, e se o parsing da resposta (`parseDocumentResponse`)
+extrai os campos certos (`numero`, `chave_nfe`, `caminho_danfe` etc.) do
+formato real de retorno. **Antes de emitir a primeira nota de produção**:
+configurar um token de homologação de verdade em Configuração Fiscal,
+emitir uma NF-e de teste, e comparar a resposta real da API com o parsing
+no código — ajustar os nomes de campo se necessário (são poucos pontos,
+isolados nas funções citadas acima).
+
+**NFS-e em particular** é a mais dependente de município (cada prefeitura
+tem seu próprio layout) — o payload implementado é um denominador comum
+simplificado; é bem provável que precise de ajuste por município conforme
+forem testados de verdade.
+
+#### Ainda pendente da Fase 3
+
+- Validar o adapter contra um token de homologação real (ver acima).
+- Reforma Tributária (transição CBS/IBS iniciada em 2026, substituindo
+  PIS/COFINS/ICMS/ISS ao longo dos próximos anos) — a Focus NFe absorve
+  atualizações de layout do lado dela, mas os campos que o AtendeFlow
+  manda podem precisar de ajuste conforme a transição avança.
+- Contingência (emissão offline quando a SEFAZ está fora do ar) — não
+  implementado; a Focus NFe tem suporte a isso do lado dela, mas o
+  AtendeFlow ainda não expõe esse fluxo.
+- PDF (DANFE/DANFCE) e XML: os links (`xmlUrl`/`pdfUrl`) retornados pelo
+  gateway já ficam salvos no `FiscalDocument`, mas o frontend ainda não tem
+  um botão de download/visualização direto — só mostra o link seria
+  suficiente, é uma extensão pequena quando for necessário.
 
 ### Fase 4 — Módulo contábil
 Cálculo e geração de guias de pagamento de impostos conforme o regime tributário

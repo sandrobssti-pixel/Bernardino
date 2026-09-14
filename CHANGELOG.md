@@ -3,6 +3,35 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.22] — Fase 3 do roadmap iniciada: módulo fiscal (NF-e/NFC-e/NFS-e) — 2026-09-14
+
+### Adicionado
+- **Vendas** (nova aba no Financeiro): cadastro de venda com itens
+  discriminados (produto/serviço, quantidade, NCM, CFOP, valor unitário) —
+  necessário porque nota fiscal exige itens, e Contas a Receber (Fase 2) é
+  só um valor total. Confirmar uma venda gera automaticamente a conta a
+  receber correspondente e trava os itens (não editáveis depois).
+- **Configuração Fiscal** (nova aba no Financeiro): regime tributário
+  (MEI/Simples/Presumido/Real), inscrição estadual/municipal, CNAE, código
+  do município, e credenciais do gateway de emissão — configurado pelo
+  Admin de cada empresa-cliente (o token é da própria empresa, emite em
+  nome do CNPJ dela).
+- **Emissão de NF-e/NFC-e/NFS-e** via gateway Focus NFe, direto de uma
+  venda confirmada. Histórico completo de tentativas de emissão (número,
+  chave de acesso, status, erros do gateway) fica salvo por venda.
+- Migrações para as 4 novas tabelas (`FiscalConfigs`, `Sales`, `SaleItems`,
+  `FiscalDocuments`) — **rodar `npm run db:migrate` no deploy desta
+  versão**.
+
+### ⚠️ Atenção antes de emitir a primeira nota em produção
+O adapter do gateway (Focus NFe) foi implementado a partir da documentação
+pública, mas não foi validado contra uma chave de sandbox real nesta
+sessão de desenvolvimento (sem acesso a credenciais). O fluxo completo
+funciona e a comunicação HTTP com o gateway foi confirmada, mas os nomes
+exatos de alguns campos do payload podem precisar de ajuste fino na
+primeira emissão de teste real — ver detalhes e o que ajustar em
+`docs/MANUAL_TECNICO.md`, seção 6.2 (Fase 3).
+
 ## [2.3.21] — Corrigido "não aparece o plano" em Minha assinatura — 2026-09-14
 
 ### Corrigido

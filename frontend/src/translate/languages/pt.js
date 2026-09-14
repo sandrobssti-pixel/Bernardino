@@ -1860,6 +1860,19 @@ const messages = {
       },
       backendErrors: {
         ERR_COMPANY_PLAN_REQUIRED: "Selecione um plano para vincular à empresa.",
+        ERR_SALE_REQUIRES_ITEMS: "Adicione pelo menos um item à venda.",
+        ERR_SALE_NOT_EDITABLE: "Só é possível editar vendas em rascunho.",
+        ERR_SALE_ALREADY_CONFIRMED: "Esta venda já foi confirmada.",
+        ERR_SALE_NOT_CONFIRMED: "Confirme a venda antes de emitir a nota fiscal.",
+        ERR_SALE_NOT_FOUND: "Venda não encontrada.",
+        ERR_FISCAL_DOCUMENT_INVALID_TYPE: "Tipo de documento fiscal inválido.",
+        ERR_FISCAL_GATEWAY_NOT_CONFIGURED:
+          "Configure o token do gateway fiscal em Configuração Fiscal antes de emitir notas.",
+        ERR_FISCAL_DOCUMENT_NOT_CANCELLABLE:
+          "Só é possível cancelar uma nota já autorizada.",
+        ERR_FISCAL_DOCUMENT_JUSTIFICATION_TOO_SHORT:
+          "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
+        ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
         ERR_CONTACT_NOT_GROUP: "Este contato não é um grupo.",
         ERR_INVALID_GROUP_ACTION: "Ação inválida para gerenciamento de grupo.",
         ERR_WAPP_GROUP_UPDATE_FAILED:
