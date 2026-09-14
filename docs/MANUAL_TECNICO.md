@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.9
-**Etapa:** 3 — Papel Master, identidade da empresa por Admin, marca fixa Confianza Technologies no login, sino de notificações
+**Versão do documento:** 2.3.10
+**Etapa:** 3 — Master restrito a liberar acessos/licenças, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -301,6 +301,16 @@ personalizar por cima da identidade padrão sem mexer em código.
   rodado, arquivo não enviado, cache de build). Qualquer marca que precise **sempre**
   aparecer, em qualquer instalação, deve seguir esse padrão — asset fixo no build, não
   Setting dinâmica.
+- ⚠️ **Papel do Master x Admin (v2.3.10) — regra de arquitetura a respeitar em
+  qualquer tela nova**: o **Master** é o dono/operador do sistema, mas **não opera
+  nenhuma empresa-cliente** — ele só cadastra empresas, cria o Admin de cada uma e
+  libera o plano/licença (Configurações → Empresas, Painel SaaS). Quem configura a
+  identidade (nome, logomarca, cores), conexões, filas, campanhas etc. de uma
+  empresa é sempre o **Admin daquela empresa**, nunca o Master. Por isso, qualquer
+  seção de "configuração operacional de empresa" (White Label, filas, conexões,
+  campanhas, etc.) deve checar `profile === "admin" && !super` — nunca só
+  `profile === "admin"`, senão o Master (que também é `profile: "admin"`, com
+  `super: true`) acaba vendo/editando configuração de empresa que não é dele.
 
 ---
 

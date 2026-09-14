@@ -935,20 +935,38 @@ export default function Options(props) {
   return (
     <>
       <div className={classes.optionsList}>
-        {user.profile === "admin" && (
+        {/* O Master não opera nenhuma empresa-cliente — ele só libera o acesso
+            (cadastra empresa/plano em Painel SaaS / Configurações > Empresas).
+            Quem configura a identidade (nome, logo, cores) é o Admin de cada
+            empresa que comprou o sistema, nunca o Master. */}
+        {user.profile === "admin" && !user.super && (
           <Paper className={classes.optionRow} elevation={0}>
             <div className={classes.optionHeader}>
               <Box>
                 <div className={classes.optionTitle}>Identidade da empresa (White Label)</div>
                 <div className={classes.optionDescription}>
-                  Nome, logomarcas, cores, favicon e ícones da sua empresa. A seção
-                  "Login / capa" (compartilhada por todas as empresas) só aparece pra
-                  quem é Master.
+                  Nome, logomarcas, cores, favicon e ícones da sua empresa.
+                </div>
+              </Box>
+            </div>
+            <Whitelabel settings={oldSettings} />
+          </Paper>
+        )}
+
+        {user.super && (
+          <Paper className={classes.optionRow} elevation={0}>
+            <div className={classes.optionHeader}>
+              <Box>
+                <div className={classes.optionTitle}>Login / capa (compartilhado)</div>
+                <div className={classes.optionDescription}>
+                  Imagem de fundo e link de WhatsApp da tela de login, compartilhados por
+                  todas as empresas. Exclusivo do Master — a identidade de cada empresa
+                  (nome, logo, cores) é configurada pelo Admin de cada empresa, não aqui.
                 </div>
               </Box>
             </div>
             <Whitelabel
-              settings={oldSettings}
+              loginOnly
               loginBrandingConfig={loginBrandingConfig}
               onLoginBrandingChange={handleLoginBrandingChange}
               onLoginBrandingUpload={handleLoginBrandingUpload}

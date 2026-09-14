@@ -222,6 +222,7 @@ const useStyles = makeStyles((theme) => ({
 export default function Whitelabel(props) {
   const {
     settings,
+    loginOnly = false,
     loginBrandingConfig,
     onLoginBrandingChange,
     onLoginBrandingUpload,
@@ -374,9 +375,12 @@ export default function Whitelabel(props) {
   const resolveLoginBrandingImageUrl = resolveBrandingImageUrl || ((value) => value || "");
 
   // "Identidade"/"Logotipos" são por empresa (cada admin cuida da logomarca da sua
-  // própria empresa) — já a seção "Login / capa" mais abaixo é global, compartilhada
-  // por todos os tenants na mesma tela de login, então continua exclusiva do Master.
-  const canEditCompanyIdentity = currentUser.profile === "admin";
+  // própria empresa que comprou o sistema). O Master não opera nenhuma empresa-cliente
+  // (ele só libera acesso/licenças), então nunca vê esta seção — mesmo tendo profile
+  // "admin" — e quando usado só para a seção "Login / capa" (loginOnly), ela também
+  // fica oculta.
+  const canEditCompanyIdentity =
+    !loginOnly && currentUser.profile === "admin" && !currentUser.super;
 
   return (
     <div className={classes.root}>

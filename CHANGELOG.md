@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.10] — Master não vê identidade de empresa (só libera acessos) — 2026-09-14
+
+### Alterado
+- Esclarecimento de papel: o **Master** é quem libera/administra as licenças das
+  empresas que compram o AtendeFlow (cadastra empresa, admin e plano em
+  Configurações → Empresas / Painel SaaS) — ele não opera nenhuma empresa-cliente.
+  Quem configura nome, logomarca e cores da empresa é sempre o **Admin daquela
+  empresa** que adquiriu o sistema.
+- `frontend/src/components/Settings/Options.js` e
+  `frontend/src/components/Settings/Whitelabel.js`: a seção "Identidade da empresa
+  (White Label)" deixou de aparecer para o Master (mesmo tendo `profile: "admin"`)
+  — agora exige `profile === "admin" && !super`. O Master continua vendo apenas a
+  seção "Login / capa" (compartilhada por todas as empresas, usada na tela de
+  login) e as abas de gestão de Empresas/Planos.
+- `Whitelabel.js` ganhou a prop `loginOnly`, usada quando o componente é
+  renderizado só para a seção Login/Capa (sem duplicar a checagem de identidade).
+
 ## [2.3.9] — Marca fixa "Confianza Technologies" na tela de login — 2026-09-14
 
 ### Corrigido
