@@ -1,5 +1,8 @@
 import React from "react";
+import Chip from "@material-ui/core/Chip";
+import moment from "moment";
 import { ActiveChip } from "../../components/FinanceRecordList";
+import { money, formatDateBR } from "../../utils/financeFormat";
 
 // Configuração declarativa das colunas (tabela) e campos (modal de
 // cadastro/edição) dos cadastros do módulo Financeiro — Fase 1 do roadmap.
@@ -86,4 +89,103 @@ export const financeProductFields = [
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6 },
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
+];
+
+// ---------------------------------------------------------------------------
+// Fase 2 — Financeiro operacional (custos, contas a pagar/receber). Ver
+// docs/MANUAL_TECNICO.md, seção 6.2.
+// ---------------------------------------------------------------------------
+
+const COST_TYPE_OPTIONS = [
+  { value: "fixed", label: "Fixo" },
+  { value: "variable", label: "Variável" },
+];
+
+const EXPENSE_STATUS_OPTIONS = [
+  { value: "pending", label: "Pendente" },
+  { value: "paid", label: "Pago" },
+];
+
+const RECEIVABLE_STATUS_OPTIONS = [
+  { value: "pending", label: "Pendente" },
+  { value: "received", label: "Recebido" },
+];
+
+// Vencido = ainda pendente e a data de vencimento já passou — usado tanto na
+// tabela quanto pra decidir a cor do chip de status.
+const isOverdue = (record) =>
+  record.status === "pending" &&
+  record.dueDate &&
+  moment(record.dueDate).isBefore(moment(), "day");
+
+const StatusChip = ({ label, color }) => (
+  <Chip size="small" label={label} style={{ backgroundColor: color, color: "#fff", fontWeight: 600 }} />
+);
+
+export const financeExpenseColumns = [
+  { field: "description", label: "Descrição" },
+  { field: "category", label: "Categoria" },
+  {
+    field: "costType",
+    label: "Tipo",
+    render: (r) => (r.costType === "fixed" ? "Fixo" : "Variável"),
+  },
+  { field: "value", label: "Valor", render: (r) => money(r.value) },
+  { field: "dueDate", label: "Vencimento", render: (r) => formatDateBR(r.dueDate) },
+  { field: "supplier", label: "Fornecedor", render: (r) => r.supplier?.name || "—" },
+  {
+    field: "status",
+    label: "Status",
+    render: (r) => {
+      if (r.status === "paid") return <StatusChip label="Pago" color="#10b981" />;
+      if (isOverdue(r)) return <StatusChip label="Vencido" color="#ef4444" />;
+      return <StatusChip label="Pendente" color="#f59e0b" />;
+    },
+  },
+];
+
+export const financeExpenseFields = [
+  { name: "description", label: "Descrição", gridSize: 8 },
+  { name: "category", label: "Categoria", defaultValue: "Outros", gridSize: 4 },
+  { name: "costType", label: "Tipo de custo", type: "select", options: COST_TYPE_OPTIONS, defaultValue: "variable", gridSize: 4 },
+  { name: "value", label: "Valor (R$)", defaultValue: "0", gridSize: 4 },
+  { name: "status", label: "Status", type: "select", options: EXPENSE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
+  { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
+  { name: "paymentDate", label: "Data de pagamento", type: "date", gridSize: 6 },
+  { name: "supplierId", label: "Fornecedor", type: "asyncSelect", optionsResource: "suppliers", gridSize: 12 },
+  { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
+];
+
+export const financeExpenseFilters = [
+  { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...EXPENSE_STATUS_OPTIONS] },
+];
+
+export const financeReceivableColumns = [
+  { field: "description", label: "Descrição" },
+  { field: "value", label: "Valor", render: (r) => money(r.value) },
+  { field: "dueDate", label: "Vencimento", render: (r) => formatDateBR(r.dueDate) },
+  { field: "customer", label: "Cliente", render: (r) => r.customer?.name || "—" },
+  {
+    field: "status",
+    label: "Status",
+    render: (r) => {
+      if (r.status === "received") return <StatusChip label="Recebido" color="#10b981" />;
+      if (isOverdue(r)) return <StatusChip label="Vencido" color="#ef4444" />;
+      return <StatusChip label="Pendente" color="#f59e0b" />;
+    },
+  },
+];
+
+export const financeReceivableFields = [
+  { name: "description", label: "Descrição", gridSize: 8 },
+  { name: "value", label: "Valor (R$)", defaultValue: "0", gridSize: 4 },
+  { name: "status", label: "Status", type: "select", options: RECEIVABLE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
+  { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
+  { name: "receivedDate", label: "Data de recebimento", type: "date", gridSize: 6 },
+  { name: "customerId", label: "Cliente", type: "asyncSelect", optionsResource: "customers", gridSize: 12 },
+  { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
+];
+
+export const financeReceivableFilters = [
+  { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...RECEIVABLE_STATUS_OPTIONS] },
 ];

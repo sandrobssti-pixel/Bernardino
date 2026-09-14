@@ -10,6 +10,7 @@ import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
 import useFinance from "../../hooks/useFinance";
 import FinanceRecordList from "../../components/FinanceRecordList";
+import FinancePainel from "../../components/FinancePainel";
 import {
   financeCustomerColumns,
   financeCustomerFields,
@@ -17,6 +18,12 @@ import {
   financeSupplierFields,
   financeProductColumns,
   financeProductFields,
+  financeExpenseColumns,
+  financeExpenseFields,
+  financeExpenseFilters,
+  financeReceivableColumns,
+  financeReceivableFields,
+  financeReceivableFilters,
 } from "./financeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -34,8 +41,8 @@ const useStyles = makeStyles((theme) => ({
       padding: theme.spacing(1),
     },
   },
-  // Navegação lateral (não superior) entre Painel SaaS/Clientes/Fornecedores/
-  // Produtos: abas verticais à esquerda, conteúdo à direita.
+  // Navegação lateral (não superior) entre as abas do Financeiro: abas
+  // verticais à esquerda, conteúdo à direita.
   layoutRow: {
     display: "flex",
     flex: 1,
@@ -80,22 +87,23 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-// Módulo Financeiro completo (Fase 1 — clientes/fornecedores/produtos):
-// add-on pago pra empresas-clientes, ver docs/MANUAL_TECNICO.md, seção 6.2.
-// A assinatura do AtendeFlow (plano/vigência/cobrança com a Confianza
+// Módulo Financeiro completo: add-on pago pra empresas-clientes, ver
+// docs/MANUAL_TECNICO.md, seção 6.2. Fase 1 — clientes/fornecedores/
+// produtos; Fase 2 — painel com gráficos, contas a pagar/receber. A
+// assinatura do AtendeFlow (plano/vigência/cobrança com a Confianza
 // Technologies) não vive mais aqui — ficou em Configurações > Assinatura.
 //
 // O Master tem acesso a todas as funcionalidades do sistema (inclusive este
 // módulo, no próprio ambiente dele) — por isso, além do Painel SaaS
 // (cobrança de todas as empresas-clientes, exclusivo dele), ele também vê
-// as abas Clientes/Fornecedores/Produtos, operando só nos dados da própria
-// empresa dele (companyId 1) — nunca nos de uma empresa-cliente real.
+// as mesmas abas operacionais que um Admin normal, operando só nos dados da
+// própria empresa dele (companyId 1) — nunca nos de uma empresa-cliente real.
 const Financeiro = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
   const finance = useFinance();
   const [financeAccess, setFinanceAccess] = useState(null);
-  const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "customers");
+  const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
 
   useEffect(() => {
     (async () => {
@@ -109,10 +117,40 @@ const Financeiro = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const renderRecordPanel = () => {
+  const renderPanel = () => {
+    if (financeTab === "painel") {
+      return <FinancePainel finance={finance} />;
+    }
+    if (financeTab === "expenses") {
+      return (
+        <FinanceRecordList
+          key={financeTab}
+          title="Conta a pagar"
+          resource={finance.expenses}
+          columns={financeExpenseColumns}
+          fields={financeExpenseFields}
+          filters={financeExpenseFilters}
+          finance={finance}
+        />
+      );
+    }
+    if (financeTab === "receivables") {
+      return (
+        <FinanceRecordList
+          key={financeTab}
+          title="Conta a receber"
+          resource={finance.receivables}
+          columns={financeReceivableColumns}
+          fields={financeReceivableFields}
+          filters={financeReceivableFilters}
+          finance={finance}
+        />
+      );
+    }
     if (financeTab === "customers") {
       return (
         <FinanceRecordList
+          key={financeTab}
           title="Cliente"
           resource={finance.customers}
           columns={financeCustomerColumns}
@@ -123,6 +161,7 @@ const Financeiro = () => {
     if (financeTab === "suppliers") {
       return (
         <FinanceRecordList
+          key={financeTab}
           title="Fornecedor"
           resource={finance.suppliers}
           columns={financeSupplierColumns}
@@ -133,6 +172,7 @@ const Financeiro = () => {
     if (financeTab === "products") {
       return (
         <FinanceRecordList
+          key={financeTab}
           title="Produto"
           resource={finance.products}
           columns={financeProductColumns}
@@ -140,61 +180,39 @@ const Financeiro = () => {
         />
       );
     }
+    if (financeTab === "saas") {
+      return <GlobalConfig />;
+    }
     return null;
   };
 
-  if (user.super) {
-    return (
-      <div className={classes.pageRoot}>
-        <div className={classes.layoutRow}>
-          <Tabs
-            value={financeTab}
-            onChange={(e, v) => setFinanceTab(v)}
-            orientation="vertical"
-            variant="scrollable"
-            indicatorColor="primary"
-            textColor="primary"
-            className={classes.sideTabs}
-          >
-            <Tab className={classes.sideTab} value="saas" label="Painel SaaS" />
-            <Tab className={classes.sideTab} value="customers" label="Clientes" />
-            <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
-            <Tab className={classes.sideTab} value="products" label="Produtos" />
-          </Tabs>
-
-          <div className={classes.content}>
-            {financeTab === "saas" ? <GlobalConfig /> : renderRecordPanel()}
-          </div>
+  if (!user.super) {
+    if (financeAccess === null) {
+      return (
+        <div className={classes.pageRoot}>
+          <Box display="flex" justifyContent="center" my={6}>
+            <CircularProgress />
+          </Box>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (financeAccess === null) {
-    return (
-      <div className={classes.pageRoot}>
-        <Box display="flex" justifyContent="center" my={6}>
-          <CircularProgress />
-        </Box>
-      </div>
-    );
-  }
-
-  if (!financeAccess.hasAccess) {
-    return (
-      <div className={classes.pageRoot}>
-        <Box className={classes.lockedBox}>
-          <Typography variant="h6" gutterBottom>
-            Módulo Financeiro não disponível
-          </Typography>
-          <Typography variant="body2">
-            {financeAccess.planHasModule
-              ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo Financeiro."
-              : "Esse módulo é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
-          </Typography>
-        </Box>
-      </div>
-    );
+    if (!financeAccess.hasAccess) {
+      return (
+        <div className={classes.pageRoot}>
+          <Box className={classes.lockedBox}>
+            <Typography variant="h6" gutterBottom>
+              Módulo Financeiro não disponível
+            </Typography>
+            <Typography variant="body2">
+              {financeAccess.planHasModule
+                ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo Financeiro."
+                : "Esse módulo é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
+            </Typography>
+          </Box>
+        </div>
+      );
+    }
   }
 
   return (
@@ -209,12 +227,16 @@ const Financeiro = () => {
           textColor="primary"
           className={classes.sideTabs}
         >
+          {user.super && <Tab className={classes.sideTab} value="saas" label="Painel SaaS" />}
+          <Tab className={classes.sideTab} value="painel" label="Painel Financeiro" />
+          <Tab className={classes.sideTab} value="expenses" label="Contas a Pagar" />
+          <Tab className={classes.sideTab} value="receivables" label="Contas a Receber" />
           <Tab className={classes.sideTab} value="customers" label="Clientes" />
           <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
           <Tab className={classes.sideTab} value="products" label="Produtos" />
         </Tabs>
 
-        <div className={classes.content}>{renderRecordPanel()}</div>
+        <div className={classes.content}>{renderPanel()}</div>
       </div>
     </div>
   );

@@ -64,21 +64,59 @@ const buildInitialValues = (fields, record) => {
 };
 
 // Modal genérico de cadastro do módulo Financeiro (Fase 1 — clientes,
-// fornecedores, produtos). Recebe um schema de campos declarativo em vez de
-// triplicar o mesmo formulário três vezes — ver docs/MANUAL_TECNICO.md,
-// seção 6.2, e uso em FinanceCustomers/FinanceSuppliers/FinanceProducts.
-const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record }) => {
+// fornecedores, produtos; Fase 2 — contas a pagar/receber). Recebe um schema
+// de campos declarativo em vez de triplicar o mesmo formulário várias vezes
+// — ver docs/MANUAL_TECNICO.md, seção 6.2.
+//
+// Campo tipo "asyncSelect" (Fase 2 — ex.: fornecedor/cliente de uma conta):
+// em vez de opções estáticas, aponta pra um recurso do hook `useFinance`
+// (`field.optionsResource`, ex.: "suppliers"/"customers") — a lista é
+// buscada uma vez quando o modal abre, via a prop `finance` (o próprio hook,
+// repassado por quem monta o formulário).
+const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, finance }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
+  const [asyncOptions, setAsyncOptions] = useState({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
-  const validationSchema = Yup.object().shape({
-    name: Yup.string().min(2, "Muito curto").required("Obrigatório"),
-  });
+  useEffect(() => {
+    if (!open) return;
+    const asyncFields = fields.filter((f) => f.type === "asyncSelect");
+    if (asyncFields.length === 0 || !finance) return;
+
+    asyncFields.forEach(async (field) => {
+      try {
+        const resource = finance[field.optionsResource];
+        if (!resource) return;
+        const { records } = await resource.list({ searchParam: "" });
+        setAsyncOptions((prev) => ({ ...prev, [field.optionsResource]: records || [] }));
+      } catch (err) {
+        // Sem opções pra escolher não impede o resto do formulário de funcionar.
+        setAsyncOptions((prev) => ({ ...prev, [field.optionsResource]: [] }));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // O campo "principal" (obrigatório, mín. 2 caracteres) varia por cadastro:
+  // clientes/fornecedores/produtos usam "name", contas a pagar/receber (Fase
+  // 2) usam "description" — sem isso, um schema fixo em "name" bloqueava o
+  // submit de contas (o Yup exigia um campo que nem existe no formulário).
+  const primaryFieldName = fields.some((f) => f.name === "name")
+    ? "name"
+    : fields.some((f) => f.name === "description")
+    ? "description"
+    : null;
+
+  const validationSchema = Yup.object().shape(
+    primaryFieldName
+      ? { [primaryFieldName]: Yup.string().min(2, "Muito curto").required("Obrigatório") }
+      : {}
+  );
 
   const handleClose = () => {
     onClose();
@@ -157,6 +195,49 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record }) =>
                             </MenuItem>
                           ))}
                         </Field>
+                      </Grid>
+                    );
+                  }
+
+                  if (field.type === "asyncSelect") {
+                    const options = asyncOptions[field.optionsResource] || [];
+                    return (
+                      <Grid item xs={12} sm={gridSize} key={field.name}>
+                        <Field
+                          as={TextField}
+                          select
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          name={field.name}
+                          label={field.label}
+                        >
+                          <MenuItem value="">
+                            <em>Nenhum</em>
+                          </MenuItem>
+                          {options.map((opt) => (
+                            <MenuItem key={opt.id} value={opt.id}>
+                              {opt.name}
+                            </MenuItem>
+                          ))}
+                        </Field>
+                      </Grid>
+                    );
+                  }
+
+                  if (field.type === "date") {
+                    return (
+                      <Grid item xs={12} sm={gridSize} key={field.name}>
+                        <Field
+                          as={TextField}
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          type="date"
+                          name={field.name}
+                          label={field.label}
+                          InputLabelProps={{ shrink: true }}
+                        />
                       </Grid>
                     );
                   }

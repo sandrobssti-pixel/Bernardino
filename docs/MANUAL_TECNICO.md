@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.19
-**Etapa:** 4 — Fase 2 do Financeiro (custos, contas a pagar/receber, relatórios com gráficos) e correção da permissão "Módulo Financeiro" aparecendo mesmo fora do plano contratado
+**Versão do documento:** 2.3.20
+**Etapa:** 4 — Fase 2 do Financeiro concluída (frontend): abas Contas a Pagar/Receber, Painel Financeiro com gráficos e exportação em PDF/impressão
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -316,7 +316,7 @@ nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano
   unidade, preço de venda/custo, controle de estoque opcional, campo `ncm` já
   previsto pra Fase 3 mas sem uso ainda).
 
-### Fase 2 — Financeiro operacional (backend ✅ concluído v2.3.19; frontend em andamento)
+### Fase 2 — Financeiro operacional ✅ concluída (backend v2.3.19, frontend v2.3.20)
 - **Contas a pagar** (`FinanceExpense`): descrição, categoria (livre), tipo de custo
   (`fixed`/`variable`), valor, vencimento, data de pagamento, status
   (`pending`/`paid`), fornecedor (opcional, vínculo com `FinanceSupplier`),
@@ -337,24 +337,60 @@ nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano
     explícito — ver o helper `sumValue()`/`sumWhere()` em `FinanceReportService.ts`.
     Se `Model.sum("value", ...)` for usado em código novo sobre esse mesmo tipo de
     coluna, vai quebrar da mesma forma — usar sempre o helper.
-- Painel com gráficos (`recharts`, já usado no `Dashboard`) — usar a mesma
-  linguagem visual dos dashboards já existentes (ver skill de `dataviz` deste
+- **Painel Financeiro** (`frontend/src/components/FinancePainel`, aba lateral
+  "Painel Financeiro" dentro de Financeiro): cartões de resumo (7, direto do
+  `summary`), gráfico de barras de fluxo de caixa (Receitas x Despesas, últimos
+  6 meses) e gráfico de barras horizontais de despesas por categoria — construído
+  com `recharts` (já usado no `Dashboard`), seguindo a skill de `dataviz` do
   projeto: paleta categórica já validada `['#6366f1', '#10b981', '#f59e0b',
-  '#ef4444', '#8b5cf6']`, com alívio visual obrigatório — rótulo direto ou tabela
-  — nos tons âmbar/esmeralda por baixo contraste). O cliente enviou uma referência
-  visual (coleção de elementos de dashboard estilo escuro, gradientes neon
-  roxo/rosa/azul, anéis de progresso, gráficos de área com gradiente) — usar como
-  inspiração de estilo, sem reproduzir o asset em si (é um stock de terceiros com
-  licença própria). **Ainda não construído no frontend.**
-- Cada relatório precisa de exportação/impressão: botão de imprimir
-  (`window.print()` com CSS `@media print` dedicado é o caminho mais simples) e
-  exportação em **PDF profissional com os gráficos** — vale avaliar
-  `jsPDF` + captura do canvas do gráfico, ou renderização server-side (Puppeteer,
-  já usado no projeto para outros fins) se o resultado do `jsPDF` não ficar bom
-  o suficiente com gráficos. **Ainda não construído.**
+  '#ef4444', '#8b5cf6']` (Receitas = índigo, Despesas = vermelho, cor fixa por
+  identidade — nunca cíclica), rótulo direto em toda barra (nunca só cor), sem
+  eixo duplo. **Despesas por categoria usa barras horizontais de um hue só (magnitude),
+  não um gráfico de pizza multicor** — decisão deliberada: a categoria é
+  cadastrada livremente pelo cliente, então o número de categorias não tem teto
+  previsível, e a skill de dataviz exige atribuir cor categórica em ordem fixa,
+  nunca gerada/ciclada — um gráfico de barras de magnitude evita esse problema
+  por completo e ainda lê melhor pra comparar valores. O cliente enviou uma
+  referência visual (coleção de elementos de dashboard estilo escuro, gradientes
+  neon roxo/rosa/azul, anéis de progresso) usada só como inspiração de paleta/
+  estilo geral — não reproduzida (é um stock de terceiros com licença própria).
+  - ⚠️ **Armadilha de layout encontrada e corrigida**: o rótulo direto (`LabelList`)
+    da MAIOR barra do gráfico de categorias ficava cortado na borda direita do
+    SVG, porque o domínio do eixo X ia exatamente até o maior valor — corrigido
+    com `domain={[0, dataMax => dataMax * 1.2]}` (20% de folga) + mais margem
+    direita. Vale lembrar disso em qualquer gráfico novo com rótulo direto
+    posicionado "depois" da marca (`position="right"`/`"top"`): sempre reservar
+    espaço extra no domínio do eixo, não só na margem do `<svg>`.
+- **Exportação/impressão dos relatórios**: botão "Imprimir / Exportar PDF" no
+  Painel Financeiro, via `window.print()` + CSS `@media print` dedicado (não
+  `jsPDF`/Puppeteer — mais simples, sem depender de captura de canvas, e o
+  usuário já pode "Salvar como PDF" na própria caixa de diálogo de impressão do
+  navegador). A técnica: um `id` fixo (`#finance-painel-print-area`) marca o que
+  deve ir pro papel; todo o resto da página (`body *`) vira `visibility: hidden`
+  só durante a impressão, e a área do painel é reposicionada em `position:
+  absolute` pra ocupar a folha inteira. O próprio botão de imprimir também some
+  no papel (`#finance-painel-print-hide`). Detalhe: qualquer tooltip de gráfico
+  que esteja "grudado" na tela no momento do print precisa ser escondido também
+  (`.recharts-tooltip-wrapper { display: none }`), senão ele aparece flutuando
+  no PDF/impresso.
 - Migrações: `20260914150000-create-finance-expenses.ts`,
-  `20260914150100-create-finance-receivables.ts` (já rodadas no ambiente do cliente
-  precisam de `npm run db:migrate` no deploy desta versão).
+  `20260914150100-create-finance-receivables.ts` (rodar `npm run db:migrate`
+  no deploy desta versão, se ainda não tiver rodado).
+- ⚠️ **Bug de troca de aba encontrado e corrigido**: ao adicionar as novas abas
+  (Contas a Pagar/Receber), descobri que trocar de aba dentro do Financeiro
+  (`FinanceRecordList`) **não recarregava os dados** — ficava mostrando os
+  registros da aba anterior, porque o React reaproveita a mesma instância do
+  componente quando o tipo/posição não muda, e o `useCallback` do fetch só tinha
+  `searchParam`/`filterValues` nas deps, nunca `resource` — trocar só a prop
+  `resource` não disparava um novo fetch. Isso já existia desde a Fase 1
+  (Clientes/Fornecedores/Produtos), só não tinha sido percebido. Corrigido em
+  duas camadas: `resource` entrou nas deps do `useCallback` (causa raiz) e
+  `key={financeTab}` em cada `<FinanceRecordList>` de `Financeiro/index.js`
+  (reforço — força remontagem completa a cada troca de aba, garantindo que
+  busca/filtro também comecem limpos). **Lição**: uma lista com CRUD reaproveitada
+  entre "abas" que trocam o recurso de dados precisa ou de `resource` nas deps
+  do fetch, ou de um `key` que mude junto com o recurso — nunca as duas coisas
+  de menos.
 
 ### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica / SEFAZ / Receita Federal)
 Esta é a fase de maior risco técnico e regulatório do roadmap — envolve comunicação

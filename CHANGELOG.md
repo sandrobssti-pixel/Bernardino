@@ -3,6 +3,41 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.20] — Fase 2 do Financeiro concluída (frontend) — 2026-09-14
+
+### Adicionado — Fase 2 do módulo Financeiro (frontend)
+- **Abas "Contas a Pagar" e "Contas a Receber"** na navegação lateral do
+  Financeiro: listagem com filtro por status (Pendente/Pago(a)/Vencido —
+  calculado no frontend a partir do vencimento), busca, cadastro/edição em
+  modal e exclusão — mesmo padrão visual da Fase 1 (Clientes/Fornecedores/
+  Produtos).
+- **Seletor de fornecedor/cliente** nos formulários de conta a pagar/receber:
+  novo tipo de campo "asyncSelect" no `FinanceRecordModal`, que busca a lista
+  (fornecedores ou clientes já cadastrados) assim que o modal abre.
+- **Painel Financeiro** (nova aba): 7 cartões de resumo, gráfico de fluxo de
+  caixa (Receitas x Despesas, últimos 6 meses) e gráfico de despesas por
+  categoria — construídos com `recharts` seguindo a skill de `dataviz` do
+  projeto (paleta categórica validada, cor fixa por identidade, rótulo direto
+  em toda barra, sem eixo duplo).
+- **Exportação/impressão dos relatórios**: botão "Imprimir / Exportar PDF" no
+  Painel Financeiro (`window.print()` + CSS `@media print` dedicado — só a
+  área do painel vai pro papel, o resto da tela fica de fora).
+
+### Corrigido
+- Campo tipo `date` e validação genérica no `FinanceRecordModal`: o schema de
+  validação era fixo em exigir um campo `name`, o que bloqueava silenciosamente
+  o cadastro de contas (que usam `description`, não `name`).
+- **Bug de troca de aba (já existia desde a Fase 1, não percebido até agora)**:
+  trocar de aba dentro do Financeiro não recarregava os dados — a lista
+  continuava mostrando os registros da aba anterior, porque o fetch (memoizado
+  via `useCallback`) não tinha o recurso de dados nas suas dependências.
+  Corrigido com `resource` nas deps do fetch e `key={financeTab}` em cada lista,
+  forçando estado limpo a cada troca.
+- Rótulo direto cortado na barra de maior valor do gráfico de despesas por
+  categoria (faltava folga no domínio do eixo).
+- Cartão de resumo "vencido" não deveria ficar em vermelho quando o valor é
+  zero (nada vencido, nada a destacar).
+
 ## [2.3.19] — Fase 2 do Financeiro (backend) + permissão "Módulo Financeiro" respeitando o plano — 2026-09-14
 
 ### Adicionado — Fase 2 do módulo Financeiro (backend)
