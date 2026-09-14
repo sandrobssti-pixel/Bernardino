@@ -83,8 +83,8 @@ export const financeProductFields = [
   { name: "sku", label: "SKU / Código", gridSize: 4 },
   { name: "unit", label: "Unidade (UN, KG, H...)", defaultValue: "UN", gridSize: 4 },
   { name: "ncm", label: "NCM (uso futuro fiscal)", gridSize: 4 },
-  { name: "price", label: "Preço de venda (R$)", defaultValue: "0", gridSize: 6 },
-  { name: "costPrice", label: "Preço de custo (R$)", defaultValue: "0", gridSize: 6 },
+  { name: "price", label: "Preço de venda (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6 },
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
@@ -148,7 +148,7 @@ export const financeExpenseFields = [
   { name: "description", label: "Descrição", gridSize: 8 },
   { name: "category", label: "Categoria", defaultValue: "Outros", gridSize: 4 },
   { name: "costType", label: "Tipo de custo", type: "select", options: COST_TYPE_OPTIONS, defaultValue: "variable", gridSize: 4 },
-  { name: "value", label: "Valor (R$)", defaultValue: "0", gridSize: 4 },
+  { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: EXPENSE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "paymentDate", label: "Data de pagamento", type: "date", gridSize: 6 },
@@ -178,7 +178,7 @@ export const financeReceivableColumns = [
 
 export const financeReceivableFields = [
   { name: "description", label: "Descrição", gridSize: 8 },
-  { name: "value", label: "Valor (R$)", defaultValue: "0", gridSize: 4 },
+  { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: RECEIVABLE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "receivedDate", label: "Data de recebimento", type: "date", gridSize: 6 },

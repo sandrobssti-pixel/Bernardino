@@ -1,4 +1,4 @@
-import { Op, fn, col, cast, literal } from "sequelize";
+import { Op, fn, col, literal } from "sequelize";
 import moment from "moment";
 import FinanceExpense from "../../models/FinanceExpense";
 import FinanceReceivable from "../../models/FinanceReceivable";
@@ -11,7 +11,22 @@ const toNumber = (value: unknown): number => {
 // "value" é salvo como string (evita imprecisão de ponto flutuante), então
 // todo SUM precisa de um CAST explícito pra numeric — o Postgres não soma
 // varchar direto (42883: function sum(character varying) does not exist).
-const sumValue = () => fn("SUM", cast(col("value"), "numeric"));
+//
+// ⚠️ Bug real encontrado em produção (v2.3.24): o campo "Valor (R$)" dos
+// formulários de conta a pagar/receber/produto aceitava texto livre — um
+// valor digitado no formato brasileiro ("150,00", com vírgula) ficava salvo
+// como string não-numérica. Um CAST direto pra numeric QUEBRA com erro se a
+// string não for um número válido pro Postgres (ex.: "150,00" tem vírgula,
+// não é numeric válido) — isso derrubava o Painel Financeiro inteiro com
+// 500 assim que existisse UM registro com valor mal formatado. Corrigido
+// aqui com um CASE WHEN que só faz o CAST se o valor bater um regex de
+// número válido, tratando qualquer outra coisa como 0 (não quebra, só não
+// soma esse registro — o valor mal formatado precisa ser corrigido editando
+// o registro na tela, agora com o campo já sendo um input numérico).
+const sumValue = () =>
+  literal(
+    `SUM(CASE WHEN "value" ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST("value" AS NUMERIC) ELSE 0 END)`
+  );
 
 // Substitui Model.sum("value", ...) — esse helper do Sequelize gera
 // SUM("value") sem cast e quebra (42883) porque "value" é varchar.

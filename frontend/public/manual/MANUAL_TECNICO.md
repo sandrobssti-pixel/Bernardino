@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.23
-**Etapa:** 4 — módulo fiscal virou add-on de plano próprio (Plan.useFiscal), separado do Financeiro — Master libera por plano, abas Vendas/Configuração Fiscal só aparecem quando o plano do cliente inclui
+**Versão do documento:** 2.3.24
+**Etapa:** 4 — corrigido campo "Valor (R$)" aceitando texto livre (quebrava o Painel Financeiro com valor digitado em formato brasileiro, ex.: "150,00") + causa raiz de um incidente de deploy (dist/ desatualizado escondendo migrações pendentes)
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -705,6 +705,61 @@ real/legal pra empresas-clientes que dependessem dela).
   pode depender da existência de itens de uma lista relacionada; tem que ter
   seu próprio bloco de exibição, com sua própria condição (`companyPlan &&
   ...`), independente da lista ter itens ou não.
+- ⚠️ **Incidente de deploy (não é bug de código) — `.sequelizerc` aponta as
+  migrações pra pasta COMPILADA (`dist/database/migrations`), não pro
+  código-fonte (`src/database/migrations`)**: se `npm run build` do backend
+  não recompilar TODOS os arquivos (aconteceu em produção por algum motivo
+  ainda não identificado — possivelmente um build anterior parcial/
+  incompleto), `npx sequelize-cli db:migrate` só enxerga o subconjunto de
+  migrações que existem em `dist/`, e reporta **"database schema was
+  already up to date"** mesmo faltando tabelas inteiras no banco (ex.:
+  `FinanceReceivables`, `FinanceExpenses`) — porque a CLI nem sabe que
+  aquelas migrações existem. Sintoma: "Internal server error" generalizado
+  no módulo que depende da tabela faltante (`relation "X" does not exist`,
+  Postgres código `42P01`), sem nenhuma mensagem óbvia apontando pra causa
+  (migração "dizendo" que está tudo certo). **Correção aplicada**: apagar
+  `dist/` inteiro e rodar `npm run build` do zero (`rm -rf dist && npm run
+  build`), conferir que `ls src/database/migrations | wc -l` bate com `ls
+  dist/database/migrations | wc -l`, e só então rodar `db:migrate` de novo.
+  **Lição pra qualquer deploy futuro**: depois de um `git pull` que trouxe
+  migrações novas, sempre conferir essa contagem bater ANTES de confiar no
+  resultado do `db:migrate` — "up to date" da CLI não é garantia se o build
+  local não foi realmente completo. Vale considerar trocar o `.sequelizerc`
+  pra rodar as migrações direto do `.ts` (via `ts-node`) no futuro, eliminando
+  essa classe de problema por completo.
+- ✅ **Bug crítico corrigido (v2.3.24) — campo "Valor (R$)" aceitava texto
+  livre, quebrando o Painel Financeiro inteiro**: os campos de valor
+  monetário nos formulários de conta a pagar/receber e produto
+  (`financeConfig.js`) não tinham `type: "number"` — eram inputs de texto
+  comuns. Um usuário digitando no formato brasileiro natural ("150,00", com
+  vírgula) salvava essa string literal no banco. Dois efeitos:
+  1. Na listagem, `money(value)` faz `Number("150,00")` → `NaN` → cai no
+     fallback `|| 0` → aparece **"R$ 0,00"** mesmo o registro tendo sido
+     salvo (o "valor não muda depois do cadastro" relatado);
+  2. No Painel Financeiro, o `CAST("value" AS NUMERIC)` do
+     `FinanceReportService` **quebra com erro do Postgres** assim que existe
+     UM registro com valor nesse formato ("150,00" não é sintaxe numeric
+     válida) — e como é um `SUM()` sobre todos os registros da empresa, essa
+     UMA linha derruba o relatório inteiro (500) até ela ser corrigida.
+  Corrigido em duas camadas:
+  - Frontend: campos de valor (`financeExpenseFields`, `financeReceivableFields`,
+    `financeProductFields` — `value`/`price`/`costPrice`) agora são
+    `type: "number"` com `step: "0.01"` — o `<input type="number">` do
+    navegador sempre reporta o `.value` em formato `.` (ponto), nunca vírgula,
+    independente de como o usuário digita/vê;
+  - Backend (defesa em profundidade, pra não voltar a quebrar com dados já
+    salvos incorretamente ou uma chamada de API externa): `sumValue()` em
+    `FinanceReportService.ts` trocou o `CAST` direto por um `CASE WHEN
+    "value" ~ '^-?[0-9]+(\.[0-9]+)?$' THEN CAST(...) ELSE 0 END` — um valor
+    mal formatado agora conta como 0 no relatório em vez de quebrar a
+    consulta inteira. Registros com valor corrompido continuam aparecendo
+    normalmente na listagem (não travam o CRUD) — só precisam ser editados e
+    salvos de novo (agora com o campo numérico) pra corrigir o valor.
+  **Lição**: todo campo que vai virar operando de uma função SQL agregada
+  (`SUM`, `AVG`, `CAST ... AS NUMERIC`) no backend precisa ser validado/
+  tipado já na entrada do formulário — sem isso, um único registro com
+  formato errado pode derrubar uma tela inteira que depende de agregação,
+  não só aquele registro específico.
 
 ---
 

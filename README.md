@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.23 (Etapa 4 — módulo fiscal agora é um add-on de plano próprio (Plan.useFiscal): o Master libera por plano, separado do Financeiro, e as abas Vendas/Configuração Fiscal só aparecem quando o plano do cliente inclui)**
+**Versão atual: 2.3.24 (Etapa 4 — corrigido campo "Valor (R$)" aceitando texto livre: um valor digitado com vírgula ("150,00") quebrava o Painel Financeiro inteiro com erro 500 e aparecia como R$ 0,00 nas listas; campo agora é numérico e o backend ficou defensivo contra valores já salvos incorretamente)**
 
 ## Documentação
 

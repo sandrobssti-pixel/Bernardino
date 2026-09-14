@@ -3,6 +3,32 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.24] — Corrigido campo "Valor (R$)" quebrando o Painel Financeiro — 2026-09-14
+
+### Corrigido
+- **Causa raiz encontrada e corrigida**: os campos de valor monetário
+  (Contas a Pagar/Receber, Produtos) aceitavam texto livre em vez de só
+  números. Digitar no formato brasileiro comum ("150,00", com vírgula)
+  causava dois problemas: o valor aparecia como "R$ 0,00" na lista mesmo
+  depois de salvo, e o Painel Financeiro parava de funcionar inteiro com
+  Internal Server Error assim que existisse um registro salvo nesse
+  formato (o `SUM()` do relatório quebrava com um único valor mal
+  formatado).
+- Campos de valor agora são numéricos (`type="number"`) no formulário —
+  não é mais possível digitar vírgula por engano.
+- O cálculo dos relatórios agora ignora valores mal formatados (conta como
+  zero) em vez de quebrar a consulta inteira — registros antigos com valor
+  incorreto continuam aparecendo normalmente na lista e podem ser
+  corrigidos editando e salvando de novo.
+
+### Documentado
+- Registrado em `docs/MANUAL_TECNICO.md` um incidente de deploy encontrado
+  durante o suporte desta versão: o `.sequelizerc` aponta as migrações pra
+  pasta compilada (`dist/`), então um build de backend incompleto pode
+  fazer `db:migrate` reportar "tudo atualizado" mesmo com tabelas
+  inteiras faltando no banco. Documentado o diagnóstico e a correção
+  (rebuild completo do zero) para referência futura.
+
 ## [2.3.23] — Módulo fiscal agora é um add-on de plano separado — 2026-09-14
 
 ### Adicionado

@@ -254,6 +254,7 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                         multiline={field.type === "textarea"}
                         minRows={field.type === "textarea" ? 3 : undefined}
                         type={field.type === "number" ? "number" : "text"}
+                        inputProps={field.type === "number" && field.step ? { step: field.step } : undefined}
                         error={touched[field.name] && Boolean(errors[field.name])}
                         helperText={touched[field.name] && errors[field.name]}
                       />
