@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.10
-**Etapa:** 3 — Master restrito a liberar acessos/licenças, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
+**Versão do documento:** 2.3.11
+**Etapa:** 3 — Painel SaaS/cobranças 100% exclusivo do Master, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -311,6 +311,14 @@ personalizar por cima da identidade padrão sem mexer em código.
   campanhas, etc.) deve checar `profile === "admin" && !super` — nunca só
   `profile === "admin"`, senão o Master (que também é `profile: "admin"`, com
   `super: true`) acaba vendo/editando configuração de empresa que não é dele.
+- ✅ **Bug de permissão corrigido (v2.3.11)**: o Master tem acesso a **todo o
+  sistema**, mas o **Painel SaaS é exclusivo dele** — é quem emite as cobranças
+  mensais/anuais das empresas-clientes (conforme o plano escolhido). O backend
+  (`GlobalConfigController.ts`) liberava esse módulo também pra qualquer Admin
+  da empresa de id 1 (`profile === "admin" && companyId === 1`), resquício de
+  uma versão sem o conceito de Master — corrigido pra exigir só `isSuper` em
+  todas as 6 checagens do arquivo (dashboard, financeiro, cobranças, upload de
+  branding do login etc.).
 
 ---
 

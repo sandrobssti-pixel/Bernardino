@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.11] — Painel SaaS (cobranças) 100% exclusivo do Master — 2026-09-14
+
+### Corrigido
+- **Falha de permissão no backend**: `GlobalConfigController.ts` liberava o Painel
+  SaaS (Dashboard, Financeiro, cobranças, upload de branding do login etc.) não só
+  para o Master (`super`), mas também para **qualquer Admin da empresa de id 1**
+  (`profile === "admin" && companyId === 1`) — resquício de uma versão anterior do
+  sistema, sem o conceito de Master. Como o Master é sempre a própria empresa 1,
+  se essa empresa fosse liberada para uma empresa-cliente real (em vez de ficar
+  reservada só pro Master), o Admin dela teria acesso indevido ao módulo de
+  cobrança do sistema inteiro (`dashboardSummary`, `financialSummary`,
+  `financialInvoices`, `financialCompanies`, `update`/`index` das configs globais,
+  upload/remoção de logo do login, testes de e-mail/WhatsApp de cobrança).
+- Todas as checagens de permissão do arquivo (6 no total, incluindo o helper
+  `hasGlobalConfigPermission`) agora exigem só `isSuper` — Painel SaaS é
+  exclusivo do Master, que é quem emite as cobranças mensais/anuais das
+  empresas-clientes (conforme o plano escolhido, mensal ou anual).
+
 ## [2.3.10] — Master não vê identidade de empresa (só libera acessos) — 2026-09-14
 
 ### Alterado

@@ -1,8 +1,8 @@
 {
   "name": "frontend",
-  "version": "2.3.10",
+  "version": "2.3.11",
   "nomeEmpresa": "Sua empresa",
-  "versionSystem": "2.3.10",
+  "versionSystem": "2.3.11",
   "private": true,
   "overrides": {
     "shell-quote": "1.9.0",

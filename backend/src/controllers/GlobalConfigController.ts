@@ -84,8 +84,9 @@ export const update = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  // ✅ Permite: super OU admin da empresa 1
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  // Painel SaaS é exclusivo do Master (super) — quem emite as cobranças das
+  // empresas-clientes. Nenhum Admin de empresa tem acesso, nem o da empresa 1.
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -370,7 +371,7 @@ export const uploadBrandingImage = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -410,7 +411,7 @@ export const removeBrandingImage = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -465,7 +466,7 @@ export const sendWelcomeEmailTest = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -562,7 +563,7 @@ export const sendBillingDueEmailTest = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -627,7 +628,7 @@ export const sendBillingDueWhatsappTest = async (
   const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  if (!req.user || (!isSuper && !(profile === "admin" && Number(companyId) === 1))) {
+  if (!req.user || !isSuper) {
     throw new AppError("ERR_NO_PERMISSION", 403);
   }
 
@@ -701,11 +702,12 @@ export const publicBranding = async (
   }
 };
 
+// Painel SaaS é exclusivo do Master: é ele quem emite as cobranças mensais/anuais
+// das empresas-clientes. Nenhum Admin de empresa (nem o da empresa 1) tem acesso.
 const hasGlobalConfigPermission = (req: Request): boolean => {
-  const { companyId, profile } = req.user as any;
   const isSuper = !!(req.user as any)?.super;
 
-  return Boolean(req.user && (isSuper || (profile === "admin" && Number(companyId) === 1)));
+  return Boolean(req.user && isSuper);
 };
 
 const normalizeDueDate = (value: unknown): Date | null => {
