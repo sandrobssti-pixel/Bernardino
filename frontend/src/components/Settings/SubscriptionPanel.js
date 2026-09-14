@@ -154,6 +154,36 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: "#1ebe57",
     },
   },
+  // Cartão "Plano atual" — mostra o plano contratado independente de
+  // existir ou não fatura emitida (ver nota na v2.3.21 sobre o bug de
+  // "não aparece o plano").
+  currentPlanCard: {
+    padding: theme.spacing(2, 2.5),
+    borderRadius: 14,
+    marginBottom: theme.spacing(2),
+  },
+  currentPlanName: {
+    fontWeight: 700,
+  },
+  currentPlanDetails: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: theme.spacing(3),
+    marginTop: theme.spacing(1),
+  },
+  currentPlanDetailItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.75),
+  },
+  emptyInvoices: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    padding: theme.spacing(5, 2),
+    color: theme.palette.text.secondary,
+  },
   mainPaper: {
     padding: theme.spacing(1.5),
     overflowY: "auto",
@@ -382,6 +412,16 @@ const SubscriptionPanel = () => {
 
   const showExpiredWarning = Boolean(isCompanyExpired || expiredLoginFlag);
 
+  // Vencimento da assinatura em si (data cadastrada na empresa,
+  // Company.dueDate) — independente de existir ou não uma fatura já
+  // emitida. A fatura é gerada só ~20 dias antes do vencimento
+  // (handleInvoiceCreate, backend/src/queues.ts), então uma empresa nova
+  // ou fora dessa janela nunca vai ter invoice nenhuma ainda.
+  const companyDueDateLabel =
+    user?.company?.dueDate && moment(user.company.dueDate).isValid()
+      ? moment(user.company.dueDate).format("DD/MM/YYYY")
+      : null;
+
   const handleOpenContactModal = (invoice) => {
     // Create a copy of the invoice but replace the value with the plan amount
     const invoiceWithPlanValue = {
@@ -427,24 +467,28 @@ const SubscriptionPanel = () => {
     }
   }, [isCompanyExpired, expiredLoginFlag]);
 
-  // Fetch Company info first, then get the plan using the planId
+  // Busca os dados da empresa — `ShowCompanyService` já inclui a associação
+  // "plan", então usa `company.plan` direto em vez de uma segunda chamada a
+  // GET /plans/:id. Essa segunda chamada existia antes e era frágil: além de
+  // redundante, `PlanController.show` comparava `id` com o planId da empresa
+  // do TOKEN chamando `.toString()` sem checar null — numa empresa sem plano
+  // vinculado isso quebrava com 500 (corrigido também no backend), e mesmo
+  // com planId presente era uma volta a mais que podia falhar por outros
+  // motivos (rede, timing) sem necessidade.
   useEffect(() => {
     const fetchCompanyPlan = async () => {
       try {
         if (user && user.companyId) {
-          // First get the company info to access its planId
           const companyResponse = await api.get(`/companies/${user.companyId}`);
           const company = companyResponse.data;
 
-          if (company && company.planId) {
-            // Now use the planId to get the plan details
-            const planResponse = await api.get(`/plans/${company.planId}`);
-            setCompanyPlan(planResponse.data);
+          if (company && company.plan) {
+            setCompanyPlan(company.plan);
           }
-          // Sem planId: empresa cadastrada sem plano vinculado (bug corrigido
-          // na v2.3.15, mas empresas antigas podem já estar assim). Sem isso,
-          // companyPlan nunca é setado e a tela fica presa no loading pra
-          // sempre — daí o "não aparece o plano do cliente".
+          // Sem plano vinculado: empresa cadastrada sem plano (bug de cadastro
+          // corrigido na v2.3.15, mas empresas antigas podem já estar assim).
+          // Sem isso, companyPlan nunca é setado e a tela fica presa no
+          // loading pra sempre — daí o "não aparece o plano do cliente".
         }
       } catch (err) {
         toastError(err);
@@ -591,6 +635,18 @@ const SubscriptionPanel = () => {
       return (
         <Box display="flex" justifyContent="center" my={4}>
           <CircularProgress />
+        </Box>
+      );
+    }
+
+    if (!loading && invoices.length === 0) {
+      return (
+        <Box className={classes.emptyInvoices}>
+          <ReceiptIcon fontSize="large" color="disabled" />
+          <Typography variant="body2" style={{ marginTop: 8 }}>
+            Nenhuma fatura emitida ainda. A primeira cobrança aparece aqui
+            perto do vencimento do seu plano.
+          </Typography>
         </Box>
       );
     }
@@ -746,6 +802,58 @@ const SubscriptionPanel = () => {
         </Box>
       </Box>
 
+      {/* Cartão "Plano atual" — mostra o plano contratado sempre que
+          `companyPlan` existir, independente de haver ou não fatura emitida.
+          Antes, esses dados só apareciam DENTRO de cada linha da tabela de
+          faturas — então uma empresa sem nenhuma fatura ainda (comum: a
+          fatura só é gerada ~20 dias antes do vencimento) via a tela de
+          "Minha assinatura" completamente vazia, como se não tivesse plano
+          nenhum, mesmo tendo um plano válido contratado. */}
+      {companyPlan && (
+        <Paper className={classes.currentPlanCard} variant="outlined">
+          <Typography variant="overline" color="textSecondary">
+            Plano atual
+          </Typography>
+          <Typography variant="h6" className={classes.currentPlanName}>
+            {companyPlan.name}
+          </Typography>
+          <div className={classes.currentPlanDetails}>
+            <div className={classes.currentPlanDetailItem}>
+              <PersonIcon fontSize="small" color="action" />
+              <Typography variant="body2">{companyPlan.users} usuários</Typography>
+            </div>
+            <div className={classes.currentPlanDetailItem}>
+              <DevicesIcon fontSize="small" color="action" />
+              <Typography variant="body2">{companyPlan.connections} conexões</Typography>
+            </div>
+            <div className={classes.currentPlanDetailItem}>
+              <QueueIcon fontSize="small" color="action" />
+              <Typography variant="body2">{companyPlan.queues} filas</Typography>
+            </div>
+            <div className={classes.currentPlanDetailItem}>
+              <MoneyIcon fontSize="small" color="action" />
+              <Typography variant="body2">
+                {companyPlan.amount
+                  ? parseFloat(companyPlan.amount).toLocaleString("pt-br", {
+                      style: "currency",
+                      currency: "BRL",
+                    })
+                  : "—"}
+                /mês
+              </Typography>
+            </div>
+            <div className={classes.currentPlanDetailItem}>
+              <DateRangeIcon fontSize="small" color="action" />
+              <Typography variant="body2">
+                {companyDueDateLabel
+                  ? `Próximo vencimento: ${companyDueDateLabel}`
+                  : "Vencimento ainda não definido — fale com o suporte"}
+              </Typography>
+            </div>
+          </div>
+        </Paper>
+      )}
+
       {showExpiredWarning && (
         <Box className={classes.expiredAlert}>
           <Typography className={classes.expiredAlertTitle}>
@@ -889,6 +997,19 @@ const SubscriptionPanel = () => {
                   );
                 })}
                 {loading && <TableRowSkeleton columns={8} />}
+                {!loading && invoices.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8}>
+                      <Box className={classes.emptyInvoices}>
+                        <ReceiptIcon fontSize="large" color="disabled" />
+                        <Typography variant="body2" style={{ marginTop: 8 }}>
+                          Nenhuma fatura emitida ainda. A primeira cobrança
+                          aparece aqui perto do vencimento do seu plano.
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

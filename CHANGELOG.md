@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.21] — Corrigido "não aparece o plano" em Minha assinatura — 2026-09-14
+
+### Corrigido
+- **Causa raiz encontrada e corrigida**: em "Minha assinatura", os dados do
+  plano contratado (nome, usuários, conexões, filas, valor) só eram exibidos
+  DENTRO de cada linha da tabela de faturas — e faturas só são criadas pelo
+  sistema quando faltam menos de 20 dias para o vencimento da empresa.
+  Resultado: qualquer empresa nova, ou fora dessa janela de 20 dias, tinha
+  zero faturas e a tela ficava completamente vazia, como se não tivesse
+  plano nenhum — mesmo tendo um plano válido contratado.
+- Corrigido adicionando um cartão "Plano atual" que aparece sempre que a
+  empresa tem um plano vinculado, independente de já existir fatura emitida.
+  A lista de faturas agora também mostra uma mensagem clara ("Nenhuma fatura
+  emitida ainda...") em vez de ficar em branco.
+- Corrigido um crash no backend (`PlanController`) que acontecia ao consultar
+  o plano de uma empresa sem plano vinculado (erro 500 em vez da mensagem
+  esperada).
+- Removida uma chamada de rede redundante e frágil que buscava o plano numa
+  segunda requisição — os dados já vinham na primeira.
+- Corrigido um erro relacionado no menu lateral (acontecia em toda tela, não
+  só na assinatura, para empresas sem plano vinculado — silencioso mas
+  gerava erro no console).
+
 ## [2.3.20] — Fase 2 do Financeiro concluída (frontend) — 2026-09-14
 
 ### Adicionado — Fase 2 do módulo Financeiro (frontend)

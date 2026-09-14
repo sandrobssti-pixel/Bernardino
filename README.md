@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.20 (Etapa 4 — Fase 2 do Financeiro concluída: telas de Contas a Pagar/Receber, Painel Financeiro com gráficos e exportação em PDF/impressão)**
+**Versão atual: 2.3.21 (Etapa 4 — corrigido "não aparece o plano" em Minha assinatura: o plano contratado ficava escondido dentro da tabela de faturas, então uma empresa sem fatura emitida ainda via a tela vazia mesmo com plano válido)**
 
 ## Documentação
 

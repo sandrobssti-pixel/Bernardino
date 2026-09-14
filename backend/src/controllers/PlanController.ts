@@ -154,18 +154,25 @@ export const show = async (req: Request, res: Response): Promise<Response> => {
   const { id: requestUserId, profile, companyId } = decoded as TokenPayload;
   const requestUser = await User.findByPk(requestUserId);
   const company = await Company.findByPk(companyId);
-  const PlanCompany = company.planId;
+  const PlanCompany = company?.planId;
 
   if (requestUser.super === true) {
     const plan = await ShowPlanService(id);
     return res.status(200).json(plan);
-  } else if (id !== PlanCompany.toString()) {
-    return res.status(400).json({ error: "Você não possui permissão para acessar este recurso!" });
-  } else if (id === PlanCompany.toString()) {
-    const plan = await ShowPlanService(id);
-    return res.status(200).json(plan);
   }
 
+  // Empresa sem plano vinculado (dado legado — companhias criadas antes da
+  // v2.3.15 passar a exigir plano no cadastro): sem esta checagem,
+  // `PlanCompany` vinha `null` e `.toString()` quebrava com TypeError, virando
+  // 500 pra qualquer Admin nessa situação tentando ver a própria assinatura —
+  // "Minha assinatura" ficava sem conseguir carregar o plano (a tela até já
+  // tratava esse caso, mas o erro nunca chegava lá como um 400 normal).
+  if (!PlanCompany || id !== PlanCompany.toString()) {
+    return res.status(400).json({ error: "Você não possui permissão para acessar este recurso!" });
+  }
+
+  const plan = await ShowPlanService(id);
+  return res.status(200).json(plan);
 };
 
 export const update = async (

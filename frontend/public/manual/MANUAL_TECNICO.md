@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.20
-**Etapa:** 4 — Fase 2 do Financeiro concluída (frontend): abas Contas a Pagar/Receber, Painel Financeiro com gráficos e exportação em PDF/impressão
+**Versão do documento:** 2.3.21
+**Etapa:** 4 — corrigido "não aparece o plano" em Minha assinatura (causa raiz: plano só era mostrado dentro de uma linha de fatura — sem fatura emitida, a tela ficava vazia mesmo com plano válido)
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -569,6 +569,44 @@ real/legal pra empresas-clientes que dependessem dela).
   permissão/toggle que dependa de um add-on por plano: **a UI não deve deixar
   a opção "aberta" (visível/clicável) quando o plano não inclui aquela
   funcionalidade** — esconder, não só bloquear no backend.
+- ✅ **Bug crítico corrigido (v2.3.21) — plano contratado não aparecia em
+  "Minha assinatura" mesmo com plano válido vinculado**: diferente da v2.3.17
+  (empresa SEM planId no banco — dado ausente), este bug acontecia mesmo com
+  um `planId` correto. Causa raiz: `SubscriptionPanel.js` só mostrava
+  nome/usuários/conexões/filas/valor do plano **dentro de cada linha da
+  tabela de faturas** (`invoices.map(...)`) — e faturas só são criadas pelo
+  cron `handleInvoiceCreate` (`backend/src/queues.ts`) quando faltam **menos
+  de 20 dias** pro vencimento da empresa. Resultado: qualquer empresa nova ou
+  fora dessa janela de 20 dias tinha ZERO faturas, então a tabela ficava
+  totalmente vazia — nenhuma informação do plano aparecia, como se a empresa
+  não tivesse plano nenhum, mesmo tendo. Corrigido adicionando um cartão
+  "Plano atual" fixo (mostra sempre que `companyPlan` existir, **independente
+  de haver fatura**) logo abaixo do cabeçalho, e um estado vazio explícito
+  ("Nenhuma fatura emitida ainda...") na tabela/cards de faturas em vez de
+  ficarem em branco. Também corrigidos dois bugs relacionados encontrados no
+  caminho:
+  - `PlanController.show` (backend) comparava o `id` da rota com
+    `company.planId.toString()` sem checar `null` primeiro — numa empresa sem
+    plano vinculado isso quebrava com `TypeError` (500), em vez do 400
+    esperado de "sem permissão". Corrigido com `company?.planId` +
+    `if (!PlanCompany || ...)`.
+  - `SubscriptionPanel.js` fazia uma chamada extra (`GET /plans/:id`) só pra
+    buscar o que `GET /companies/:id` já retorna via `include: ["plan"]`
+    (`ShowCompanyService`) — removida a chamada redundante, usando
+    `company.plan` direto. Menos uma volta de rede e um ponto a menos de
+    falha (o bug acima só existia por causa dessa chamada extra).
+  - `MainListItems.js` (menu lateral, roda em toda página autenticada) também
+    acessava `planConfigs.plan.useCampaigns` sem checar `null` — mesma causa
+    (empresa sem plano), só que quebrava silenciosamente (`try/catch` já
+    engolia o erro) em vez de aparecer pro usuário; corrigido com optional
+    chaining mesmo assim, por robustez.
+  **Lição**: quando uma informação "principal" (aqui, o plano) só é exibida
+  como um SUBPRODUTO de outra lista (aqui, faturas), qualquer condição que
+  esvazie essa lista esconde a informação principal junto — mesmo que os
+  dados dela estejam perfeitos. Informação que precisa "sempre aparecer" não
+  pode depender da existência de itens de uma lista relacionada; tem que ter
+  seu próprio bloco de exibição, com sua própria condição (`companyPlan &&
+  ...`), independente da lista ter itens ou não.
 
 ---
 

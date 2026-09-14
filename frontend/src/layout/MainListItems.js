@@ -560,13 +560,19 @@ const MainListItems = ({ collapsed, drawerClose }) => {
           setShowInternalChat(true);
           setShowExternalApi(true);
         } else {
-          setShowCampaigns(planConfigs.plan.useCampaigns);
-          setShowKanban(planConfigs.plan.useKanban);
-          setShowOpenAi(planConfigs.plan.useOpenAi);
-          setShowIntegrations(planConfigs.plan.useIntegrations);
-          setShowSchedules(planConfigs.plan.useSchedules);
-          setShowInternalChat(planConfigs.plan.useInternalChat);
-          setShowExternalApi(planConfigs.plan.useExternalApi);
+          // Empresa sem plano vinculado (dado legado — ver
+          // docs/MANUAL_TECNICO.md sobre o bug de "não aparece o plano"):
+          // `planConfigs.plan` vem `null` nesse caso, e acessar
+          // `.useCampaigns` direto quebrava com TypeError em TODA página
+          // (o menu lateral monta em qualquer tela), não só na assinatura.
+          const plan = planConfigs?.plan;
+          setShowCampaigns(!!plan?.useCampaigns);
+          setShowKanban(!!plan?.useKanban);
+          setShowOpenAi(!!plan?.useOpenAi);
+          setShowIntegrations(!!plan?.useIntegrations);
+          setShowSchedules(!!plan?.useSchedules);
+          setShowInternalChat(!!plan?.useInternalChat);
+          setShowExternalApi(!!plan?.useExternalApi);
         }
       } catch (error) {
         if (error?.response?.status !== 401) {
