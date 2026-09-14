@@ -13,7 +13,6 @@ import Box from "@material-ui/core/Box";
 import useSettings from "../../hooks/useSettings";
 import { toast } from "react-toastify";
 import { makeStyles } from "@material-ui/core/styles";
-import OnlyForSuperUser from "../OnlyForSuperUser";
 import useAuth from "../../hooks/useAuth.js/index.js";
 
 import { Colorize, Delete, AttachFile, CloudUpload, DeleteOutline } from "@material-ui/icons";
@@ -374,11 +373,14 @@ export default function Whitelabel(props) {
   );
   const resolveLoginBrandingImageUrl = resolveBrandingImageUrl || ((value) => value || "");
 
+  // "Identidade"/"Logotipos" são por empresa (cada admin cuida da logomarca da sua
+  // própria empresa) — já a seção "Login / capa" mais abaixo é global, compartilhada
+  // por todos os tenants na mesma tela de login, então continua exclusiva do Master.
+  const canEditCompanyIdentity = currentUser.profile === "admin";
+
   return (
     <div className={classes.root}>
-      <OnlyForSuperUser
-        user={currentUser}
-        yes={() => (
+      {canEditCompanyIdentity && (
           <>
             <Paper elevation={0} className={classes.panel}>
               <Typography className={classes.sectionTitle}>Identidade</Typography>
@@ -537,10 +539,17 @@ export default function Whitelabel(props) {
                 </div>
               </div>
             </Paper>
+          </>
+      )}
 
-            {loginBrandingConfig && onLoginBrandingChange && onLoginBrandingUpload && onLoginBrandingRemove && (
+      {currentUser.super &&
+        loginBrandingConfig && onLoginBrandingChange && onLoginBrandingUpload && onLoginBrandingRemove && (
               <Paper elevation={0} className={`${classes.panel} ${classes.sectionCardSpacer}`}>
                 <Typography className={classes.sectionTitle}>Login / capa</Typography>
+                <Typography className={classes.logoMeta} style={{ marginBottom: 8 }}>
+                  Exclusivo do Master — usado na tela de login compartilhada por todas as
+                  empresas.
+                </Typography>
 
                 <div className={classes.loginBrandingCard}>
                   <Grid container spacing={3}>
@@ -664,10 +673,7 @@ export default function Whitelabel(props) {
                   </Grid>
                 </div>
               </Paper>
-            )}
-          </>
         )}
-      />
     </div>
   );
 }

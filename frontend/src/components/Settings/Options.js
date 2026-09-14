@@ -935,14 +935,15 @@ export default function Options(props) {
   return (
     <>
       <div className={classes.optionsList}>
-        {isSuper() && (
+        {user.profile === "admin" && (
           <Paper className={classes.optionRow} elevation={0}>
             <div className={classes.optionHeader}>
               <Box>
                 <div className={classes.optionTitle}>Identidade da empresa (White Label)</div>
                 <div className={classes.optionDescription}>
-                  Nome, logomarcas, cores, favicon e ícones exibidos no menu lateral e na
-                  tela de login.
+                  Nome, logomarcas, cores, favicon e ícones da sua empresa. A seção
+                  "Login / capa" (compartilhada por todas as empresas) só aparece pra
+                  quem é Master.
                 </div>
               </Box>
             </div>

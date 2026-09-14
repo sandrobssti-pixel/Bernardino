@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.5
-**Etapa:** 3 — Papel Master, White Label completo em Configurações, sino de notificações
+**Versão do documento:** 2.3.6
+**Etapa:** 3 — Papel Master, identidade da empresa por Admin, sino de notificações
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
@@ -241,6 +241,12 @@ personalizar por cima da identidade padrão sem mexer em código.
   alternativa quando não há uma logo específica de login configurada
   (`GlobalConfigController.publicBranding`, desde a v2.3.4). Removidas da tela de login
   as opções "Criar conta gratuita" e "Esqueceu a senha?" (v2.3.4).
+- **Permissões da identidade (v2.3.6)**: dentro do `Whitelabel`, "Identidade"/
+  "Logotipos" (nome, cores, logomarcas, favicon, ícones) ficam visíveis para **qualquer
+  Admin** — cada empresa cuida da própria marca. "Login / capa" (compartilhada por
+  todas as empresas na mesma tela de login) continua **exclusiva do Master**. Ver
+  limitação conhecida no Changelog: a exibição da logo no menu lateral/login hoje ainda
+  lê de um endpoint fixo na empresa 1, não por empresa autenticada.
 
 ---
 

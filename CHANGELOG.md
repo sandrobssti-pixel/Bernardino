@@ -3,6 +3,31 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.6] — Permissões da identidade da empresa: qualquer Admin, não só Master — 2026-09-14
+
+### Alterado
+- **`Whitelabel` dividido em duas seções com permissões diferentes**, a pedido do
+  usuário: "Identidade" + "Logotipos" (nome, cores, logomarcas, favicon, ícones) agora
+  aparecem para **qualquer Admin** (`profile === "admin"`, inclui Master) — cada empresa
+  cuida da própria logomarca. Já "Login / capa" (logo/capa/WhatsApp da tela de login,
+  compartilhada por todas as empresas na mesma URL) continua **exclusiva do Master**
+  (`super === true`), já que afeta a entrada compartilhada de todos os tenants.
+- Testado criando um usuário Admin comum (`super: false`) e confirmando visualmente: vê
+  "Identidade"/"Logotipos", não vê "Login / capa", não vê "Cadastro de Empresas" nem as
+  abas "Empresas"/"Planos"/"Ajuda" (essas continuam exclusivas do Master), e não vê
+  "Painel SaaS" no menu lateral (já era assim antes).
+
+### Limitação conhecida (não corrigida nesta versão)
+- A logomarca/nome exibidos no **menu lateral e na tela de login** (`frontend/src/App.js`)
+  são lidos de um endpoint público fixo na empresa 1 (`GET /public-settings/:key`), não
+  por empresa autenticada — então, hoje, o upload de uma logo por uma empresa diferente
+  da 1 fica salvo corretamente (o endpoint de upload já usa a empresa de quem está
+  logado), mas **não aparece visualmente** pra essa empresa (continua mostrando a
+  logo da empresa 1). Corrigir isso de verdade exige buscar a identidade visual via um
+  endpoint autenticado (`GET /settings`, que já é filtrado pela empresa de quem está
+  logado) depois do login, em vez do endpoint público fixo. Registrado aqui para decidir
+  se vale a pena fazer como próxima etapa.
+
 ## [2.3.5] — White Label completo movido para Configurações — 2026-09-14
 
 ### Alterado
