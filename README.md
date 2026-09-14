@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.4 (Etapa 3 — Papel Master, identidade da empresa em Configurações, sino de notificações, correção crítica de conexões WhatsApp)**
+**Versão atual: 2.3.5 (Etapa 3 — Papel Master, White Label completo em Configurações, sino de notificações, correção crítica de conexões WhatsApp)**
 
 ## Documentação
 

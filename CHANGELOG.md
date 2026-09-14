@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.5] — White Label completo movido para Configurações — 2026-09-14
+
+### Alterado
+- A v2.3.4 tinha colocado só um atalho simplificado (nome + 1 logo) em Configurações.
+  Agora o **componente `Whitelabel` completo** (identidade, cores clara/escura,
+  logotipos claro/escuro/favicon/ícones PWA, e logo/capa/WhatsApp da tela de login) foi
+  movido de vez para a aba "Opções" de Configurações — reaproveitando os mesmos
+  endpoints (`/settings-whitelabel/logo`, `/global-config/upload`,
+  `/global-config/upload/remove`) e o mesmo `ColorModeContext`, sem duplicar lógica.
+- **Removida a aba "White Label" do Painel SaaS** (`GlobalConfig`) — o Painel SaaS fica
+  reservado para o que faz sentido nele: gestão de empresas/licenças e (próxima etapa)
+  cobrança bancária e mensagens de vencimento de fatura para clientes. Código órfão
+  removido junto (`resolveImageUrl`, `handleBrandingUpload`, `handleBrandingRemove`,
+  estados `uploading`/`removing`/`whiteLabelSettings`, import do `Whitelabel`).
+
 ## [2.3.4] — Identidade da empresa movida para Configurações + limpeza do login — 2026-09-14
 
 ### Adicionado

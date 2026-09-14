@@ -34,7 +34,6 @@ import {
   MonetizationOn,
   Tune,
   AvTimer,
-  Collections,
   SettingsEthernet,
   Dashboard,
   Business,
@@ -57,8 +56,6 @@ import api from "../../services/api";
 import toastError from "../../errors/toastError";
 import ServerMetrics from "../ServerMetrics";
 import { AuthContext } from "../../context/Auth/AuthContext";
-import Whitelabel from "../../components/Settings/Whitelabel";
-import useSettings from "../../hooks/useSettings";
 import formatToCurrency from "../../utils/formatToCurrency";
 import { CreatedAtFilter } from "../../components/CreatedAtFilter";
 
@@ -497,24 +494,10 @@ const FINANCIAL_STATUS_CONFIG = {
   }
 };
 
-// helper pra montar URL da imagem (relativa ou absoluta)
-const resolveImageUrl = (value) => {
-  if (!value) return "";
-  if (value.startsWith("http")) return value;
-
-  const base = process.env.REACT_APP_BACKEND_URL || "";
-  if (!base) return value;
-
-  const normalizedBase = base.replace(/\/+$/, "");
-  const path = value.startsWith("/") ? value : `/${value}`;
-  return `${normalizedBase}${path}`;
-};
-
 const GlobalConfig = () => {
   const classes = useStyles();
   const history = useHistory();
   const { user } = useContext(AuthContext);
-  const { getAll: getAllSettings } = useSettings();
 
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -525,14 +508,6 @@ const GlobalConfig = () => {
   const [welcomeTestEmail, setWelcomeTestEmail] = useState("");
   const [billingTestEmail, setBillingTestEmail] = useState("");
   const [billingTestPhone, setBillingTestPhone] = useState("");
-  const [uploading, setUploading] = useState({
-    loginLogo: false,
-    loginBackground: false
-  });
-  const [removing, setRemoving] = useState({
-    loginLogo: false,
-    loginBackground: false
-  });
 
   const [config, setConfig] = useState({
     mpAccessToken: "",
@@ -615,7 +590,6 @@ const GlobalConfig = () => {
   const [publicFoldersDeleting, setPublicFoldersDeleting] = useState(false);
   const [orphanPublicFolders, setOrphanPublicFolders] = useState([]);
   const [selectedOrphanFolders, setSelectedOrphanFolders] = useState([]);
-  const [whiteLabelSettings, setWhiteLabelSettings] = useState([]);
 
   const handleTabChange = (event, newValue) => {
     setTab(newValue);
@@ -727,10 +701,7 @@ const GlobalConfig = () => {
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const [{ data }, settingsData] = await Promise.all([
-        api.get("/global-config"),
-        getAllSettings().catch(() => [])
-      ]);
+      const { data } = await api.get("/global-config");
       setConfig(prev => ({
         ...prev,
         ...data,
@@ -739,7 +710,6 @@ const GlobalConfig = () => {
             ? String(data.trialExpiration)
             : prev.trialExpiration
       }));
-      setWhiteLabelSettings(Array.isArray(settingsData) ? settingsData : []);
       setWelcomeTestEmail(data?.smtpUser || "");
     } catch (err) {
       toastError(err);
@@ -921,53 +891,6 @@ const GlobalConfig = () => {
   if (user?.super === false) {
     return null;
   }
-
-  const handleBrandingUpload = async (field, file) => {
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("field", field); // "loginLogo" ou "loginBackground"
-
-    try {
-      setUploading(prev => ({ ...prev, [field]: true }));
-      const { data } = await api.post("/global-config/upload", formData);
-
-      // backend retorna { field, url }
-      const url = data?.url || data?.[field];
-
-      if (url) {
-        setConfig(prev => ({
-          ...prev,
-          [field]: url
-        }));
-      }
-
-      toast.success("Imagem atualizada com sucesso.");
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setUploading(prev => ({ ...prev, [field]: false }));
-    }
-  };
-
-  const handleBrandingRemove = async (field) => {
-    try {
-      setRemoving(prev => ({ ...prev, [field]: true }));
-      await api.post("/global-config/upload/remove", { field });
-
-      setConfig(prev => ({
-        ...prev,
-        [field]: ""
-      }));
-
-      toast.success("Imagem removida com sucesso.");
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setRemoving(prev => ({ ...prev, [field]: false }));
-    }
-  };
 
   const handleSendWelcomeEmailTest = async () => {
     if (!welcomeTestEmail) {
@@ -1307,7 +1230,6 @@ const GlobalConfig = () => {
         <Tab icon={<MonetizationOn className={classes.tabIcon} />} label="Meios de Pagamento" />
         <Tab icon={<Tune className={classes.tabIcon} />} label="Configurações" />
         <Tab icon={<SettingsEthernet className={classes.tabIcon} />} label="WuzAPI" />
-        <Tab icon={<Collections className={classes.tabIcon} />} label="White Label" />
       </Tabs>
 
       <form id={formId} onSubmit={handleSubmit} className={classes.form}>
@@ -2187,28 +2109,6 @@ const GlobalConfig = () => {
                 </Grid>
               </Grid>
             </div>
-            {renderSaveButton()}
-          </Paper>
-        )}
-
-        {tab === 5 && (
-          <Paper elevation={0} className={classes.sectionCard}>
-            <Typography variant="subtitle1" className={classes.sectionTitle}>
-              White Label
-            </Typography>
-            <Typography className={classes.sectionDescription}>
-              Personalize identidade visual, nome do sistema, cores e ativos principais da plataforma.
-            </Typography>
-            <Whitelabel
-              settings={whiteLabelSettings}
-              loginBrandingConfig={config}
-              onLoginBrandingChange={handleChange}
-              onLoginBrandingUpload={handleBrandingUpload}
-              onLoginBrandingRemove={handleBrandingRemove}
-              resolveBrandingImageUrl={resolveImageUrl}
-              loginBrandingUploading={uploading}
-              loginBrandingRemoving={removing}
-            />
             {renderSaveButton()}
           </Paper>
         )}
