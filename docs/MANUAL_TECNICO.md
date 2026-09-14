@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.22
-**Etapa:** 4 — Fase 3 do roadmap iniciada (módulo fiscal): Vendas com itens, Configuração Fiscal por empresa, emissão de NF-e/NFC-e/NFS-e via gateway Focus NFe
+**Versão do documento:** 2.3.23
+**Etapa:** 4 — módulo fiscal virou add-on de plano próprio (Plan.useFiscal), separado do Financeiro — Master libera por plano, abas Vendas/Configuração Fiscal só aparecem quando o plano do cliente inclui
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -443,11 +443,20 @@ de emitir nota fiscal incorreta):
   comunicação/gateway nunca derrubam a aplicação: ficam armazenados no
   campo `errorMessage` do `FiscalDocument` com `status: "error"`, pra dar
   pra investigar e reemitir depois.
-- Reaproveitado o mesmo gate de acesso do Financeiro (`Plan.useFinancial`,
-  `EnsureFinancialAccess`) em vez de criar um flag de plano próprio pro
-  fiscal — o comentário original do campo `useFinancial` no model `Plan`
-  já previa isso ("cadastro de clientes/fornecedores/produtos, custos,
-  relatórios, **fiscal**, contábil, RH").
+- ✅ **Corrigido na v2.3.23**: inicialmente o fiscal reaproveitava o mesmo
+  gate do Financeiro (`Plan.useFinancial`), sem controle próprio — o Master
+  não tinha como vender/liberar o fiscal separado do Financeiro. Corrigido
+  com um flag de plano dedicado: `Plan.useFiscal` (`EnsureFiscalAccess`,
+  `GetFiscalAccessStatus`), com um toggle próprio no editor de planos do
+  Master ("Fiscal — NF-e/NFC-e/NFS-e (add-on)", ao lado de "Financeiro
+  (add-on)" em `PlansManager.js`). **Sempre exige `useFinancial` também
+  ativo** (Vendas usa os cadastros de cliente/produto do Financeiro) — não
+  faz sentido vender fiscal sem financeiro, mas o inverso é normal (um
+  plano pode ter Financeiro sem Fiscal). Endpoint `GET /fiscal/access`
+  (mesmo padrão do `GET /finance/access`) — o frontend usa isso pra
+  esconder as abas Vendas/Configuração Fiscal quando o plano do cliente não
+  inclui, em vez de deixá-las visíveis e travadas no backend (mesma lição
+  do bug da v2.3.19 sobre permissão "Módulo Financeiro").
 - Frontend: dentro do Financeiro (navegação lateral), duas abas novas —
   **Vendas** (`SaleList`/`SaleModal`/`SaleDetailModal` — modal de
   criação/edição com itens dinâmicos via `Formik` `FieldArray`, seleção de

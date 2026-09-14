@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
 import AppError from "../errors/AppError";
-import EnsureFinancialAccess from "../services/FinanceService/EnsureFinancialAccess";
+import EnsureFiscalAccess from "../services/FiscalService/EnsureFiscalAccess";
 import * as FiscalDocumentService from "../services/FiscalService/FiscalDocumentService";
 
 const ensureAccess = async (req: Request): Promise<void> => {
-  const allowed = await EnsureFinancialAccess(req.user as any);
+  const allowed = await EnsureFiscalAccess(req.user as any);
   if (!allowed) {
-    throw new AppError("ERR_NO_FINANCIAL_MODULE_ACCESS", 403);
+    throw new AppError("ERR_NO_FISCAL_MODULE_ACCESS", 403);
   }
 };
 

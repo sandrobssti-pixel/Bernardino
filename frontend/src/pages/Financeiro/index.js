@@ -107,6 +107,10 @@ const Financeiro = () => {
   const finance = useFinance();
   const fiscal = useFiscal();
   const [financeAccess, setFinanceAccess] = useState(null);
+  // Fiscal (Vendas/Configuração Fiscal) é um add-on SEPARADO do Financeiro
+  // (Plan.useFiscal, v2.3.23) — o Master pode vender um plano com Financeiro
+  // mas sem Fiscal, então precisa de um gate próprio (não basta financeAccess).
+  const [fiscalAccess, setFiscalAccess] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
 
   useEffect(() => {
@@ -117,9 +121,17 @@ const Financeiro = () => {
       } catch (err) {
         setFinanceAccess({ planHasModule: false, hasAccess: false });
       }
+      try {
+        const access = await fiscal.getAccess();
+        setFiscalAccess(access);
+      } catch (err) {
+        setFiscalAccess({ planHasModule: false, hasAccess: false });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const showFiscalTabs = user.super || !!fiscalAccess?.hasAccess;
 
   const renderPanel = () => {
     if (financeTab === "painel") {
@@ -151,10 +163,24 @@ const Financeiro = () => {
         />
       );
     }
-    if (financeTab === "sales") {
-      return <FiscalSalesPanel key={financeTab} finance={finance} fiscal={fiscal} />;
-    }
-    if (financeTab === "fiscalConfig") {
+    if (financeTab === "sales" || financeTab === "fiscalConfig") {
+      if (!showFiscalTabs) {
+        return (
+          <Box className={classes.lockedBox}>
+            <Typography variant="h6" gutterBottom>
+              Módulo fiscal não disponível
+            </Typography>
+            <Typography variant="body2">
+              {fiscalAccess?.planHasModule
+                ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo fiscal."
+                : "Esse módulo é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
+            </Typography>
+          </Box>
+        );
+      }
+      if (financeTab === "sales") {
+        return <FiscalSalesPanel key={financeTab} finance={finance} fiscal={fiscal} />;
+      }
       return <FiscalConfigPanel key={financeTab} fiscal={fiscal} />;
     }
     if (financeTab === "customers") {
@@ -244,8 +270,12 @@ const Financeiro = () => {
           <Tab className={classes.sideTab} value="customers" label="Clientes" />
           <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
           <Tab className={classes.sideTab} value="products" label="Produtos" />
-          <Tab className={classes.sideTab} value="sales" label="Vendas" />
-          <Tab className={classes.sideTab} value="fiscalConfig" label="Configuração Fiscal" />
+          {showFiscalTabs && (
+            <Tab className={classes.sideTab} value="sales" label="Vendas" />
+          )}
+          {showFiscalTabs && (
+            <Tab className={classes.sideTab} value="fiscalConfig" label="Configuração Fiscal" />
+          )}
         </Tabs>
 
         <div className={classes.content}>{renderPanel()}</div>

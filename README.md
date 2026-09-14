@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.22 (Etapa 4 — Fase 3 do roadmap iniciada: módulo fiscal com Vendas (itens discriminados), Configuração Fiscal por empresa e emissão de NF-e/NFC-e/NFS-e via gateway Focus NFe)**
+**Versão atual: 2.3.23 (Etapa 4 — módulo fiscal agora é um add-on de plano próprio (Plan.useFiscal): o Master libera por plano, separado do Financeiro, e as abas Vendas/Configuração Fiscal só aparecem quando o plano do cliente inclui)**
 
 ## Documentação
 

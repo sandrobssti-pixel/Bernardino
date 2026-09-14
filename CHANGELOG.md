@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.23] — Módulo fiscal agora é um add-on de plano separado — 2026-09-14
+
+### Adicionado
+- **`Plan.useFiscal`**: novo flag de plano, separado do Financeiro
+  (`useFinancial`) — o Master decide, plano por plano, se ele inclui o
+  módulo fiscal (Vendas + emissão de NF-e/NFC-e/NFS-e), com um toggle
+  próprio no editor de planos ("Fiscal — NF-e/NFC-e/NFS-e (add-on)").
+  Sempre exige o Financeiro também ativo no mesmo plano.
+- **`GET /fiscal/access`**: novo endpoint (mesmo padrão do
+  `/finance/access`) — o frontend usa pra decidir se mostra as abas Vendas
+  e Configuração Fiscal, em vez de deixá-las visíveis e só bloqueadas no
+  backend.
+
+### Corrigido
+- O módulo fiscal (lançado na v2.3.22) reaproveitava o gate de acesso do
+  Financeiro sem nenhum controle próprio — o Master não tinha como
+  vender/liberar o fiscal separado do Financeiro. Corrigido com o flag de
+  plano dedicado acima.
+
 ## [2.3.22] — Fase 3 do roadmap iniciada: módulo fiscal (NF-e/NFC-e/NFS-e) — 2026-09-14
 
 ### Adicionado

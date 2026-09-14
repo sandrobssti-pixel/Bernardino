@@ -1,6 +1,7 @@
 import { Router } from "express";
 import isAuth from "../middleware/isAuth";
 
+import * as FiscalAccessController from "../controllers/FiscalAccessController";
 import * as FiscalConfigController from "../controllers/FiscalConfigController";
 import * as SaleController from "../controllers/SaleController";
 import * as FiscalDocumentController from "../controllers/FiscalDocumentController";
@@ -9,6 +10,10 @@ const fiscalRoutes = Router();
 
 // Fase 3 — Módulo fiscal (NF-e/NFC-e/NFS-e via gateway Focus NFe). Ver
 // docs/MANUAL_TECNICO.md, seção 6.2.
+
+// Status de acesso ao módulo fiscal (add-on separado do Financeiro) — usado
+// pelo frontend pra decidir se mostra as abas Vendas/Configuração Fiscal.
+fiscalRoutes.get("/fiscal/access", isAuth, FiscalAccessController.show);
 
 fiscalRoutes.get("/fiscal/config", isAuth, FiscalConfigController.show);
 fiscalRoutes.put("/fiscal/config", isAuth, FiscalConfigController.update);

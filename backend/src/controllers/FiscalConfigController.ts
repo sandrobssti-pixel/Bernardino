@@ -1,15 +1,14 @@
 import { Request, Response } from "express";
 import AppError from "../errors/AppError";
-import EnsureFinancialAccess from "../services/FinanceService/EnsureFinancialAccess";
+import EnsureFiscalAccess from "../services/FiscalService/EnsureFiscalAccess";
 import * as FiscalConfigService from "../services/FiscalService/FiscalConfigService";
 
-// Fiscal reaproveita o mesmo gate de acesso do Financeiro (Plan.useFinancial
-// já cobre "cadastros, custos, relatórios, fiscal, contábil, RH" — ver
-// comentário no model Plan) em vez de um flag de plano próprio.
+// Fiscal é um add-on separado do Financeiro (Plan.useFiscal), sempre
+// exigindo o Financeiro também ativo — ver EnsureFiscalAccess.
 const ensureAccess = async (req: Request): Promise<void> => {
-  const allowed = await EnsureFinancialAccess(req.user as any);
+  const allowed = await EnsureFiscalAccess(req.user as any);
   if (!allowed) {
-    throw new AppError("ERR_NO_FINANCIAL_MODULE_ACCESS", 403);
+    throw new AppError("ERR_NO_FISCAL_MODULE_ACCESS", 403);
   }
 };
 

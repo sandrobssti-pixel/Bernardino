@@ -1873,6 +1873,7 @@ const messages = {
         ERR_FISCAL_DOCUMENT_JUSTIFICATION_TOO_SHORT:
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
+        ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
         ERR_CONTACT_NOT_GROUP: "Este contato não é um grupo.",
         ERR_INVALID_GROUP_ACTION: "Ação inválida para gerenciamento de grupo.",
         ERR_WAPP_GROUP_UPDATE_FAILED:

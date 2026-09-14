@@ -2,10 +2,15 @@ import api from "../../services/api";
 
 // Módulo fiscal (Fase 3 — ver docs/MANUAL_TECNICO.md, seção 6.2): venda com
 // itens (Sale/SaleItem) e emissão de NF-e/NFC-e/NFS-e via gateway (Focus
-// NFe). Mesmo add-on/gate de acesso do Financeiro (Plan.useFinancial já
-// cobre "fiscal" — ver comentário no model Plan) — por isso não tem um
-// getAccess próprio, reaproveita o de useFinance().
+// NFe). Add-on separado do Financeiro (Plan.useFiscal, v2.3.23) — sempre
+// exige o Financeiro também ativo, mas o Master pode vender um plano com um
+// e sem o outro.
 const useFiscal = () => {
+  const getAccess = async () => {
+    const { data } = await api.get("/fiscal/access");
+    return data;
+  };
+
   const config = {
     show: async () => {
       const { data } = await api.get("/fiscal/config");
@@ -67,7 +72,7 @@ const useFiscal = () => {
     },
   };
 
-  return { config, sales, fiscalDocuments };
+  return { getAccess, config, sales, fiscalDocuments };
 };
 
 export default useFiscal;
