@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.12
-**Etapa:** 3 — Painel SaaS movido pra dentro do módulo Financeiro, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
+**Versão do documento:** 2.3.13
+**Etapa:** 4 — Módulo Financeiro completo (Fase 1: cadastros), Painel SaaS dentro do módulo Financeiro, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -267,25 +267,46 @@ cada fase deve virar sua própria etapa/versão, não uma coisa só.
 
 **Já feito (v2.3.12):** o Painel SaaS (cobrança das empresas-clientes pelo Master) foi
 absorvido pela mesma tela/rota `/financeiro` — pra quem é Master, `/financeiro` mostra
-o Painel SaaS; pra Admin/usuário de empresa, mostra a fatura da própria empresa. Isso é
-só a "casca" (navegação); o conteúdo novo abaixo ainda não existe.
+o Painel SaaS; pra Admin/usuário de empresa, mostra a fatura da própria empresa.
 
-**Regra de permissionamento combinada com o Master (v2.3.10/2.3.11), que vale pra todo
-o módulo Financeiro novo**: o módulo financeiro completo é um **add-on pago**, à parte
-do plano-base do AtendeFlow. O Master decide, por empresa (em Configurações → Empresas
-ou numa aba nova de "Módulos contratados"), se aquela empresa tem ou não direito ao
-módulo Financeiro. Se a empresa tiver, o **Admin daquela empresa** decide quais
-usuários/funcionários dela têm acesso às telas do módulo (igual já funciona hoje pra
-outras permissões de usuário). Ou seja: `Master → libera o módulo pra empresa` →
+**Já feito (v2.3.13) — Fase 1 completa:** cadastro de clientes, fornecedores e
+produtos/serviços, com listagem (busca + paginação), criação, edição e exclusão —
+novas abas "Clientes"/"Fornecedores"/"Produtos" dentro do item "Financeiro", visíveis
+só quando o módulo está liberado (ver regra de permissionamento abaixo, já
+implementada: `Plan.useFinancial` + `User.financialAccess`). Modelos:
+`backend/src/models/FinanceCustomer.ts`, `FinanceSupplier.ts`, `FinanceProduct.ts`;
+endpoints em `backend/src/routes/financeRoutes.ts`
+(`/finance/customers|suppliers|products`, `/finance/access` pro status);
+componentes reutilizáveis no frontend: `FinanceRecordModal` (formulário genérico
+orientado a um schema declarativo de campos) e `FinanceRecordList` (tabela + CRUD
+genérico) — evita triplicar o mesmo código pras três entidades; configuração de
+colunas/campos de cada uma em `frontend/src/pages/Financeiro/financeConfig.js`.
+Campos como `ncm` (Nomenclatura Comum do Mercosul) em `FinanceProduct` já ficam
+previstos pra Fase 3 (fiscal/NF-e), mas sem uso ainda.
+
+**Regra de permissionamento (implementada na v2.3.13), que vale pra todo o módulo
+Financeiro novo**: o módulo financeiro completo é um **add-on pago**, à parte do
+plano-base do AtendeFlow. O Master decide **por plano** (Configurações → Planos,
+toggle "Financeiro (add-on)" → `Plan.useFinancial`) se as empresas daquele plano têm
+ou não direito ao módulo — reaproveita o mesmo mecanismo já usado por `useKanban`/
+`useCampaigns`/etc., em vez de criar um controle novo por empresa. Se o plano da
+empresa tiver o módulo, o **Admin daquela empresa** decide quais usuários/funcionários
+dela têm acesso às telas (aba Permissões do cadastro de usuário → `User.financialAccess`
+— igual já funciona hoje pra outras permissões). Admin sempre tem acesso quando o
+módulo está ativo, independente desse campo; Master nunca tem acesso (não opera
+empresa nenhuma — `backend/src/services/FinanceService/EnsureFinancialAccess.ts`
+nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano` →
 `Admin da empresa → libera telas específicas pra cada funcionário`.
 
-### Fase 1 — Cadastros
-- Cadastro de clientes (pode reaproveitar/perfilar o cadastro de `Contact` já
-  existente, ou um cadastro próprio se as necessidades fiscais exigirem mais campos —
-  CPF/CNPJ, inscrição estadual, endereço estruturado etc.)
-- Cadastro de fornecedores (entidade nova)
-- Cadastro de produtos/serviços (entidade nova — nome, categoria, preço, unidade,
-  NCM/CFOP se for produto revendido, controle de estoque opcional)
+### Fase 1 — Cadastros ✅ concluída (v2.3.13)
+- Cadastro de clientes: entidade própria (`FinanceCustomer`), não reaproveita
+  `Contact` diretamente — precisa de campos fiscais que o Contact não tem (CPF/CNPJ,
+  endereço estruturado) — mas tem um `contactId` opcional pra vincular a um Contact
+  já existente quando fizer sentido.
+- Cadastro de fornecedores (`FinanceSupplier`).
+- Cadastro de produtos/serviços (`FinanceProduct` — nome, tipo produto/serviço, SKU,
+  unidade, preço de venda/custo, controle de estoque opcional, campo `ncm` já
+  previsto pra Fase 3 mas sem uso ainda).
 
 ### Fase 2 — Financeiro operacional
 - Gestão de custos fixos e variáveis (contas a pagar, categorias de despesa)

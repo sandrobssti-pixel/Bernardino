@@ -12,6 +12,7 @@ declare global {
         canViewAllContacts?: boolean;
         canDeleteTickets?: string;
         allowConnections?: string;
+        financialAccess?: boolean;
       };
     }
   }

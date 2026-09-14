@@ -3,6 +3,40 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.13] — Módulo Financeiro, Fase 1: cadastros de clientes/fornecedores/produtos — 2026-09-14
+
+### Adicionado
+- **Módulo Financeiro completo — add-on pago** (Fase 1 do roadmap, ver
+  `docs/MANUAL_TECNICO.md`, seção 6.2): cadastro de clientes, fornecedores e
+  produtos/serviços, cada um com listagem (busca + paginação), criação, edição
+  e exclusão. Aparece como novas abas ("Clientes", "Fornecedores", "Produtos")
+  dentro do item de menu "Financeiro", ao lado de "Minha assinatura".
+- **Permissionamento em duas camadas**, exatamente como definido:
+  - **Master libera por plano**: nova opção "Financeiro (add-on)" na tela
+    Configurações → Planos (`Plan.useFinancial`), desligada por padrão em
+    planos existentes e novos — o Master decide em qual(is) plano(s) o
+    módulo entra.
+  - **Admin da empresa libera por usuário**: nova permissão "Módulo
+    Financeiro" na aba Permissões do cadastro de usuário
+    (`User.financialAccess`) — só tem efeito se o plano da empresa incluir o
+    módulo. Admin da empresa sempre tem acesso quando o módulo está ativo,
+    independente desse campo; o Master nunca tem acesso (não opera empresa
+    nenhuma — mesma regra de v2.3.10/2.3.11).
+- Backend: modelos `FinanceCustomer`, `FinanceSupplier`, `FinanceProduct`
+  (todos escopados por `companyId`), endpoints REST em `/finance/customers`,
+  `/finance/suppliers`, `/finance/products` e `/finance/access` (status de
+  acesso, usado pelo frontend pra decidir o que mostrar).
+- Testado ponta a ponta (login, criar/listar/editar/excluir nas três
+  telas, toggle de plano no Master, toggle de usuário no Admin) antes do
+  commit.
+
+### Observação
+- Isso é só a Fase 1 (cadastros) do roadmap do módulo Financeiro. Fases
+  seguintes (custos/relatórios, fiscal/NF-e, contábil, RH) continuam
+  documentadas em `docs/MANUAL_TECNICO.md`, seção 6.2, e dependem de
+  decisões de arquitetura (gateway de NF-e, integração contábil) antes de
+  começar.
+
 ## [2.3.12] — Painel SaaS movido para dentro do módulo Financeiro — 2026-09-14
 
 ### Alterado

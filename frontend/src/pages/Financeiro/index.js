@@ -31,12 +31,25 @@ import MoneyIcon from "@material-ui/icons/Money";
 import DateRangeIcon from "@material-ui/icons/DateRange";
 import InfoIcon from "@material-ui/icons/Info";
 
+import Tabs from "@material-ui/core/Tabs";
+import Tab from "@material-ui/core/Tab";
+
 import SubscriptionModal from "../../components/SubscriptionModal";
 import api from "../../services/api";
 import TableRowSkeleton from "../../components/TableRowSkeleton";
 import toastError from "../../errors/toastError";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
+import useFinance from "../../hooks/useFinance";
+import FinanceRecordList from "../../components/FinanceRecordList";
+import {
+  financeCustomerColumns,
+  financeCustomerFields,
+  financeSupplierColumns,
+  financeSupplierFields,
+  financeProductColumns,
+  financeProductFields,
+} from "./financeConfig";
 
 import moment from "moment";
 
@@ -334,6 +347,25 @@ const Invoices = () => {
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [companyPlan, setCompanyPlan] = useState(null);
   const [expiredLoginFlag, setExpiredLoginFlag] = useState(null);
+
+  // Módulo Financeiro completo (Fase 1 — clientes/fornecedores/produtos):
+  // add-on pago, ver docs/MANUAL_TECNICO.md, seção 6.2.
+  const finance = useFinance();
+  const [financeAccess, setFinanceAccess] = useState(null);
+  const [financeTab, setFinanceTab] = useState("subscription");
+
+  useEffect(() => {
+    if (user.super) return;
+    (async () => {
+      try {
+        const access = await finance.getAccess();
+        setFinanceAccess(access);
+      } catch (err) {
+        setFinanceAccess({ planHasModule: false, hasAccess: false });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.super]);
 
   const readExpiredFlag = () => {
     try {
@@ -639,6 +671,52 @@ const Invoices = () => {
 
   return (
     <div className={classes.pageRoot}>
+      {financeAccess?.hasAccess && (
+        <Tabs
+          value={financeTab}
+          onChange={(e, v) => setFinanceTab(v)}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+          style={{ marginBottom: 16 }}
+        >
+          <Tab value="subscription" label="Minha assinatura" />
+          <Tab value="customers" label="Clientes" />
+          <Tab value="suppliers" label="Fornecedores" />
+          <Tab value="products" label="Produtos" />
+        </Tabs>
+      )}
+
+      {financeTab === "customers" && financeAccess?.hasAccess && (
+        <FinanceRecordList
+          title="Cliente"
+          resource={finance.customers}
+          columns={financeCustomerColumns}
+          fields={financeCustomerFields}
+        />
+      )}
+
+      {financeTab === "suppliers" && financeAccess?.hasAccess && (
+        <FinanceRecordList
+          title="Fornecedor"
+          resource={finance.suppliers}
+          columns={financeSupplierColumns}
+          fields={financeSupplierFields}
+        />
+      )}
+
+      {financeTab === "products" && financeAccess?.hasAccess && (
+        <FinanceRecordList
+          title="Produto"
+          resource={finance.products}
+          columns={financeProductColumns}
+          fields={financeProductFields}
+        />
+      )}
+
+      {financeTab === "subscription" && (
+      <>
       <SubscriptionModal
         open={contactModalOpen}
         onClose={handleCloseContactModal}
@@ -795,6 +873,8 @@ const Invoices = () => {
           </div>
         </div>
       </Paper>
+      </>
+      )}
     </div>
   );
 };

@@ -23,6 +23,7 @@ interface PlanData {
   useKanban?: boolean;
   useOpenAi?: boolean;
   useIntegrations?: boolean;
+  useFinancial?: boolean;
   isPublic?: boolean;
 }
 

@@ -61,6 +61,9 @@ import MetaConnection from "../models/MetaConnection";
 import BillingIntegration from "../models/BillingIntegration";
 import OfficialCampaign from "../models/OfficialCampaign";
 import OfficialCampaignShipping from "../models/OfficialCampaignShipping";
+import FinanceCustomer from "../models/FinanceCustomer";
+import FinanceSupplier from "../models/FinanceSupplier";
+import FinanceProduct from "../models/FinanceProduct";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -129,7 +132,10 @@ const models = [
   MetaConnection,
   BillingIntegration,
   OfficialCampaign,
-  OfficialCampaignShipping
+  OfficialCampaignShipping,
+  FinanceCustomer,
+  FinanceSupplier,
+  FinanceProduct
 ];
 
 sequelize.addModels(models);

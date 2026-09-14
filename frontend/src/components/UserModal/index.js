@@ -297,6 +297,9 @@ const UserModal = ({ open, onClose, userId }) => {
 		allowConnections: "disabled",
 		// PERMISSÃO NOVA
 		canViewAllContacts: false,
+		// Acesso ao módulo Financeiro (add-on liberado pelo Master via plano) —
+		// concedido usuário a usuário pelo Admin da empresa.
+		financialAccess: false,
 		blockMultipleLogins: true,
 		birthDate: "",
 	};
@@ -329,6 +332,7 @@ const UserModal = ({ open, onClose, userId }) => {
 						farewellMessage: data?.farewellMessage ?? "",
 						canDeleteTickets: data?.canDeleteTickets ?? "disabled",
 						canViewAllContacts: !!data.canViewAllContacts,
+						financialAccess: !!data.financialAccess,
 						super: !!data?.super,
 						blockMultipleLogins: data?.blockMultipleLogins !== false,
 						birthDate: data?.birthDate ? String(data.birthDate).split("T")[0] : ""
@@ -412,7 +416,7 @@ const UserModal = ({ open, onClose, userId }) => {
 	  };
 
 	const isPermissionEnabled = (values, fieldName) => {
-		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts") {
+		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess") {
 			return !!values[fieldName];
 		}
 		if (fieldName === "allTicket") {
@@ -422,7 +426,7 @@ const UserModal = ({ open, onClose, userId }) => {
 	};
 
 	const togglePermission = (fieldName, checked, setFieldValue) => {
-		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts") {
+		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess") {
 			setFieldValue(fieldName, checked);
 			return;
 		}
@@ -437,6 +441,10 @@ const UserModal = ({ open, onClose, userId }) => {
 		canViewAllContacts: {
 			label: "Ver todos os contatos",
 			description: "Acessa todos os contatos da empresa.",
+		},
+		financialAccess: {
+			label: "Módulo Financeiro",
+			description: "Acessa cadastros de clientes, fornecedores e produtos (só tem efeito se o plano da empresa incluir o módulo).",
 		},
 		allTicket: {
 			label: "Tickets sem fila",
@@ -925,6 +933,15 @@ const UserModal = ({ open, onClose, userId }) => {
 															fieldName: "canViewAllContacts",
 															label: permissionContent.canViewAllContacts.label,
 															description: permissionContent.canViewAllContacts.description,
+															values,
+															setFieldValue
+														})}
+													</Grid>
+													<Grid item xs={12} md={6}>
+														{renderPermissionButtonField({
+															fieldName: "financialAccess",
+															label: permissionContent.financialAccess.label,
+															description: permissionContent.financialAccess.description,
 															values,
 															setFieldValue
 														})}

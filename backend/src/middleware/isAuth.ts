@@ -45,6 +45,7 @@ const isAuth = async (req: Request, res: Response, next: NextFunction): Promise<
     _baseUser.canViewAllContacts = !!fullUser.canViewAllContacts;
     _baseUser.canDeleteTickets = String(fullUser.canDeleteTickets || "disabled");
     _baseUser.allowConnections = String(fullUser.allowConnections || "enabled");
+    _baseUser.financialAccess = !!fullUser.financialAccess;
     req.user = _baseUser;
   } catch (err: any) {
     throw new AppError("ERR_SESSION_EXPIRED", 401);

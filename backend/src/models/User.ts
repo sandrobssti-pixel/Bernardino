@@ -214,6 +214,15 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   blockMultipleLogins: boolean;
 
+  // Acesso ao módulo Financeiro (cadastro de clientes/fornecedores/produtos etc.).
+  // Só tem efeito se a empresa (via Plan) tiver o módulo contratado — ver
+  // Plan.useFinancial. Concedido pelo Admin da empresa a usuários específicos
+  // (funcionários); Admin e Master sempre têm acesso quando o módulo está ativo,
+  // independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  financialAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

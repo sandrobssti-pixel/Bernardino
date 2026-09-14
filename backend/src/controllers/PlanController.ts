@@ -50,6 +50,7 @@ type StorePlanData = {
   useKanban?: boolean;
   useOpenAi?: boolean;
   useIntegrations?: boolean;
+  useFinancial?: boolean;
   isPublic?: boolean;
 };
 
@@ -74,6 +75,7 @@ type UpdatePlanData = {
   useKanban?: boolean;
   useOpenAi?: boolean;
   useIntegrations?: boolean;
+  useFinancial?: boolean;
   isPublic?: boolean;
 };
 

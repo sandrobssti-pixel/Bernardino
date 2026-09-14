@@ -61,6 +61,7 @@ import webchatPublicRoutes from "./webchatPublicRoutes";
 
 // 🔹 NOVO: rotas de configuração global (Mercado Pago + SMTP)
 import globalConfigRoutes from "./globalConfigRoutes";
+import financeRoutes from "./financeRoutes";
 
 const routes = Router();
 
@@ -127,5 +128,6 @@ routes.use(billingIntegrationRoutes);
 
 // 🔹 NOVO: base /global-config
 routes.use("/global-config", globalConfigRoutes);
+routes.use(financeRoutes);
 
 export default routes;

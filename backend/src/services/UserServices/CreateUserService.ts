@@ -30,6 +30,7 @@ interface CreateUserRequest {
   allowRealTime?: string;
   allowConnections?: string;
   canViewAllContacts?: boolean; // << adicionado
+  financialAccess?: boolean;
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
   super?: boolean; // << Master (somente honrado se o solicitante já for super)
@@ -76,6 +77,7 @@ const CreateUserService = async ({
   allowRealTime,
   allowConnections,
   canViewAllContacts,
+  financialAccess,
   blockMultipleLogins = true,
   birthDate,
   super: isSuperUser = false
@@ -163,6 +165,7 @@ const CreateUserService = async ({
       allowRealTime,
       allowConnections,
       canViewAllContacts: !!canViewAllContacts, // << persistência do novo campo
+      financialAccess: !!financialAccess,
       blockMultipleLogins: !!blockMultipleLogins,
       birthDate: parsedBirthDate,
       super: !!isSuperUser

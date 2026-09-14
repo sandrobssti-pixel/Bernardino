@@ -570,6 +570,7 @@ const ALL_FEATURES = [
   { key: "useKanban", label: "Kanban" },
   { key: "useOpenAi", label: "Atendimento IA" },
   { key: "useIntegrations", label: "Integrações" },
+  { key: "useFinancial", label: "Financeiro (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -586,6 +587,7 @@ const FEATURE_FIELDS = [
   { name: "useKanban", label: "Kanban" },
   { name: "useOpenAi", label: "Atendimento IA" },
   { name: "useIntegrations", label: "Integrações" },
+  { name: "useFinancial", label: "Financeiro (add-on)" },
 ];
 
 export function PlanManagerForm(props) {
@@ -598,7 +600,7 @@ export function PlanManagerForm(props) {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, isPublic: true,
+    useIntegrations: true, useFinancial: false, isPublic: true,
   });
 
   useEffect(() => { setRecord(initialValue); }, [initialValue]);
@@ -992,7 +994,7 @@ export default function PlansManager() {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, isPublic: true,
+    useIntegrations: true, useFinancial: false, isPublic: true,
   });
 
   useEffect(() => {
@@ -1066,6 +1068,7 @@ export default function PlansManager() {
       useKanban: row.useKanban !== false,
       useOpenAi: row.useOpenAi !== false,
       useIntegrations: row.useIntegrations !== false,
+      useFinancial: row.useFinancial === true,
       isPublic: row.isPublic,
     });
     setShowConfirmDialog(true);
@@ -1086,7 +1089,9 @@ export default function PlansManager() {
       useCampaigns: b(data.useCampaigns), useSchedules: b(data.useSchedules),
       useInternalChat: b(data.useInternalChat), useExternalApi: b(data.useExternalApi),
       useKanban: b(data.useKanban), useOpenAi: b(data.useOpenAi),
-      useIntegrations: b(data.useIntegrations), isPublic: data.isPublic,
+      useIntegrations: b(data.useIntegrations),
+      useFinancial: data.useFinancial === true,
+      isPublic: data.isPublic,
     });
     setPlanModalOpen(true);
   };

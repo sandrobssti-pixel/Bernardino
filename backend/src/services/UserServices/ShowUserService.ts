@@ -39,6 +39,7 @@ const ShowUserService = async (id: string | number, companyId: string | number):
         "allowConnections",
         "language",
         "canViewAllContacts", // <<== ADICIONADO AQUI
+        "financialAccess",
         "blockMultipleLogins"
         ,
         "birthDate"
@@ -67,7 +68,8 @@ const ShowUserService = async (id: string | number, companyId: string | number):
                 "useExternalApi",
                 "useIntegrations",
                 "useOpenAi",
-                "useKanban"
+                "useKanban",
+                "useFinancial"
               ]
             },
           ]

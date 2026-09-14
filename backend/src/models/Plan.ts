@@ -99,6 +99,13 @@ class Plan extends Model<Plan> {
   @Default(true)
   @Column
   isPublic: boolean;
+
+  // Módulo Financeiro completo (cadastro de clientes/fornecedores/produtos,
+  // custos, relatórios, fiscal, contábil, RH) — add-on pago, à parte do
+  // plano-base. Ver docs/MANUAL_TECNICO.md, seção 6.2.
+  @Default(false)
+  @Column
+  useFinancial: boolean;
 }
 
 export default Plan;
