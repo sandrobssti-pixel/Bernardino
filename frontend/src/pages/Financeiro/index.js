@@ -36,6 +36,7 @@ import api from "../../services/api";
 import TableRowSkeleton from "../../components/TableRowSkeleton";
 import toastError from "../../errors/toastError";
 import { AuthContext } from "../../context/Auth/AuthContext";
+import GlobalConfig from "../GlobalConfig";
 
 import moment from "moment";
 
@@ -627,6 +628,14 @@ const Invoices = () => {
       </div>
     );
   };
+
+  // O Master não opera empresa nenhuma — pra ele, "Financeiro" é o Painel SaaS
+  // (cobranças/planos de todas as empresas-clientes), não a fatura da própria
+  // empresa. Mantém uma única entrada de menu ("Financeiro") em vez de um item
+  // "Painel SaaS" separado.
+  if (user.super) {
+    return <GlobalConfig />;
+  }
 
   return (
     <div className={classes.pageRoot}>

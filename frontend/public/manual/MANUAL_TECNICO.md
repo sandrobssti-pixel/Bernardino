@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.11
-**Etapa:** 3 — Painel SaaS/cobranças 100% exclusivo do Master, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
+**Versão do documento:** 2.3.12
+**Etapa:** 3 — Painel SaaS movido pra dentro do módulo Financeiro, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login, sino de notificações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -228,8 +228,8 @@ personalizar por cima da identidade padrão sem mexer em código.
   do seed: `master@atendeflow.com` / `123456`.
 - **Status Ativo/Desativado**: rótulo do indicador de presença na listagem de usuários
   (`UserStatusIcon`) — a lógica online/offline já existia, só o texto mudou.
-- **Manual + versão na lateral**: último item do menu (`frontend/src/layout/MainListItems.js`),
-  abaixo de "Painel SaaS". O manual é servido como arquivo estático em
+- **Manual + versão na lateral**: último item do menu (`frontend/src/layout/MainListItems.js`).
+  O manual é servido como arquivo estático em
   `frontend/public/manual/MANUAL_TECNICO.md` (cópia deste arquivo — atualizar as duas
   cópias ao editar o manual) para não depender de acesso à internet/GitHub em produção.
   A versão vem do endpoint `/version` já existente, via hook `useVersion`.
@@ -254,6 +254,89 @@ personalizar por cima da identidade padrão sem mexer em código.
   todas as empresas na mesma tela de login) continua **exclusiva do Master**. Ver
   limitação conhecida no Changelog: a exibição da logo no menu lateral/login hoje ainda
   lê de um endpoint fixo na empresa 1, não por empresa autenticada.
+
+---
+
+## 6.2 Roadmap — módulo Financeiro completo (Etapa 4, planejado, ainda não iniciado)
+
+O módulo "Financeiro" (hoje `frontend/src/pages/Financeiro/index.js`, rota `/financeiro`)
+vai deixar de ser só a tela de fatura/assinatura da empresa com o Master e virar um
+módulo financeiro/ERP completo, por dentro do próprio AtendeFlow. Isso é um projeto
+grande, então fica registrado aqui em fases, na ordem em que faz sentido construir —
+cada fase deve virar sua própria etapa/versão, não uma coisa só.
+
+**Já feito (v2.3.12):** o Painel SaaS (cobrança das empresas-clientes pelo Master) foi
+absorvido pela mesma tela/rota `/financeiro` — pra quem é Master, `/financeiro` mostra
+o Painel SaaS; pra Admin/usuário de empresa, mostra a fatura da própria empresa. Isso é
+só a "casca" (navegação); o conteúdo novo abaixo ainda não existe.
+
+**Regra de permissionamento combinada com o Master (v2.3.10/2.3.11), que vale pra todo
+o módulo Financeiro novo**: o módulo financeiro completo é um **add-on pago**, à parte
+do plano-base do AtendeFlow. O Master decide, por empresa (em Configurações → Empresas
+ou numa aba nova de "Módulos contratados"), se aquela empresa tem ou não direito ao
+módulo Financeiro. Se a empresa tiver, o **Admin daquela empresa** decide quais
+usuários/funcionários dela têm acesso às telas do módulo (igual já funciona hoje pra
+outras permissões de usuário). Ou seja: `Master → libera o módulo pra empresa` →
+`Admin da empresa → libera telas específicas pra cada funcionário`.
+
+### Fase 1 — Cadastros
+- Cadastro de clientes (pode reaproveitar/perfilar o cadastro de `Contact` já
+  existente, ou um cadastro próprio se as necessidades fiscais exigirem mais campos —
+  CPF/CNPJ, inscrição estadual, endereço estruturado etc.)
+- Cadastro de fornecedores (entidade nova)
+- Cadastro de produtos/serviços (entidade nova — nome, categoria, preço, unidade,
+  NCM/CFOP se for produto revendido, controle de estoque opcional)
+
+### Fase 2 — Financeiro operacional
+- Gestão de custos fixos e variáveis (contas a pagar, categorias de despesa)
+- Contas a receber ligadas aos clientes cadastrados
+- Painel com gráficos (usar a mesma linguagem visual dos dashboards já existentes —
+  ver skill de `dataviz` deste projeto ao desenhar os gráficos)
+- Relatórios: financeiro (fluxo de caixa, DRE simplificado), estoque (se produtos
+  tiverem controle de estoque), desempenho de funcionários, fornecedores
+
+### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica / SEFAZ / Receita Federal)
+Esta é a fase de maior risco técnico e regulatório do roadmap — envolve comunicação
+com webservices da SEFAZ de cada estado (ou SEFAZ Virtual, pra estados sem
+infraestrutura própria), certificado digital (A1 ou A3) por empresa, assinatura e
+validação de XML conforme o layout vigente da NF-e/NFC-e, contingência, e
+acompanhamento da **Reforma Tributária** (transição CBS/IBS iniciada em 2026,
+substituindo PIS/COFINS/ICMS/ISS ao longo dos próximos anos). Antes de começar a
+codificar esta fase, é preciso decidir com o cliente:
+- **Emissão direta na SEFAZ** (mais barato a longo prazo, mas exige implementar e
+  manter toda a integração — assinatura de XML, contingência, homologação em cada
+  estado) **vs. usar um gateway de NF-e como serviço** (Focus NFe, NFe.io, PlugNotas,
+  eNotas etc. — cobram por nota emitida, mas absorvem toda a complexidade de SEFAZ,
+  atualizações de layout e da Reforma Tributária). Pra um SaaS multi-empresa como o
+  AtendeFlow, um gateway tende a ser o caminho mais realista pra tocar isso num prazo
+  razoável.
+- Qual(is) documento(s) fiscal(is) emitir primeiro: NF-e (produto), NFS-e (serviço,
+  que varia por prefeitura) e/ou NFC-e (consumidor final)?
+- Seleção do regime tributário por empresa (Configurações da empresa): MEI, EI, SLU,
+  LTDA, S/A, e enquadramento por porte (MEI, ME até R$ 360 mil/ano, EPP até R$ 4,8
+  milhões/ano) — isso afeta qual regime de apuração de imposto e qual documento fiscal
+  a empresa pode/deve emitir.
+
+### Fase 4 — Módulo contábil
+Cálculo e geração de guias de pagamento de impostos conforme o regime tributário
+escolhido na Fase 3 (DAS do Simples Nacional para MEI/ME/EPP, ou apuração normal para
+LTDA/S/A maiores), já considerando a transição da Reforma Tributária. Nível de
+complexidade regulatória alto — normalmente é feito integrando com um ERP/contador
+terceirizado (ex. via SPED) em vez de implementar o cálculo tributário do zero;
+decisão de abordagem também deve ser validada com o cliente antes de começar.
+
+### Fase 5 — Módulo de RH / recrutamento
+Cadastro de vagas, recebimento/triagem de candidaturas, e seleção de funcionários que
+podem, ao final, ser efetivados como usuários do sistema daquela empresa (reaproveitando
+o cadastro de `User` já existente para a etapa de efetivação).
+
+### Decisões em aberto antes de iniciar a Fase 3+
+Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir
+da Fase 3 (fiscal) e Fase 4 (contábil), a arquitetura muda bastante dependendo das
+respostas acima (gateway de NF-e vs. integração direta; quais documentos fiscais;
+integração com contador/SPED vs. cálculo próprio) — não deve ser iniciada sem alinhar
+isso, dado o risco de gerar uma integração fiscal incorreta (o que teria consequência
+real/legal pra empresas-clientes que dependessem dela).
 
 ---
 

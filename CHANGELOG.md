@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.12] — Painel SaaS movido para dentro do módulo Financeiro — 2026-09-14
+
+### Alterado
+- O item de menu separado "Painel SaaS" foi removido. O Master agora acessa as
+  mesmas telas (Dashboard, Financeiro do sistema, Meios de pagamento,
+  Configurações, WuzAPI) pelo item **"Financeiro"** do menu — para o Master,
+  essa tela mostra o Painel SaaS; para Admin/usuário de uma empresa, continua
+  mostrando a fatura/assinatura da própria empresa (comportamento inalterado).
+  Isso prepara o terreno para o módulo Financeiro completo que está sendo
+  planejado (cadastro de clientes/fornecedores/produtos, custos, relatórios,
+  módulo fiscal/NFe, contábil e de RH — ver `docs/MANUAL_TECNICO.md`, seção
+  "Roadmap — módulo Financeiro completo").
+- `frontend/src/pages/Financeiro/index.js`: passou a renderizar `<GlobalConfig />`
+  quando `user.super` é verdadeiro, antes do JSX de fatura da empresa.
+- Rota `/global-config` continua existindo (compatibilidade), mas não tem mais
+  link direto no menu.
+
 ## [2.3.11] — Painel SaaS (cobranças) 100% exclusivo do Master — 2026-09-14
 
 ### Corrigido

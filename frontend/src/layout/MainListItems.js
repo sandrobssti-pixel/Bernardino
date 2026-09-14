@@ -43,8 +43,7 @@ import {
   AttachFile,
   Dashboard,
   Description,
-  DeviceHubOutlined,
-  SettingsApplications
+  DeviceHubOutlined
 } from "@material-ui/icons";
 
 // NOVO ÍCONE PARA CONEXÕES
@@ -1349,18 +1348,10 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               )}
             />
 
-            {user.super && (
-              <ListItemLink
-                to="/global-config"
-                primary={i18n.t(
-                  "globalConfig.title",
-                  "Painel SaaS"
-                )}
-                icon={<SettingsApplications />}
-                iconKey="globalConfig"
-                tooltip={collapsed}
-              />
-            )}
+            {/* Painel SaaS não é mais um item de menu separado: o Master acessa
+                as mesmas telas de cobrança/planos pelo item "Financeiro" acima
+                (que, pra quem é Master, mostra o Painel SaaS em vez da fatura
+                de uma empresa-cliente). */}
 
             <Divider className={classes.sectionDivider} />
             <ListItemLink
