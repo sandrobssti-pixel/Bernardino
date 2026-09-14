@@ -935,11 +935,13 @@ export default function Options(props) {
   return (
     <>
       <div className={classes.optionsList}>
-        {/* O Master não opera nenhuma empresa-cliente — ele só libera o acesso
-            (cadastra empresa/plano em Painel SaaS / Configurações > Empresas).
-            Quem configura a identidade (nome, logo, cores) é o Admin de cada
-            empresa que comprou o sistema, nunca o Master. */}
-        {user.profile === "admin" && !user.super && (
+        {/* O Master tem acesso a todas as funcionalidades do sistema,
+            inclusive esta — só que, como ele opera dentro do próprio
+            ambiente dele (companyId 1, o "esqueleto"), configurar isso aqui
+            afeta só a identidade do ambiente do Master, nunca a de uma
+            empresa-cliente real. Cada empresa-cliente configura a própria
+            identidade dentro do seu próprio ambiente, isolado por companyId. */}
+        {user.profile === "admin" && (
           <Paper className={classes.optionRow} elevation={0}>
             <div className={classes.optionHeader}>
               <Box>

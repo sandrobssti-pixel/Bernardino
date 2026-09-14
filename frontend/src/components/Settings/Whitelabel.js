@@ -413,12 +413,12 @@ export default function Whitelabel(props) {
   const resolveLoginBrandingImageUrl = resolveBrandingImageUrl || ((value) => value || "");
 
   // "Identidade"/"Logotipos" são por empresa (cada admin cuida da logomarca da sua
-  // própria empresa que comprou o sistema). O Master não opera nenhuma empresa-cliente
-  // (ele só libera acesso/licenças), então nunca vê esta seção — mesmo tendo profile
-  // "admin" — e quando usado só para a seção "Login / capa" (loginOnly), ela também
-  // fica oculta.
-  const canEditCompanyIdentity =
-    !loginOnly && currentUser.profile === "admin" && !currentUser.super;
+  // própria empresa). O Master também vê — ele tem acesso a todas as
+  // funcionalidades do sistema — mas como fica no próprio ambiente dele
+  // (companyId 1), isso nunca afeta a identidade de uma empresa-cliente
+  // real. Quando usado só para a seção "Login / capa" (loginOnly), esta
+  // seção fica oculta.
+  const canEditCompanyIdentity = !loginOnly && currentUser.profile === "admin";
 
   return (
     <div className={classes.root}>

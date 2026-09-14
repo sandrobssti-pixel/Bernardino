@@ -546,13 +546,28 @@ const MainListItems = ({ collapsed, drawerClose }) => {
         const planConfigs = await getPlanCompany(undefined, companyId);
         if (!active) return;
 
-        setShowCampaigns(planConfigs.plan.useCampaigns);
-        setShowKanban(planConfigs.plan.useKanban);
-        setShowOpenAi(planConfigs.plan.useOpenAi);
-        setShowIntegrations(planConfigs.plan.useIntegrations);
-        setShowSchedules(planConfigs.plan.useSchedules);
-        setShowInternalChat(planConfigs.plan.useInternalChat);
-        setShowExternalApi(planConfigs.plan.useExternalApi);
+        // O Master tem acesso a todas as funcionalidades do sistema
+        // (precisa conseguir usar/testar tudo), independente do que o plano
+        // da própria empresa dele (o "esqueleto", companyId 1) tem
+        // habilitado — isso nunca dá acesso a dados de outra empresa, só ao
+        // que já é dele mesmo (tudo continua escopado por companyId).
+        if (user.super) {
+          setShowCampaigns(true);
+          setShowKanban(true);
+          setShowOpenAi(true);
+          setShowIntegrations(true);
+          setShowSchedules(true);
+          setShowInternalChat(true);
+          setShowExternalApi(true);
+        } else {
+          setShowCampaigns(planConfigs.plan.useCampaigns);
+          setShowKanban(planConfigs.plan.useKanban);
+          setShowOpenAi(planConfigs.plan.useOpenAi);
+          setShowIntegrations(planConfigs.plan.useIntegrations);
+          setShowSchedules(planConfigs.plan.useSchedules);
+          setShowInternalChat(planConfigs.plan.useInternalChat);
+          setShowExternalApi(planConfigs.plan.useExternalApi);
+        }
       } catch (error) {
         if (error?.response?.status !== 401) {
           console.error("Erro ao carregar plano", error);

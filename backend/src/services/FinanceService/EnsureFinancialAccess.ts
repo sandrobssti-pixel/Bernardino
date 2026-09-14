@@ -12,8 +12,10 @@ interface RequestUser {
 // seção 6.2): só existe se o plano da empresa incluir (Plan.useFinancial).
 // Dentro de uma empresa que tem o módulo, Admin sempre tem acesso; um
 // usuário comum ("user") só se o Admin da empresa liberou (User.financialAccess).
-// O Master não opera nenhuma empresa-cliente, então esta checagem nunca
-// libera para ele (dados financeiros são sempre de uma empresa específica).
+// O Master tem acesso a todas as funcionalidades do sistema — inclusive esta
+// — independente do plano da própria empresa dele (companyId 1); os dados
+// continuam isolados por companyId, então isso nunca dá acesso aos cadastros
+// financeiros de uma empresa-cliente real, só aos do próprio ambiente dele.
 interface AccessStatus {
   planHasModule: boolean;
   hasAccess: boolean;
@@ -25,7 +27,8 @@ interface AccessStatus {
 export const GetFinancialAccessStatus = async (
   user: RequestUser
 ): Promise<AccessStatus> => {
-  if (!user || user.super) return { planHasModule: false, hasAccess: false };
+  if (!user) return { planHasModule: false, hasAccess: false };
+  if (user.super) return { planHasModule: true, hasAccess: true };
 
   const company = await Company.findByPk(user.companyId, {
     include: [{ model: Plan, as: "plan", attributes: ["useFinancial"] }]

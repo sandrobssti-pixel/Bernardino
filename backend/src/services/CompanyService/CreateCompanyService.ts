@@ -49,6 +49,13 @@ const CreateCompanyService = async (
     throw new AppError(err.message);
   }
 
+  // Toda empresa precisa ter um plano vinculado desde a criação — sem essa
+  // checagem, o front deixava passar planId vazio (o "required" do MUI
+  // Select é só visual) e a empresa ficava sem plano nenhum atrelado.
+  if (!planId) {
+    throw new AppError("ERR_COMPANY_PLAN_REQUIRED");
+  }
+
   const normalizePhone = (value?: string): string =>
     String(value || "").replace(/\D/g, "");
 

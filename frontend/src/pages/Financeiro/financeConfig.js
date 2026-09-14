@@ -5,9 +5,11 @@ import { ActiveChip } from "../../components/FinanceRecordList";
 // cadastro/edição) dos cadastros do módulo Financeiro — Fase 1 do roadmap.
 // Ver docs/MANUAL_TECNICO.md, seção 6.2.
 
+// CPF/CNPJ (Brasil) e RUC — Registro Único de Contribuyentes (Paraguai).
 const DOCUMENT_TYPE_OPTIONS = [
   { value: "cpf", label: "CPF" },
   { value: "cnpj", label: "CNPJ" },
+  { value: "ruc", label: "RUC (Paraguai)" },
 ];
 
 const ADDRESS_FIELDS = [

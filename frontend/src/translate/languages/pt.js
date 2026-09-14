@@ -1859,6 +1859,7 @@ const messages = {
         },
       },
       backendErrors: {
+        ERR_COMPANY_PLAN_REQUIRED: "Selecione um plano para vincular à empresa.",
         ERR_CONTACT_NOT_GROUP: "Este contato não é um grupo.",
         ERR_INVALID_GROUP_ACTION: "Ação inválida para gerenciamento de grupo.",
         ERR_WAPP_GROUP_UPDATE_FAILED:

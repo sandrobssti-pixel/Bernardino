@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.14 (Etapa 4 — Módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações com marca Confianza Technologies, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login)**
+**Versão atual: 2.3.15 (Etapa 4 — Master com acesso completo a todas as funcionalidades (isolado por empresa), plano obrigatório ao cadastrar empresa, módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações)**
 
 ## Documentação
 

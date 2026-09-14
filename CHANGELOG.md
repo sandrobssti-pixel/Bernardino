@@ -3,6 +3,46 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.15] — Master com acesso completo ao sistema + plano obrigatório na empresa — 2026-09-14
+
+### Alterado
+- **Master agora tem acesso a todas as funcionalidades do sistema**, no
+  próprio ambiente dele (companyId 1) — sem depender do plano da própria
+  empresa dele ter cada recurso habilitado. Isso nunca dá acesso aos dados
+  de uma empresa-cliente real: tudo continua isolado por `companyId`, então
+  o Master só está testando/usando o próprio ambiente, "mascarado" das
+  configurações reais de quem comprou o sistema.
+  - `frontend/src/layout/MainListItems.js`: menu (Kanban, Campanhas, IA,
+    Integrações, Agendamentos, Chat Interno, API Externa) não depende mais
+    do plano da empresa do Master.
+  - `backend/src/services/FinanceService/EnsureFinancialAccess.ts`: Master
+    tem acesso ao módulo Financeiro (Fase 1) sem precisar que o próprio
+    plano tenha o add-on habilitado.
+  - `frontend/src/components/Settings/Options.js` e `Whitelabel.js`: seção
+    "Identidade da empresa" voltou a aparecer pro Master (volta atrás da
+    restrição da v2.3.10 — o motivo daquela restrição, "Master não deveria
+    configurar identidade", segue válido pra empresas-clientes reais, mas
+    não impede o Master de configurar a identidade do próprio ambiente
+    dele).
+  - `frontend/src/pages/Financeiro/index.js`: Master agora vê uma aba
+    "Painel SaaS" (cobrança de todas as empresas-clientes, exclusivo dele)
+    junto com Clientes/Fornecedores/Produtos (dados só da própria empresa
+    dele) — antes só via o Painel SaaS, sem alcançar o módulo operacional.
+
+### Corrigido
+- **Empresa podia ficar sem plano vinculado**: o campo "Plano" no cadastro
+  de empresa (Configurações → Empresas) tinha `required` só visual (o
+  `Select` do MUI não bloqueia o envio sozinho) — dava pra cadastrar uma
+  empresa sem plano nenhum. Agora bloqueado em duas camadas: o front avisa
+  e não envia sem selecionar um plano, e o backend
+  (`CreateCompanyService`) recusa criar a empresa sem `planId` mesmo que
+  a chamada venha direto da API.
+
+### Adicionado
+- Cadastro de clientes/fornecedores do módulo Financeiro ganhou a opção
+  **RUC** (Registro Único de Contribuyentes, documento fiscal do Paraguai)
+  ao lado de CPF/CNPJ.
+
 ## [2.3.14] — "Minha assinatura" movida pra Configurações + correção de salvamento — 2026-09-14
 
 ### Corrigido

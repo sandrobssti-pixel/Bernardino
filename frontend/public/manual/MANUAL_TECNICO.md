@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.14
-**Etapa:** 4 — Módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login
+**Versão do documento:** 2.3.15
+**Etapa:** 4 — Master com acesso completo a todas as funcionalidades (isolado por empresa), plano obrigatório ao cadastrar empresa, módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -412,16 +412,25 @@ real/legal pra empresas-clientes que dependessem dela).
   rodado, arquivo não enviado, cache de build). Qualquer marca que precise **sempre**
   aparecer, em qualquer instalação, deve seguir esse padrão — asset fixo no build, não
   Setting dinâmica.
-- ⚠️ **Papel do Master x Admin (v2.3.10) — regra de arquitetura a respeitar em
-  qualquer tela nova**: o **Master** é o dono/operador do sistema, mas **não opera
-  nenhuma empresa-cliente** — ele só cadastra empresas, cria o Admin de cada uma e
-  libera o plano/licença (Configurações → Empresas, Painel SaaS). Quem configura a
-  identidade (nome, logomarca, cores), conexões, filas, campanhas etc. de uma
-  empresa é sempre o **Admin daquela empresa**, nunca o Master. Por isso, qualquer
-  seção de "configuração operacional de empresa" (White Label, filas, conexões,
-  campanhas, etc.) deve checar `profile === "admin" && !super` — nunca só
-  `profile === "admin"`, senão o Master (que também é `profile: "admin"`, com
-  `super: true`) acaba vendo/editando configuração de empresa que não é dele.
+- ⚠️ **Papel do Master x Admin (v2.3.10, revisado na v2.3.15) — regra de
+  arquitetura a respeitar em qualquer tela nova**: o **Master** é o
+  dono/operador do sistema. Ele cadastra empresas, cria o Admin de cada uma e
+  libera o plano/licença (Configurações → Empresas, Painel SaaS) — isso
+  continua exclusivo dele. Mas o Master **também tem acesso a todas as
+  funcionalidades do sistema** (v2.3.15) — inclusive as que operacionalmente
+  pertencem a uma empresa (White Label, módulo Financeiro, filas, conexões,
+  campanhas etc.) — só que sempre dentro do **próprio ambiente dele**
+  (companyId 1, o "esqueleto"). Nunca dá acesso aos dados de uma
+  empresa-cliente real, porque tudo continua escopado por `companyId`. Ou
+  seja: pra funcionalidades operacionais normais, a checagem certa é só
+  `profile === "admin"` (cobre Admin de empresa E Master, cada um só vendo o
+  próprio `companyId`) — **não** `profile === "admin" && !super` como a
+  v2.3.10 tinha estabelecido (isso escondia a funcionalidade do Master por
+  completo, contrariando "Master tem acesso a tudo"). A checagem
+  `!super` continua certa **só** para o que é genuinamente exclusivo do
+  Master por natureza — dados agregados de TODAS as empresas-clientes
+  (Painel SaaS/cobrança) ou configuração verdadeiramente global/compartilhada
+  (Login/capa da tela de login).
 - ✅ **Bug de permissão corrigido (v2.3.11)**: o Master tem acesso a **todo o
   sistema**, mas o **Painel SaaS é exclusivo dele** — é quem emite as cobranças
   mensais/anuais das empresas-clientes (conforme o plano escolhido). O backend
@@ -444,6 +453,14 @@ real/legal pra empresas-clientes que dependessem dela).
   empresa** (clientes/fornecedores/produtos dela). Assinatura agora vive em
   Configurações; Financeiro ficou livre pra ser só sobre a Fase 1+ do roadmap
   da seção 6.2.
+- ✅ **Bug corrigido (v2.3.15) — `required` do MUI `Select` é só visual**:
+  o campo de plano no cadastro de empresa tinha `required={true}` mas isso
+  não bloqueia sozinho o envio de um `Select` do Material UI (não é um
+  `<select>` nativo) — dava pra cadastrar empresa sem plano vinculado.
+  Corrigido validando explicitamente antes de enviar (frontend) e recusando
+  no backend (`CreateCompanyService`) se `planId` vier vazio. Vale conferir
+  esse mesmo padrão em outros formulários com campo obrigatório via
+  `Select`/`Field as={Select}` no projeto.
 
 ---
 

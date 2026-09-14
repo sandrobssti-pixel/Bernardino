@@ -47,19 +47,23 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 // Módulo Financeiro completo (Fase 1 — clientes/fornecedores/produtos):
-// add-on pago, ver docs/MANUAL_TECNICO.md, seção 6.2. A assinatura do
-// AtendeFlow (plano/vigência/cobrança com a Confianza Technologies) não vive
-// mais aqui — é uma coisa diferente (a fatura da empresa com o sistema, não
-// a operação da própria empresa) e ficou em Configurações > Assinatura.
+// add-on pago pra empresas-clientes, ver docs/MANUAL_TECNICO.md, seção 6.2.
+// A assinatura do AtendeFlow (plano/vigência/cobrança com a Confianza
+// Technologies) não vive mais aqui — ficou em Configurações > Assinatura.
+//
+// O Master tem acesso a todas as funcionalidades do sistema (inclusive este
+// módulo, no próprio ambiente dele) — por isso, além do Painel SaaS
+// (cobrança de todas as empresas-clientes, exclusivo dele), ele também vê
+// as abas Clientes/Fornecedores/Produtos, operando só nos dados da própria
+// empresa dele (companyId 1) — nunca nos de uma empresa-cliente real.
 const Financeiro = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
   const finance = useFinance();
   const [financeAccess, setFinanceAccess] = useState(null);
-  const [financeTab, setFinanceTab] = useState("customers");
+  const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "customers");
 
   useEffect(() => {
-    if (user.super) return;
     (async () => {
       try {
         const access = await finance.getAccess();
@@ -69,13 +73,53 @@ const Financeiro = () => {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.super]);
+  }, []);
 
-  // O Master não opera empresa nenhuma — pra ele, "Financeiro" é o Painel SaaS
-  // (cobranças/planos de todas as empresas-clientes), não o módulo operacional
-  // de uma empresa específica.
   if (user.super) {
-    return <GlobalConfig />;
+    return (
+      <div className={classes.pageRoot}>
+        <Tabs
+          value={financeTab}
+          onChange={(e, v) => setFinanceTab(v)}
+          indicatorColor="primary"
+          textColor="primary"
+          variant="scrollable"
+          scrollButtons="auto"
+          style={{ marginBottom: 16 }}
+        >
+          <Tab value="saas" label="Painel SaaS" />
+          <Tab value="customers" label="Clientes" />
+          <Tab value="suppliers" label="Fornecedores" />
+          <Tab value="products" label="Produtos" />
+        </Tabs>
+
+        {financeTab === "saas" && <GlobalConfig />}
+        {financeTab === "customers" && (
+          <FinanceRecordList
+            title="Cliente"
+            resource={finance.customers}
+            columns={financeCustomerColumns}
+            fields={financeCustomerFields}
+          />
+        )}
+        {financeTab === "suppliers" && (
+          <FinanceRecordList
+            title="Fornecedor"
+            resource={finance.suppliers}
+            columns={financeSupplierColumns}
+            fields={financeSupplierFields}
+          />
+        )}
+        {financeTab === "products" && (
+          <FinanceRecordList
+            title="Produto"
+            resource={finance.products}
+            columns={financeProductColumns}
+            fields={financeProductFields}
+          />
+        )}
+      </div>
+    );
   }
 
   if (financeAccess === null) {

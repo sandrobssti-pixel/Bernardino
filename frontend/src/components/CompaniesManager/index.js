@@ -773,6 +773,13 @@ export function CompanyForm(props) {
       setRecord({ ...initialValue, dueDate: "" });
       return;
     }
+    // O Select do MUI só marca "required" visualmente (asterisco no label) —
+    // não bloqueia o envio do formulário sozinho. Sem essa checagem, dava
+    // pra cadastrar uma empresa sem plano nenhum vinculado.
+    if (!data.planId) {
+      toast.error("Selecione um plano para vincular à empresa.");
+      return;
+    }
     if (data.dueDate === "" || moment(data.dueDate).isValid() === false) {
       data.dueDate = null;
     }
