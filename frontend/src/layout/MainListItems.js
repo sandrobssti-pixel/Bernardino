@@ -771,11 +771,29 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   };
 
   if (isSubscriptionExpired) {
+    // "Minha assinatura" mudou de lugar (v2.3.14): agora fica em
+    // Configurações, não no módulo Financeiro (que virou operacional da
+    // própria empresa — cadastros de clientes/fornecedores/produtos).
+    // Configurações é bloqueada pro profile "user" (ForbiddenPage), então só
+    // o Admin (quem trata de cobrança) recebe o link — o funcionário comum
+    // só vê um aviso, sem link morto.
+    if (user.profile !== "admin") {
+      return (
+        <div className={classes.menuRoot}>
+          <Typography
+            variant="body2"
+            style={{ padding: 16, color: "#991b1b", fontSize: "0.8rem" }}
+          >
+            Assinatura da empresa vencida. Fale com o administrador do sistema.
+          </Typography>
+        </div>
+      );
+    }
     return (
       <div onClick={handleDrawerCloseOnLinkClick} className={classes.menuRoot}>
         <ListItemLink
-          to="/financeiro"
-          primary={i18n.t("mainDrawer.listItems.financeiro")}
+          to="/settings?tab=subscription"
+          primary="Assinatura"
           icon={<LocalAtmIcon />}
           iconKey="financial"
           tooltip={collapsed}

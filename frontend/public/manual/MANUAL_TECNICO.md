@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.13
-**Etapa:** 4 — Módulo Financeiro completo (Fase 1: cadastros), Painel SaaS dentro do módulo Financeiro, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login
+**Versão do documento:** 2.3.14
+**Etapa:** 4 — Módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações, identidade da empresa exclusiva do Admin, marca fixa Confianza Technologies no login
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -266,8 +266,15 @@ grande, então fica registrado aqui em fases, na ordem em que faz sentido constr
 cada fase deve virar sua própria etapa/versão, não uma coisa só.
 
 **Já feito (v2.3.12):** o Painel SaaS (cobrança das empresas-clientes pelo Master) foi
-absorvido pela mesma tela/rota `/financeiro` — pra quem é Master, `/financeiro` mostra
-o Painel SaaS; pra Admin/usuário de empresa, mostra a fatura da própria empresa.
+absorvido pela mesma rota `/financeiro` — pra quem é Master, `/financeiro` mostra o
+Painel SaaS (isso continua valendo).
+
+**Ajustado (v2.3.14):** a fatura/plano da própria empresa com o AtendeFlow ("Minha
+assinatura") saiu de `/financeiro` — não fazia sentido misturar a cobrança da empresa
+com o AtendeFlow com os cadastros operacionais da própria empresa. Agora é uma aba em
+Configurações ("Assinatura"), com a marca Confianza Technologies (quem emite a
+cobrança). `/financeiro`, pra quem não é Master, passou a ser só sobre os cadastros
+da Fase 1 abaixo.
 
 **Já feito (v2.3.13) — Fase 1 completa:** cadastro de clientes, fornecedores e
 produtos/serviços, com listagem (busca + paginação), criação, edição e exclusão —
@@ -423,6 +430,20 @@ real/legal pra empresas-clientes que dependessem dela).
   uma versão sem o conceito de Master — corrigido pra exigir só `isSuper` em
   todas as 6 checagens do arquivo (dashboard, financeiro, cobranças, upload de
   branding do login etc.).
+- ✅ **Bug de UX corrigido (v2.3.14) — salvar só em `onBlur` é frágil**: campos
+  de texto que salvam configuração (ex.: nome da empresa em
+  `Whitelabel.js`) não devem depender só do evento `onBlur` — se o usuário
+  digitar e recarregar a página (ou navegar) antes do campo perder o foco, a
+  alteração nunca é enviada e parece um bug de "não salva". Corrigido com um
+  debounce (~900ms depois de parar de digitar) além do `onBlur`. Vale esse
+  padrão pra qualquer campo de texto "salva ao sair do campo" no projeto.
+- **"Minha assinatura" x módulo Financeiro (v2.3.14)**: são conceitos
+  diferentes que não devem ficar na mesma tela — assinatura é a fatura da
+  **empresa-cliente com o AtendeFlow** (emitida pela Confianza Technologies,
+  dona do sistema); o módulo Financeiro é sobre a **operação da própria
+  empresa** (clientes/fornecedores/produtos dela). Assinatura agora vive em
+  Configurações; Financeiro ficou livre pra ser só sobre a Fase 1+ do roadmap
+  da seção 6.2.
 
 ---
 

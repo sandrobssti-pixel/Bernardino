@@ -3,6 +3,44 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.14] — "Minha assinatura" movida pra Configurações + correção de salvamento — 2026-09-14
+
+### Corrigido
+- **Nome/logo da empresa "desconfigurava" depois de F5**: em Configurações →
+  Identidade da empresa, o campo "Nome do sistema"/"Nome da empresa" só
+  salvava no evento `onBlur` (sair do campo). Digitar e apertar F5 (ou trocar
+  de aba) antes do campo perder o foco fazia a alteração nunca chegar a ser
+  enviada pro backend — parecia que "não salvava". Agora o nome também salva
+  automaticamente ~900ms depois de parar de digitar (debounce), além de ao
+  sair do campo, então não depende mais do usuário clicar em outro lugar
+  antes de recarregar a página. (O upload de logo em si já salvava
+  imediatamente ao escolher o arquivo — não precisava desse ajuste.)
+
+### Alterado
+- **"Minha assinatura" saiu do módulo Financeiro e foi para Configurações**:
+  não fazia sentido a fatura/plano do AtendeFlow ficar misturada com os
+  cadastros operacionais da própria empresa (clientes/fornecedores/produtos).
+  Agora é uma aba própria, "Assinatura", em Configurações (ao lado de
+  "Opções") — mostra o plano contratado, usuários/conexões/filas, valor e
+  vencimento, com a marca **Confianza Technologies** (fornecedora do sistema,
+  quem emite a cobrança) no topo do painel.
+- Módulo Financeiro (`/financeiro`) agora é só sobre a operação da própria
+  empresa: abas Clientes/Fornecedores/Produtos. Empresas sem o módulo
+  contratado veem uma tela explicando que é um add-on separado.
+- Adicionados ao painel de assinatura: botão **"Renovar plano"** (reaproveita
+  o fluxo de pagamento já existente, usando a fatura mais recente) e botão
+  **"Suporte"** com o WhatsApp da Confianza Technologies (+595 986 283927,
+  ícone do WhatsApp).
+- O link do menu lateral exibido quando a assinatura da empresa vence
+  (`isSubscriptionExpired`) agora aponta pra Configurações → Assinatura em
+  vez de Financeiro. Como Configurações é bloqueada pro perfil "user", esse
+  link só aparece pro Admin; um funcionário comum vê um aviso simples pra
+  procurar o administrador, em vez de um link que resultaria em acesso
+  negado.
+- Novo componente `frontend/src/components/Settings/SubscriptionPanel.js`
+  (extraído do antigo `pages/Financeiro/index.js`, mesma lógica/UI, sem
+  mudança funcional além do cabeçalho novo com logo/botões).
+
 ## [2.3.13] — Módulo Financeiro, Fase 1: cadastros de clientes/fornecedores/produtos — 2026-09-14
 
 ### Adicionado

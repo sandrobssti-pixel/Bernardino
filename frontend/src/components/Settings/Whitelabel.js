@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useRef } from "react";
 
 import Grid from "@material-ui/core/Grid";
 import FormControl from "@material-ui/core/FormControl";
@@ -234,6 +234,13 @@ export default function Whitelabel(props) {
   const classes = useStyles();
   const [settingsLoaded, setSettingsLoaded] = useState({});
   const [appName, setAppName] = useState("");
+  // Salva o nome da empresa pouco depois de parar de digitar, além de ao sair
+  // do campo (onBlur) — sem isso, digitar e apertar F5/trocar de aba antes do
+  // campo perder o foco fazia a alteração nunca chegar a ser enviada pro
+  // backend (o salvamento só existia em onBlur), então um F5 rápido parecia
+  // "desconfigurar"/descartar o que tinha acabado de ser digitado.
+  const appNameSaveTimer = useRef(null);
+  const appNameSavedRef = useRef("");
   const [assetRefreshToken, setAssetRefreshToken] = useState({});
   const [selectedAssetKey, setSelectedAssetKey] = useState(BRANDING_ASSETS[0].key);
 
@@ -271,16 +278,47 @@ export default function Whitelabel(props) {
       };
 
       setAppName(nextState.appName || "");
+      appNameSavedRef.current = nextState.appName || "";
       setSettingsLoaded(nextState);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
+
+  useEffect(() => {
+    return () => {
+      if (appNameSaveTimer.current) clearTimeout(appNameSaveTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSaveSetting(key, value) {
     await update({ key, value });
     updateSettingsLoaded(key, value);
     toast.success("Operação atualizada com sucesso.");
   }
+
+  const persistAppName = async (value) => {
+    if (value === appNameSavedRef.current) return;
+    appNameSavedRef.current = value;
+    await handleSaveSetting("appName", value);
+    colorMode.setAppName(value || "AtendeFlow");
+  };
+
+  const handleAppNameChange = (value) => {
+    setAppName(value);
+    if (appNameSaveTimer.current) clearTimeout(appNameSaveTimer.current);
+    appNameSaveTimer.current = setTimeout(() => {
+      persistAppName(value);
+    }, 900);
+  };
+
+  const flushAppNameSave = () => {
+    if (appNameSaveTimer.current) {
+      clearTimeout(appNameSaveTimer.current);
+      appNameSaveTimer.current = null;
+    }
+    persistAppName(appName);
+  };
 
   const resolveLogoUrl = (logoPath, fallback, refreshToken) => {
     if (!logoPath) return fallback;
@@ -398,11 +436,8 @@ export default function Whitelabel(props) {
                       variant="outlined"
                       value={appName}
                       className={classes.compactInput}
-                      onChange={(e) => setAppName(e.target.value)}
-                      onBlur={async () => {
-                        await handleSaveSetting("appName", appName);
-                        colorMode.setAppName(appName || "AtendeFlow");
-                      }}
+                      onChange={(e) => handleAppNameChange(e.target.value)}
+                      onBlur={flushAppNameSave}
                     />
                   </FormControl>
                 </Grid>
@@ -519,11 +554,8 @@ export default function Whitelabel(props) {
                       value={appName}
                       className={classes.compactInput}
                       style={{ marginLeft: "auto", minWidth: 220 }}
-                      onChange={(e) => setAppName(e.target.value)}
-                      onBlur={async () => {
-                        await handleSaveSetting("appName", appName);
-                        colorMode.setAppName(appName || "AtendeFlow");
-                      }}
+                      onChange={(e) => handleAppNameChange(e.target.value)}
+                      onBlur={flushAppNameSave}
                     />
                   )}
                 </div>

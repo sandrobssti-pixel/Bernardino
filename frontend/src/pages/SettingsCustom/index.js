@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
+import { useLocation } from "react-router-dom";
 import MainHeader from "../../components/MainHeader";
 import { makeStyles, Paper, Tabs, Tab } from "@material-ui/core";
 
@@ -8,6 +9,7 @@ import CompaniesManager from "../../components/CompaniesManager";
 import PlansManager from "../../components/PlansManager";
 import HelpsManager from "../../components/HelpsManager";
 import Options from "../../components/Settings/Options";
+import SubscriptionPanel from "../../components/Settings/SubscriptionPanel";
 
 import { i18n } from "../../translate/i18n.js";
 import { toast } from "react-toastify";
@@ -113,7 +115,9 @@ const useStyles = makeStyles((theme) => ({
 
 const SettingsCustom = () => {
   const classes = useStyles();
-  const [tab, setTab] = useState("options");
+  const location = useLocation();
+  const initialTab = new URLSearchParams(location.search).get("tab") || "options";
+  const [tab, setTab] = useState(initialTab);
   const [currentUser, setCurrentUser] = useState({});
   const [settings, setSettings] = useState({});
   const [oldSettings, setOldSettings] = useState({});
@@ -181,6 +185,7 @@ const SettingsCustom = () => {
                 className={classes.tabsRoot}
               >
                 <Tab label={i18n.t("settings.tabs.options")} value={"options"} />
+                {!isSuper() ? <Tab label="Assinatura" value={"subscription"} /> : null}
                 {isSuper() ? <Tab label="Empresas" value={"companies"} /> : null}
                 {isSuper() ? <Tab label={i18n.t("settings.tabs.plans")} value={"plans"} /> : null}
                 {isSuper() ? <Tab label={i18n.t("settings.tabs.helps")} value={"helps"} /> : null}
@@ -224,6 +229,11 @@ const SettingsCustom = () => {
                   user={currentUser}
                 />
               </TabPanel>
+              {!isSuper() && (
+                <TabPanel className={classes.container} value={tab} name={"subscription"}>
+                  <SubscriptionPanel />
+                </TabPanel>
+              )}
             </Paper>
           </Paper>
         </div>}
