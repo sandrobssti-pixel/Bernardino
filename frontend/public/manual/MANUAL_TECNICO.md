@@ -40,7 +40,7 @@ O sistema é dividido em **três aplicações independentes**, cada uma com seu 
 `package.json` e ciclo de vida:
 
 ```
-Bernardino/
+AtendeFlow/
 ├── backend/       -> API principal (Express + Sequelize) + WhatsApp (Baileys) + filas (Bull/Redis)
 ├── frontend/      -> Interface web (React + Material UI)
 ├── api_oficial/   -> Microsserviço isolado para a API Oficial do WhatsApp (Meta) — NestJS + Prisma
