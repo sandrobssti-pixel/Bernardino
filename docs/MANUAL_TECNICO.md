@@ -1,7 +1,14 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.6
+**Versão do documento:** 2.3.7
 **Etapa:** 3 — Papel Master, identidade da empresa por Admin, sino de notificações
+
+> ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
+> lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
+> arquivo separado do `CHANGELOG.md`, que **precisa ser atualizado manualmente a cada
+> nova versão** (junto com `version`/`versionSystem` nos `package.json` do backend e
+> frontend, por consistência). Ficou travado em "15.0.10" por várias etapas até ser
+> corrigido na v2.3.7.
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em

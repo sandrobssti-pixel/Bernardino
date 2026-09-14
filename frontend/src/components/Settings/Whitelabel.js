@@ -506,6 +506,22 @@ export default function Whitelabel(props) {
                       {settingsLoaded[selectedAsset.key] || "Padrão do sistema"}
                     </Typography>
                   </div>
+
+                  {selectedAsset.key === "appLogoLight" && (
+                    <TextField
+                      label="Nome da empresa"
+                      variant="outlined"
+                      size="small"
+                      value={appName}
+                      className={classes.compactInput}
+                      style={{ marginLeft: "auto", minWidth: 220 }}
+                      onChange={(e) => setAppName(e.target.value)}
+                      onBlur={async () => {
+                        await handleSaveSetting("appName", appName);
+                        colorMode.setAppName(appName || "AtendeFlow");
+                      }}
+                    />
+                  )}
                 </div>
 
                 <div className={classes.rowActions}>

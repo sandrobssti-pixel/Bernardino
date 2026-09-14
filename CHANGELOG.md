@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.7] — Correções: versão exibida travada + nome ao lado do logotipo — 2026-09-14
+
+### Corrigido
+- **Número de versão exibido no sistema estava travado em "15.0.10"**: vinha de um
+  arquivo separado (`backend/src/utils/version.ts`), completamente desconectado do
+  versionamento real do projeto (`CHANGELOG.md`) — nunca tinha sido atualizado nas
+  etapas anteriores. Corrigido para `2.3.7` (junto com `version`/`versionSystem` nos
+  `package.json` do backend/frontend, por consistência). **Esse arquivo precisa ser
+  atualizado manualmente a cada nova versão daqui pra frente.**
+
+### Adicionado
+- **Campo "Nome da empresa" ao lado do logotipo claro**, dentro de Configurações →
+  Opções → White Label → Logotipos — antes o nome só aparecia lá em cima, na seção
+  "Identidade", separado do logotipo. Agora aparece junto, ao lado da pré-visualização/
+  upload do "Logotipo claro" — mesmo campo (`appName`), só reposicionado para deixar
+  claro que nome e logo formam a identidade visual da empresa.
+
 ## [2.3.6] — Permissões da identidade da empresa: qualquer Admin, não só Master — 2026-09-14
 
 ### Alterado
