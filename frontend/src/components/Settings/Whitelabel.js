@@ -564,61 +564,13 @@ export default function Whitelabel(props) {
                 <Typography className={classes.sectionTitle}>Login / capa</Typography>
                 <Typography className={classes.logoMeta} style={{ marginBottom: 8 }}>
                   Exclusivo do Master — usado na tela de login compartilhada por todas as
-                  empresas.
+                  empresas. A marca "Confianza Technologies" exibida no topo da tela de
+                  login é fixa do sistema (dona/fornecedora do AtendeFlow) e não é
+                  configurável por aqui.
                 </Typography>
 
                 <div className={classes.loginBrandingCard}>
                   <Grid container spacing={3}>
-                    <Grid item xs={12} md={6}>
-                      <Typography variant="subtitle2">Logo do login</Typography>
-
-                      {loginBrandingConfig.loginLogo && (
-                        <Box mt={1} mb={1}>
-                          <img
-                            src={resolveLoginBrandingImageUrl(loginBrandingConfig.loginLogo)}
-                            alt="Logo do login"
-                            className={classes.brandingPreviewImg}
-                          />
-                        </Box>
-                      )}
-
-                      <input
-                        id="whitelabel-login-logo-upload"
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={(e) => onLoginBrandingUpload("loginLogo", e.target.files[0])}
-                      />
-                      <div className={classes.uploadActions}>
-                        <label htmlFor="whitelabel-login-logo-upload">
-                          <Button
-                            variant="outlined"
-                            component="span"
-                            startIcon={<CloudUpload />}
-                            className={classes.uploadButton}
-                            disabled={loginBrandingUploading.loginLogo}
-                          >
-                            {loginBrandingUploading.loginLogo ? "Enviando..." : "Enviar logo"}
-                          </Button>
-                        </label>
-
-                        <Button
-                          variant="outlined"
-                          color="secondary"
-                          startIcon={<DeleteOutline />}
-                          className={classes.uploadButton}
-                          disabled={!loginBrandingConfig.loginLogo || loginBrandingRemoving.loginLogo}
-                          onClick={() => onLoginBrandingRemove("loginLogo")}
-                        >
-                          {loginBrandingRemoving.loginLogo ? "Removendo..." : "Remover"}
-                        </Button>
-                      </div>
-
-                      <Typography className={classes.logoMeta}>
-                        Se nenhuma imagem for enviada, o sistema usa <code>/logo.png</code>.
-                      </Typography>
-                    </Grid>
-
                     <Grid item xs={12} md={6}>
                       <Typography variant="subtitle2">
                         Imagem de fundo (capa do login)

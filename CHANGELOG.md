@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.9] — Marca fixa "Confianza Technologies" na tela de login — 2026-09-14
+
+### Corrigido
+- A logo exibida na tela de login (topo do formulário) não aparecia porque
+  dependia de configuração via banco de dados/upload (`loginLogo` em
+  `Setting`), que nunca chegou a ser aplicada corretamente no ambiente do
+  cliente. Como essa marca representa a **dona/fornecedora do sistema**
+  (Confianza Technologies) e não uma empresa-cliente, ela deixou de ser
+  configurável e passou a ser um asset fixo embutido no build do frontend
+  (`frontend/src/assets/confianza-logo-dark.png`, importado diretamente em
+  `frontend/src/pages/Login/index.js`) — sempre aparece, em qualquer
+  instalação, sem depender de Settings, upload ou SQL.
+- Texto abaixo do botão "Entrar" também fixado como "Confianza Technologies"
+  (antes usava o `appName` configurável, o que misturava marca do sistema
+  com identidade de cada empresa-cliente).
+
+### Alterado
+- `frontend/src/components/Settings/Whitelabel.js`: removido o campo de
+  upload "Logo do login" da seção "Login / capa" (exclusiva do Master),
+  já que essa logo não é mais configurável. A capa de fundo e o link de
+  WhatsApp do login continuam configuráveis normalmente.
+
 ## [2.3.8] — Nome da empresa ao lado da logo no menu lateral — 2026-09-14
 
 ### Adicionado

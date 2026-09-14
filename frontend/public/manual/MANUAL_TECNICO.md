@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.8
-**Etapa:** 3 — Papel Master, identidade da empresa por Admin, sino de notificações
+**Versão do documento:** 2.3.9
+**Etapa:** 3 — Papel Master, identidade da empresa por Admin, marca fixa Confianza Technologies no login, sino de notificações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -292,6 +292,15 @@ personalizar por cima da identidade padrão sem mexer em código.
 - **`frontend/src/pages/Settings/index.js` é um arquivo órfão** — a rota `/settings` usa
   `frontend/src/pages/SettingsCustom/index.js`. Sempre confirmar em
   `frontend/src/routes/index.js` qual componente uma rota realmente usa antes de editar.
+- ✅ **Marca "dona do sistema" fixada no código, não em configuração (v2.3.9)**: a logo
+  Confianza Technologies exibida na tela de login não é lida de `Setting`/upload — é um
+  asset importado diretamente em `frontend/src/pages/Login/index.js`
+  (`frontend/src/assets/confianza-logo-dark.png`). Motivo: essa marca representa a
+  empresa dona/fornecedora do software (não uma empresa-cliente configurável pelo Master
+  ou por um Admin), então depender de banco/upload só criava pontos de falha (SQL não
+  rodado, arquivo não enviado, cache de build). Qualquer marca que precise **sempre**
+  aparecer, em qualquer instalação, deve seguir esse padrão — asset fixo no build, não
+  Setting dinâmica.
 
 ---
 

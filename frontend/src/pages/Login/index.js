@@ -16,7 +16,7 @@ import { Helmet } from "react-helmet";
 
 import api, { openApi } from "../../services/api";
 import { AuthContext } from "../../context/Auth/AuthContext";
-import defaultLoginLogo from "../../assets/login-logo-default.png";
+import confianzaLogo from "../../assets/confianza-logo-dark.png";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -87,7 +87,8 @@ const useStyles = makeStyles((theme) => ({
   logoImg: {
     display: "block",
     margin: "0 auto 14px",
-    maxWidth: "210px",
+    maxWidth: "260px",
+    width: "100%",
     height: "auto",
     filter: "drop-shadow(0 8px 16px rgba(15, 23, 42, 0.18))",
   },
@@ -340,7 +341,6 @@ const Login = () => {
   });
 
   const [branding, setBranding] = useState({
-    loginLogo: "/logo.png",
     loginBackground: "",
     loginWhatsapp: "https://wa.me/5500000000000",
     companyName: "AtendeFlow",
@@ -373,7 +373,6 @@ const Login = () => {
           ]);
 
         setBranding({
-          loginLogo: brandingData.loginLogo || "/logo.png",
           loginBackground: isDefaultBackendBackground(brandingData.loginBackground)
             ? ""
             : brandingData.loginBackground,
@@ -431,9 +430,11 @@ const Login = () => {
           className={classes.formContainer}
           onSubmit={handleSubmit}
         >
+          {/* Marca fixa do sistema (Confianza Technologies, dona/fornecedora do
+              AtendeFlow) — embutida no código, não depende de configuração/upload. */}
           <img
-            src={resolveImageUrl(branding.loginLogo, defaultLoginLogo)}
-            alt="Logo"
+            src={confianzaLogo}
+            alt="Confianza Technologies"
             className={classes.logoImg}
           />
 
@@ -512,7 +513,7 @@ const Login = () => {
           </Button>
 
           <Typography className={classes.versionCompany}>
-            {branding.companyName}
+            Confianza Technologies
           </Typography>
         </form>
 
