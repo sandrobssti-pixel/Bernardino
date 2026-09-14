@@ -384,6 +384,21 @@ const useStyles = makeStyles((theme) => ({
     objectPosition: "left center",
   },
   hideLogo: { display: "none" },
+  brandWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  brandName: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    color: theme.mode === "light" ? "#1e293b" : "#e5e9f5",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
 
   avatar2: {
     width: 30,
@@ -685,12 +700,17 @@ const LoggedInLayout = ({ children }) => {
         onClose={() => setDrawerOpen(false)}
       >
         <div className={classes.toolbarIcon}>
-          {/* Logo visível no Drawer */}
-          <img
-            src={logoSrc}
-            alt="logo"
-            className={drawerOpen ? classes.logoImg : classes.hideLogo}
-          />
+          {/* Logo + nome da empresa, visíveis no Drawer */}
+          <div className={classes.brandWrap}>
+            <img
+              src={logoSrc}
+              alt="logo"
+              className={drawerOpen ? classes.logoImg : classes.hideLogo}
+            />
+            {drawerOpen && theme.appName && (
+              <span className={classes.brandName}>{theme.appName}</span>
+            )}
+          </div>
           {drawerOpen && (
             <IconButton
               className={classes.collapseButton}

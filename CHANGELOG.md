@@ -3,6 +3,13 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.8] — Nome da empresa ao lado da logo no menu lateral — 2026-09-14
+
+### Adicionado
+- O nome da empresa (`appName`) agora aparece **ao lado da logo**, no canto superior
+  esquerdo do menu lateral (acima de "Gerência"), quando o menu está expandido
+  (`frontend/src/layout/index.js`) — antes só a logo aparecia ali, sem texto.
+
 ## [2.3.7] — Correções: versão exibida travada + nome ao lado do logotipo — 2026-09-14
 
 ### Corrigido
