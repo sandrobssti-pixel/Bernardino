@@ -1,7 +1,6 @@
 import { i18n } from "../../translate/i18n";
 
 import React, { useState, useEffect, useContext } from "react";
-import { Link as RouterLink } from "react-router-dom";
 
 import { Button, TextField, Typography } from "@material-ui/core";
 import { makeStyles } from "@material-ui/core/styles";
@@ -349,7 +348,6 @@ const Login = () => {
 
   const [error] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [userCreationEnabled, setUserCreationEnabled] = useState(true);
 
   // ========= Tema e aparência da página =============
   useEffect(() => {
@@ -390,20 +388,6 @@ const Login = () => {
     fetchBranding();
   }, []);
 
-
-  // ========== Verificar se cadastro está habilitado ==========
-  useEffect(() => {
-    const fetchUserCreationStatus = async () => {
-      try {
-        const { data } = await api.get("/settings/userCreation");
-        setUserCreationEnabled(data.userCreation === "enabled");
-      } catch (err) {
-        setUserCreationEnabled(false);
-      }
-    };
-
-    fetchUserCreationStatus();
-  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -526,29 +510,6 @@ const Login = () => {
           >
             Entrar
           </Button>
-
-          {userCreationEnabled && (
-            <>
-              <div className={classes.divider}>ou</div>
-              <Button
-                component={RouterLink}
-                to="/signup"
-                variant="outlined"
-                className={classes.registerBtn}
-              >
-                Criar conta gratuita
-              </Button>
-            </>
-          )}
-
-          <div className={classes.forgotPassword}>
-            <RouterLink
-              to="/forgot-password"
-              className={classes.forgotPasswordLink}
-            >
-              Esqueceu a senha?
-            </RouterLink>
-          </div>
 
           <Typography className={classes.versionCompany}>
             {branding.companyName}

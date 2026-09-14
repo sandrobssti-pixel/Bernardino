@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.3
-**Etapa:** 3 — Papel Master, manual+versão na lateral, sino de notificações, correções
+**Versão do documento:** 2.3.4
+**Etapa:** 3 — Papel Master, identidade da empresa em Configurações, sino de notificações
 **Última atualização:** 2026-09-13
 
 > Este manual é atualizado a cada etapa do projeto. O histórico de mudanças de cada versão está em
@@ -229,6 +229,15 @@ personalizar por cima da identidade padrão sem mexer em código.
 - **Sino de notificações**: além de mensagens não lidas, também lista tickets com
   `status: "pending"` (aguardando atendimento, sem atendente). Um botão de "apagar
   notificações" (visível só para Admin/Master) limpa a lista exibida no popover.
+- **Identidade da empresa em Configurações** (v2.3.4): nome e logomarca editáveis
+  diretamente na aba "Opções" de Configurações (`frontend/src/components/Settings/
+  Options.js`), sem precisar entrar no Painel SaaS. Reaproveita o endpoint
+  `/settings-whitelabel/logo` e o `ColorModeContext` já usados pelo editor "White Label"
+  do Painel SaaS (mesma fonte de dados — `Setting` com `companyId=1`, chaves `appName` e
+  `appLogoLight`). A logomarca da tela de login usa essa mesma logo como alternativa
+  quando não há uma logo específica de login configurada
+  (`GlobalConfigController.publicBranding`). Removidas da tela de login as opções
+  "Criar conta gratuita" e "Esqueceu a senha?".
 
 ---
 

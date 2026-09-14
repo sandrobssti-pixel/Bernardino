@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.4] — Identidade da empresa movida para Configurações + limpeza do login — 2026-09-14
+
+### Adicionado
+- **Editor de identidade da empresa dentro de Configurações** (aba "Opções"): nome e
+  logomarca agora são editáveis diretamente ali, sem precisar entrar no Painel SaaS —
+  reaproveita o mesmo endpoint de upload (`/settings-whitelabel/logo`) e o mesmo contexto
+  de tema (`ColorModeContext`) já usados pelo editor antigo, então o resultado aparece
+  imediatamente no menu lateral. A opção equivalente no Painel SaaS ("White Label")
+  continua existindo (mesma fonte de dados), mas o caminho natural agora é Configurações.
+- **Logomarca da tela de login**: quando não há uma logo específica configurada para o
+  login (recurso separado, dentro do Painel SaaS), o backend agora usa como alternativa a
+  logomarca geral da empresa (a mesma do menu lateral) em vez do logo genérico padrão —
+  então uma única logo enviada em Configurações já aparece nos dois lugares.
+
+### Removido
+- Removidas as opções "Criar conta gratuita" e "Esqueceu a senha?" da tela de login, a
+  pedido do usuário.
+
+### Confirmado (sem mudança de código)
+- A logomarca da empresa **já aparecia** no topo do menu lateral, acima do item
+  "Gerência" (`frontend/src/layout/index.js`) — só não estava visível com o menu
+  recolhido (comportamento esperado). Confirmado rodando a aplicação.
+
 ## [2.3.3] — Correção crítica: coluna "maxUseBotQueues" ausente + atalho de identidade — 2026-09-13
 
 ### Corrigido

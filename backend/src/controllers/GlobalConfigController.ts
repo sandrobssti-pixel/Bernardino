@@ -675,8 +675,22 @@ export const publicBranding = async (
     const defaultLoginBackground = "/public/branding/login-background-default.png";
     const defaultLoginWhatsapp = "https://wa.me/5511000000000";
 
+    // Se não houver uma logo específica configurada para o login, cai para a
+    // logomarca geral da empresa (a mesma exibida no menu lateral) em vez do
+    // logo genérico padrão — assim, quem configura só uma logo em
+    // Configurações já vê ela refletida também na tela de login.
+    let loginLogo = config?.loginLogo;
+    if (!loginLogo) {
+      const appLogoSetting = await Setting.findOne({
+        where: { companyId: 1, key: "appLogoLight" }
+      });
+      // appLogoLight é salvo como caminho relativo (ex.: "logo/123-arquivo.png"),
+      // sem o prefixo "/public/" que o front espera para montar a URL completa.
+      loginLogo = appLogoSetting?.value ? `/public/${appLogoSetting.value}` : "";
+    }
+
     return res.status(200).json({
-      loginLogo: config?.loginLogo || defaultLoginLogo,
+      loginLogo: loginLogo || defaultLoginLogo,
       loginBackground: config?.loginBackground || defaultLoginBackground,
       loginWhatsapp: config?.loginWhatsapp || defaultLoginWhatsapp,
       signupRequireCpfCnpj: config?.signupRequireCpfCnpj || "disabled"

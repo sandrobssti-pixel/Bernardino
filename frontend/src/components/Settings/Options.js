@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useContext } from "react";
-import { useHistory } from "react-router-dom";
 
 import Grid from "@material-ui/core/Grid";
 import MenuItem from "@material-ui/core/MenuItem";
@@ -7,8 +6,14 @@ import FormControl from "@material-ui/core/FormControl";
 import InputLabel from "@material-ui/core/InputLabel";
 import Select from "@material-ui/core/Select";
 import FormHelperText from "@material-ui/core/FormHelperText";
+import Avatar from "@material-ui/core/Avatar";
+import { CloudUpload, DeleteOutline } from "@material-ui/icons";
 
 import useSettings from "../../hooks/useSettings";
+import api from "../../services/api";
+import { getBackendUrl } from "../../config";
+import ColorModeContext from "../../layout/themeContext";
+import defaultLogoLight from "../../assets/logo.png";
 
 import { makeStyles } from "@material-ui/core/styles";
 import { grey, blue } from "@material-ui/core/colors";
@@ -173,8 +178,12 @@ const DEFAULT_AI_REPLY_PROMPT =
 export default function Options(props) {
   const { oldSettings, settings, scheduleTypeChanged, user } = props;
 
-  const history = useHistory();
   const classes = useStyles();
+  const { colorMode } = useContext(ColorModeContext);
+  const [companyName, setCompanyName] = useState("");
+  const [savingCompanyName, setSavingCompanyName] = useState(false);
+  const [companyLogoPath, setCompanyLogoPath] = useState("");
+  const [logoRefreshToken, setLogoRefreshToken] = useState(0);
   const [userRating, setUserRating] = useState("disabled");
   const [scheduleType, setScheduleType] = useState("disabled");
   const [chatBotType, setChatBotType] = useState("text");
@@ -320,8 +329,71 @@ export default function Options(props) {
     return user.super;
   };
 
+  const resolveCompanyLogoUrl = () => {
+    if (!companyLogoPath) return defaultLogoLight;
+    if (companyLogoPath.startsWith("http")) return companyLogoPath;
+    const token = logoRefreshToken ? `?v=${logoRefreshToken}` : "";
+    return `${getBackendUrl()}/public/${companyLogoPath}${token}`;
+  };
+
+  const handleSaveCompanyName = async () => {
+    setSavingCompanyName(true);
+    try {
+      await updateUserCreation({ key: "appName", value: companyName });
+      colorMode.setAppName?.(companyName || "AtendeFlow");
+      notifyUpdated();
+    } catch (err) {
+      toast.error("Erro ao atualizar o nome da empresa.");
+    } finally {
+      setSavingCompanyName(false);
+    }
+  };
+
+  const handleCompanyLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("typeArch", "logo");
+    formData.append("mode", "Light");
+    formData.append("file", file);
+
+    try {
+      const response = await api.post("/settings-whitelabel/logo", formData);
+      setCompanyLogoPath(response.data);
+      setLogoRefreshToken(Date.now());
+      colorMode.setAppLogoLight?.(`${getBackendUrl()}/public/${response.data}`);
+      toast.success("Logomarca atualizada com sucesso.");
+    } catch (err) {
+      toast.error("Falha ao enviar a logomarca.");
+    }
+  };
+
+  const handleRemoveCompanyLogo = async () => {
+    try {
+      await updateUserCreation({ key: "appLogoLight", value: "" });
+      setCompanyLogoPath("");
+      setLogoRefreshToken(Date.now());
+      colorMode.setAppLogoLight?.(defaultLogoLight);
+      notifyUpdated();
+    } catch (err) {
+      toast.error("Erro ao remover a logomarca.");
+    }
+  };
+
   useEffect(() => {
     if (Array.isArray(oldSettings) && oldSettings.length) {
+      const appNameSetting = oldSettings.find((s) => s.key === "appName");
+      if (appNameSetting) {
+        setCompanyName(appNameSetting.value || "");
+      }
+
+      const appLogoSetting = oldSettings.find((s) => s.key === "appLogoLight");
+      if (appLogoSetting) {
+        setCompanyLogoPath(appLogoSetting.value || "");
+      }
+
       const userPar = oldSettings.find((s) => s.key === "userCreation");
 
       if (userPar) {
@@ -857,19 +929,72 @@ export default function Options(props) {
               <Box>
                 <div className={classes.optionTitle}>Identidade da empresa</div>
                 <div className={classes.optionDescription}>
-                  Nome e logomarca exibidos no menu e na tela de login.
+                  Nome e logomarca exibidos no menu lateral e na tela de login.
                 </div>
               </Box>
-              <Button
-                variant="outlined"
-                color="primary"
-                size="small"
-                className={classes.toggleButton}
-                onClick={() => history.push("/global-config")}
-              >
-                Editar
-              </Button>
             </div>
+            <Grid container spacing={2} alignItems="center" style={{ marginTop: 8 }}>
+              <Grid item xs={12} sm="auto">
+                <Box display="flex" alignItems="center" style={{ gap: 12 }}>
+                  <Avatar
+                    variant="rounded"
+                    src={resolveCompanyLogoUrl()}
+                    alt="Logomarca"
+                    style={{ width: 64, height: 64 }}
+                  />
+                  <Box display="flex" flexDirection="column" style={{ gap: 6 }}>
+                    <Button
+                      component="label"
+                      variant="outlined"
+                      color="primary"
+                      size="small"
+                      startIcon={<CloudUpload style={{ fontSize: 16 }} />}
+                    >
+                      Alterar logo
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={handleCompanyLogoUpload}
+                      />
+                    </Button>
+                    {!!companyLogoPath && (
+                      <Button
+                        variant="text"
+                        color="secondary"
+                        size="small"
+                        startIcon={<DeleteOutline style={{ fontSize: 16 }} />}
+                        onClick={handleRemoveCompanyLogo}
+                      >
+                        Remover
+                      </Button>
+                    )}
+                  </Box>
+                </Box>
+              </Grid>
+              <Grid item xs={12} sm>
+                <Box display="flex" style={{ gap: 8 }} alignItems="flex-start">
+                  <TextField
+                    label="Nome da empresa"
+                    variant="outlined"
+                    size="small"
+                    fullWidth
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    size="small"
+                    disabled={savingCompanyName}
+                    onClick={handleSaveCompanyName}
+                    style={{ marginTop: 2 }}
+                  >
+                    Salvar
+                  </Button>
+                </Box>
+              </Grid>
+            </Grid>
           </Paper>
         )}
 
