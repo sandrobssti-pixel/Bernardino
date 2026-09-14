@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.24
-**Etapa:** 4 — corrigido campo "Valor (R$)" aceitando texto livre (quebrava o Painel Financeiro com valor digitado em formato brasileiro, ex.: "150,00") + causa raiz de um incidente de deploy (dist/ desatualizado escondendo migrações pendentes)
+**Versão do documento:** 2.3.25
+**Etapa:** 5 — módulo de RH/recrutamento (vagas + página pública de candidatura com anexo de currículo + triagem + efetivação como usuário do sistema)
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -512,18 +512,110 @@ forem testados de verdade.
   um botão de download/visualização direto — só mostra o link seria
   suficiente, é uma extensão pequena quando for necessário.
 
-### Fase 4 — Módulo contábil
+### Fase 4 — Módulo contábil (adiada — decisão do cliente, v2.3.25)
 Cálculo e geração de guias de pagamento de impostos conforme o regime tributário
 escolhido na Fase 3 (DAS do Simples Nacional para MEI/ME/EPP, ou apuração normal para
 LTDA/S/A maiores), já considerando a transição da Reforma Tributária. Nível de
 complexidade regulatória alto — normalmente é feito integrando com um ERP/contador
-terceirizado (ex. via SPED) em vez de implementar o cálculo tributário do zero;
-decisão de abordagem também deve ser validada com o cliente antes de começar.
+terceirizado (ex. via SPED) em vez de implementar o cálculo tributário do zero.
+**O cliente pediu explicitamente pra definir o escopo dessa fase depois, numa fase
+final separada** — nenhuma decisão de abordagem foi tomada ainda (nem DAS x SPED, nem
+priorização de regime); não retomar sem o cliente trazer o assunto de volta. Nesse
+meio tempo o roadmap seguiu direto pra Fase 5.
 
-### Fase 5 — Módulo de RH / recrutamento
-Cadastro de vagas, recebimento/triagem de candidaturas, e seleção de funcionários que
-podem, ao final, ser efetivados como usuários do sistema daquela empresa (reaproveitando
-o cadastro de `User` já existente para a etapa de efetivação).
+### Fase 5 — Módulo de RH / recrutamento ✅ concluída (v2.3.25)
+
+Cadastro de vagas, recebimento/triagem de candidaturas (com anexo de currículo via uma
+página pública sem login), e seleção de funcionários que podem, ao final, ser
+efetivados como usuários do sistema daquela empresa (reaproveitando o cadastro de
+`User` já existente pra etapa de efetivação). Decisões tomadas com o cliente antes de
+começar: (1) a listagem de vagas é uma **página pública, sem login** — candidato não
+precisa de conta pra ver vagas nem se candidatar; (2) a candidatura **exige anexo de
+currículo** (PDF ou Word), não é só um formulário de texto.
+
+**Regra de permissionamento**: mesmo padrão já usado pelo Financeiro/Fiscal — add-on
+independente (`Plan.useHR`, toggle "RH — Recrutamento (add-on)" em Configurações →
+Planos), liberado pelo Master por plano; dentro de uma empresa que tem o módulo, o
+Admin decide quais funcionários têm acesso à tela (`User.hrAccess`, aba Permissões do
+usuário). Diferente do Fiscal, o RH **não depende de nenhum outro módulo** (não exige
+`useFinancial`) — é um add-on totalmente independente. `EnsureHRAccess`/
+`GetHRAccessStatus` em `backend/src/services/HRService/EnsureHRAccess.ts`, endpoint
+`GET /hr/access` (mesmo padrão do `GET /finance/access`/`GET /fiscal/access`). No
+frontend, o item de menu "RH" (`/rh`) fica **sempre visível** pro Admin (igual
+"Financeiro") — quem decide se mostra a tela ou uma mensagem de bloqueio é a própria
+página, não o menu.
+
+#### O que foi implementado
+
+- **`JobPosting`** (`/job-postings`, CRUD autenticado): vaga com título, departamento,
+  descrição, requisitos, tipo de contrato (CLT/PJ/estágio/temporário/freelancer),
+  modalidade (presencial/híbrido/remoto), faixa salarial, localização e status
+  (aberta/pausada/encerrada). A listagem do admin já traz `applicationCount` (contagem
+  de candidaturas por vaga) via subquery `Sequelize.literal()`, evitando N+1.
+- **`JobApplication`** (`/job-applications`, CRUD autenticado + `/job-applications/:id/hire`):
+  candidatura com nome/e-mail/telefone do candidato, carta de apresentação opcional,
+  `resumeUrl` (caminho do currículo salvo), status (recebida/em triagem/entrevista/
+  aprovada/reprovada), observações internas e avaliação (1 a 5). **Efetivação**
+  (`hire`): gera um usuário de verdade (`CreateUserService`, mesma validação de limite
+  de usuários do plano) com uma senha provisória aleatória (`crypto.randomBytes`),
+  marca a candidatura como aprovada e vincula `hiredUserId` — não é possível efetivar
+  a mesma candidatura duas vezes (`ERR_JOB_APPLICATION_ALREADY_HIRED`) nem um e-mail
+  que já é usuário de algum lugar (`ERR_JOB_APPLICATION_EMAIL_ALREADY_USER`). A senha
+  provisória só é mostrada uma vez, na hora — o admin precisa repassar ao novo
+  funcionário; não há envio de e-mail automático ainda.
+- **Upload de currículo — rota pública, storage dedicado**: a candidatura é enviada
+  sem login, então não existe `req.user.companyId` pra montar o caminho do arquivo
+  (diferente do upload autenticado genérico em `config/upload.ts`). Criado
+  `backend/src/config/resumeUpload.ts`, uma config de `multer` própria que usa
+  `req.params.companyId` (vem da própria URL pública) pra montar
+  `public/company{id}/resumes/`, aceita só PDF/Word (`fileFilter`) e limita a 8MB.
+  Servido estaticamente pela mesma rota `/public` já existente (`app.ts`) — o mesmo
+  padrão de URL usado em outros uploads do sistema (`${backendUrl}/public/<caminho>`).
+- **Página pública de vagas** (`frontend/src/pages/PublicJobBoard`, rotas
+  `/vagas/:companyId` e `/vagas/:companyId/:jobId`): sem login, lista as vagas com
+  status "aberta" de uma empresa e permite se candidatar com formulário +
+  `<input type="file">` (envio `multipart/form-data`). Usa `openApi` (instância do
+  `axios` sem `withCredentials`/interceptor de sessão — a mesma já usada em
+  Login/Signup) em vez da instância autenticada `api`, pra não arriscar efeito
+  colateral de sessão numa página aberta a qualquer visitante. Registrada em
+  `frontend/src/routes/index.js` **fora** do `<LoggedInLayout>` (mesmo grupo de
+  `/login`/`/signup`) — mas usando o `Route` puro do `react-router-dom`, não o
+  wrapper `Route` customizado do projeto: esse wrapper redireciona qualquer usuário
+  autenticado pra fora de rotas não-privadas (pensado pra `/login`), o que faria um
+  Admin logado ser expulso da própria página pública da empresa ao tentar visualizá-la.
+  - ⚠️ **Bug de corrida encontrado e corrigido antes de commitar**: como a
+    listagem e o detalhe da vaga são a mesma rota/componente (`/vagas/:companyId` e
+    `/vagas/:companyId/:jobId` no mesmo `PublicJobBoard`), navegar da listagem pro
+    detalhe via link do React Router **reaproveita a mesma instância do componente**
+    — no primeiro render após a navegação, `jobId` já mudou (vem da URL) mas o
+    estado (`jobPosting`/`loading`) ainda é o da listagem anterior, causando
+    `Cannot read properties of null (reading 'title')`. Corrigido tratando o
+    "carregando" como `loading || (jobId && !jobPosting && !notFound)`, não só a
+    flag `loading` isolada. **Lição**: sempre que duas "visões" (lista/detalhe)
+    dividem o mesmo componente por causa de um parâmetro de rota opcional, o guard
+    de loading precisa considerar se os dados batem com o parâmetro atual, não só
+    se uma requisição está em voo.
+- **Painel administrativo** (`frontend/src/pages/RH`, rota `/rh`): duas abas —
+  "Vagas" (`JobPostingList`/`JobPostingModal` — CRUD + botão "Copiar link" que monta
+  a URL pública da vaga pra divulgação) e "Candidaturas" (`JobApplicationsPanel`,
+  com filtro por vaga/status; `JobApplicationDetailModal` faz a triagem — status,
+  observações, avaliação por estrelas (`@material-ui/lab/Rating`), link pro currículo,
+  e o botão "Efetivar candidato").
+
+#### Testado end-to-end (Playwright)
+
+Fluxo completo validado no ambiente de desenvolvimento: Master cria uma vaga → vaga
+aparece na página pública `/vagas/:companyId` → candidato anônimo abre o detalhe,
+preenche o formulário e anexa um currículo (PDF) → candidatura aparece no painel
+"Candidaturas" do admin, com contagem refletida na aba "Vagas" → admin abre a
+triagem, muda o status e salva observações → admin efetiva o candidato → usuário
+novo é criado de verdade na empresa (`profile: "user"`), a senha provisória aparece
+na tela, e a candidatura fica marcada como aprovada com `hiredUserId` preenchido.
+Testado também nas duas direções do controle por plano (`GetHRAccessStatus`): Admin
+sem `Plan.useHR` → sem acesso; com o plano habilitado → Admin sempre tem acesso,
+funcionário comum só com `User.hrAccess` marcado; Master sempre tem acesso, isolado
+por `companyId`. Todos os dados de teste (vaga, candidatura, usuário efetivado,
+arquivo de currículo) foram removidos do banco depois dos testes.
 
 ### Decisões em aberto antes de iniciar a Fase 3+
 Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir

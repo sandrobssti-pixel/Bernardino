@@ -70,6 +70,8 @@ import FiscalConfig from "../models/FiscalConfig";
 import Sale from "../models/Sale";
 import SaleItem from "../models/SaleItem";
 import FiscalDocument from "../models/FiscalDocument";
+import JobPosting from "../models/JobPosting";
+import JobApplication from "../models/JobApplication";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -147,7 +149,9 @@ const models = [
   FiscalConfig,
   Sale,
   SaleItem,
-  FiscalDocument
+  FiscalDocument,
+  JobPosting,
+  JobApplication
 ];
 
 sequelize.addModels(models);

@@ -3,6 +3,36 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.25] — Módulo de RH/recrutamento (Fase 5) — 2026-09-14
+
+### Adicionado
+- **Módulo de RH/recrutamento completo**: cadastro de vagas, página pública de
+  vagas (sem login) com candidatura por anexo de currículo (PDF/Word), painel
+  de triagem interno (status, observações, avaliação) e efetivação do
+  candidato como usuário de verdade da empresa (com senha provisória gerada
+  automaticamente). Add-on independente do Financeiro/Fiscal — o Master
+  libera por plano (`Plan.useHR`, Configurações → Planos) e o Admin de cada
+  empresa libera por funcionário (`User.hrAccess`).
+- Backend: modelos `JobPosting`/`JobApplication`, serviços
+  `HRService/JobPostingService.ts`/`JobApplicationService.ts`, upload de
+  currículo dedicado pra rota pública (`config/resumeUpload.ts`, sem
+  depender de `req.user`), rotas em `hrRoutes.ts` (`/job-postings`,
+  `/job-applications`, `/job-applications/:id/hire`, `/hr/access`,
+  `/public/job-postings/:companyId[...]`).
+- Frontend: página admin `pages/RH` (abas Vagas/Candidaturas), página pública
+  `pages/PublicJobBoard` (`/vagas/:companyId[/:jobId]`), hook `useHR`
+  (usa a instância `openApi` — sem sessão — nas chamadas públicas), item de
+  menu "RH", toggle de plano em `PlansManager`.
+- ⚠️ Bug de corrida corrigido antes do commit: navegar da listagem pro
+  detalhe da vaga pública (mesmo componente, parâmetro de rota opcional)
+  causava `Cannot read properties of null` no primeiro render após a
+  navegação — ver detalhes em `docs/MANUAL_TECNICO.md`, seção 6.2 (Fase 5).
+
+### Observação
+- Fase 4 (módulo contábil) foi **adiada a pedido do cliente**, que vai
+  definir o escopo dela numa fase final separada — o roadmap seguiu direto
+  pra Fase 5.
+
 ## [2.3.24] — Corrigido campo "Valor (R$)" quebrando o Painel Financeiro — 2026-09-14
 
 ### Corrigido

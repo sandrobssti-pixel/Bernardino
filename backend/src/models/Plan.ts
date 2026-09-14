@@ -115,6 +115,13 @@ class Plan extends Model<Plan> {
   @Default(false)
   @Column
   useFiscal: boolean;
+
+  // Módulo de RH/recrutamento (vagas, candidaturas, efetivação — Fase 5) —
+  // add-on separado, independente do Financeiro/Fiscal (não usa nenhum
+  // cadastro deles). Ver docs/MANUAL_TECNICO.md, seção 6.2.
+  @Default(false)
+  @Column
+  useHR: boolean;
 }
 
 export default Plan;

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.24 (Etapa 4 — corrigido campo "Valor (R$)" aceitando texto livre: um valor digitado com vírgula ("150,00") quebrava o Painel Financeiro inteiro com erro 500 e aparecia como R$ 0,00 nas listas; campo agora é numérico e o backend ficou defensivo contra valores já salvos incorretamente)**
+**Versão atual: 2.3.25 (Etapa 5 — módulo de RH/recrutamento: vagas com página pública sem login, candidatura com anexo de currículo, triagem interna e efetivação do candidato como usuário do sistema; add-on independente do Financeiro/Fiscal, controlado pelo Master por plano)**
 
 ## Documentação
 

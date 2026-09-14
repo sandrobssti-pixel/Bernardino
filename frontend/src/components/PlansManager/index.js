@@ -572,6 +572,7 @@ const ALL_FEATURES = [
   { key: "useIntegrations", label: "Integrações" },
   { key: "useFinancial", label: "Financeiro (add-on)" },
   { key: "useFiscal", label: "Fiscal — NF-e/NFC-e/NFS-e (add-on)" },
+  { key: "useHR", label: "RH — Recrutamento (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -590,6 +591,7 @@ const FEATURE_FIELDS = [
   { name: "useIntegrations", label: "Integrações" },
   { name: "useFinancial", label: "Financeiro (add-on)" },
   { name: "useFiscal", label: "Fiscal — NF-e/NFC-e/NFS-e (add-on)" },
+  { name: "useHR", label: "RH — Recrutamento (add-on)" },
 ];
 
 export function PlanManagerForm(props) {
@@ -602,7 +604,7 @@ export function PlanManagerForm(props) {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, isPublic: true,
   });
 
   useEffect(() => { setRecord(initialValue); }, [initialValue]);
@@ -996,7 +998,7 @@ export default function PlansManager() {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, isPublic: true,
   });
 
   useEffect(() => {
@@ -1072,6 +1074,7 @@ export default function PlansManager() {
       useIntegrations: row.useIntegrations !== false,
       useFinancial: row.useFinancial === true,
       useFiscal: row.useFiscal === true,
+      useHR: row.useHR === true,
       isPublic: row.isPublic,
     });
     setShowConfirmDialog(true);
@@ -1095,6 +1098,7 @@ export default function PlansManager() {
       useIntegrations: b(data.useIntegrations),
       useFinancial: data.useFinancial === true,
       useFiscal: data.useFiscal === true,
+      useHR: data.useHR === true,
       isPublic: data.isPublic,
     });
     setPlanModalOpen(true);

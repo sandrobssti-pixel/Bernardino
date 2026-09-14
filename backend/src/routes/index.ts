@@ -63,6 +63,7 @@ import webchatPublicRoutes from "./webchatPublicRoutes";
 import globalConfigRoutes from "./globalConfigRoutes";
 import financeRoutes from "./financeRoutes";
 import fiscalRoutes from "./fiscalRoutes";
+import hrRoutes from "./hrRoutes";
 
 const routes = Router();
 
@@ -131,5 +132,6 @@ routes.use(billingIntegrationRoutes);
 routes.use("/global-config", globalConfigRoutes);
 routes.use(financeRoutes);
 routes.use(fiscalRoutes);
+routes.use(hrRoutes);
 
 export default routes;

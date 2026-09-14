@@ -223,6 +223,14 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   financialAccess: boolean;
 
+  // Acesso ao módulo de RH/recrutamento (vagas, candidaturas) — Fase 5, ver
+  // docs/MANUAL_TECNICO.md, seção 6.2. Mesmo padrão do financialAccess:
+  // só tem efeito se o plano incluir (Plan.useHR); Admin e Master sempre
+  // têm acesso quando o módulo está ativo, independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  hrAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

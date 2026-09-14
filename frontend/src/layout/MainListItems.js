@@ -38,6 +38,7 @@ import AnnouncementIcon from "@material-ui/icons/Announcement";
 import CakeIcon from "@material-ui/icons/Cake";
 import ForumIcon from "@material-ui/icons/Forum";
 import LocalAtmIcon from "@material-ui/icons/LocalAtm";
+import WorkOutlineIcon from "@material-ui/icons/WorkOutline";
 import {
   AllInclusive,
   AttachFile,
@@ -1352,6 +1353,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<LocalAtmIcon />}
                   iconKey="financial"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/rh"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.rh"
+                  )}
+                  icon={<WorkOutlineIcon />}
+                  iconKey="rh"
                   tooltip={collapsed}
                 />
               )}

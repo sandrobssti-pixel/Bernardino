@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, lazy, Suspense } from "react";
-import { BrowserRouter, Redirect, Switch } from "react-router-dom";
+import { BrowserRouter, Redirect, Switch, Route as DomRoute } from "react-router-dom";
 import { Slide, ToastContainer } from "react-toastify";
 
 import LoggedInLayout from "../layout";
@@ -10,6 +10,8 @@ import Login from "../pages/Login";
 import Connections from "../pages/Connections";
 import SettingsCustom from "../pages/SettingsCustom";
 import Financeiro from "../pages/Financeiro";
+import RH from "../pages/RH";
+import PublicJobBoard from "../pages/PublicJobBoard";
 import Users from "../pages/Users";
 import Contacts from "../pages/Contacts";
 import ContactImportPage from "../pages/Contacts/import";
@@ -80,9 +82,15 @@ const Routes = () => {
             <Route exact path="/signup" component={Signup} />
             <Route exact path="/forgot-password" component={ForgotPassword} />
             <Route exact path="/reset-password" component={ResetPassword} />
+            {/* Página pública de vagas (Fase 5 — RH) — sem login, não usa o
+                wrapper de Route (que redireciona usuários autenticados),
+                pra permitir que um Admin logado também consiga visualizar
+                a própria página pública. */}
+            <DomRoute exact path="/vagas/:companyId/:jobId?" component={PublicJobBoard} />
             <WhatsAppsProvider>
               <LoggedInLayout>
                 <Route exact path="/financeiro" component={Financeiro} isPrivate />
+                <Route exact path="/rh" component={RH} isPrivate />
 
                 <Route exact path="/companies" component={Companies} isPrivate />
                 <Route exact path="/" isPrivate render={(props) => (
