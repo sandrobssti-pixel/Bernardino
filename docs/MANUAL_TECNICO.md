@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.15
-**Etapa:** 4 — Master com acesso completo a todas as funcionalidades (isolado por empresa), plano obrigatório ao cadastrar empresa, módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações
+**Versão do documento:** 2.3.16
+**Etapa:** 4 — Alerta de vencimento no Dashboard, Master com acesso completo a todas as funcionalidades, módulo Financeiro completo (Fase 1: cadastros), assinatura movida para Configurações
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -319,9 +319,19 @@ nega explicitamente pra `super`). Ou seja: `Master → libera o módulo no plano
 - Gestão de custos fixos e variáveis (contas a pagar, categorias de despesa)
 - Contas a receber ligadas aos clientes cadastrados
 - Painel com gráficos (usar a mesma linguagem visual dos dashboards já existentes —
-  ver skill de `dataviz` deste projeto ao desenhar os gráficos)
+  ver skill de `dataviz` deste projeto ao desenhar os gráficos). O cliente enviou
+  uma referência visual (coleção de elementos de dashboard estilo escuro,
+  gradientes neon roxo/rosa/azul, anéis de progresso, gráficos de área com
+  gradiente) — usar como inspiração de estilo pros gráficos novos, sem
+  reproduzir o asset em si (é um stock de terceiros com licença própria).
 - Relatórios: financeiro (fluxo de caixa, DRE simplificado), estoque (se produtos
   tiverem controle de estoque), desempenho de funcionários, fornecedores
+- Cada relatório precisa de exportação/impressão: botão de imprimir
+  (`window.print()` com CSS `@media print` dedicado é o caminho mais simples) e
+  exportação em **PDF profissional com os gráficos** — vale avaliar
+  `jsPDF` + captura do canvas do gráfico, ou renderização server-side (Puppeteer,
+  já usado no projeto para outros fins) se o resultado do `jsPDF` não ficar bom
+  o suficiente com gráficos.
 
 ### Fase 3 — Módulo fiscal (Nota Fiscal Eletrônica / SEFAZ / Receita Federal)
 Esta é a fase de maior risco técnico e regulatório do roadmap — envolve comunicação

@@ -53,6 +53,7 @@ import api from "../../services/api";
 import { useHistory } from "react-router-dom";
 import UserModal from "../../components/UserModal";
 import TransferTicketModalCustom from "../../components/TransferTicketModalCustom";
+import SubscriptionDueBanner from "../../components/SubscriptionDueBanner";
 
 const getDashboardColors = (isDark) => ({
   textPrimary: isDark ? "#e6edf8" : "#0f172a",
@@ -824,6 +825,8 @@ const Dashboard = () => {
         fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
       }}
     >
+      <SubscriptionDueBanner />
+
       {/* Header */}
       <Paper
         elevation={0}

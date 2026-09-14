@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.16] — Alerta de vencimento da assinatura no Dashboard — 2026-09-14
+
+### Adicionado
+- Banner de vencimento da assinatura no topo do **Dashboard**, visível pro
+  Admin de cada empresa: aviso amarelo quando faltam até 7 dias pro
+  vencimento, vermelho quando já venceu — com botão "Ver assinatura" que
+  leva direto pra Configurações → Assinatura. Novo componente
+  `frontend/src/components/SubscriptionDueBanner/index.js`.
+
+### Observação — infraestrutura de cobrança já existente
+- Investigando o pedido de "notificar por e-mail e WhatsApp quando a
+  empresa estiver perto do vencimento", encontrei que **isso já existe e
+  está funcionando** desde antes desta sessão: `backend/src/queues.ts`
+  (`handleBillingNotifications`) roda todo dia às 9h15 e, se habilitado em
+  Painel SaaS → Configurações, envia e-mail (pro `Company.email` — o e-mail
+  único da empresa, compartilhado por todos os usuários dela, exatamente
+  como descrito) e WhatsApp (criando inclusive um ticket de verdade no CRM)
+  quando falta o número configurado de dias (`billingDueDaysBefore`,
+  padrão 3) pro vencimento da fatura em aberto. Deduplicação por dia via
+  `Setting`, então não manda duas vezes no mesmo dia. **Vem desabilitado
+  por padrão** — o Master precisa ligar os dois toggles em Painel SaaS →
+  Configurações → seção de cobrança.
+- O que era novo, e foi adicionado agora: o alerta **dentro do sistema**
+  (Dashboard). Ainda não adicionado ao sino de notificações (risco de
+  mexer numa peça grande/tempo-real do sistema por um ganho incremental
+  pequeno, já que o Dashboard cobre o pedido "sair no dashboard").
+
 ## [2.3.15] — Master com acesso completo ao sistema + plano obrigatório na empresa — 2026-09-14
 
 ### Alterado
