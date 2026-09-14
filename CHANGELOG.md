@@ -3,6 +3,46 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.18] — Corrigida a causa raiz da logo/nome "desconfigurando" no F5 — 2026-09-14
+
+### Corrigido — bug crítico, arquitetural
+- **Causa raiz encontrada e corrigida**: a logo/nome exibidos no menu lateral
+  (canto superior esquerdo) vinham de `frontend/src/App.js`, que buscava o
+  branding pela rota **pública** `/public-settings/:key` — hardcoded na
+  empresa 1 no backend (`GetPublicSettingService`). Isso funcionava certo
+  só pra quem estava logado na empresa 1; qualquer Admin de **outra**
+  empresa configurava a própria logo/nome (que salvava certo no banco, na
+  empresa dele), via corretamente a mudança na hora (só na memória), mas ao
+  dar F5 a tela recarregava o branding da empresa 1 (ou o padrão) por cima —
+  parecia que "desconfigurava". Esse era um problema **já documentado como
+  limitação conhecida** desde etapas anteriores desta sessão, nunca
+  corrigido de fato até agora.
+- Corrigido: `App.js` agora busca o branding pela rota **autenticada**
+  `/settings` (já corretamente escopada por `companyId`) sempre que há uma
+  sessão logada, com fallback pra rota pública só quando não há login (ex.:
+  tela de login/signup) ou se a chamada autenticada falhar.
+- Como a SPA não recarrega a página ao fazer login (é só uma troca de rota),
+  o efeito de branding do `App.js` — que roda uma vez só, no primeiro
+  carregamento da aba — não seria re-executado depois de um login sem F5.
+  Resolvido com um evento (`frontend/src/utils/brandingEvents.js`) disparado
+  pelo `useAuth.js` logo após o login, que o `App.js` escuta pra rebuscar o
+  branding imediatamente — sem precisar de um F5 pra ver a logo certa
+  pela primeira vez.
+- Testado ponta a ponta com uma segunda empresa (não a 1): configurar
+  nome/logo, aparece certo na hora, continua certo depois de deslogar e
+  logar de novo, e continua certo depois de um F5.
+
+### Adicionado
+- Botão **"Salvar"** explícito na seção Identidade da empresa
+  (Configurações → Opções), além do salvamento automático (debounce +
+  onBlur + upload imediato) — dá uma confirmação visual/manual de que
+  ficou salvo, com toast de sucesso sempre que clicado.
+
+### Alterado
+- Módulo Financeiro (Clientes/Fornecedores/Produtos, e Painel SaaS pro
+  Master): navegação mudou de abas horizontais no topo pra abas
+  **verticais/laterais** à esquerda, com o conteúdo ao lado.
+
 ## [2.3.17] — Tela de "Minha assinatura" travava em empresa sem plano — 2026-09-14
 
 ### Corrigido

@@ -10,6 +10,7 @@ import api from "../../services/api";
 import toastError from "../../errors/toastError";
 import { socketConnection } from "../../services/socket";
 import { debugLogFrontend } from "../../utils/runtimeDebug";
+import { dispatchBrandingRefresh } from "../../utils/brandingEvents";
 // import { useDate } from "../../hooks/useDate";
 import moment from "moment";
 
@@ -341,6 +342,7 @@ const useAuth = () => {
         safeLocalStorage.setItem("token", JSON.stringify(data.token));
         safeLocalStorage.setItem("companyDueDate", vencimento);
         api.defaults.headers.Authorization = `Bearer ${data.token}`;
+        dispatchBrandingRefresh();
         setUser(data.user);
         setIsAuth(true);
         toast.success(i18n.t("auth.toasts.success"));
@@ -364,6 +366,7 @@ const useAuth = () => {
           })
         );
         api.defaults.headers.Authorization = `Bearer ${data.token}`;
+        dispatchBrandingRefresh();
         setUser(data.user);
         setIsAuth(true);
         history.push("/financeiro");

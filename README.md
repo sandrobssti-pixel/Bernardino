@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.17 (Etapa 4 — correção da tela de assinatura para empresas sem plano vinculado, alerta de vencimento no Dashboard, Master com acesso completo a todas as funcionalidades, módulo Financeiro completo (Fase 1: cadastros))**
+**Versão atual: 2.3.18 (Etapa 4 — corrigida causa raiz da logo/nome não persistindo no F5 para empresas que não são a empresa 1, botão salvar manual, layout lateral do módulo Financeiro)**
 
 ## Documentação
 

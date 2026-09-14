@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.17
-**Etapa:** 4 — correção da tela de assinatura pra empresa sem plano, alerta de vencimento no Dashboard, Master com acesso completo a todas as funcionalidades, módulo Financeiro completo (Fase 1: cadastros)
+**Versão do documento:** 2.3.18
+**Etapa:** 4 — corrigida causa raiz da logo/nome não persistindo no F5 (leitura hardcoded na empresa 1), botão salvar manual, layout lateral do módulo Financeiro
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -251,9 +251,10 @@ personalizar por cima da identidade padrão sem mexer em código.
 - **Permissões da identidade (v2.3.6)**: dentro do `Whitelabel`, "Identidade"/
   "Logotipos" (nome, cores, logomarcas, favicon, ícones) ficam visíveis para **qualquer
   Admin** — cada empresa cuida da própria marca. "Login / capa" (compartilhada por
-  todas as empresas na mesma tela de login) continua **exclusiva do Master**. Ver
-  limitação conhecida no Changelog: a exibição da logo no menu lateral/login hoje ainda
-  lê de um endpoint fixo na empresa 1, não por empresa autenticada.
+  todas as empresas na mesma tela de login) continua **exclusiva do Master**.
+  ~~Limitação conhecida: a exibição da logo no menu lateral hoje ainda lê de um
+  endpoint fixo na empresa 1, não por empresa autenticada~~ — **corrigido na v2.3.18**,
+  ver seção 7.
 
 ---
 
@@ -471,6 +472,31 @@ real/legal pra empresas-clientes que dependessem dela).
   no backend (`CreateCompanyService`) se `planId` vier vazio. Vale conferir
   esse mesmo padrão em outros formulários com campo obrigatório via
   `Select`/`Field as={Select}` no projeto.
+- ✅ **Bug crítico corrigido (v2.3.18) — branding do menu lateral lido de um
+  endpoint fixo na empresa 1**: era a causa raiz real do "logo/nome
+  desconfigura no F5" relatado várias vezes ao longo desta etapa (v2.3.4 até
+  v2.3.14 tentaram corrigir sintomas relacionados — debounce de salvamento,
+  upload imediato — mas nenhum deles era a causa real desse sintoma
+  específico). `frontend/src/App.js` buscava `appLogoLight`/`appName`/cores
+  via `GET /public-settings/:key`, que no backend
+  (`GetPublicSettingService`) é **hardcoded pra `companyId: 1`** — correto
+  seria usar `GET /settings` (autenticado, escopado por `req.user.companyId`).
+  Pra quem estava logado na empresa 1 isso nunca dava problema; pra Admin de
+  **qualquer outra empresa**, a logo/nome configurados apareciam certo só
+  enquanto durava o estado em memória (`colorMode.setAppLogoLight(...)`
+  chamado no próprio upload) — um F5 recarregava `App.js` do zero, que ia
+  buscar de novo no endpoint errado (empresa 1) e sobrescrevia com o valor
+  errado. Corrigido usando `/settings` com sessão logada (fallback pra
+  `/public-settings` só sem login ou se a chamada autenticada falhar) — ver
+  `frontend/src/utils/brandingEvents.js` pro detalhe de como isso também
+  passou a atualizar **logo após o login**, sem esperar um F5 (`App.js`
+  monta uma vez só pra vida inteira da SPA; login é troca de rota, não
+  reload). **Lição**: ao investigar "salva mas não persiste" com sintomas
+  parecidos entre versões, sempre conferir se a tela de LEITURA está lendo
+  do lugar certo antes de assumir que é sempre um problema de
+  salvamento/timing — não são a mesma coisa. Se o pedido volta descrito de
+  forma quase idêntica depois de uma correção anterior, é sinal de que a
+  correção anterior atacou um sintoma parecido mas não a causa raiz.
 
 ---
 

@@ -34,6 +34,40 @@ const useStyles = makeStyles((theme) => ({
       padding: theme.spacing(1),
     },
   },
+  // Navegação lateral (não superior) entre Painel SaaS/Clientes/Fornecedores/
+  // Produtos: abas verticais à esquerda, conteúdo à direita.
+  layoutRow: {
+    display: "flex",
+    flex: 1,
+    gap: theme.spacing(2),
+    alignItems: "flex-start",
+    [theme.breakpoints.down("xs")]: {
+      flexDirection: "column",
+    },
+  },
+  sideTabs: {
+    borderRight: `1px solid ${theme.palette.divider}`,
+    minWidth: 180,
+    flexShrink: 0,
+    [theme.breakpoints.down("xs")]: {
+      width: "100%",
+      borderRight: "none",
+      borderBottom: `1px solid ${theme.palette.divider}`,
+    },
+  },
+  sideTab: {
+    minHeight: 48,
+    alignItems: "flex-start",
+    textAlign: "left",
+    textTransform: "none",
+    fontWeight: 600,
+    fontSize: "0.85rem",
+    paddingLeft: theme.spacing(2),
+  },
+  content: {
+    flex: 1,
+    minWidth: 0,
+  },
   lockedBox: {
     display: "flex",
     flexDirection: "column",
@@ -75,49 +109,63 @@ const Financeiro = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const renderRecordPanel = () => {
+    if (financeTab === "customers") {
+      return (
+        <FinanceRecordList
+          title="Cliente"
+          resource={finance.customers}
+          columns={financeCustomerColumns}
+          fields={financeCustomerFields}
+        />
+      );
+    }
+    if (financeTab === "suppliers") {
+      return (
+        <FinanceRecordList
+          title="Fornecedor"
+          resource={finance.suppliers}
+          columns={financeSupplierColumns}
+          fields={financeSupplierFields}
+        />
+      );
+    }
+    if (financeTab === "products") {
+      return (
+        <FinanceRecordList
+          title="Produto"
+          resource={finance.products}
+          columns={financeProductColumns}
+          fields={financeProductFields}
+        />
+      );
+    }
+    return null;
+  };
+
   if (user.super) {
     return (
       <div className={classes.pageRoot}>
-        <Tabs
-          value={financeTab}
-          onChange={(e, v) => setFinanceTab(v)}
-          indicatorColor="primary"
-          textColor="primary"
-          variant="scrollable"
-          scrollButtons="auto"
-          style={{ marginBottom: 16 }}
-        >
-          <Tab value="saas" label="Painel SaaS" />
-          <Tab value="customers" label="Clientes" />
-          <Tab value="suppliers" label="Fornecedores" />
-          <Tab value="products" label="Produtos" />
-        </Tabs>
+        <div className={classes.layoutRow}>
+          <Tabs
+            value={financeTab}
+            onChange={(e, v) => setFinanceTab(v)}
+            orientation="vertical"
+            variant="scrollable"
+            indicatorColor="primary"
+            textColor="primary"
+            className={classes.sideTabs}
+          >
+            <Tab className={classes.sideTab} value="saas" label="Painel SaaS" />
+            <Tab className={classes.sideTab} value="customers" label="Clientes" />
+            <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
+            <Tab className={classes.sideTab} value="products" label="Produtos" />
+          </Tabs>
 
-        {financeTab === "saas" && <GlobalConfig />}
-        {financeTab === "customers" && (
-          <FinanceRecordList
-            title="Cliente"
-            resource={finance.customers}
-            columns={financeCustomerColumns}
-            fields={financeCustomerFields}
-          />
-        )}
-        {financeTab === "suppliers" && (
-          <FinanceRecordList
-            title="Fornecedor"
-            resource={finance.suppliers}
-            columns={financeSupplierColumns}
-            fields={financeSupplierFields}
-          />
-        )}
-        {financeTab === "products" && (
-          <FinanceRecordList
-            title="Produto"
-            resource={finance.products}
-            columns={financeProductColumns}
-            fields={financeProductFields}
-          />
-        )}
+          <div className={classes.content}>
+            {financeTab === "saas" ? <GlobalConfig /> : renderRecordPanel()}
+          </div>
+        </div>
       </div>
     );
   }
@@ -151,46 +199,23 @@ const Financeiro = () => {
 
   return (
     <div className={classes.pageRoot}>
-      <Tabs
-        value={financeTab}
-        onChange={(e, v) => setFinanceTab(v)}
-        indicatorColor="primary"
-        textColor="primary"
-        variant="scrollable"
-        scrollButtons="auto"
-        style={{ marginBottom: 16 }}
-      >
-        <Tab value="customers" label="Clientes" />
-        <Tab value="suppliers" label="Fornecedores" />
-        <Tab value="products" label="Produtos" />
-      </Tabs>
+      <div className={classes.layoutRow}>
+        <Tabs
+          value={financeTab}
+          onChange={(e, v) => setFinanceTab(v)}
+          orientation="vertical"
+          variant="scrollable"
+          indicatorColor="primary"
+          textColor="primary"
+          className={classes.sideTabs}
+        >
+          <Tab className={classes.sideTab} value="customers" label="Clientes" />
+          <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
+          <Tab className={classes.sideTab} value="products" label="Produtos" />
+        </Tabs>
 
-      {financeTab === "customers" && (
-        <FinanceRecordList
-          title="Cliente"
-          resource={finance.customers}
-          columns={financeCustomerColumns}
-          fields={financeCustomerFields}
-        />
-      )}
-
-      {financeTab === "suppliers" && (
-        <FinanceRecordList
-          title="Fornecedor"
-          resource={finance.suppliers}
-          columns={financeSupplierColumns}
-          fields={financeSupplierFields}
-        />
-      )}
-
-      {financeTab === "products" && (
-        <FinanceRecordList
-          title="Produto"
-          resource={finance.products}
-          columns={financeProductColumns}
-          fields={financeProductFields}
-        />
-      )}
+        <div className={classes.content}>{renderRecordPanel()}</div>
+      </div>
     </div>
   );
 };

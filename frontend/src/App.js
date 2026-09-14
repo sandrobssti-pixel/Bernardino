@@ -20,6 +20,7 @@ import defaultPwaAndroid192 from "./assets/android-chrome-192x192.png";
 import defaultPwaAndroid512 from "./assets/android-chrome-512x512.png";
 import defaultMsTile150 from "./assets/mstile-150x150.png";
 import useSettings from "./hooks/useSettings";
+import { BRANDING_REFRESH_EVENT } from "./utils/brandingEvents";
 
 const queryClient = new QueryClient();
 
@@ -351,32 +352,96 @@ const App = () => {
   }, [mode]);
 
   useEffect(() => {
-    Promise.allSettled([
-      getPublicSetting("primaryColorLight"),
-      getPublicSetting("primaryColorDark"),
-      getPublicSetting("appLogoLight"),
-      getPublicSetting("appLogoDark"),
-      getPublicSetting("appLogoFavicon"),
-      getPublicSetting("appLogoAppleTouchIcon"),
-      getPublicSetting("appLogoPwaAndroid192"),
-      getPublicSetting("appLogoPwaAndroid512"),
-      getPublicSetting("appLogoPwaMsTile150"),
-      getPublicSetting("appName"),
-    ]).then((results) => {
-      const val = (i) => results[i].status === "fulfilled" ? results[i].value : null;
+    // Aplica os valores de branding (cores/logos/nome) recebidos, seja da
+    // rota autenticada (um objeto por key) ou da pública (um array de
+    // resultados do Promise.allSettled, na mesma ordem das chamadas abaixo).
+    const applyBranding = (getValue) => {
       unstable_batchedUpdates(() => {
-        setPrimaryColorLight(val(0) || "#6d5efc");
-        setPrimaryColorDark(val(1) || "#8b7bff");
-        setAppLogoLightPersist(resolvePublicLogoUrl(val(2), defaultLogoLight));
-        setAppLogoDarkPersist(resolvePublicLogoUrl(val(3), defaultLogoDark));
-        setAppLogoFavicon(resolvePublicLogoUrl(val(4), defaultLogoFavicon));
-        setAppLogoAppleTouchIcon(resolvePublicLogoUrl(val(5), defaultAppleTouchIcon));
-        setAppLogoPwaAndroid192(resolvePublicLogoUrl(val(6), defaultPwaAndroid192));
-        setAppLogoPwaAndroid512(resolvePublicLogoUrl(val(7), defaultPwaAndroid512));
-        setAppLogoPwaMsTile150(resolvePublicLogoUrl(val(8), defaultMsTile150));
-        setAppNamePersist(val(9));
+        setPrimaryColorLight(getValue("primaryColorLight") || "#6d5efc");
+        setPrimaryColorDark(getValue("primaryColorDark") || "#8b7bff");
+        setAppLogoLightPersist(resolvePublicLogoUrl(getValue("appLogoLight"), defaultLogoLight));
+        setAppLogoDarkPersist(resolvePublicLogoUrl(getValue("appLogoDark"), defaultLogoDark));
+        setAppLogoFavicon(resolvePublicLogoUrl(getValue("appLogoFavicon"), defaultLogoFavicon));
+        setAppLogoAppleTouchIcon(resolvePublicLogoUrl(getValue("appLogoAppleTouchIcon"), defaultAppleTouchIcon));
+        setAppLogoPwaAndroid192(resolvePublicLogoUrl(getValue("appLogoPwaAndroid192"), defaultPwaAndroid192));
+        setAppLogoPwaAndroid512(resolvePublicLogoUrl(getValue("appLogoPwaAndroid512"), defaultPwaAndroid512));
+        setAppLogoPwaMsTile150(resolvePublicLogoUrl(getValue("appLogoPwaMsTile150"), defaultMsTile150));
+        setAppNamePersist(getValue("appName"));
       });
-    });
+    };
+
+    const fetchPublicBranding = () => {
+      Promise.allSettled([
+        getPublicSetting("primaryColorLight"),
+        getPublicSetting("primaryColorDark"),
+        getPublicSetting("appLogoLight"),
+        getPublicSetting("appLogoDark"),
+        getPublicSetting("appLogoFavicon"),
+        getPublicSetting("appLogoAppleTouchIcon"),
+        getPublicSetting("appLogoPwaAndroid192"),
+        getPublicSetting("appLogoPwaAndroid512"),
+        getPublicSetting("appLogoPwaMsTile150"),
+        getPublicSetting("appName"),
+      ]).then((results) => {
+        const keys = [
+          "primaryColorLight", "primaryColorDark", "appLogoLight", "appLogoDark",
+          "appLogoFavicon", "appLogoAppleTouchIcon", "appLogoPwaAndroid192",
+          "appLogoPwaAndroid512", "appLogoPwaMsTile150", "appName",
+        ];
+        applyBranding((key) => {
+          const i = keys.indexOf(key);
+          return results[i].status === "fulfilled" ? results[i].value : null;
+        });
+      });
+    };
+
+    // Se tem sessão logada, busca o branding pela rota autenticada (/settings),
+    // que é escopada pela empresa de quem está logado — cada empresa vê a
+    // própria logo/nome/cores. A rota pública (/public-settings/:key) é
+    // sempre fixa na empresa 1 (é o que usa a tela de login, antes de
+    // autenticar); usá-la também depois de logado fazia a logo/nome de
+    // qualquer empresa que não fosse a 1 reverter pro valor da empresa 1
+    // (ou pro padrão) a cada F5 — a alteração ficava só na memória até a
+    // próxima recarga da página, nunca era realmente lida de volta.
+    const fetchBranding = () => {
+      const tokenRaw = safeStorage.getItem("token");
+      if (!tokenRaw) {
+        fetchPublicBranding();
+        return;
+      }
+
+      let token;
+      try {
+        token = JSON.parse(tokenRaw);
+      } catch (e) {
+        fetchPublicBranding();
+        return;
+      }
+
+      api
+        .get("/settings", { headers: { Authorization: `Bearer ${token}` } })
+        .then(({ data }) => {
+          const settings = Array.isArray(data) ? data : [];
+          applyBranding((key) => settings.find((s) => s.key === key)?.value);
+        })
+        .catch(() => {
+          // Token inválido/expirado ou falha de rede — cai pro branding
+          // público em vez de deixar a tela sem cor/logo nenhuma.
+          fetchPublicBranding();
+        });
+    };
+
+    fetchBranding();
+
+    // App.js só monta uma vez pra vida inteira da SPA — um login bem-sucedido
+    // é só uma troca de rota (react-router), não recarrega a página. Sem
+    // reagir a esse evento, o menu lateral só mostraria a marca certa da
+    // empresa depois de um F5 manual (o efeito acima já rodou, sem token,
+    // antes do usuário logar). Ver frontend/src/utils/brandingEvents.js.
+    window.addEventListener(BRANDING_REFRESH_EVENT, fetchBranding);
+    return () => {
+      window.removeEventListener(BRANDING_REFRESH_EVENT, fetchBranding);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

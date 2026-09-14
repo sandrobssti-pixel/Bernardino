@@ -10,6 +10,8 @@ import Divider from "@material-ui/core/Divider";
 import IconButton from "@material-ui/core/IconButton";
 import Button from "@material-ui/core/Button";
 import Box from "@material-ui/core/Box";
+import CircularProgress from "@material-ui/core/CircularProgress";
+import SaveIcon from "@material-ui/icons/Save";
 import useSettings from "../../hooks/useSettings";
 import { toast } from "react-toastify";
 import { makeStyles } from "@material-ui/core/styles";
@@ -320,6 +322,27 @@ export default function Whitelabel(props) {
     persistAppName(appName);
   };
 
+  // Botão "Salvar" manual — além do salvamento automático (debounce +
+  // onBlur), dá um jeito explícito de confirmar que ficou salvo, sempre
+  // mostrando o toast de sucesso (mesmo se o valor não tiver mudado desde
+  // o último salvamento automático), pra quem prefere clicar em algo em
+  // vez de confiar só no salvamento em segundo plano.
+  const [savingIdentity, setSavingIdentity] = useState(false);
+  const handleManualSaveIdentity = async () => {
+    if (appNameSaveTimer.current) {
+      clearTimeout(appNameSaveTimer.current);
+      appNameSaveTimer.current = null;
+    }
+    setSavingIdentity(true);
+    try {
+      appNameSavedRef.current = appName;
+      await handleSaveSetting("appName", appName);
+      colorMode.setAppName(appName || "AtendeFlow");
+    } finally {
+      setSavingIdentity(false);
+    }
+  };
+
   const resolveLogoUrl = (logoPath, fallback, refreshToken) => {
     if (!logoPath) return fallback;
     if (logoPath.startsWith("http")) return logoPath;
@@ -590,6 +613,20 @@ export default function Whitelabel(props) {
                   </label>
                 </div>
               </div>
+
+              <Divider style={{ marginTop: 12, marginBottom: 12 }} />
+
+              <Box display="flex" justifyContent="flex-end">
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={savingIdentity ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
+                  disabled={savingIdentity}
+                  onClick={handleManualSaveIdentity}
+                >
+                  {savingIdentity ? "Salvando..." : "Salvar"}
+                </Button>
+              </Box>
             </Paper>
           </>
       )}
