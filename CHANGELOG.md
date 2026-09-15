@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.29] — Corrigido logout ao clicar em Configurações — 2026-09-15
+
+### Corrigido
+- **Causa raiz encontrada e corrigida**: `backend/.env.example` sempre trouxe
+  `COOKIE_DOMAIN=localhost` como padrão para o cookie de refresh token —
+  válido em desenvolvimento, mas **inválido em qualquer domínio de
+  produção real**. Um cookie com `Domain` incompatível com o host da
+  requisição é **rejeitado silenciosamente pelo navegador** (sem erro
+  visível), então o cookie de sessão nunca era salvo de verdade. Na
+  primeira renovação de token durante o uso normal (mais provável ao
+  entrar em Configurações, que dispara várias chamadas de uma vez), o
+  backend não encontrava o cookie, respondia sessão expirada, e o
+  frontend deslogava o usuário — em qualquer instância que tivesse
+  copiado esse `.env.example` sem editar essa linha.
+- `.env.example` corrigido (`COOKIE_DOMAIN` agora vem em branco por
+  padrão, com comentário explicando quando de fato preencher).
+- Validação defensiva adicionada no backend
+  (`helpers/SendRefreshToken.ts`): se `COOKIE_DOMAIN` não bater com o
+  host da requisição, a configuração é ignorada (com aviso no log) em
+  vez de gerar um cookie que o navegador vai recusar de qualquer forma —
+  protege contra o mesmo erro se a variável for configurada errada de
+  novo no futuro.
+- Detalhes completos do diagnóstico em `docs/MANUAL_TECNICO.md`, seção 13.
+
 ## [2.3.28] — Acesso remoto (Cloudflare Tunnel) + backup estendido — 2026-09-15
 
 ### Adicionado

@@ -1,5 +1,5 @@
 import { verify } from "jsonwebtoken";
-import { Response as Res } from "express";
+import { Request as Req, Response as Res } from "express";
 
 import User from "../../models/User";
 import AppError from "../../errors/AppError";
@@ -24,6 +24,7 @@ interface Response {
 }
 
 export const RefreshTokenService = async (
+  req: Req,
   res: Res,
   token: string
 ): Promise<Response> => {
@@ -34,7 +35,7 @@ export const RefreshTokenService = async (
     const user = await ShowUserService(id, companyId);
 
     if (user.tokenVersion !== tokenVersion) {
-      res.clearCookie("jrt", getRefreshTokenClearCookieOptions());
+      res.clearCookie("jrt", getRefreshTokenClearCookieOptions(req));
       throw new AppError("ERR_SESSION_EXPIRED", 401);
     }
 
@@ -43,7 +44,7 @@ export const RefreshTokenService = async (
 
     return { user, newToken, refreshToken };
   } catch (err) {
-    res.clearCookie("jrt", getRefreshTokenClearCookieOptions());
+    res.clearCookie("jrt", getRefreshTokenClearCookieOptions(req));
     throw new AppError("ERR_SESSION_EXPIRED", 401);
   }
 };

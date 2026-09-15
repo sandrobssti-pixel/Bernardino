@@ -96,7 +96,7 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     password
   });
 
-  SendRefreshToken(res, refreshToken);
+  SendRefreshToken(res, refreshToken, req);
 
   const io = getIO();
   if (serializedUser.blockMultipleLogins !== false) {
@@ -131,11 +131,12 @@ export const update = async (
   }
 
   const { user, newToken, refreshToken } = await RefreshTokenService(
+    req,
     res,
     token
   );
 
-  SendRefreshToken(res, refreshToken);
+  SendRefreshToken(res, refreshToken, req);
 
   return res.json({ token: newToken, user });
 };

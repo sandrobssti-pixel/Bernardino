@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.28
-**Etapa:** 5.3 — Acesso remoto via Cloudflare Tunnel + backup diário estendido pra cobrir configuração crítica do servidor
+**Versão do documento:** 2.3.29
+**Etapa:** 5.4 — Corrigido bug de logout ao clicar em Configurações (COOKIE_DOMAIN inválido em produção)
 **Última atualização:** 2026-09-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1211,3 +1211,65 @@ usar se algo for apagado sem querer. Esse mesmo motivo é o que levou à decisã
 incluir a configuração do túnel no backup diário (seção 11.4) — depender só da
 memória/histórico do chat pra recuperar uma configuração de produção não é
 sustentável.
+
+---
+
+## 13. Bug corrigido: usuário deslogado ao clicar em Configurações (v2.3.29)
+
+**Sintoma relatado pelo cliente**: ao clicar em "Configurações" no CRM, o usuário era
+deslogado — sempre, de forma consistente.
+
+### Causa raiz
+
+O `backend/.env.example` sempre trouxe `COOKIE_DOMAIN=localhost` como valor padrão pro
+cookie de refresh token (`jrt`, `httpOnly`, usado em `backend/src/helpers/
+SendRefreshToken.ts`). Isso nunca deu problema em ambiente de desenvolvimento
+(rodando literalmente em `localhost`) — mas assim que uma instância vai pra produção
+num domínio de verdade e esse `.env` é copiado do exemplo sem essa linha específica
+ser ajustada, o cookie passa a ser configurado com um **atributo `Domain` incompatível
+com o host real da requisição**. Por especificação, o navegador **rejeita
+silenciosamente o `Set-Cookie` inteiro** quando o `Domain` não é o próprio host nem um
+sufixo dele — sem gerar nenhum erro visível no console. Resultado: o cookie `jrt`
+nunca chega a ser salvo de verdade no navegador do cliente.
+
+A "explosão" acontecia especificamente ao entrar em Configurações porque essa tela
+dispara várias chamadas em sequência (dados da empresa, configurações antigas/novas,
+e mais chamadas ainda se for Master) — a primeira vez que o token de acesso (curta
+duração) precisa ser renovado durante o uso normal do sistema, o frontend chama
+`POST /auth/refresh_token` (ver interceptor de resposta em
+`frontend/src/hooks/useAuth.js/index.js`), o backend lê `req.cookies.jrt` — que não
+existe, porque nunca foi salvo — e responde `ERR_SESSION_EXPIRED` (401). O frontend
+interpreta isso como sessão inválida e desloga o usuário. Qualquer tela poderia
+disparar isso na hora certa, mas Configurações, por fazer mais chamadas de uma vez,
+tinha mais chance de "pegar" esse instante.
+
+⚠️ **Por que isso passou despercebido em todos os testes anteriores desta sessão**:
+o ambiente de desenvolvimento usado pra testar cada etapa deste projeto roda mesmo em
+`localhost` — ou seja, o valor padrão problemático (`COOKIE_DOMAIN=localhost`) é
+**válido** nesse contexto específico, então o bug nunca se manifestava em teste, só em
+produção com um domínio real. Essa é uma lição geral: um valor padrão só correto por
+coincidência do próprio ambiente de teste é um risco escondido — vale sempre perguntar
+"esse default ainda faz sentido fora do `localhost`?" pra qualquer configuração nova.
+
+### Correção
+
+- `backend/.env.example`: removido o valor `localhost` — `COOKIE_DOMAIN` agora vem
+  comentado/em branco por padrão (comportamento correto: cookie restrito ao próprio
+  host do backend, que é o único que precisa lê-lo).
+- `backend/src/helpers/SendRefreshToken.ts`: adicionada validação defensiva —
+  `getRefreshTokenCookieOptions` agora recebe a `req` e verifica se o `COOKIE_DOMAIN`
+  configurado é de fato um sufixo válido do host da requisição. Se não for, a
+  configuração é **ignorada** (loga um aviso claro no servidor) em vez de gerar um
+  cookie que o navegador vai rejeitar de qualquer forma. Isso protege contra a mesma
+  classe de erro se `COOKIE_DOMAIN` for configurado errado de novo no futuro (ex.: uma
+  instância migrando de domínio e esquecendo de atualizar essa variável).
+- `RefreshTokenService.ts`/`SessionController.ts`: ajustados pra repassar o `req` até
+  `SendRefreshToken`/`getRefreshTokenClearCookieOptions`, necessário pra validação
+  acima funcionar.
+
+**Ação necessária no servidor do cliente**: conferir o `backend/.env` de produção —
+se a linha `COOKIE_DOMAIN=localhost` estiver lá, **apagar essa linha** (ou deixar em
+branco) e reiniciar o backend (`pm2 restart atendeflow-backend`). A correção de
+código sozinha já evita o cookie quebrado mesmo que a variável continue errada no
+`.env` (ela passa a ser ignorada com um aviso no log), mas o ideal é limpar a
+configuração na origem.

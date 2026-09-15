@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.28 (Etapa 5.3 — acesso remoto via Cloudflare Tunnel (`atendeflow.confiancatechnologies.com`), serviços systemd para cloudflared/pm2 sobreviverem a reboot, e backup diário estendido para cobrir também a configuração crítica do servidor — ver `docs/MANUAL_TECNICO.md`, seções 11 e 12)**
+**Versão atual: 2.3.29 (Etapa 5.4 — corrigido bug real de logout ao clicar em Configurações: `COOKIE_DOMAIN=localhost` no `.env` quebrava silenciosamente o cookie de refresh token em produção; corrigido na origem (`.env.example`) e com validação defensiva no backend — ver `docs/MANUAL_TECNICO.md`, seção 13)**
 
 ## Documentação
 
