@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Confianza Technologies — venda de equipamentos, redes, suporte tecnico, seguranca eletronica, sistemas de IA e nosso CRM proprio. Matriz em Ciudad del Este (PY), sede em Salvador (BR).">
+<style>:root{color-scheme:light dark}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Confianza Technologies</title>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;800;900&family=IBM+Plex+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+
+<style>
+  /* ============================================================
+     Confianza Technologies — violet↔cyan brand gradient over
+     Orbitron display + IBM Plex Sans/Mono. Dark is the brand's
+     native look, so dark is the bare :root default; the light
+     palette lives in the media query and the explicit [data-theme]
+     overrides below (both directions of the toggle covered).
+  ============================================================ */
+  :root{
+    --bg:#0B0814; --surface:#161029; --surface-2:#1C1533; --line:#2C2350;
+    --ink:#F3EFFC; --ink-soft:#B6ACD4; --ink-faint:#8478A8;
+    --violet:#6C4CF1; --violet-2:#A78BFA; --cyan:#22D3EE; --cyan-text:#22D3EE;
+    --icon-a:#A78BFA; --icon-b:#22D3EE;
+    --glow-1:#24365E; --glow-2:#6C4CF1;
+    --grid-line:rgba(255,255,255,.035); --nav-bg:rgba(11,8,20,.78);
+    --shadow-panel:rgba(0,0,0,.6);
+    --wa:#25D366; --wa-ink:#06210F;
+    --radius-lg:26px; --radius-md:18px; --radius-sm:12px;
+    color-scheme:dark;
+  }
+  /* ---- light palette: system preference ... ---- */
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#F8F6FD; --surface:#FFFFFF; --surface-2:#F1ECFA; --line:#E1D9F2;
+      --ink:#1B1430; --ink-soft:#4C4570; --ink-faint:#6B6390;
+      --violet-2:#5B21B6; --cyan-text:#0B7285;
+      --icon-a:#5B21B6; --icon-b:#0B7285;
+      --glow-1:#DCE6F7; --glow-2:#E4D9FB;
+      --grid-line:rgba(27,20,48,.05); --nav-bg:rgba(248,246,253,.82);
+      --shadow-panel:rgba(60,50,90,.16);
+      color-scheme:light;
+    }
+  }
+  /* ---- light palette: explicit toggle (wins over OS in both directions) ---- */
+  :root[data-theme="light"]{
+    --bg:#F8F6FD; --surface:#FFFFFF; --surface-2:#F1ECFA; --line:#E1D9F2;
+    --ink:#1B1430; --ink-soft:#4C4570; --ink-faint:#6B6390;
+    --violet-2:#5B21B6; --cyan-text:#0B7285;
+    --icon-a:#5B21B6; --icon-b:#0B7285;
+    --glow-1:#DCE6F7; --glow-2:#E4D9FB;
+    --grid-line:rgba(27,20,48,.05); --nav-bg:rgba(248,246,253,.82);
+    --shadow-panel:rgba(60,50,90,.16);
+    color-scheme:light;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif; line-height:1.6;
+  }
+  h1,h2,h3{ font-family:'Orbitron',sans-serif; font-weight:800; margin:0; text-wrap:balance; }
+  p{ margin:0; color:var(--ink-soft); }
+  a{ color:inherit; text-decoration:none; }
+  a:focus-visible,button:focus-visible{ outline:2px solid var(--cyan-text); outline-offset:3px; border-radius:4px; }
+  img,svg{ display:block; }
+  section{ scroll-margin-top:84px; }
+  .z{ background:linear-gradient(100deg,var(--violet-2),var(--cyan-text)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 28px; }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--cyan-text); display:flex; align-items:center; gap:10px; margin-bottom:14px;
+  }
+  .eyebrow::before{ content:""; width:22px; height:2px; background:var(--cyan-text); flex:none; }
+  .btn{
+    display:inline-flex; align-items:center; gap:9px; font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:15.5px;
+    padding:15px 26px; border-radius:100px; border:1px solid transparent; cursor:pointer;
+  }
+  .btn svg{ width:18px; height:18px; flex:none; }
+  .btn-primary{ background:linear-gradient(120deg,#1EBE5C,#17A650); color:var(--wa-ink); box-shadow:0 14px 30px -12px rgba(31,170,89,.55); }
+  .btn-ghost{ background:rgba(255,255,255,.04); border-color:var(--line); color:var(--ink); }
+  .btn-outline{ background:transparent; border-color:var(--line); color:var(--ink); }
+  .btn-outline:hover{ border-color:var(--violet); }
+
+  /* ---------- background texture ---------- */
+  .glowbg{ position:relative; }
+  .glowbg::before{
+    content:""; position:absolute; inset:0; opacity:.3; pointer-events:none; z-index:0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(700px 500px at 50% 0%, #000 40%, transparent 78%);
+  }
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:sticky; top:env(safe-area-inset-top,0px); z-index:50; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    background:var(--nav-bg); border-bottom:1px solid var(--line);
+  }
+  .nav-row{ display:flex; align-items:center; justify-content:space-between; gap:18px; padding:14px 28px; max-width:1180px; margin:0 auto; }
+  .brand{ display:flex; align-items:center; gap:11px; flex:none; }
+  .brand svg{ width:32px; height:32px; }
+  .brand .word{ font-family:'Orbitron',sans-serif; font-weight:800; font-size:16.5px; letter-spacing:.01em; }
+  .navlinks{ display:flex; align-items:center; gap:30px; }
+  .navlinks a{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; color:var(--ink-soft); letter-spacing:.03em; white-space:nowrap; }
+  .navlinks a:hover{ color:var(--ink); }
+  .nav-right{ display:flex; align-items:center; gap:14px; flex:none; }
+  .nav .btn{ padding:10px 18px; font-size:13.5px; }
+  @media (max-width:820px){ .navlinks{ display:none; } }
+
+  /* ---------- language switch ---------- */
+  .langsw{ display:flex; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:100px; padding:3px; flex:none; }
+  .langsw button{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.04em;
+    border:none; background:transparent; color:var(--ink-faint); padding:6px 12px 6px 8px; border-radius:100px; cursor:pointer;
+  }
+  .langsw button[aria-pressed="true"]{ background:linear-gradient(120deg,var(--violet),var(--cyan)); color:#0B0814; }
+  .flag{ width:16px; height:11px; flex:none; border-radius:2px; overflow:hidden; display:inline-block; box-shadow:0 0 0 1px rgba(255,255,255,.16); }
+  .flag svg{ width:100%; height:100%; display:block; }
+  .flag-sm{ width:14px; height:10px; }
+  .strip-place{ display:inline-flex; align-items:center; gap:6px; }
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle{
+    display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:none;
+    background:var(--surface); border:1px solid var(--line); border-radius:100px; color:var(--ink-soft); cursor:pointer;
+  }
+  .theme-toggle:hover{ border-color:var(--violet); color:var(--ink); }
+  .theme-toggle svg{ width:17px; height:17px; }
+  .theme-toggle .i-moon{ display:none; }
+  .theme-toggle[data-mode="light"] .i-sun{ display:none; }
+  .theme-toggle[data-mode="light"] .i-moon{ display:block; }
+
+  /* ---------- hero ---------- */
+  .hero{ padding:88px 0 0; position:relative; overflow:hidden;
+    background:
+      radial-gradient(760px 520px at 88% -10%, var(--glow-1) 0%, transparent 55%),
+      radial-gradient(680px 560px at -6% 60%, var(--glow-2) 0%, transparent 42%);
+  }
+  .hero .wrap{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:flex-start; gap:26px; padding-bottom:56px; }
+  .hero h1{ font-size:clamp(2.2rem,5vw,3.7rem); line-height:1.08; max-width:780px; color:var(--ink); }
+  .hero .sub{ font-size:18px; max-width:56ch; color:var(--ink-soft); }
+  .hero .ctas{ display:flex; gap:14px; flex-wrap:wrap; margin-top:6px; }
+  .hero .stats{ display:flex; gap:44px; margin-top:34px; flex-wrap:wrap; }
+  .hero .stat b{ display:block; font-family:'Orbitron',sans-serif; font-size:26px; color:var(--ink); line-height:1.2; }
+  .hero .stat span{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); }
+
+  /* ---------- border strip (triple-frontier motif) ---------- */
+  .border-strip{
+    position:relative; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    background:
+      repeating-linear-gradient(135deg, rgba(124,92,255,.10) 0 10px, rgba(34,211,238,.06) 10px 20px, transparent 20px 32px),
+      var(--surface);
+    padding:15px 0; overflow:hidden;
+  }
+  .border-strip .wrap{ display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:10px 18px;
+    font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft); text-align:center; }
+  .border-strip .dot{ color:var(--cyan-text); }
+
+  /* ---------- services ---------- */
+  .services{ padding:100px 0 96px; }
+  .services-head{ max-width:640px; margin-bottom:48px; }
+  .services-head h2{ font-size:clamp(1.6rem,3.2vw,2.3rem); margin-top:8px; }
+  .grid-services{ display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; }
+  .svc{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md); padding:26px 24px;
+    display:flex; flex-direction:column; gap:13px;
+  }
+  .svc .ic{
+    width:48px; height:48px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, rgba(124,92,255,.22), rgba(34,211,238,.16)); border:1px solid var(--line);
+  }
+  .svc .ic svg{ width:22px; height:22px; }
+  .svc h3{ font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:17.5px; color:var(--ink); }
+  .svc p{ font-size:14.2px; }
+
+  /* ---------- CRM product section ---------- */
+  .product{ padding:96px 0; background:var(--surface); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .product .inner{ display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; }
+  @media (max-width:920px){ .product .inner{ grid-template-columns:1fr; } }
+  .product h2{ font-size:clamp(1.7rem,3.4vw,2.5rem); margin-top:8px; }
+  .product .lead{ font-size:15.5px; margin-top:18px; max-width:50ch; }
+  .featlist{ list-style:none; margin:30px 0 0; padding:0; display:flex; flex-direction:column; gap:18px; }
+  .featlist li{ padding-left:18px; border-left:2px solid var(--line); }
+  .featlist strong{ display:block; font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:15px; color:var(--ink); margin-bottom:3px; }
+  .featlist p{ font-size:13.8px; }
+  .product .ctas{ margin-top:32px; display:flex; gap:12px; flex-wrap:wrap; }
+
+  /* ---- mock product panel ---- */
+  .panel{ background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; box-shadow:0 30px 70px -30px var(--shadow-panel); }
+  .panel-chrome{ display:flex; align-items:center; gap:8px; padding:13px 16px; border-bottom:1px solid var(--line); }
+  .panel-chrome .dot{ width:9px; height:9px; border-radius:50%; background:var(--line); }
+  .panel-chrome .lbl{ margin-left:8px; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); letter-spacing:.05em; }
+  .panel-body{ display:grid; grid-template-columns:1fr 1.3fr; min-height:270px; }
+  .panel-list{ border-right:1px solid var(--line); padding:10px; display:flex; flex-direction:column; gap:6px; }
+  .panel-row{ display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:10px; }
+  .panel-row.active{ background:rgba(124,92,255,.14); border:1px solid rgba(124,92,255,.35); }
+  .panel-avatar{ width:24px; height:24px; border-radius:50%; flex:none; background:linear-gradient(135deg,var(--violet),var(--cyan)); }
+  .panel-row .meta{ min-width:0; }
+  .panel-row .name{ font-size:12.5px; font-weight:600; color:var(--ink); }
+  .panel-row .snip{ font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .panel-tag{ margin-left:auto; flex:none; font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.04em; text-transform:uppercase;
+    padding:3px 7px; border-radius:100px; border:1px solid var(--line); color:var(--ink-faint); }
+  .panel-chat{ padding:16px; display:flex; flex-direction:column; gap:9px; justify-content:flex-end; }
+  .bubble{ max-width:78%; padding:9px 13px; border-radius:14px; font-size:12.5px; line-height:1.45; }
+  .bubble.in{ align-self:flex-start; background:var(--surface); border:1px solid var(--line); color:var(--ink-soft); border-bottom-left-radius:4px; }
+  .bubble.out{ align-self:flex-end; background:linear-gradient(120deg,#1EBE5C,#17A650); color:var(--wa-ink); border-bottom-right-radius:4px; font-weight:600; }
+  .panel-foot{ display:flex; gap:8px; padding:12px 16px; border-top:1px solid var(--line); flex-wrap:wrap; }
+  .panel-foot span{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.05em; text-transform:uppercase; color:var(--violet-2);
+    background:rgba(124,92,255,.12); border:1px solid rgba(124,92,255,.3); padding:4px 9px; border-radius:100px; }
+
+  /* ---------- why us ---------- */
+  .why{ padding:96px 0; }
+  .why-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:36px; margin-top:44px; }
+  .why-item{ display:flex; flex-direction:column; gap:10px; }
+  .why-item .tag{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:700; letter-spacing:.14em; color:var(--cyan-text); }
+  .why-item h3{ font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:18.5px; color:var(--ink); }
+  .why-item p{ font-size:14.2px; }
+
+  /* ---------- contact ---------- */
+  .contact{ padding:100px 0 88px; position:relative; overflow:hidden; background:var(--surface); border-top:1px solid var(--line);
+    background: radial-gradient(680px 520px at 12% 0%, var(--glow-1) 0%, transparent 55%), var(--surface);
+  }
+  .contact .inner{ display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:start; position:relative; z-index:1; }
+  .contact h2{ font-size:clamp(1.8rem,3.6vw,2.5rem); margin-top:8px; max-width:15ch; }
+  .contact .lead{ font-size:16px; margin-top:18px; max-width:44ch; }
+  .actions{ display:flex; flex-direction:column; gap:22px; }
+  .action-group{ display:flex; flex-direction:column; gap:12px; }
+  .group-label{ font-family:'IBM Plex Mono',monospace; font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--cyan-text); display:flex; align-items:center; gap:8px; }
+  .action{ display:flex; align-items:center; gap:16px; padding:18px 20px; border-radius:18px; border:1px solid var(--line); }
+  .action .ic{ width:44px; height:44px; border-radius:12px; flex:none; display:flex; align-items:center; justify-content:center; }
+  .action .ic svg{ width:20px; height:20px; }
+  .action .body{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .action .lbl{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; opacity:.75; }
+  .action .val{ font-family:'IBM Plex Sans',sans-serif; font-weight:700; font-size:16.5px; }
+  .action .go{ margin-left:auto; font-size:19px; opacity:.9; }
+  .action-wa{ background:linear-gradient(120deg,#1EBE5C,#17A650); border-color:transparent; }
+  .action-wa .ic{ background:rgba(255,255,255,.2); }
+  .action-wa .lbl, .action-wa .val, .action-wa .go{ color:var(--wa-ink); }
+  .action-mail{ background:var(--surface-2); }
+  .action-mail .ic{ background:linear-gradient(135deg, rgba(124,92,255,.22), rgba(34,211,238,.18)); border:1px solid var(--line); }
+  .action-mail .lbl{ color:var(--ink-faint); } .action-mail .val{ color:var(--ink); word-break:break-word; } .action-mail .go{ color:var(--ink-faint); }
+  .action-ig{ background:var(--surface-2); }
+  .action-ig .ic{ background:linear-gradient(135deg,#FEDA75,#D62976,#4F5BD5); }
+  .action-ig .lbl{ color:var(--ink-faint); } .action-ig .val{ color:var(--ink); } .action-ig .go{ color:var(--ink-faint); }
+  .action-loc{ background:var(--surface-2); flex-direction:column; align-items:stretch; gap:12px; }
+  .action-loc .row{ display:flex; align-items:center; gap:16px; }
+  .action-loc .ic{ background:linear-gradient(135deg,var(--violet),var(--cyan)); }
+  .action-loc .lbl{ color:var(--ink-faint); } .action-loc .val{ color:var(--ink); } .action-loc .go{ color:var(--ink-faint); }
+  .action-loc .addr{ font-family:'IBM Plex Sans',sans-serif; font-size:14px; line-height:1.6; color:var(--ink-soft); padding-left:60px; }
+  @media (max-width:820px){ .contact .inner{ grid-template-columns:1fr; } }
+
+  /* ---------- footer ---------- */
+  footer{ border-top:1px solid var(--line); padding:52px 0 max(36px, env(safe-area-inset-bottom,0px)); }
+  .foot-grid{ display:flex; justify-content:space-between; gap:40px; flex-wrap:wrap; }
+  .foot-brand{ display:flex; flex-direction:column; gap:10px; }
+  .foot-brand-row{ display:flex; align-items:center; gap:12px; }
+  .foot-brand svg{ width:28px; height:28px; }
+  .foot-brand .word{ font-family:'Orbitron',sans-serif; font-weight:800; font-size:15.5px; }
+  .foot-tagline{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); }
+  .foot-links{ display:flex; gap:56px; flex-wrap:wrap; }
+  .foot-col{ display:flex; flex-direction:column; gap:10px; }
+  .foot-col .lbl{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:4px; }
+  .foot-col a, .foot-col span{ font-size:14px; color:var(--ink-soft); }
+  .foot-bottom{ margin-top:44px; padding-top:22px; border-top:1px solid var(--line); display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<!-- shared icon gradient, referenced by every line-art icon on the page -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="g1" x1="15%" y1="5%" x2="90%" y2="95%">
+      <stop offset="0%" stop-color="#8B6BFF"/><stop offset="55%" stop-color="#6C4CF1"/><stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6C4CF1"/><stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:var(--icon-a)"/><stop offset="100%" style="stop-color:var(--icon-b)"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<header class="nav">
+  <div class="nav-row">
+    <a class="brand" href="#top">
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M145.0 153.6 A70 70 0 1 1 145.0 46.4" fill="none" stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+        <line x1="145.0" y1="153.6" x2="178" y2="153.6" stroke="url(#g2)" stroke-width="10" stroke-linecap="round"/>
+        <line x1="145.0" y1="46.4" x2="178" y2="46.4" stroke="url(#g2)" stroke-width="10" stroke-linecap="round"/>
+        <circle cx="181" cy="153.6" r="9" fill="#22D3EE"/>
+        <circle cx="181" cy="46.4" r="9" fill="#22D3EE"/>
+        <circle cx="100" cy="100" r="7" fill="#22D3EE"/>
+      </svg>
+      <span class="word">CONFIAN<span class="z">Z</span>A</span>
+    </a>
+    <nav class="navlinks">
+      <a href="#servicios" data-i18n="nav.services">Servicios</a>
+      <a href="#crm" data-i18n="nav.product">CRM</a>
+      <a href="#nosotros" data-i18n="nav.about">Nosotros</a>
+      <a href="#contacto" data-i18n="nav.contact">Contacto</a>
+    </nav>
+    <div class="nav-right">
+      <div class="langsw" role="group" aria-label="Idioma / Idioma">
+        <button type="button" id="langEs" aria-pressed="true">
+          <span class="flag"><svg viewBox="0 0 20 14" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="14" fill="#fff"/><rect width="20" height="4.67" fill="#D52B1E"/><rect y="9.33" width="20" height="4.67" fill="#0038A8"/></svg></span>ES
+        </button>
+        <button type="button" id="langPt" aria-pressed="false">
+          <span class="flag"><svg viewBox="0 0 20 14" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="14" fill="#009739"/><polygon points="10,2 18,7 10,12 2,7" fill="#FEDD00"/><circle cx="10" cy="7" r="3" fill="#002776"/></svg></span>PT
+        </button>
+      </div>
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Alternar tema claro/escuro">
+        <svg class="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2.5 12h3M18.5 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>
+        <svg class="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn btn-primary" id="waNavBtn" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+        <span data-i18n="nav.wa">WhatsApp</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero glowbg">
+    <div class="wrap">
+      <div class="eyebrow" data-i18n="hero.eyebrow">Empresa de tecnología · Ciudad del Este, PY</div>
+      <h1 data-i18n-html="hero.title">Conectamos tu negocio con la <span class="z">tecnología</span> correcta</h1>
+      <p class="sub" data-i18n="hero.sub">Soporte a computadoras y redes, seguridad electrónica, venta de equipos y nuestro propio CRM, con clientes, productos, proveedores, stock e informes de ventas.</p>
+      <div class="ctas">
+        <a class="btn btn-primary" id="waHeroBtn" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+          <span data-i18n="hero.ctaWa">Hablar por WhatsApp</span>
+        </a>
+        <a class="btn btn-ghost" href="#crm" data-i18n="hero.ctaProduct">Ver nuestro CRM ↓</a>
+      </div>
+      <div class="stats" id="heroStats"></div>
+    </div>
+  </section>
+
+  <div class="border-strip">
+    <div class="wrap">
+      <span class="strip-place"><span class="flag flag-sm"><svg viewBox="0 0 20 14" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="14" fill="#fff"/><rect width="20" height="4.67" fill="#D52B1E"/><rect y="9.33" width="20" height="4.67" fill="#0038A8"/></svg></span>Ciudad del Este</span><span class="dot">·</span><span class="strip-place"><span class="flag flag-sm"><svg viewBox="0 0 20 14" xmlns="http://www.w3.org/2000/svg"><rect width="20" height="14" fill="#009739"/><polygon points="10,2 18,7 10,12 2,7" fill="#FEDD00"/><circle cx="10" cy="7" r="3" fill="#002776"/></svg></span>Foz do Iguaçu</span><span class="dot">·</span><span>Puerto Iguazú</span>
+      <span class="dot">—</span><span data-i18n="strip.frontier">Triple Frontera</span>
+      <span class="dot">·</span><span data-i18n="strip.langs">Atendemos en español y portugués</span>
+    </div>
+  </div>
+
+  <section class="services" id="servicios">
+    <div class="wrap">
+      <div class="services-head">
+        <div class="eyebrow" data-i18n="services.eyebrow">Qué hacemos</div>
+        <h2 data-i18n="services.title">Un equipo, todos los servicios que tu negocio necesita</h2>
+      </div>
+      <div class="grid-services" id="servicesGrid"></div>
+    </div>
+  </section>
+
+  <section class="product" id="crm">
+    <div class="wrap inner">
+      <div>
+        <div class="eyebrow" data-i18n="product.eyebrow">Nuestro producto</div>
+        <h2 data-i18n="product.title">El CRM que desarrollamos internamente</h2>
+        <p class="lead" data-i18n="product.lead">Un sistema de gestión comercial hecho por nuestro propio equipo — clientes, productos, proveedores, stock e informes de ventas, con atención por WhatsApp e IA integrada.</p>
+        <ul class="featlist" id="featList"></ul>
+        <div class="ctas">
+          <a class="btn btn-primary" id="waProductBtn" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+            <span data-i18n="product.ctaDemo">Pedir una demo</span>
+          </a>
+        </div>
+      </div>
+      <div class="panel" aria-hidden="true">
+        <div class="panel-chrome">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="lbl" data-i18n="product.panelLbl">BANDEJA · 3 CONVERSACIONES</span>
+        </div>
+        <div class="panel-body">
+          <div class="panel-list">
+            <div class="panel-row active">
+              <div class="panel-avatar"></div>
+              <div class="meta"><div class="name">María G.</div><div class="snip" data-i18n="product.snip1">precio de instalación?</div></div>
+              <span class="panel-tag" data-i18n="product.tag1">Ventas</span>
+            </div>
+            <div class="panel-row">
+              <div class="panel-avatar"></div>
+              <div class="meta"><div class="name">Carlos R.</div><div class="snip" data-i18n="product.snip2">router sigue sin señal</div></div>
+              <span class="panel-tag" data-i18n="product.tag2">Soporte</span>
+            </div>
+            <div class="panel-row">
+              <div class="panel-avatar"></div>
+              <div class="meta"><div class="name">Lu Comércio</div><div class="snip" data-i18n="product.snip3">nota fiscal do mês</div></div>
+              <span class="panel-tag" data-i18n="product.tag3">Fiscal</span>
+            </div>
+          </div>
+          <div class="panel-chat">
+            <div class="bubble in" data-i18n="product.chatIn">Hola! ¿Cuánto sale instalar la red en el local?</div>
+            <div class="bubble out" data-i18n="product.chatOut">¡Hola María! 👋 Te paso el presupuesto ahora mismo.</div>
+          </div>
+        </div>
+        <div class="panel-foot">
+          <span data-i18n="product.chipMulti">Multi-empresa</span>
+          <span data-i18n="product.chipFlow">Flow builder</span>
+          <span data-i18n="product.chipBill">Facturación auto</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="why" id="nosotros">
+    <div class="wrap">
+      <div class="eyebrow" data-i18n="why.eyebrow">Por qué Confianza Technologies</div>
+      <h2 style="font-size:clamp(1.6rem,3.2vw,2.3rem)" data-i18n="why.title">Tecnología con nombre y apellido</h2>
+      <div class="why-grid" id="whyGrid"></div>
+    </div>
+  </section>
+
+  <section class="contact" id="contacto">
+    <div class="wrap inner">
+      <div>
+        <div class="eyebrow" data-i18n="contact.eyebrow">Hablemos</div>
+        <h2 data-i18n-html="contact.title">¿Listo para <span class="z">empezar</span>?</h2>
+        <p class="lead" data-i18n="contact.lead">Contanos qué necesita tu negocio — desde un equipo hasta tu propio CRM — y te respondemos directo por WhatsApp.</p>
+      </div>
+      <div class="actions">
+        <a class="action action-mail" href="mailto:confianzatechnologies@gmail.com">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m3.5 6.5 8.5 7 8.5-7"/></svg></div>
+          <div class="body"><span class="lbl" data-i18n="contact.emailLbl">Email</span><span class="val">confianzatechnologies@gmail.com</span></div>
+          <div class="go">✉️</div>
+        </a>
+        <a class="action action-ig" href="https://instagram.com/confiancatechnologies" target="_blank" rel="noopener">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="1" fill="url(#iconGrad)" stroke="none"/></svg></div>
+          <div class="body"><span class="lbl">Instagram</span><span class="val">@confiancatechnologies</span></div>
+          <div class="go">📸</div>
+        </a>
+
+        <div class="action-group">
+          <div class="group-label" data-i18n="contact.groupPy">🇵🇾 Matriz — Ciudad del Este, PY</div>
+          <a class="action action-wa" id="waContactAction" target="_blank" rel="noopener">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg></div>
+            <div class="body"><span class="lbl">WhatsApp 🇵🇾</span><span class="val">+595 986 283927</span></div>
+            <div class="go">📱</div>
+          </a>
+          <a class="action action-loc" href="https://www.google.com/maps/search/?api=1&query=Barrio+San+Alfredo+Calle+5+Lote+13+Manzana+008+Ciudad+del+Este+Paraguay" target="_blank" rel="noopener">
+            <div class="row">
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg></div>
+              <div class="body"><span class="lbl" data-i18n="contact.locLbl">Ubicación</span><span class="val">Ciudad del Este</span></div>
+              <div class="go">📍</div>
+            </div>
+            <div class="addr">Barrio San Alfredo, Calle 5 – Lote N° 13, Manzana 008</div>
+          </a>
+        </div>
+
+        <div class="action-group">
+          <div class="group-label" data-i18n="contact.groupBr">🇧🇷 Sede — Salvador, BR</div>
+          <a class="action action-wa" id="waContactActionBr" target="_blank" rel="noopener">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg></div>
+            <div class="body"><span class="lbl">WhatsApp 🇧🇷</span><span class="val">+55 71 99959-1467</span></div>
+            <div class="go">📱</div>
+          </a>
+          <a class="action action-loc" href="https://www.google.com/maps/search/?api=1&query=Rua+D%C3%A1lias+Lil%C3%A1s+298+Jardim+das+Margaridas+Salvador+BA+Brasil" target="_blank" rel="noopener">
+            <div class="row">
+              <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/></svg></div>
+              <div class="body"><span class="lbl" data-i18n="contact.locLblBr">Sede Brasil</span><span class="val">Salvador, BA</span></div>
+              <div class="go">📍</div>
+            </div>
+            <div class="addr">Rua Dálias Lilás, 298 – Jardim das Margaridas, CEP 41.502-420</div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <div class="foot-brand-row">
+          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+            <path d="M145.0 153.6 A70 70 0 1 1 145.0 46.4" fill="none" stroke="url(#g1)" stroke-width="22" stroke-linecap="round"/>
+            <line x1="145.0" y1="153.6" x2="178" y2="153.6" stroke="url(#g2)" stroke-width="10" stroke-linecap="round"/>
+            <line x1="145.0" y1="46.4" x2="178" y2="46.4" stroke="url(#g2)" stroke-width="10" stroke-linecap="round"/>
+            <circle cx="181" cy="153.6" r="9" fill="#22D3EE"/>
+            <circle cx="181" cy="46.4" r="9" fill="#22D3EE"/>
+            <circle cx="100" cy="100" r="7" fill="#22D3EE"/>
+          </svg>
+          <span class="word">CONFIAN<span class="z">Z</span>A</span>
+        </div>
+        <span class="foot-tagline">REDES · SISTEMAS · SITES · CRM · WHITE LABEL</span>
+      </div>
+      <div class="foot-links">
+        <div class="foot-col">
+          <span class="lbl" data-i18n="footer.services">Servicios</span>
+          <a href="#servicios" data-i18n="footer.link1">Venta de equipos</a>
+          <a href="#servicios" data-i18n="footer.link2">Soporte técnico</a>
+          <a href="#servicios" data-i18n="footer.link3">Seguridad electrónica</a>
+          <a href="#crm" data-i18n="footer.link4">CRM</a>
+          <a href="#servicios" data-i18n="footer.link5">Sistemas de IA</a>
+        </div>
+        <div class="foot-col">
+          <span class="lbl" data-i18n="footer.contact">Contacto</span>
+          <a href="https://wa.me/595986283927" target="_blank" rel="noopener">🇵🇾 +595 986 283927</a>
+          <a href="https://wa.me/5571999591467" target="_blank" rel="noopener">🇧🇷 +55 71 99959-1467</a>
+          <a href="mailto:confianzatechnologies@gmail.com">✉️ confianzatechnologies@gmail.com</a>
+          <a href="https://instagram.com/confiancatechnologies" target="_blank" rel="noopener">📸 @confiancatechnologies</a>
+          <span>📍 Ciudad del Este, PY · Salvador, BR</span>
+          <span>RUC 9504681-0</span>
+        </div>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 CONFIANZA TECHNOLOGIES · RUC 9504681-0</span>
+      <span data-i18n="footer.addr">BARRIO SAN ALFREDO · CALLE 5 · CIUDAD DEL ESTE</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var PHONE = "595986283927";
+  var PHONE_BR = "5571999591467";
+
+  var ICONS = {
+    network: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.1"/><circle cx="5" cy="6" r="1.8"/><circle cx="19" cy="6" r="1.8"/><circle cx="12" cy="19" r="1.8"/><path d="M10.4 10.6 6.2 7.2M13.6 10.6l4.2-3.4M12 14v3"/></svg>',
+    monitor: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+    headset: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 14v-2a7 7 0 0 1 14 0v2"/><rect x="3.2" y="13" width="3.6" height="6" rx="1.7"/><rect x="17.2" y="13" width="3.6" height="6" rx="1.7"/><path d="M19 19v1a2 2 0 0 1-2 2h-2.2"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3.2 3.2 3.2 12.8 0 16M12 4c-3.2 3.2-3.2 12.8 0 16"/></svg>',
+    tag: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 3h6a2 2 0 0 1 2 2v6a2 2 0 0 1-.6 1.4l-8 8a2 2 0 0 1-2.8 0l-6-6a2 2 0 0 1 0-2.8l8-8A2 2 0 0 1 11 3Z"/><circle cx="16.4" cy="7.6" r="1.2" fill="url(#iconGrad)" stroke="none"/></svg>',
+    chart: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="13" width="3.6" height="7" rx="1"/><rect x="10.2" y="8" width="3.6" height="12" rx="1"/><rect x="16.4" y="4.5" width="3.6" height="15.5" rx="1"/></svg>',
+    equip: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5 12 3 3 7.5 12 12l9-4.5Z"/><path d="M3 7.5V16l9 4.5 9-4.5V7.5"/><path d="M12 12v8.5"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="url(#iconGrad)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2 19 6v5.5c0 4.6-3 7.9-7 8.8-4-.9-7-4.2-7-8.8V6l7-2.8Z"/><path d="m9 12 2 2 4-4.2"/></svg>',
+    ai: '<svg viewBox="0 0 24 24" fill="url(#iconGrad)" stroke="none"><path d="M12 2c.7 4.4 2.6 6.3 7 7-4.4.7-6.3 2.6-7 7-.7-4.4-2.6-6.3-7-7 4.4-.7 6.3-2.6 7-7Z"/><path d="M19 15.5c.35 1.8 1.15 2.6 3 3-1.85.4-2.65 1.2-3 3-.35-1.8-1.15-2.6-3-3 1.85-.4 2.65-1.2 3-3Z"/></svg>'
+  };
+
+  var DATA = {
+    es: {
+      nav:{ services:"Servicios", product:"CRM", about:"Nosotros", contact:"Contacto", wa:"WhatsApp" },
+      hero:{
+        eyebrow:"Matriz en Ciudad del Este, PY · Sede en Salvador, BR",
+        title:'Tecnología, equipos e <span class="z">inteligencia artificial</span> para vender más',
+        sub:"Soporte a computadoras y redes, seguridad electrónica, venta de equipos y nuestro propio CRM, con clientes, productos, proveedores, stock e informes de ventas.",
+        ctaWa:"Hablar por WhatsApp", ctaProduct:"Ver nuestro CRM ↓",
+        waMsg:"Hola, vi su sitio y quiero más información",
+        stats:[ {b:"9",s:"Áreas de servicio"}, {b:"2",s:"Países · PY y BR"}, {b:"CRM",s:"100% propio"} ]
+      },
+      strip:{ frontier:"Triple Frontera", langs:"Atendemos en español y portugués" },
+      services:{
+        eyebrow:"Qué hacemos", title:"Un equipo, todos los servicios que tu negocio necesita",
+        items:[
+          {icon:"equip", title:"Venta de equipos", desc:"Computadoras, redes, servidores y equipos de TI, con soporte completo desde la compra hasta la instalación."},
+          {icon:"network", title:"Redes de computadoras", desc:"Diseño, cableado e instalación de redes cableadas e inalámbricas para oficinas, comercios e industrias."},
+          {icon:"headset", title:"Soporte a computadoras y redes", desc:"Atención remota y presencial para resolver problemas de hardware, software y conectividad rápidamente."},
+          {icon:"monitor", title:"Montaje & mantenimiento de PCs", desc:"Armado de equipos a medida, mantenimiento preventivo y correctivo, formateo y optimización de rendimiento."},
+          {icon:"shield", title:"Seguridad electrónica", desc:"Cámaras CCTV, control de acceso y alarmas — proyecto, instalación y monitoreo."},
+          {icon:"ai", title:"Sistemas de Inteligencia Artificial", desc:"Automatización y asistentes de IA integrados a la atención y a la gestión de tu negocio."},
+          {icon:"globe", title:"Creación de sitios web", desc:"Sitios institucionales, landing pages y tiendas online, rápidos, responsivos y listos para vender."},
+          {icon:"tag", title:"Sistemas white label", desc:"Plataformas listas para revender con tu propia marca — vos facturás, nosotros mantenemos la base técnica."},
+          {icon:"chart", title:"Dashboards & BI", desc:"Paneles de datos e inteligencia de negocio para decidir con información real, no con suposiciones."}
+        ]
+      },
+      product:{
+        eyebrow:"Nuestro producto", title:"El CRM que desarrollamos internamente",
+        lead:"Un sistema de gestión comercial hecho por nuestro propio equipo — clientes, productos, proveedores, stock e informes de ventas, con atención por WhatsApp e IA integrada.",
+        ctaDemo:"Pedir una demo", waMsg:"Hola, vi el sitio y quiero una demo del CRM",
+        panelLbl:"BANDEJA · 3 CONVERSACIONES",
+        snip1:"¿precio de instalación?", tag1:"Ventas",
+        snip2:"router sigue sin señal", tag2:"Soporte",
+        snip3:"¿sin stock ese producto?", tag3:"Stock",
+        chatIn:"Hola! ¿Cuánto sale instalar la red en el local?",
+        chatOut:"¡Hola María! 👋 Te paso el presupuesto ahora mismo.",
+        chipMulti:"Stock en tiempo real", chipFlow:"IA integrada", chipBill:"Informes de ventas",
+        feats:[
+          {t:"Clientes", d:"Ficha completa de cada cliente, con historial de compras y conversaciones."},
+          {t:"Productos & stock", d:"Catálogo de productos con control de stock en tiempo real."},
+          {t:"Proveedores", d:"Registro de proveedores e historial de compras, todo en un mismo lugar."},
+          {t:"Informes de ventas", d:"Reportes de facturación, ticket promedio y desempeño por vendedor."},
+          {t:"Atención con IA", d:"Respuestas automáticas e IA integrada para agilizar el primer contacto."},
+          {t:"WhatsApp multicanal", d:"Varios números por Baileys o por la API Oficial de Meta, en una sola bandeja."}
+        ]
+      },
+      why:{
+        eyebrow:"Por qué Confianza Technologies", title:"Tecnología con nombre y apellido",
+        items:[
+          {tag:"LOCAL", t:"Presencia en CDE", d:"Estamos en Ciudad del Este — atención rápida, presencial cuando hace falta, sin depender de un call center."},
+          {tag:"DIRECTO", t:"Soporte directo", d:"Hablás con quien resuelve, por WhatsApp, sin menús ni esperas interminables."},
+          {tag:"A MEDIDA", t:"Soluciones a medida", d:"No vendemos paquetes cerrados — el sistema, la red o el sitio se arman según tu operación real."},
+          {tag:"PROPIO", t:"Tecnología propia", d:"Nuestro CRM es nuestro: lo desarrollamos, alojamos y mantenemos acá, sin depender de terceros."}
+        ]
+      },
+      contact:{
+        eyebrow:"Hablemos", title:'¿Listo para <span class="z">empezar</span>?',
+        lead:"Contanos qué necesita tu negocio — desde un equipo hasta tu propio CRM — y te respondemos directo por WhatsApp.",
+        waMsg:"Hola, vi su sitio y quiero más información", locLbl:"Ubicación", emailLbl:"Email",
+        groupPy:"🇵🇾 Matriz — Ciudad del Este, PY", groupBr:"🇧🇷 Sede — Salvador, BR",
+        waMsgBr:"Olá, vi o site e quero mais informações", locLblBr:"Sede Brasil"
+      },
+      footer:{ services:"Servicios", link1:"Venta de equipos", link2:"Soporte técnico", link3:"Seguridad electrónica", link4:"CRM", link5:"Sistemas de IA",
+        contact:"Contacto", addr:"CIUDAD DEL ESTE, PY · SALVADOR, BR" }
+    },
+    pt: {
+      nav:{ services:"Serviços", product:"CRM", about:"Sobre nós", contact:"Contato", wa:"WhatsApp" },
+      hero:{
+        eyebrow:"Matriz em Ciudad del Este, PY · Sede em Salvador, BR",
+        title:'Tecnologia, equipamentos e <span class="z">inteligência artificial</span> para vender mais',
+        sub:"Suporte a computadores e redes, segurança eletrônica, venda de equipamentos e o nosso próprio CRM, com clientes, produtos, fornecedores, estoque e relatórios de vendas.",
+        ctaWa:"Falar no WhatsApp", ctaProduct:"Ver nosso CRM ↓",
+        waMsg:"Olá, vi o site de vocês e quero mais informações",
+        stats:[ {b:"9",s:"Áreas de atuação"}, {b:"2",s:"Países · PY e BR"}, {b:"CRM",s:"100% próprio"} ]
+      },
+      strip:{ frontier:"Tríplice Fronteira", langs:"Atendemos em espanhol e português" },
+      services:{
+        eyebrow:"O que fazemos", title:"Um time, todos os serviços que seu negócio precisa",
+        items:[
+          {icon:"equip", title:"Venda de equipamentos", desc:"Computadores, redes, servidores e equipamentos de TI, com suporte completo da compra à instalação."},
+          {icon:"network", title:"Redes de computadores", desc:"Projeto, cabeamento e instalação de redes cabeadas e sem fio para escritórios, comércios e indústrias."},
+          {icon:"headset", title:"Suporte a computadores e redes", desc:"Atendimento remoto e presencial para resolver problemas de hardware, software e conectividade rapidamente."},
+          {icon:"monitor", title:"Montagem & manutenção de PCs", desc:"Montagem de equipamentos sob medida, manutenção preventiva e corretiva, formatação e otimização de desempenho."},
+          {icon:"shield", title:"Segurança eletrônica", desc:"Câmeras CFTV, controle de acesso e alarmes — projeto, instalação e monitoramento."},
+          {icon:"ai", title:"Sistemas de Inteligência Artificial", desc:"Automação e assistentes de IA integrados ao atendimento e à gestão do seu negócio."},
+          {icon:"globe", title:"Criação de sites", desc:"Sites institucionais, landing pages e lojas virtuais, rápidos, responsivos e prontos para vender."},
+          {icon:"tag", title:"Sistemas white label", desc:"Plataformas prontas para revenda com a sua marca — você fatura, nós mantemos a base técnica."},
+          {icon:"chart", title:"Dashboards & BI", desc:"Painéis de dados e inteligência de negócio para decidir com informação real, não com suposições."}
+        ]
+      },
+      product:{
+        eyebrow:"Nosso produto", title:"O CRM que desenvolvemos internamente",
+        lead:"Um sistema de gestão comercial feito pela nossa própria equipe — clientes, produtos, fornecedores, estoque e relatórios de vendas, com atendimento por WhatsApp e IA integrada.",
+        ctaDemo:"Pedir uma demonstração", waMsg:"Olá, vi o site e quero uma demonstração do CRM",
+        panelLbl:"CAIXA · 3 CONVERSAS",
+        snip1:"preço da instalação?", tag1:"Vendas",
+        snip2:"roteador sem sinal ainda", tag2:"Suporte",
+        snip3:"produto sem estoque?", tag3:"Estoque",
+        chatIn:"Olá! Quanto custa instalar a rede na loja?",
+        chatOut:"Oi María! 👋 Já te envio o orçamento.",
+        chipMulti:"Estoque em tempo real", chipFlow:"IA integrada", chipBill:"Relatórios de vendas",
+        feats:[
+          {t:"Clientes", d:"Cadastro completo de cada cliente, com histórico de compras e conversas."},
+          {t:"Produtos & estoque", d:"Catálogo de produtos com controle de estoque em tempo real."},
+          {t:"Fornecedores", d:"Cadastro de fornecedores e histórico de compras, tudo em um só lugar."},
+          {t:"Relatórios de vendas", d:"Relatórios de faturamento, ticket médio e desempenho por vendedor."},
+          {t:"Atendimento com IA", d:"Respostas automáticas e IA integrada para agilizar o primeiro contato."},
+          {t:"WhatsApp multicanal", d:"Vários números via Baileys ou pela API Oficial da Meta, em uma única caixa."}
+        ]
+      },
+      why:{
+        eyebrow:"Por que Confianza Technologies", title:"Tecnologia com nome e sobrenome",
+        items:[
+          {tag:"LOCAL", t:"Presença em CDE", d:"Estamos em Ciudad del Este — atendimento rápido, presencial quando necessário, sem depender de call center."},
+          {tag:"DIRETO", t:"Suporte direto", d:"Você fala com quem resolve, pelo WhatsApp, sem menus nem esperas intermináveis."},
+          {tag:"SOB MEDIDA", t:"Soluções sob medida", d:"Não vendemos pacotes fechados — o sistema, a rede ou o site são montados conforme sua operação real."},
+          {tag:"PRÓPRIO", t:"Tecnologia própria", d:"O nosso CRM é nosso: desenvolvemos, hospedamos e mantemos aqui, sem depender de terceiros."}
+        ]
+      },
+      contact:{
+        eyebrow:"Vamos conversar", title:'Pronto para <span class="z">começar</span>?',
+        lead:"Conte o que seu negócio precisa — de um equipamento até o seu próprio CRM — e respondemos direto pelo WhatsApp.",
+        waMsg:"Olá, vi o site de vocês e quero mais informações", locLbl:"Localização", emailLbl:"E-mail",
+        groupPy:"🇵🇾 Matriz — Ciudad del Este, PY", groupBr:"🇧🇷 Sede — Salvador, BR",
+        waMsgBr:"Olá, vi o site e quero mais informações", locLblBr:"Sede Brasil"
+      },
+      footer:{ services:"Serviços", link1:"Venda de equipamentos", link2:"Suporte técnico", link3:"Segurança eletrônica", link4:"CRM", link5:"Sistemas de IA",
+        contact:"Contato", addr:"CIUDAD DEL ESTE, PY · SALVADOR, BR" }
+    }
+  };
+
+  function waHref(msg, phone){ return "https://wa.me/" + (phone || PHONE) + "?text=" + encodeURIComponent(msg); }
+
+  function buildServices(list){
+    return list.map(function(it){
+      return '<div class="svc"><div class="ic">'+ICONS[it.icon]+'</div><h3>'+it.title+'</h3><p>'+it.desc+'</p></div>';
+    }).join('');
+  }
+  function buildFeats(list){
+    return list.map(function(it){ return '<li><strong>'+it.t+'</strong><p>'+it.d+'</p></li>'; }).join('');
+  }
+  function buildWhy(list){
+    return list.map(function(it){
+      return '<div class="why-item"><span class="tag">'+it.tag+'</span><h3>'+it.t+'</h3><p>'+it.d+'</p></div>';
+    }).join('');
+  }
+  function buildStats(list){
+    return list.map(function(s){ return '<div class="stat"><b>'+s.b+'</b><span>'+s.s+'</span></div>'; }).join('');
+  }
+
+  function applyText(root, d, prefix){
+    var nodes = root.querySelectorAll('[data-i18n]');
+    for (var i=0;i<nodes.length;i++){
+      var key = nodes[i].getAttribute('data-i18n');
+      var val = key.split('.').reduce(function(o,k){ return o && o[k]; }, d);
+      if (typeof val === 'string') nodes[i].textContent = val;
+    }
+    var hnodes = root.querySelectorAll('[data-i18n-html]');
+    for (var j=0;j<hnodes.length;j++){
+      var hkey = hnodes[j].getAttribute('data-i18n-html');
+      var hval = hkey.split('.').reduce(function(o,k){ return o && o[k]; }, d);
+      if (typeof hval === 'string') hnodes[j].innerHTML = hval;
+    }
+  }
+
+  function render(lang){
+    var d = DATA[lang] || DATA.es;
+    document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'es-PY';
+    applyText(document, d);
+
+    document.getElementById('heroStats').innerHTML = buildStats(d.hero.stats);
+    document.getElementById('servicesGrid').innerHTML = buildServices(d.services.items);
+    document.getElementById('featList').innerHTML = buildFeats(d.product.feats);
+    document.getElementById('whyGrid').innerHTML = buildWhy(d.why.items);
+
+    document.getElementById('waNavBtn').href = waHref(d.hero.waMsg);
+    document.getElementById('waHeroBtn').href = waHref(d.hero.waMsg);
+    document.getElementById('waContactAction').href = waHref(d.contact.waMsg);
+    document.getElementById('waContactActionBr').href = waHref(d.contact.waMsgBr, PHONE_BR);
+    document.getElementById('waProductBtn').href = waHref(d.product.waMsg);
+
+    document.getElementById('langEs').setAttribute('aria-pressed', String(lang === 'es'));
+    document.getElementById('langPt').setAttribute('aria-pressed', String(lang === 'pt'));
+
+    try { localStorage.setItem('confianza-lang', lang); } catch(e){}
+  }
+
+  var initial = 'pt';
+  try {
+    var saved = localStorage.getItem('confianza-lang');
+    if (saved === 'es' || saved === 'pt') initial = saved;
+  } catch(e){}
+
+  document.getElementById('langEs').addEventListener('click', function(){ render('es'); });
+  document.getElementById('langPt').addEventListener('click', function(){ render('pt'); });
+
+  render(initial);
+
+  // ---- theme toggle (explicit light/dark, falls back to OS preference) ----
+  (function(){
+    var root = document.documentElement;
+    var toggle = document.getElementById('themeToggle');
+
+    function systemPrefersLight(){
+      try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches; }
+      catch(e){ return false; }
+    }
+    function applyMode(mode, persist){
+      if (mode === 'light' || mode === 'dark') root.setAttribute('data-theme', mode);
+      else root.removeAttribute('data-theme');
+      var effective = mode || (systemPrefersLight() ? 'light' : 'dark');
+      toggle.setAttribute('data-mode', effective);
+      if (persist) { try { localStorage.setItem('confianza-theme', mode); } catch(e){} }
+    }
+
+    var savedTheme = null;
+    try { savedTheme = localStorage.getItem('confianza-theme'); } catch(e){}
+    applyMode(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : null, false);
+
+    toggle.addEventListener('click', function(){
+      var current = toggle.getAttribute('data-mode') === 'light' ? 'light' : 'dark';
+      applyMode(current === 'light' ? 'dark' : 'light', true);
+    });
+  })();
+})();
+</script>
+</body>
+</html>
