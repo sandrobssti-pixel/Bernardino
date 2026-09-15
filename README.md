@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.26 (Etapa 5.1 — Painel RH com cards de resumo e gráficos (candidaturas por status/por vaga), no mesmo estilo do Painel Financeiro; página pública de vagas com cabeçalho estilo "hero" mostrando o nome da empresa e a contagem de vagas abertas)**
+**Versão atual: 2.3.27 (Etapa 5.2 — backup diário automático (banco de dados + arquivos enviados) pro Google Drive do cliente, via `rclone` — script `backup-para-drive.sh`, ver `docs/MANUAL_TECNICO.md`, seção 11)**
 
 ## Documentação
 

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.26
-**Etapa:** 5.1 — Painel RH com cards/gráficos (estilo dashboard) + cabeçalho "hero" na página pública de vagas
+**Versão do documento:** 2.3.27
+**Etapa:** 5.2 — Backup diário automático (banco + arquivos enviados) pro Google Drive via rclone
 **Última atualização:** 2026-09-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1043,3 +1043,79 @@ Quando pedir:
   limpar o histórico do Git — reescrever histórico já publicado é arriscado.
 - Conecte o novo repositório a uma sessão do Claude Code (ou clone normalmente) para dar
   sequência ao trabalho de avaliação/integração do código.
+
+---
+
+## 11. Backup em nuvem (diário, para o Google Drive do cliente)
+
+Script `backup-para-drive.sh`, na raiz do projeto — gera um dump do banco (Postgres,
+compactado) e um `.tar.gz` dos arquivos enviados (`backend/public/`: currículos do
+módulo de RH, mídia recebida/enviada pelo WhatsApp, fotos de perfil etc.) e envia os
+dois pro Google Drive combinado com o cliente, via `rclone`. Não apaga nada — cada
+execução soma um par de arquivos novo (nome com timestamp) na pasta de destino.
+
+**Pasta de destino no Drive (definida pelo cliente):**
+[https://drive.google.com/drive/folders/17fYidSzfl_co2wONMs_XwI1-uCFL5cUQ](https://drive.google.com/drive/folders/17fYidSzfl_co2wONMs_XwI1-uCFL5cUQ)
+
+### 11.1 Configuração inicial (uma vez só, no servidor)
+
+```bash
+# 1. Instalar o rclone
+curl https://rclone.org/install.sh | sudo bash
+
+# 2. Configurar o acesso ao Google Drive (fluxo interativo)
+rclone config
+```
+
+No assistente do `rclone config`:
+- `n` → novo remote
+- nome: `gdrive` (se usar outro nome, rodar o script depois com
+  `RCLONE_REMOTE=outro-nome ./backup-para-drive.sh`, ou editar a variável no topo do
+  script)
+- tipo: `drive` (Google Drive)
+- `client_id`/`client_secret`: deixar em branco (usa as credenciais padrão do rclone)
+- `scope`: `drive.file` (rclone só enxerga/gerencia o que ele mesmo cria — mais seguro
+  que dar acesso a todo o Drive)
+- login: o assistente abre (ou pede pra abrir manualmente) um link do Google pra
+  autorizar — se o servidor não tem interface gráfica/navegador, use a opção de
+  autorização remota que o próprio assistente oferece (`rclone authorize "drive"` numa
+  máquina com navegador, colando o token de volta no servidor)
+- confirmar `y` no final
+
+Testar:
+```bash
+rclone lsd gdrive:
+```
+Deve listar as pastas do Google Drive da conta autorizada.
+
+### 11.2 Rodando manualmente
+
+```bash
+cd /home/sandro/Bernardino   # ajustar pro caminho real do servidor
+./backup-para-drive.sh
+```
+
+### 11.3 Agendando (todo final do dia)
+
+```bash
+crontab -e
+```
+
+Adicionar uma linha (roda todo dia às 23:30, horário do servidor):
+```
+30 23 * * * /home/sandro/Bernardino/backup-para-drive.sh >> /home/sandro/Bernardino/backend/logs/backup.log 2>&1
+```
+
+(criar a pasta de log antes, se não existir: `mkdir -p /home/sandro/Bernardino/backend/logs`)
+
+### 11.4 Observações importantes
+
+- O dump do banco contém **todos os dados de todas as empresas-clientes** (mensagens,
+  contatos, financeiro, candidaturas de RH etc.) — é informação sensível. O acesso à
+  pasta do Drive deve ficar restrito a quem realmente precisa.
+- O script não remove backups antigos do Drive nem do servidor — o histórico cresce
+  indefinidamente. Definir uma política de retenção (ex.: apagar dumps com mais de 90
+  dias) fica como melhoria futura, se o volume de dados justificar.
+- Se o caminho do projeto no servidor mudar (como aconteceu na renomeação
+  `Bernardino`/`AtendeFlow` desta mesma etapa), lembrar de atualizar o caminho na linha
+  do `crontab`.

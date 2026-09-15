@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.27] — Backup diário automático pro Google Drive — 2026-09-15
+
+### Adicionado
+- Script `backup-para-drive.sh` (raiz do projeto): gera um dump compactado
+  do banco (Postgres) + um `.tar.gz` de `backend/public/` (currículos do
+  RH, mídia do WhatsApp, fotos de perfil) e envia os dois pro Google Drive
+  combinado com o cliente, via `rclone`. Pensado pra rodar todo fim do dia
+  via `crontab`. Não apaga backups antigos — cada execução soma um par de
+  arquivos novo. Passo a passo completo de configuração (instalar/
+  autorizar o rclone, agendar no cron) em `docs/MANUAL_TECNICO.md`, seção
+  11.
+
 ## [2.3.26] — Painel RH e página pública com cara de dashboard — 2026-09-14
 
 ### Adicionado
