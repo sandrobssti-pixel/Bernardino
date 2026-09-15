@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.28
-**Etapa:** 5.3 — Acesso remoto via Cloudflare Tunnel + backup diário estendido pra cobrir configuração crítica do servidor
+**Versão do documento:** 2.3.29
+**Etapa:** 5.4 — Site institucional estático publicado em `site.confiancatechnologies.com`
 **Última atualização:** 2026-09-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1157,6 +1157,7 @@ regras de "ingress" num arquivo de configuração.
 | --- | --- | --- |
 | `atendeflow.confiancatechnologies.com` | Frontend do AtendeFlow (o que o usuário acessa) | `http://localhost:3000` |
 | `api.confiancatechnologies.com` | Backend/API do AtendeFlow | `http://localhost:8080` |
+| `site.confiancatechnologies.com` | Site institucional da Confianza Technologies (`site/index.html`, estático) | `http://localhost:8082` |
 | `instagram-bot.confiancatechnologies.com` | Outro serviço do cliente (bot de Instagram) — **não mexer** | túnel `instagram-agente` (outra máquina) |
 | `www.confiancatechnologies.com` | Outro serviço do cliente — **não mexer** | túnel `instagram-agente` (outra máquina) |
 
@@ -1178,6 +1179,8 @@ um túnel **diferente** (`instagram-agente`), de outro serviço do cliente, roda
       service: http://localhost:3000
     - hostname: api.confiancatechnologies.com
       service: http://localhost:8080
+    - hostname: site.confiancatechnologies.com
+      service: http://localhost:8082
     - service: http_status:404
   ```
 - Rodando como serviço systemd (`cloudflared.service`, instalado via
@@ -1211,3 +1214,46 @@ usar se algo for apagado sem querer. Esse mesmo motivo é o que levou à decisã
 incluir a configuração do túnel no backup diário (seção 11.4) — depender só da
 memória/histórico do chat pra recuperar uma configuração de produção não é
 sustentável.
+
+### 12.5 Site institucional (`site.confiancatechnologies.com`)
+
+`site/index.html` (raiz do projeto) é o site institucional da Confianza
+Technologies — página única, estática (HTML/CSS/JS puro, sem build), bilíngue
+(PT/ES) com seletor de tema claro/escuro. Não faz parte do sistema AtendeFlow
+em si (não usa o backend/banco), então foi publicado como um **quarto
+hostname** no mesmo túnel `atendeflow` já existente, em vez de um túnel novo.
+
+**1. Servir o arquivo estático localmente, via `pm2`** (reaproveita o `pm2`
+que já roda backend/frontend e já está registrado como serviço systemd —
+não precisa criar nada novo):
+```bash
+cd ~/Bernardino/site   # ajustar pro caminho real do clone no servidor
+pm2 serve . 8082 --name confianza-site --spa
+pm2 save
+```
+`pm2 save` é o que garante que esse processo volte sozinho depois de um
+reboot, junto com backend/frontend (mesmo mecanismo da seção 12.3).
+
+**2. Adicionar o hostname no `cloudflared`** — editar **os dois arquivos**
+(`~/.cloudflared/config.yml` e `/etc/cloudflared/config.yml`, a cópia usada
+pelo serviço systemd) acrescentando a regra de `site.confiancatechnologies.com`
+→ `http://localhost:8082` **antes** da linha `- service: http_status:404`
+(ver YAML atualizado em 12.3), depois:
+```bash
+sudo systemctl restart cloudflared
+```
+
+**3. Criar o registro de DNS pelo `cloudflared` CLI** (não pelo painel do
+Cloudflare — ver o incidente da seção 12.4: mexer direto no painel foi o que
+causou o apagamento acidental de registros de outro serviço do cliente; o
+comando abaixo só cria o registro deste túnel, sem tocar em mais nada):
+```bash
+cloudflared tunnel route dns atendeflow site.confiancatechnologies.com
+```
+(`atendeflow` é o nome do túnel — ID `cc12b65a-538f-4719-b80c-f488cd01e96f`,
+mesmo da seção 12.3; se o nome não for reconhecido, usar o ID no lugar.)
+Mesmo criando por CLI (mais seguro que o painel), vale manter o hábito da
+seção 12.4: exportar a zona DNS antes (Cloudflare → DNS → Records → Export).
+
+**4. Conferir**: `https://site.confiancatechnologies.com` deve abrir o site
+institucional em poucos segundos (propagação do registro DNS).

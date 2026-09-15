@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.29] — Site institucional estático (`site.confiancatechnologies.com`) — 2026-09-15
+
+### Adicionado
+- `site/index.html`: site institucional da Confianza Technologies — página
+  única, estática (HTML/CSS/JS puro, sem build), bilíngue (PT/ES, com
+  bandeira do Paraguai e do Brasil no seletor de idioma) e com seletor de
+  tema claro/escuro. Cobre os serviços da empresa (venda de equipamentos,
+  redes, suporte técnico, segurança eletrônica, sistemas de IA, sites,
+  white label, dashboards) e uma seção dedicada ao CRM próprio (clientes,
+  produtos/estoque, fornecedores, relatórios de vendas), além de contato
+  separado para a matriz (Ciudad del Este, PY) e a sede (Salvador, BR). Não
+  usa o backend/banco do AtendeFlow — é independente do resto do sistema.
+- Publicado em `https://site.confiancatechnologies.com`, reaproveitando o
+  túnel Cloudflare `atendeflow` já existente (novo hostname, sem criar túnel
+  novo) e servido localmente via `pm2 serve` (mesmo `pm2` que já roda
+  backend/frontend, registrado como serviço systemd — sobe sozinho num
+  reboot). Passo a passo completo em `docs/MANUAL_TECNICO.md`, seção 12.5.
+
 ## [2.3.28] — Acesso remoto (Cloudflare Tunnel) + backup estendido — 2026-09-15
 
 ### Adicionado
