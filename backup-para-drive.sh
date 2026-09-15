@@ -17,7 +17,16 @@ require_cmd() {
 
 # Backup diário do AtendeFlow — dump do banco (Postgres) + arquivos
 # enviados (backend/public: currículos do RH, mídia do WhatsApp, fotos de
-# perfil, etc.) — enviados pro Google Drive combinado com o cliente.
+# perfil, etc.) + configuração crítica do servidor (.env do backend/
+# frontend, config do túnel Cloudflare, crontab) — enviados pro Google
+# Drive combinado com o cliente.
+#
+# A parte de configuração foi adicionada depois de um incidente real
+# (v2.3.28, ver docs/MANUAL_TECNICO.md): sem um backup da configuração de
+# deploy (DNS/túnel/variáveis de ambiente), recuperar um servidor do zero
+# depois de um problema significa refazer manualmente tudo que foi
+# combinado com o cliente (nomes de domínio, IDs de túnel etc.) — o dump
+# do banco sozinho não é suficiente pra uma recuperação completa.
 #
 # Configuração necessária UMA VEZ no servidor, antes de agendar isso no
 # cron (ver docs/MANUAL_TECNICO.md, seção "Backup em nuvem"):
@@ -89,11 +98,40 @@ else
   log "Pasta $BACKEND_DIR/public nao existe, pulando essa parte."
 fi
 
+log "Reunindo configuração crítica do servidor (.env, túnel, crontab)..."
+CONFIG_STAGE_DIR="$WORK_DIR/config"
+mkdir -p "$CONFIG_STAGE_DIR"
+
+[ -f "$BACKEND_DIR/.env" ] && cp "$BACKEND_DIR/.env" "$CONFIG_STAGE_DIR/backend.env"
+[ -f "$PROJECT_ROOT/frontend/.env" ] && cp "$PROJECT_ROOT/frontend/.env" "$CONFIG_STAGE_DIR/frontend.env"
+
+# Config do Cloudflare Tunnel — pode estar em /etc/cloudflared (rodando
+# como serviço systemd) e/ou em ~/.cloudflared (config original do
+# usuário). Copia os dois se existirem; nenhum dos dois é obrigatório
+# (nem todo cliente usa túnel).
+if [ -d /etc/cloudflared ]; then
+  mkdir -p "$CONFIG_STAGE_DIR/cloudflared-etc"
+  sudo -n cp -r /etc/cloudflared/. "$CONFIG_STAGE_DIR/cloudflared-etc/" 2>/dev/null \
+    || cp -r /etc/cloudflared/. "$CONFIG_STAGE_DIR/cloudflared-etc/" 2>/dev/null \
+    || log "Aviso: não foi possível copiar /etc/cloudflared (sem permissão) — pulando."
+fi
+if [ -d "$HOME/.cloudflared" ]; then
+  mkdir -p "$CONFIG_STAGE_DIR/cloudflared-home"
+  cp -r "$HOME/.cloudflared/." "$CONFIG_STAGE_DIR/cloudflared-home/" 2>/dev/null || true
+fi
+
+crontab -l > "$CONFIG_STAGE_DIR/crontab.txt" 2>/dev/null || echo "(sem crontab configurado)" > "$CONFIG_STAGE_DIR/crontab.txt"
+
+CONFIG_FILE="$WORK_DIR/atendeflow_config_${TIMESTAMP}.tar.gz"
+tar -czf "$CONFIG_FILE" -C "$WORK_DIR" config
+log "Configuração compactada: $(du -h "$CONFIG_FILE" | cut -f1)"
+
 log "Enviando pro Google Drive (remote '$RCLONE_REMOTE', pasta $DRIVE_FOLDER_ID)..."
 rclone copy "$DUMP_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 if [ -n "$UPLOADS_FILE" ]; then
   rclone copy "$UPLOADS_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 fi
+rclone copy "$CONFIG_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 
 log "Backup concluido com sucesso."
 

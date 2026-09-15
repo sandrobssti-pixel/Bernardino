@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.28] — Acesso remoto (Cloudflare Tunnel) + backup estendido — 2026-09-15
+
+### Adicionado
+- **Acesso remoto ao AtendeFlow** via Cloudflare Tunnel, em
+  `https://atendeflow.confiancatechnologies.com` (frontend) e
+  `https://api.confiancatechnologies.com` (backend) — o servidor do
+  cliente está numa rede local sem IP público próprio, então em vez de
+  port forwarding no roteador foi usado Cloudflare Tunnel (mesma
+  tecnologia que o cliente já usa pra outro serviço dele). Detalhes
+  completos, incluindo os domínios em uso e o que NÃO mexer (túnel de
+  outro serviço do cliente), em `docs/MANUAL_TECNICO.md`, seção 12.
+- `cloudflared` e `pm2` registrados como serviços systemd — sobem
+  sozinhos depois de um reboot do servidor, sem intervenção manual.
+- Backup diário (`backup-para-drive.sh`) agora também gera um terceiro
+  arquivo com a configuração crítica do servidor (`.env` do
+  backend/frontend, config do túnel Cloudflare, crontab) — motivado por
+  um incidente real durante essa etapa (ver seção 12.4 do manual):
+  registros de DNS de outro serviço do cliente foram apagados por engano
+  e precisaram ser recuperados manualmente a partir de um export feito
+  minutos antes.
+
 ## [2.3.27] — Backup diário automático pro Google Drive — 2026-09-15
 
 ### Adicionado

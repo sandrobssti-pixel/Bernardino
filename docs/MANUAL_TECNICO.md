@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.27
-**Etapa:** 5.2 — Backup diário automático (banco + arquivos enviados) pro Google Drive via rclone
-**Última atualização:** 2026-09-14
+**Versão do documento:** 2.3.28
+**Etapa:** 5.3 — Acesso remoto via Cloudflare Tunnel + backup diário estendido pra cobrir configuração crítica do servidor
+**Última atualização:** 2026-09-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -1113,9 +1113,101 @@ Adicionar uma linha (roda todo dia às 23:30, horário do servidor):
 - O dump do banco contém **todos os dados de todas as empresas-clientes** (mensagens,
   contatos, financeiro, candidaturas de RH etc.) — é informação sensível. O acesso à
   pasta do Drive deve ficar restrito a quem realmente precisa.
+- ✅ **Adicionado na v2.3.28**: além do dump do banco e dos arquivos enviados, o script
+  agora também gera um terceiro arquivo (`atendeflow_config_<timestamp>.tar.gz`) com a
+  **configuração crítica do servidor**: `backend/.env`, `frontend/.env`, a configuração
+  do Cloudflare Tunnel (`~/.cloudflared/` e `/etc/cloudflared/`, se existirem) e o
+  `crontab` atual. Isso existe por causa de um incidente real (ver seção 12.4) — sem
+  isso, o dump do banco sozinho não é suficiente pra recuperar um servidor do zero,
+  porque toda a configuração de domínio/túnel/variáveis de ambiente teria que ser
+  refeita manualmente. **Esse arquivo é ainda mais sensível que o dump do banco** — tem
+  senha de banco de dados e tokens do túnel em texto puro.
 - O script não remove backups antigos do Drive nem do servidor — o histórico cresce
   indefinidamente. Definir uma política de retenção (ex.: apagar dumps com mais de 90
   dias) fica como melhoria futura, se o volume de dados justificar.
 - Se o caminho do projeto no servidor mudar (como aconteceu na renomeação
   `Bernardino`/`AtendeFlow` desta mesma etapa), lembrar de atualizar o caminho na linha
   do `crontab`.
+
+---
+
+## 12. Acesso remoto (login de fora da rede local) via Cloudflare Tunnel
+
+O servidor de produção do cliente (`ConfianzaThechnologies`) não tem IP público
+próprio — está numa rede local, atrás de um roteador (IP interno `192.168.3.14`,
+provedor de internet Flytec Telecom/Paraguai). Isso foi descoberto na hora de tentar
+liberar acesso remoto: um registro DNS tipo `A` apontando pro IP "público" do link
+(`45.228.136.187`, na verdade o IP do roteador) resultava em erro 522 (Cloudflare não
+conseguia alcançar o servidor) — port forwarding no roteador seria uma opção, mas o
+cliente já usa **Cloudflare Tunnel** pra outro serviço dele (um bot de Instagram,
+túnel `instagram-agente`), então essa mesma tecnologia foi reaproveitada em vez de
+mexer na rede/roteador.
+
+### 12.1 Como funciona
+
+O `cloudflared` (agente instalado no servidor) abre uma conexão de **saída** até o
+Cloudflare — não precisa abrir porta nenhuma de entrada no roteador/firewall. O
+Cloudflare recebe as requisições HTTPS dos visitantes e repassa pelo túnel até o
+`cloudflared`, que entrega pro serviço local certo (backend/frontend), conforme
+regras de "ingress" num arquivo de configuração.
+
+### 12.2 Domínios em uso (`confiancatechnologies.com`, gerenciado no Cloudflare)
+
+| Subdomínio | Serve | Aponta para (via túnel) |
+| --- | --- | --- |
+| `atendeflow.confiancatechnologies.com` | Frontend do AtendeFlow (o que o usuário acessa) | `http://localhost:3000` |
+| `api.confiancatechnologies.com` | Backend/API do AtendeFlow | `http://localhost:8080` |
+| `instagram-bot.confiancatechnologies.com` | Outro serviço do cliente (bot de Instagram) — **não mexer** | túnel `instagram-agente` (outra máquina) |
+| `www.confiancatechnologies.com` | Outro serviço do cliente — **não mexer** | túnel `instagram-agente` (outra máquina) |
+
+Os dois primeiros usam o túnel **`atendeflow`** (ID `cc12b65a-538f-4719-b80c-f488cd01e96f`),
+criado especificamente pro AtendeFlow, rodando **nesta** máquina. Os dois últimos usam
+um túnel **diferente** (`instagram-agente`), de outro serviço do cliente, rodando em
+**outra** máquina — nunca alterar ou apagar esses registros ao mexer no AtendeFlow.
+
+### 12.3 Configuração no servidor
+
+- `~/.cloudflared/config.yml` e `/etc/cloudflared/config.yml` (cópia usada pelo
+  serviço systemd) — regras de ingress:
+  ```yaml
+  tunnel: cc12b65a-538f-4719-b80c-f488cd01e96f
+  credentials-file: /home/sandro/.cloudflared/cc12b65a-538f-4719-b80c-f488cd01e96f.json
+
+  ingress:
+    - hostname: atendeflow.confiancatechnologies.com
+      service: http://localhost:3000
+    - hostname: api.confiancatechnologies.com
+      service: http://localhost:8080
+    - service: http_status:404
+  ```
+- Rodando como serviço systemd (`cloudflared.service`, instalado via
+  `cloudflared service install`) — sobe sozinho no boot e reinicia se cair.
+- `backend/.env`: `FRONTEND_URL=https://atendeflow.confiancatechnologies.com` (usado
+  pelo CORS — ver `backend/src/app.ts`).
+- `frontend/.env`: `REACT_APP_BACKEND_URL=https://api.confiancatechnologies.com`
+  (precisa rebuildar o frontend — `npm run build` — depois de qualquer mudança nessa
+  variável, já que o Create React App "queima" esse valor dentro do bundle na hora do
+  build, não lê em tempo de execução).
+- `pm2` (backend + frontend) registrado como serviço systemd (`pm2-sandro.service`,
+  via `pm2 startup` + `pm2 save`) — também sobe sozinho no boot.
+- PostgreSQL e Redis já vêm habilitados por padrão numa instalação via `apt`
+  (confirmado com `systemctl is-enabled postgresql`/`redis-server`).
+
+### 12.4 Incidente durante a configuração (registros de DNS apagados por engano)
+
+Ao criar os registros novos (`app`/`api`, depois trocado por `atendeflow`) direto pelo
+painel do Cloudflare, os 3 registros do **outro serviço do cliente**
+(`atendeflow`/`instagram-bot`/`www`, apontando pro túnel `instagram-agente`) foram
+apagados por engano durante a tentativa de corrigir um erro de formulário (confusão
+entre os campos de registro tipo `A`/IPv4 e `AAAA`/IPv6). Recuperados manualmente a
+partir dos valores exatos de um export de zona DNS feito minutos antes do incidente —
+sem esse export, a recuperação teria sido bem mais difícil (precisaria saber de cabeça
+o ID exato do túnel do outro serviço).
+
+**Lição**: antes de mexer em registros DNS de um domínio que já hospeda outros
+serviços em produção, **sempre exportar a zona primeiro** (Cloudflare: DNS → Records →
+Export) e guardar esse arquivo em lugar seguro — é a rede de segurança mais rápida de
+usar se algo for apagado sem querer. Esse mesmo motivo é o que levou à decisão de
+incluir a configuração do túnel no backup diário (seção 11.4) — depender só da
+memória/histórico do chat pra recuperar uma configuração de produção não é
+sustentável.
