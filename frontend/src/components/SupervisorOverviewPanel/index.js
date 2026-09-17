@@ -124,7 +124,7 @@ export const formatElapsed = (minutes) => {
 // dois gráficos ao vivo, pensado pra ser embutido dentro do "Painel"
 // (MomentsUser) já existente, em vez de uma tela separada — o cliente pediu
 // pra unificar tudo num lugar só.
-const SupervisorOverviewPanel = ({ supervisorPanel, onSelectRule }) => {
+const SupervisorOverviewPanel = ({ supervisorPanel, onSelectRule, onSelectOutOfHours }) => {
   const classes = useStyles();
   const { user, socket } = useContext(AuthContext);
   const [summary, setSummary] = useState(null);
@@ -220,23 +220,29 @@ const SupervisorOverviewPanel = ({ supervisorPanel, onSelectRule }) => {
           <span className={classes.kpiLabel}>Fora do prazo (SLA)</span>
           <span className={classes.kpiValue} style={{ color: STATUS_META.overdue.color }}>{summary.totalOverdue}</span>
         </Paper>
-        <Paper variant="outlined" className={classes.kpiCard} style={{ borderColor: "#7c3aed" }}>
-          <span className={classes.kpiLabel}>Fora do expediente</span>
-          <span className={classes.kpiValue} style={{ color: "#7c3aed" }}>{summary.totalOutOfHours}</span>
-        </Paper>
         <Paper variant="outlined" className={classes.kpiCard}>
           <span className={classes.kpiLabel}>Tempo médio em aberto</span>
           <span className={classes.kpiValue}>{formatElapsed(summary.avgElapsedMinutes)}</span>
         </Paper>
       </Box>
 
-      {summary.byRule?.length > 0 && (
-        <Box>
-          <Typography className={classes.ruleSectionTitle}>
-            Regras de SLA (ao vivo, por regra)
-          </Typography>
-          <Box className={classes.ruleRow}>
-            {summary.byRule.map((rule) => {
+      <Box>
+        <Typography className={classes.ruleSectionTitle}>
+          Regras de SLA (ao vivo, por regra)
+        </Typography>
+        <Box className={classes.ruleRow}>
+          <Paper
+            variant="outlined"
+            className={classes.ruleCard}
+            style={{ borderColor: "#7c3aed" }}
+            title="Atendimento fora do expediente ADM — calculado automaticamente a partir do módulo Horário de Atendimento (por empresa, fila ou conexão), sem precisar cadastrar nenhuma Regra de SLA pra isso. Clique para ir direto ao atendimento mais urgente fora do expediente."
+            onClick={() => onSelectOutOfHours?.()}
+          >
+            <span className={classes.ruleName}>Atendimento fora do expediente ADM</span>
+            <span className={classes.ruleScope}>Baseado no Horário de Atendimento</span>
+            <span className={classes.kpiValue} style={{ color: "#7c3aed" }}>{summary.totalOutOfHours}</span>
+          </Paper>
+          {summary.byRule?.map((rule) => {
               const highlightColor = rule.overdue > 0
                 ? STATUS_META.overdue.color
                 : rule.risk > 0
@@ -270,9 +276,8 @@ const SupervisorOverviewPanel = ({ supervisorPanel, onSelectRule }) => {
                 </Paper>
               );
             })}
-          </Box>
         </Box>
-      )}
+      </Box>
 
       {summary.totalActive > 0 && (
         <Box className={classes.chartsRow}>

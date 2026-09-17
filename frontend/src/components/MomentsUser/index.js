@@ -426,6 +426,37 @@ const DashboardManage = () => {
     }
   };
 
+  // "Atendimento fora do expediente ADM" (ver docs/MANUAL_TECNICO.md): card
+  // automático baseado no módulo Horário de Atendimento (não é uma Regra de
+  // SLA cadastrável) — mesmo mecanismo de "ir direto no atendimento" do
+  // handleSelectRule, mas filtrando por outOfHours em vez de ruleId.
+  const handleSelectOutOfHours = async () => {
+    try {
+      const live = await supervisorPanel.getLive();
+      const match = live.find((row) => row.outOfHours);
+
+      if (!match) {
+        toast.info("Nenhum atendimento fora do expediente no momento.");
+        return;
+      }
+
+      const element = document.getElementById(`ticket-row-${match.ticketId}`);
+      if (!element) {
+        toast.info(
+          `Atendimento fora do expediente mais urgente: ${match.contactName || match.contactNumber} (${match.elapsedMinutes} min) — não está visível nesta tela agora.`
+        );
+        return;
+      }
+
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+      setHighlightedTicketId(match.ticketId);
+      highlightTimeoutRef.current = setTimeout(() => setHighlightedTicketId(null), 4000);
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
   useEffect(() => () => {
     if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
   }, []);
@@ -807,7 +838,11 @@ const DashboardManage = () => {
         </Paper>
 
         {canSupervise && (
-          <SupervisorOverviewPanel supervisorPanel={supervisorPanel} onSelectRule={handleSelectRule} />
+          <SupervisorOverviewPanel
+            supervisorPanel={supervisorPanel}
+            onSelectRule={handleSelectRule}
+            onSelectOutOfHours={handleSelectOutOfHours}
+          />
         )}
 
         <Box className={classes.container}>

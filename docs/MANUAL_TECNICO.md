@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.44
-**Etapa:** 6.9 — Clicar no card de uma Regra de SLA vai direto ao atendimento
+**Versão do documento:** 2.3.45
+**Etapa:** 6.10 — "Atendimento fora do expediente ADM" vira card automático no Painel
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2141,3 +2141,62 @@ específica → clique no card da regra rolou a tela até a linha certa
 por ~4 segundos. Clique numa regra sem nenhum atendimento ativo → toast
 "Nenhum atendimento ativo no momento para a regra...". Dados de teste
 removidos do banco depois.
+
+---
+
+## 29. "Atendimento fora do expediente ADM" vira card automático no Painel (v2.3.45)
+
+O cliente reportou que a SLA "Atendimento fora do expediente ADM" que ele
+cadastrou manualmente (seção 23 — na época já explicado que Regras de SLA
+não servem pra representar horário semanal) não aparecia como card na
+faixa "Regras de SLA" nova (seção 26), e pediu pra esse card aparecer
+**automaticamente**, com relação direta ao módulo Horário de Atendimento.
+
+### Por que não aparecia (e por que não devia)
+
+A faixa "Regras de SLA" (seção 26) só lista `SlaRule` cadastradas — e
+"fora do expediente" nunca foi uma `SlaRule` de verdade, é calculado à
+parte, direto do módulo Horário de Atendimento (`buildOutOfHoursChecker`,
+seção 23). Cadastrar uma `SlaRule` chamada "Atendimento fora do
+expediente ADM" não fazia esse card aparecer porque os dois sistemas
+sempre foram independentes — e não tem como serem unificados numa
+`SlaRule` de verdade, porque o cálculo de "fora do expediente" é uma
+condição de horário (dia da semana, feriado, turno), não um limite de
+minutos de espera.
+
+### Implementação
+
+`frontend/src/components/SupervisorOverviewPanel/index.js`: a faixa
+"Regras de SLA" ganhou um **primeiro card fixo, automático**, chamado
+"Atendimento fora do expediente ADM" — não vem da tabela `SlaRule`, é
+alimentado direto por `summary.totalOutOfHours` (o mesmo número que já
+existia isolado no card "Fora do expediente" da fileira principal de KPIs
+— esse card antigo foi removido daquela fileira pra não duplicar o mesmo
+número em dois lugares). Clicável, igual aos cards de regra: usa o mesmo
+`/supervisor-panel/live` (campo `outOfHours` por ticket, já existente
+desde a seção 23) pra achar o atendimento fora do expediente mais urgente
+e rolar/destacar a tela até ele (`handleSelectOutOfHours`, mesmo mecanismo
+de `handleSelectRule` da seção 28, só que filtrando por `outOfHours` em
+vez de `ruleId`).
+
+### Atenção: SlaRule manual antiga fica redundante
+
+A `SlaRule` "Atendimento fora do expediente ADM" que o cliente cadastrou
+manualmente **continua existindo no banco** (não foi apagada por este
+código — a Claude não tem acesso ao banco de produção do cliente, só ao
+código-fonte) e vai continuar aparecendo como card separado na mesma
+faixa, com números de onTime/risco/atraso que não têm relação nenhuma com
+horário de expediente de verdade (porque `riskMinutes`/`overdueMinutes`
+dela são só números, não horários). Recomendado: o cliente apagar essa
+regra manual pelo ícone de engrenagem do Painel, pra não ficar com dois
+cards de nome parecido — um automático (correto) e um manual (sem
+função).
+
+### Testado
+
+Sandbox: com `CompaniesSettings.scheduleType: "company"` e nenhum horário
+cadastrado pro dia atual, ticket de teste veio `outOfHours: true` → novo
+card automático mostrou 1, com borda roxa. Clique no card rolou a tela até
+o ticket certo. Configurado um horário cobrindo o dia inteiro → contador
+voltou a 0 no próximo refresh (15s), sem precisar recarregar a página.
+Configuração e dados de teste revertidos depois.

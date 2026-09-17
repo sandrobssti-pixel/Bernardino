@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.45] — Card automático "Atendimento fora do expediente ADM" — 2026-09-17
+
+### Adicionado
+- Novo card fixo e automático na faixa "Regras de SLA" do Painel:
+  "Atendimento fora do expediente ADM" — não precisa cadastrar nenhuma
+  Regra de SLA pra isso, é calculado direto do módulo Horário de
+  Atendimento. Clicável, igual aos outros cards da faixa (leva direto ao
+  atendimento fora do expediente mais urgente).
+
+### Alterado
+- Removido o card "Fora do expediente" da fileira principal de KPIs (o
+  número foi pra dentro do novo card automático, pra não duplicar).
+
+### Observação
+- Uma Regra de SLA manual com o mesmo nome, cadastrada antes dessa
+  automação existir, continua no banco e aparece como card separado (sem
+  relação real com horário) — recomendado apagá-la pelo Painel.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 29.
+
 ## [2.3.44] — Clicar na Regra de SLA vai direto ao atendimento — 2026-09-17
 
 ### Adicionado

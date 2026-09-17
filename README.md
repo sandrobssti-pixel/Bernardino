@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.44 (Etapa 6.9 — clicar no card de uma Regra de SLA no Painel leva direto ao atendimento mais urgente daquela regra, com rolagem e destaque automáticos — ver `docs/MANUAL_TECNICO.md`, seção 28)**
+**Versão atual: 2.3.45 (Etapa 6.10 — "Atendimento fora do expediente ADM" agora é um card automático na faixa de Regras de SLA do Painel, ligado direto ao módulo Horário de Atendimento — ver `docs/MANUAL_TECNICO.md`, seção 29)**
 
 ## Documentação
 
