@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.35 (Etapa 6 — Painel Vigia: monitoramento em tempo real de atrasos/risco de atraso no atendimento, com regras de SLA configuráveis, alertas no sino e mensagens ao vivo do supervisor pro atendente — ver `docs/MANUAL_TECNICO.md`, seção 19)**
+**Versão atual: 2.3.36 (Etapa 6.1 — Painel Vigia unificado dentro do "Painel" (`/moments`) já existente: gráficos, regras de SLA e mensagem ao vivo pro atendente tudo num só lugar — ver `docs/MANUAL_TECNICO.md`, seção 20)**
 
 ## Documentação
 

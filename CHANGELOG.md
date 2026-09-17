@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.36] — Painel Vigia unificado no "Painel" existente — 2026-09-17
+
+### Alterado
+- Removida a tela separada "Painel Vigia" (`/painel-vigia`) — o cliente já
+  tinha uma tela chamada só "Painel" (`/moments`) e pediu pra unificar tudo
+  num lugar só, pra não ter dois menus parecidos.
+- Cards de totais, os dois gráficos e o botão de mandar mensagem ao vivo pro
+  atendente agora vivem dentro do "Painel" já existente; o CRUD de Regras de
+  SLA abre num diálogo a partir de um ícone de engrenagem na barra de
+  ferramentas. Nenhuma rota/endpoint do backend mudou.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 20.
+
 ## [2.3.35] — Painel Vigia (monitoramento de SLA em tempo real) — 2026-09-17
 
 ### Adicionado

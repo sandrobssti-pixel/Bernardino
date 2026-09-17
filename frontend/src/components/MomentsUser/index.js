@@ -19,6 +19,9 @@ import {
   Box,
   CardHeader,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   IconButton,
   List,
   ListItem,
@@ -27,7 +30,13 @@ import {
   Typography,
   makeStyles
 } from "@material-ui/core";
+import SendIcon from "@material-ui/icons/Send";
+import SettingsOutlinedIcon from "@material-ui/icons/SettingsOutlined";
 import { format, isSameDay, parseISO } from "date-fns";
+import useSupervisorPanel from "../../hooks/useSupervisorPanel";
+import SupervisorOverviewPanel from "../SupervisorOverviewPanel";
+import SupervisorSlaRulesPanel from "../SupervisorSlaRulesPanel";
+import SupervisorMessageDialog from "../SupervisorMessageDialog";
 
 const DEFAULT_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 const TV_REFRESH_INTERVAL_MS = 45 * 1000;
@@ -340,6 +349,40 @@ const DashboardManage = () => {
   const [tickets, setTickets] = useState([]);
   const [tvMode, setTvMode] = useState(false);
 
+  // Painel Vigia (ver docs/MANUAL_TECNICO.md): visão geral com gráficos,
+  // regras de SLA e mensagem ao vivo pro atendente, embutidos aqui dentro
+  // do "Painel" já existente (add-on por plano/usuário).
+  const supervisorPanel = useSupervisorPanel();
+  const [supervisorAccess, setSupervisorAccess] = useState(null);
+  const [messageTarget, setMessageTarget] = useState(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const canSupervise = user.super || !!supervisorAccess?.hasAccess;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const access = await supervisorPanel.getAccess();
+        setSupervisorAccess(access);
+      } catch (err) {
+        setSupervisorAccess({ planHasModule: false, hasAccess: false });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSendSupervisorMessage = async (message) => {
+    try {
+      await supervisorPanel.sendMessage({
+        ticketId: messageTarget.id,
+        userId: messageTarget.userId,
+        message
+      });
+      toast.success("Mensagem enviada ao atendente.");
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
   const companyId = user.companyId;
   const socketDebounceRef = useRef(null);
 
@@ -534,13 +577,24 @@ const DashboardManage = () => {
                   }}
                 />
                 {(user.profile === "admin" || ticket.userId === user.id) && (
-                  <Tooltip title="Acessar Ticket">
+                  <Tooltip title="Acessar Ticket (modo espião: acompanhe a conversa em tempo real)">
                     <IconButton
                       size="small"
                       onClick={() => history.push(`/tickets/${ticket.uuid}`)}
                       className={`${classes.actionButton} ${classes.eyeButton}`}
                     >
                       <VisibilityOutlined fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {canSupervise && ticket.userId && (
+                  <Tooltip title="Mandar mensagem ao atendente">
+                    <IconButton
+                      size="small"
+                      onClick={() => setMessageTarget(ticket)}
+                      className={`${classes.actionButton} ${classes.eyeButton}`}
+                    >
+                      <SendIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 )}
@@ -669,6 +723,13 @@ const DashboardManage = () => {
             <Tooltip title="Ordenação por prioridade (mais antigo primeiro)">
               <Chip size="small" label="Prioridade: SLA" className={classes.metricChip} />
             </Tooltip>
+            {canSupervise && (
+              <Tooltip title="Regras de SLA (risco de atraso / fora do prazo)">
+                <IconButton size="small" className={classes.actionButton} onClick={() => setRulesOpen(true)}>
+                  <SettingsOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title={tvMode ? "Sair do modo TV" : "Ativar modo TV"}>
               <IconButton size="small" className={classes.actionButton} onClick={toggleTvMode}>
                 <Tv fontSize="small" />
@@ -682,11 +743,31 @@ const DashboardManage = () => {
           </Box>
         </Paper>
 
+        {canSupervise && <SupervisorOverviewPanel supervisorPanel={supervisorPanel} />}
+
         <Box className={classes.container}>
           {renderPendingColumn()}
           {groupedTickets.grouped.map(renderUserColumn)}
         </Box>
       </Box>
+
+      <SupervisorMessageDialog
+        open={!!messageTarget}
+        onClose={() => setMessageTarget(null)}
+        onSend={handleSendSupervisorMessage}
+        ticketLabel={
+          messageTarget
+            ? `Para ${messageTarget.user?.name || "atendente"} — ${messageTarget.contact?.name || ""}`
+            : ""
+        }
+      />
+
+      <Dialog open={rulesOpen} onClose={() => setRulesOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Regras de SLA</DialogTitle>
+        <DialogContent>
+          <SupervisorSlaRulesPanel supervisorPanel={supervisorPanel} />
+        </DialogContent>
+      </Dialog>
     </Fragment>
   );
 };

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.35
-**Etapa:** 6 — Painel Vigia (monitoramento de SLA em tempo real)
+**Versão do documento:** 2.3.36
+**Etapa:** 6.1 — Painel Vigia unificado dentro do "Painel" (`/moments`) já existente
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1667,3 +1667,67 @@ novo **não** duplica) → aparece no sino novo com o atendente/cliente certos
 mensagem ao vivo pelo botão da tabela → toast de confirmação + `Notification`
 tipo `supervisor_message` persistida e listada no sino. Dados de teste
 removidos do banco depois.
+
+---
+
+## 20. Painel Vigia unificado dentro do "Painel" existente (v2.3.36)
+
+Feedback do cliente logo depois da v2.3.35: o sistema já tinha uma tela
+chamada só **"Painel"** (menu lateral, rota `/moments`, componente
+`frontend/src/components/MomentsUser/index.js`) — bem mais antiga, mostra os
+atendimentos agrupados por atendente com um aviso de SLA próprio (baseado em
+"minutos sem resposta do atendente", limiares fixos 15/40 min, chip
+"Dentro do prazo/Risco de atraso/Fora do prazo" por ticket). O cliente testou
+essa tela achando que era a nova, não viu os gráficos nem o botão de mandar
+mensagem (que só existiam na tela nova e separada "Painel Vigia",
+`/painel-vigia`) e pediu pra **unificar tudo num lugar só**.
+
+### O que mudou
+
+- **Removida** a tela separada "Painel Vigia" (`frontend/src/pages/SupervisorPanel/`,
+  rota `/painel-vigia`, item de menu "Painel Vigia") — nada no backend foi
+  removido, só a página/rota/menu duplicados no frontend.
+- Os mesmos pedaços de UI que estavam lá foram **extraídos em componentes
+  reutilizáveis** e embutidos dentro do "Painel" (`MomentsUser`) já existente:
+  - `frontend/src/components/SupervisorOverviewPanel/index.js`: os 4 cards
+    de KPI + os dois gráficos ECharts (donut de status + barras por fila).
+    Renderizado logo abaixo da barra de ferramentas do Painel, acima das
+    colunas por atendente — só aparece pra quem tem acesso ao módulo
+    (`canSupervise`).
+  - `frontend/src/components/SupervisorSlaRulesPanel/index.js`: o CRUD de
+    Regras de SLA (reaproveitando `FinanceRecordList`), agora aberto num
+    `Dialog` a partir de um ícone de engrenagem na barra de ferramentas do
+    Painel (em vez de uma aba separada).
+  - `frontend/src/components/SupervisorMessageDialog/index.js`: o diálogo de
+    mandar mensagem ao vivo pro atendente.
+- `frontend/src/components/MomentsUser/index.js`: ganhou um botão novo
+  (ícone de enviar) ao lado do já existente botão "olho" (que já era o
+  "modo espião" — abre o ticket pra acompanhar a conversa ao vivo, o Admin
+  sempre pôde abrir qualquer ticket sem precisar responder nada). O botão
+  novo abre o `SupervisorMessageDialog` e manda a mensagem via
+  `POST /supervisor-panel/message` — mesmo endpoint da v2.3.35, sem mudança
+  nenhuma no backend. Both botões (olho + enviar) só aparecem quando
+  `canSupervise` é verdadeiro (mesma checagem `EnsureSupervisorPanelAccess`,
+  agora feita direto dentro do `MomentsUser` via `useSupervisorPanel().getAccess()`).
+
+### Nota sobre duas contagens de SLA coexistindo
+
+O "Painel" já tinha sua própria lógica de atraso, baseada em **tempo desde a
+última mensagem do atendente** (chip por ticket, limiares fixos 15/40 min) —
+essa lógica **não foi alterada**, continua funcionando exatamente como
+antes. Os novos cards/gráficos usam uma métrica **diferente**: tempo desde
+que o atendimento foi **aceito** (`TicketTraking.startedAt`), com limiares
+configuráveis via Regras de SLA (padrão 15/20 min) — por isso os rótulos dos
+cards novos têm o sufixo "(SLA)" pra deixar claro que é uma métrica separada
+da dos chips por ticket. Ficam as duas coexistindo por enquanto; unificar as
+duas métricas em uma só fica como possível melhoria futura, se o cliente
+pedir.
+
+### Testado
+
+Reaberto o mesmo cenário de teste (ticket com 25+ min de
+`TicketTraking.startedAt`) dentro do `/moments`: cards e gráficos aparecem
+corretos junto com as colunas por atendente já existentes; botão de mandar
+mensagem no ticket abre o diálogo, envia e confirma com toast; ícone de
+engrenagem abre o CRUD de Regras de SLA num diálogo, sem sair da tela.
+Dados de teste removidos do banco depois.
