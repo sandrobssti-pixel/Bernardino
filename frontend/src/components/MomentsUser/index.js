@@ -31,12 +31,14 @@ import {
   makeStyles
 } from "@material-ui/core";
 import SendIcon from "@material-ui/icons/Send";
+import SwapHorizOutlinedIcon from "@material-ui/icons/SwapHorizOutlined";
 import SettingsOutlinedIcon from "@material-ui/icons/SettingsOutlined";
 import { format, isSameDay, parseISO } from "date-fns";
 import useSupervisorPanel from "../../hooks/useSupervisorPanel";
 import SupervisorOverviewPanel from "../SupervisorOverviewPanel";
 import SupervisorSlaRulesPanel from "../SupervisorSlaRulesPanel";
 import SupervisorMessageDialog from "../SupervisorMessageDialog";
+import TransferTicketModalCustom from "../TransferTicketModalCustom";
 
 const DEFAULT_REFRESH_INTERVAL_MS = 2 * 60 * 1000;
 const TV_REFRESH_INTERVAL_MS = 45 * 1000;
@@ -355,6 +357,7 @@ const DashboardManage = () => {
   const supervisorPanel = useSupervisorPanel();
   const [supervisorAccess, setSupervisorAccess] = useState(null);
   const [messageTarget, setMessageTarget] = useState(null);
+  const [transferTarget, setTransferTarget] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const canSupervise = user.super || !!supervisorAccess?.hasAccess;
 
@@ -598,6 +601,17 @@ const DashboardManage = () => {
                     </IconButton>
                   </Tooltip>
                 )}
+                {canSupervise && (
+                  <Tooltip title="Transferir para outro atendente">
+                    <IconButton
+                      size="small"
+                      onClick={() => setTransferTarget(ticket)}
+                      className={`${classes.actionButton} ${classes.eyeButton}`}
+                    >
+                      <SwapHorizOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
               </Box>
             </Box>
           </Box>
@@ -761,6 +775,15 @@ const DashboardManage = () => {
             : ""
         }
       />
+
+      {transferTarget && (
+        <TransferTicketModalCustom
+          modalOpen={!!transferTarget}
+          onClose={() => setTransferTarget(null)}
+          ticketid={transferTarget.id}
+          ticket={transferTarget}
+        />
+      )}
 
       <Dialog open={rulesOpen} onClose={() => setRulesOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Regras de SLA</DialogTitle>

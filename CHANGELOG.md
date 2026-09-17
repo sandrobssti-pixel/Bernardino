@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.38] — Alerta geral repetitivo + transferir pelo Painel — 2026-09-17
+
+### Alterado
+- Alerta de "fora do prazo" agora repete a cada 5 minutos (antes disparava
+  só uma vez) e avisa todos os atendentes conectados, não só o responsável
+  pelo ticket. "Risco de atraso" continua avisando uma vez, só pro
+  responsável + supervisores.
+- Novo botão "Transferir para outro atendente" em cada atendimento do
+  Painel, ao lado do de mandar mensagem — reaproveita o modal de
+  transferência já existente no sistema.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 22.
+
 ## [2.3.37] — Painel Vigia monitora "aguardando" também — 2026-09-17
 
 ### Corrigido

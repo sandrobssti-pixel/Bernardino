@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.37
-**Etapa:** 6.2 — Painel Vigia monitora também "aguardando" (fila), não só "atendendo"
+**Versão do documento:** 2.3.38
+**Etapa:** 6.3 — Alerta "fora do prazo" repetitivo/geral + transferir atendimento pelo Painel
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1767,3 +1767,48 @@ Criado ticket com `status: "pending"`, sem `userId`, criado há 30 minutos →
 e `status: "overdue"` → `runSlaMonitor` cria a notificação com o texto
 "...30 min aguardando (sem atendente ainda)." Dados de teste removidos do
 banco depois.
+
+---
+
+## 22. Alerta "fora do prazo" repetitivo/geral + transferir atendimento pelo Painel (v2.3.38)
+
+Pedido do cliente: (1) quando um atendimento vira "fora do prazo", o alerta
+não pode disparar só uma vez — tem que repetir a cada 5 minutos enquanto
+continuar fora do prazo, e avisar **todos os atendentes conectados**, não só
+o responsável pelo ticket; (2) quem tem acesso ao Painel Vigia precisa
+conseguir **transferir** o atendimento pra outro atendente direto dali, além
+de já poder mandar mensagem.
+
+### Alerta repetitivo e geral (`SlaMonitorService.ts`)
+
+- "Risco de atraso" continua como antes: dispara **uma vez** por atendimento
+  (dedupe desde `startedAt`), avisando só o atendente responsável + a sala
+  `supervisors`.
+- "Fora do prazo" agora **repete a cada 5 minutos** (constante
+  `OVERDUE_REPEAT_MINUTES`) enquanto o atendimento continuar fora do prazo —
+  o dedupe passou a checar só os últimos 5 minutos, não desde o início do
+  atendimento. E em vez de avisar só o responsável + supervisores, emite
+  `company-${companyId}-notification` pro **namespace inteiro da empresa**
+  (`io.of(String(companyId)).emit(...)`, sem `.to(sala)`) — todo mundo com o
+  sistema aberto (atendente ou não) recebe, exatamente como pedido
+  ("todos os atendentes online").
+
+### Transferir atendimento direto do Painel
+
+`frontend/src/components/MomentsUser/index.js` ganhou um terceiro botão por
+ticket (ícone de troca, ao lado do olho e do enviar mensagem), visível só
+pra quem tem `canSupervise`. Em vez de construir um formulário novo,
+reaproveita o `TransferTicketModalCustom` já existente (o mesmo usado na
+tela normal de atendimento) — mesma busca de atendente, escolha de fila e
+mensagem interna, sem duplicar lógica. Nenhuma rota nova no backend; é o
+mesmo `PUT /tickets/:id` de sempre.
+
+### Testado
+
+Ticket de 25 min (fora do prazo) → `runSlaMonitor` roda e cria o alerta →
+rodando de novo imediatamente **não** duplica (dentro dos 5 min) → depois de
+simular 6 minutos passados (`UPDATE ... SET "createdAt" = now() - interval
+'6 minutes'` no registro de teste), rodar de novo **cria um segundo alerta**
+— confirma a repetição a cada 5 min. Botão de transferir testado na tela:
+abre o `TransferTicketModalCustom` normalmente, com o ticket certo. Dados de
+teste removidos do banco depois.
