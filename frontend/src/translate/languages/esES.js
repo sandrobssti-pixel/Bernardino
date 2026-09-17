@@ -1,5 +1,5 @@
 const messages = {
-  es: {
+  "es-ES": {
     translations: {
 
       signup: {

@@ -1032,9 +1032,10 @@ const messages = {
       },
       languages: {
         undefined: "Idioma",
-        "pt-BR": "Português",
-        es: "Espanhol",
-        en: "Inglês",
+        "pt-BR": "Português (Brasil)",
+        es: "Espanhol (Paraguai)",
+        "es-ES": "Espanhol (Espanha)",
+        en: "Inglês (Estados Unidos)",
         tr: "Turco",
       },
       messagesAPI: {

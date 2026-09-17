@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.31] — Seletor de idiomas com bandeiras — 2026-09-17
+
+### Adicionado
+- Bandeira ao lado de cada idioma no seletor (ícone de globo, barra
+  superior): 🇧🇷 Português (Brasil), 🇵🇾 Espanhol (Paraguai), 🇪🇸 Espanhol
+  (Espanha), 🇺🇸 Inglês (Estados Unidos).
+- Novo pacote de idioma `es-ES` (Espanhol da Espanha) — mesmo texto do
+  `es` (Paraguai) por enquanto, isolado num arquivo próprio
+  (`translate/languages/esES.js`) pra poder divergir no futuro sem
+  afetar a variante do Paraguai.
+
+### Removido
+- Turco (`tr`) saiu da lista de idiomas oferecida (arquivo continua no
+  repositório, só não é mais importado no bundle ativo).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 15.
+
 ## [2.3.30] — Cadastro obrigatório de cliente novo + Kanban automático — 2026-09-17
 
 ### Adicionado

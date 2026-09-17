@@ -986,9 +986,10 @@ const messages = {
       },
       languages: {
         undefined: "Language",
-        "pt-BR": "Portuguese",
-        es: "Spanish",
-        en: "English",
+        "pt-BR": "Portuguese (Brazil)",
+        es: "Spanish (Paraguay)",
+        "es-ES": "Spanish (Spain)",
+        en: "English (United States)",
         tr: "Turkish",
       },
       messagesAPI: {

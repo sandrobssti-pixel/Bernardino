@@ -51,17 +51,21 @@ const UserLanguageSelector = () => {
                 onClose={handleCloseLanguageMenu}
             >
                 <MenuItem onClick={() => handleChangeLanguage("pt-BR")}>
+                    <span style={{ marginRight: 8 }} role="img" aria-label="Brasil">🇧🇷</span>
                     {i18n.t("languages.pt-BR")}
                 </MenuItem>
-                <MenuItem onClick={() => handleChangeLanguage("en")}>
-                    {i18n.t("languages.en")}
-                </MenuItem>
                 <MenuItem onClick={() => handleChangeLanguage("es")}>
+                    <span style={{ marginRight: 8 }} role="img" aria-label="Paraguai">🇵🇾</span>
                     {i18n.t("languages.es")}
                 </MenuItem>
-                 <MenuItem onClick={() => handleChangeLanguage("tr")}>
-                     {i18n.t("languages.tr")}
-                 </MenuItem>
+                <MenuItem onClick={() => handleChangeLanguage("es-ES")}>
+                    <span style={{ marginRight: 8 }} role="img" aria-label="Espanha">🇪🇸</span>
+                    {i18n.t("languages.es-ES")}
+                </MenuItem>
+                <MenuItem onClick={() => handleChangeLanguage("en")}>
+                    <span style={{ marginRight: 8 }} role="img" aria-label="Estados Unidos">🇺🇸</span>
+                    {i18n.t("languages.en")}
+                </MenuItem>
             </Menu>
         </>
     );

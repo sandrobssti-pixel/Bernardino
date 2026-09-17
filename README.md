@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.30 (Etapa 5.5 — cadastro obrigatório de cliente novo/número trocado (nome, e-mail, CPF/RG, endereço, contato 2) antes de fechar o atendimento, com encaminhamento automático pra coluna do Kanban escolhida — ver `docs/MANUAL_TECNICO.md`, seção 14)**
+**Versão atual: 2.3.31 (Etapa 5.6 — seletor de idiomas reduzido a 4 opções com bandeira: Português (Brasil), Espanhol (Paraguai), Espanhol (Espanha) e Inglês (Estados Unidos) — ver `docs/MANUAL_TECNICO.md`, seção 15)**
 
 ## Documentação
 

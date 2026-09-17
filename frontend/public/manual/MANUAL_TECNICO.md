@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.30
-**Etapa:** 5.5 — Cadastro obrigatório de cliente novo + encaminhamento automático pro Kanban ao fechar o atendimento
+**Versão do documento:** 2.3.31
+**Etapa:** 5.6 — Seletor de idiomas com bandeiras (Brasil, Paraguai, Espanha, Estados Unidos)
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1364,3 +1364,30 @@ coluna do Kanban → salva → atendimento fecha automaticamente → ticket apar
 a tag de kanban aplicada. Testado também que um **segundo** atendimento do
 **mesmo** contato (já cadastrado) fecha direto, sem interromper o atendente de
 novo. Dados de teste removidos do banco depois.
+
+---
+
+## 15. Seletor de idiomas com bandeiras (v2.3.31)
+
+Pedido do cliente: reduzir o seletor de idiomas (ícone de globo na barra superior)
+pra só 4 opções, cada uma com a bandeira do país ao lado — **Português (Brasil)**,
+**Espanhol (Paraguai)**, **Espanhol (Espanha)** e **Inglês (Estados Unidos)**. O
+Turco (`tr`), que existia antes, saiu da lista.
+
+- `frontend/src/components/UserLanguageSelector/index.js`: cada `MenuItem` agora
+  tem um emoji de bandeira (🇧🇷 🇵🇾 🇪🇸 🇺🇸) antes do nome do idioma. Emoji em vez de
+  imagem — sem asset extra pra manter, funciona em qualquer tamanho de tela.
+- **Espanhol (Paraguai) e Espanhol (Espanha) usam o mesmo texto traduzido por
+  enquanto** — criado `frontend/src/translate/languages/esES.js` (código `es-ES`)
+  como cópia de `es.js` (código `es`, que passou a representar especificamente o
+  Paraguai). Não existe ainda um texto diferente pro espanhol da Espanha — se um
+  dia for necessário (vocabulário/formalidade diferentes), é só editar
+  `esES.js` isoladamente, sem afetar o `es.js` do Paraguai.
+- `frontend/src/translate/languages/index.js`: passou a importar/mesclar
+  `esES.js`; parou de importar `tr.js` no bundle ativo (o arquivo continua no
+  repositório, só não é mais oferecido no seletor — reversível se for pedido de
+  volta).
+- Rótulos de cada idioma (`languages.*`, usados via `i18n.t`) atualizados nos 4
+  arquivos de tradução ativos (`pt.js`, `en.js`, `es.js`, `esES.js`) pra
+  desambiguar as duas variantes de espanhol: "Espanhol (Paraguai)"/"Espanhol
+  (Espanha)" etc., cada um no próprio idioma do arquivo.
