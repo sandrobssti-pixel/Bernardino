@@ -27,6 +27,7 @@ import formatBody from "../../helpers/Mustache";
 import AppError from "../../errors/AppError";
 import Message from "../../models/Message"; // <<— para migrar histórico
 import cacheLayer from "../../libs/cache";
+import IsContactFullyRegistered from "../ContactServices/IsContactFullyRegistered";
 
 // ===== helpers =====
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -279,6 +280,26 @@ const UpdateTicketService = async ({
     const oldStatus = ticket?.status;
     const oldUserId = ticket.user?.id;
     const oldQueueId = ticket?.queueId;
+
+    // Cadastro obrigatório antes de fechar (ver docs/MANUAL_TECNICO.md,
+    // seção 14): só se aplica a fechamento feito por um agente pela tela
+    // de atendimento (loggedInUserId só vem do TicketController — fluxos
+    // automáticos de bot/fila/webhook nunca informam isso, e não devem
+    // ficar travados esperando alguém preencher um formulário). Um
+    // contato "incompleto" cobre tanto cliente novo (contato recém-criado
+    // pelo WhatsApp, campos ainda vazios) quanto cliente que trocou de
+    // número (novo Contact, já que `number` é único — também começa
+    // vazio) — não precisa de nenhuma lógica extra pra distinguir os dois
+    // casos.
+    if (
+      loggedInUserId &&
+      status === "closed" &&
+      oldStatus !== "closed" &&
+      ticket.contact &&
+      !IsContactFullyRegistered(ticket.contact)
+    ) {
+      throw new AppError("ERR_CONTACT_REGISTRATION_REQUIRED", 400);
+    }
 
     if (isNil(ticket.whatsappId) && status === "closed") {
       await CreateLogTicketService({
@@ -1028,6 +1049,15 @@ const UpdateTicketService = async ({
 
     return { ticket, oldStatus, oldUserId };
   } catch (err: any) {
+    // Erros intencionais (AppError, ex.: a validação de cadastro
+    // obrigatório logo no início desta função) precisam chegar ao
+    // frontend com a mensagem/status originais — sem isso, esse catch-all
+    // substituía QUALQUER AppError lançado aqui dentro por um genérico
+    // "ERR_UPDATE_TICKET" (404), escondendo o motivo real do bloqueio.
+    if (err instanceof AppError) {
+      throw err;
+    }
+
     console.log(
       "erro ao atualizar o ticket",
       ticketId,

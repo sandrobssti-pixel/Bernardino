@@ -60,7 +60,7 @@ const ShowTicketService = async (
       {
         model: Contact,
         as: "contact",
-        attributes: ["id", "companyId", "name", "number", "email", "profilePicUrl", "acceptAudioMessage", "active", "disableBot", "remoteJid", "urlPicture", "lgpdAcceptedAt"],
+        attributes: ["id", "companyId", "name", "number", "email", "profilePicUrl", "acceptAudioMessage", "active", "disableBot", "remoteJid", "urlPicture", "lgpdAcceptedAt", "document", "address", "contact2"],
         include: ["extraInfo", "tags",
           {
             association: "wallets",
@@ -81,7 +81,7 @@ const ShowTicketService = async (
       {
         model: Tag,
         as: "tags",
-        attributes: ["id", "name", "color"]
+        attributes: ["id", "name", "color", "kanban"]
       },
       {
         model: Whatsapp,

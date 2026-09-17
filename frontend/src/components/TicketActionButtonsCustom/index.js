@@ -19,6 +19,7 @@ import ConfirmationModal from "../ConfirmationModal";
 import TransferTicketModalCustom from "../TransferTicketModalCustom";
 import AcceptTicketWithouSelectQueue from "../AcceptTicketWithoutQueueModal";
 import CloseTicketFarewellDialog from "../CloseTicketFarewellDialog";
+import MandatoryContactRegistrationModal from "../MandatoryContactRegistrationModal";
 
 //icones
 import HighlightOffIcon from "@material-ui/icons/HighlightOff";
@@ -238,6 +239,11 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
 
     const [anchorEl, setAnchorEl] = useState(null);
     const [menuOpen, setMenuOpen] = useState(false);
+
+    // Cadastro obrigatório de cliente novo/número trocado antes de fechar o
+    // atendimento (ver docs/MANUAL_TECNICO.md, seção 14).
+    const [mandatoryRegistrationOpen, setMandatoryRegistrationOpen] = useState(false);
+    const pendingCloseRef = useRef(null);
     const canDeleteTickets = user.profile === "admin" || user.canDeleteTickets === "enabled";
 
     useEffect(() => {
@@ -341,6 +347,11 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
             history.push("/tickets");
         } catch (err) {
             setLoading(false);
+            if (err?.response?.data?.error === "ERR_CONTACT_REGISTRATION_REQUIRED") {
+                pendingCloseRef.current = () => handleCloseTicketWithoutFarewellMsg();
+                setMandatoryRegistrationOpen(true);
+                return;
+            }
             toastError(err);
         }
     };
@@ -476,6 +487,11 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
             }
         } catch (err) {
             setLoading(false);
+            if (err?.response?.data?.error === "ERR_CONTACT_REGISTRATION_REQUIRED") {
+                pendingCloseRef.current = () => handleUpdateTicketStatus(null, status, userId);
+                setMandatoryRegistrationOpen(true);
+                return;
+            }
             toastError(err);
         }
     };
@@ -566,6 +582,18 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
                     onClose={handleCloseTransferTicketModal}
                     ticketid={ticket.id}
                     ticket={ticket}
+                />
+            )}
+            {mandatoryRegistrationOpen && (
+                <MandatoryContactRegistrationModal
+                    open={mandatoryRegistrationOpen}
+                    ticket={ticket}
+                    onSaved={() => {
+                        setMandatoryRegistrationOpen(false);
+                        const retry = pendingCloseRef.current;
+                        pendingCloseRef.current = null;
+                        if (retry) retry();
+                    }}
                 />
             )}
             <div className={classes.actionButtons}>

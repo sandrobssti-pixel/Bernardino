@@ -25,6 +25,9 @@ interface ContactData {
   remoteJid?: string;
   wallets?: null | number[] | string[];
   birthDate?: Date | string | null;
+  document?: string;
+  address?: string;
+  contact2?: string;
 }
 
 interface Request {
@@ -47,11 +50,11 @@ const UpdateContactService = async ({
   contactId,
   companyId
 }: Request): Promise<Contact> => {
-  const { email, name, number, extraInfo, acceptAudioMessage, active, disableBot, remoteJid, wallets, birthDate } = contactData;
+  const { email, name, number, extraInfo, acceptAudioMessage, active, disableBot, remoteJid, wallets, birthDate, document, address, contact2 } = contactData;
 
   const contact = await Contact.findOne({
     where: { id: contactId },
-    attributes: ["id", "name", "number", "channel", "email", "companyId", "acceptAudioMessage", "active", "profilePicUrl", "remoteJid", "urlPicture"],
+    attributes: ["id", "name", "number", "channel", "email", "companyId", "acceptAudioMessage", "active", "profilePicUrl", "remoteJid", "urlPicture", "document", "address", "contact2"],
     include: ["extraInfo", "tags",
       {
         association: "wallets",
@@ -114,13 +117,16 @@ const UpdateContactService = async ({
     active,
     disableBot,
     remoteJid,
+    document,
+    address,
+    contact2,
     birthDate: Object.prototype.hasOwnProperty.call(contactData, "birthDate")
       ? normalizeBirthDate(birthDate)
       : contact.birthDate
   });
 
   await contact.reload({
-    attributes: ["id", "name", "number", "channel", "email", "companyId", "acceptAudioMessage", "active", "profilePicUrl", "remoteJid", "urlPicture"],
+    attributes: ["id", "name", "number", "channel", "email", "companyId", "acceptAudioMessage", "active", "profilePicUrl", "remoteJid", "urlPicture", "document", "address", "contact2"],
     include: ["extraInfo", "tags",
       {
         association: "wallets",

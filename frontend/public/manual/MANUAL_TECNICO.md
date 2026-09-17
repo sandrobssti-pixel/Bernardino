@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.29
-**Etapa:** 5.4 — Corrigido bug de logout ao clicar em Configurações (COOKIE_DOMAIN inválido em produção)
-**Última atualização:** 2026-09-15
+**Versão do documento:** 2.3.30
+**Etapa:** 5.5 — Cadastro obrigatório de cliente novo + encaminhamento automático pro Kanban ao fechar o atendimento
+**Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -1273,3 +1273,94 @@ branco) e reiniciar o backend (`pm2 restart atendeflow-backend`). A correção d
 código sozinha já evita o cookie quebrado mesmo que a variável continue errada no
 `.env` (ela passa a ser ignorada com um aviso no log), mas o ideal é limpar a
 configuração na origem.
+
+---
+
+## 14. Cadastro obrigatório de cliente novo + encaminhamento automático pro Kanban (v2.3.30)
+
+Pedido do cliente: cliente novo (ou que trocou de número) precisa ter o cadastro
+completo preenchido pelo atendente, com a coluna do Kanban já escolhida, **antes**
+de fechar o atendimento — ao fechar, o atendimento cai direto na coluna do Kanban
+escolhida (via a mesma tag usada pelo Kanban, `Tag.kanban = 1`).
+
+### Como um contato é considerado "novo" ou "já cadastrado"
+
+**Não existe uma flag separada de "cliente novo"** — a regra é simplesmente: um
+contato é considerado **incompleto** se algum dos campos obrigatórios abaixo ainda
+não foi preenchido. Isso cobre os dois casos pedidos pelo cliente sem precisar de
+lógica extra:
+- **Cliente novo**: quando o WhatsApp cria um `Contact` automaticamente na primeira
+  mensagem recebida, os campos novos (documento, endereço, contato 2) começam
+  vazios — cai automaticamente na regra.
+- **Cliente que trocou de número**: como `Contact.number` é único, um número novo
+  sempre vira um `Contact` novo — mesmo que a pessoa já tivesse um cadastro
+  completo no número antigo, o novo registro começa vazio e cai na mesma regra.
+
+Depois que o cadastro é completado uma vez, o cliente nunca mais é interrompido —
+os campos continuam preenchidos nas próximas vezes que ele entrar em contato.
+
+### Campos obrigatórios (Contact)
+
+Além dos já existentes (nome, e-mail, `number` = WhatsApp), foram adicionados 3
+campos novos ao model `Contact` (migração
+`20260916120000-add-mandatory-registration-fields-to-contacts.ts`):
+- `document` (STRING) — CPF ou Identidade
+- `address` (TEXT) — endereço completo (campo único de texto livre, não
+  estruturado em rua/número/bairro/cidade/CEP separados — decisão deliberada pra
+  manter simples)
+- `contact2` (STRING) — um segundo telefone de contato
+
+Helper `backend/src/services/ContactServices/IsContactFullyRegistered.ts` centraliza
+a checagem (nome + e-mail + document + address + contact2, todos não-vazios).
+
+### Onde a trava acontece
+
+`backend/src/services/TicketServices/UpdateTicketService.ts` — logo depois de
+carregar o ticket, antes de qualquer efeito colateral do fechamento: se a
+transição for pra `status: "closed"` **e** for iniciada por um agente autenticado
+pela tela de atendimento (`loggedInUserId` presente — só o `TicketController`
+informa isso; bots, filas, webhooks e outros fluxos automáticos nunca passam esse
+campo, então nunca ficam travados esperando um formulário que ninguém vai
+preencher) **e** o contato do ticket estiver incompleto, lança
+`AppError("ERR_CONTACT_REGISTRATION_REQUIRED", 400)`.
+
+⚠️ **Bug pré-existente encontrado e corrigido nesta mesma etapa**: o `catch` no
+final do `UpdateTicketService` capturava **qualquer** erro (inclusive `AppError`s
+intencionais, como o de cima) e substituía por um genérico `ERR_UPDATE_TICKET`
+(404) — escondendo a causa real do bloqueio. Corrigido adicionando
+`if (err instanceof AppError) throw err;` antes do fallback genérico, preservando
+a mensagem/status originais de qualquer erro intencional lançado dentro da função
+(não só o novo, também um `ERR_UPDATE_TICKET_QUEUE_NOT_FOUND` pré-existente que
+tinha o mesmo problema).
+
+A escolha da tag do Kanban em si **não** é validada separadamente no backend — o
+formulário do frontend (abaixo) já exige a escolha antes de deixar salvar, o que é
+suficiente na prática e evita duplicar a mesma regra nos dois lados.
+
+### Frontend
+
+- `frontend/src/components/MandatoryContactRegistrationModal/index.js`: formulário
+  com os campos obrigatórios + seletor de coluna do Kanban (busca as tags via
+  `GET /tag/kanban/`, mesmo endpoint já usado pela página Kanban). Modal sem botão
+  de cancelar e sem fechar no Esc/clique fora — é mandatório de verdade. Ao salvar:
+  `PUT /contacts/:id` (dados do cadastro) → `DELETE /ticket-tags/:ticketId` (limpa
+  tag de kanban anterior, se tinha) → `PUT /ticket-tags/:ticketId/:tagId` (aplica a
+  nova) → chama `onSaved()`, que tenta fechar o atendimento de novo.
+- `frontend/src/components/TicketActionButtonsCustom/index.js`: os dois pontos que
+  fecham um atendimento (`handleUpdateTicketStatus` e
+  `handleCloseTicketWithoutFarewellMsg`, este último usado quando o atendente
+  fecha sem mandar mensagem de despedida) capturam especificamente o erro
+  `ERR_CONTACT_REGISTRATION_REQUIRED` e abrem o modal acima em vez de só mostrar
+  um toast de erro; guardam a própria função de fechamento numa ref
+  (`pendingCloseRef`) pra rechamar automaticamente assim que o modal salvar.
+
+### Testado
+
+Fluxo completo validado (via chamadas diretas à API e depois via UI real com
+Playwright): tentativa de fechar atendimento de contato incompleto → bloqueado
+com `ERR_CONTACT_REGISTRATION_REQUIRED` → modal abre pré-preenchido (nome já traz
+o que o WhatsApp mandou, ex. o próprio número) → preenche os campos + escolhe a
+coluna do Kanban → salva → atendimento fecha automaticamente → ticket aparece com
+a tag de kanban aplicada. Testado também que um **segundo** atendimento do
+**mesmo** contato (já cadastrado) fecha direto, sem interromper o atendente de
+novo. Dados de teste removidos do banco depois.

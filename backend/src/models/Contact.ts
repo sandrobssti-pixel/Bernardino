@@ -191,6 +191,22 @@ class Contact extends Model<Contact> {
   @AllowNull(true)
   @Column(DataType.DATEONLY)
   birthDate?: Date | null;
+
+  /* ====== Cadastro obrigatório de cliente novo/número trocado (ver
+     docs/MANUAL_TECNICO.md, seção 14) — CPF/RG, endereço completo e um
+     segundo contato, além dos campos já existentes (nome, e-mail,
+     number = WhatsApp). ====== */
+  @Default("")
+  @Column
+  document: string;
+
+  @Default("")
+  @Column(DataType.TEXT)
+  address: string;
+
+  @Default("")
+  @Column
+  contact2: string;
 }
 
 export default Contact;

@@ -3,6 +3,31 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.30] — Cadastro obrigatório de cliente novo + Kanban automático — 2026-09-17
+
+### Adicionado
+- **Cadastro obrigatório antes de fechar o atendimento**, só para clientes
+  novos ou que trocaram de número (contato com cadastro incompleto): nome
+  completo, e-mail, CPF/Identidade, endereço completo e um segundo
+  contato — mais a escolha da coluna do Kanban (tag) pra onde esse
+  atendimento vai. Depois de completado uma vez, o cliente nunca mais é
+  interrompido nos próximos atendimentos.
+- 3 campos novos no cadastro de contato: `document`, `address`,
+  `contact2` (migração
+  `20260916120000-add-mandatory-registration-fields-to-contacts.ts`).
+- Modal `MandatoryContactRegistrationModal`: abre automaticamente quando
+  o backend recusa o fechamento (sem botão de cancelar — é mandatório de
+  verdade); ao salvar, atualiza o contato, aplica a tag do Kanban
+  escolhida no atendimento e fecha automaticamente.
+
+### Corrigido
+- Bug pré-existente no `UpdateTicketService`: o `catch` final capturava
+  qualquer erro (inclusive `AppError`s intencionais) e substituía por um
+  genérico `ERR_UPDATE_TICKET` (404), escondendo a causa real — corrigido
+  repassando `AppError`s como estão.
+
+Detalhes completos em `docs/MANUAL_TECNICO.md`, seção 14.
+
 ## [2.3.29] — Corrigido logout ao clicar em Configurações — 2026-09-15
 
 ### Corrigido

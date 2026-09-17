@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.29 (Etapa 5.4 — corrigido bug real de logout ao clicar em Configurações: `COOKIE_DOMAIN=localhost` no `.env` quebrava silenciosamente o cookie de refresh token em produção; corrigido na origem (`.env.example`) e com validação defensiva no backend — ver `docs/MANUAL_TECNICO.md`, seção 13)**
+**Versão atual: 2.3.30 (Etapa 5.5 — cadastro obrigatório de cliente novo/número trocado (nome, e-mail, CPF/RG, endereço, contato 2) antes de fechar o atendimento, com encaminhamento automático pra coluna do Kanban escolhida — ver `docs/MANUAL_TECNICO.md`, seção 14)**
 
 ## Documentação
 
