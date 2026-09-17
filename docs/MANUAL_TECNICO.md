@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.32
-**Etapa:** 5.7 — Cadastro obrigatório unificado no "Editar contato" + remoção do botão de fechamento redundante
+**Versão do documento:** 2.3.33
+**Etapa:** 5.8 — Corrigido: atendimento fechado com tag não voltava a aparecer no Kanban
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1452,3 +1452,52 @@ aberto → clique em "Resolver" → confirma → abre o modal **"Editar contato"
 "Salvar e fechar atendimento" → confirmado no banco: contato com os campos
 salvos, ticket com `status: "closed"`, `TicketTags` com a tag do Kanban
 aplicada. Dados de teste removidos do banco depois.
+
+---
+
+## 17. Corrigido: atendimento fechado com tag de Kanban sumia do board (v2.3.33)
+
+Feedback do cliente logo depois da v2.3.32 no ar: o encaminhamento pro Kanban
+(feature da v2.3.30) **parou de aparecer** — o atendimento fechava e a tag era
+aplicada certinho (confirmado em teste), mas o board do Kanban não mostrava o
+card. Causa raiz encontrada em
+`backend/src/services/TicketServices/ListTicketsServiceKanban.ts`: a consulta
+que alimenta a tela do Kanban (`GET /ticket/kanban`, usada por
+`frontend/src/pages/Kanban/index.js`) sempre filtrava
+`status: { [Op.or]: ["pending", "open"] }` **incondicionalmente** — ou seja, um
+ticket fechado nunca aparecia no board, mesmo com uma tag de Kanban aplicada.
+Isso não é um bug novo desta etapa — já existia desde antes da v2.3.30, só que
+só ficou visível agora que passou a existir um fluxo que fecha o atendimento
+**e** aplica a tag no mesmo passo.
+
+**Por que isso importa pro cliente**: o Kanban aqui não é só uma fila de
+atendimentos em aberto — é usado pra **segmentação/triagem de clientes**, por
+exemplo pra disparar uma campanha de mensagens só pra quem está na coluna
+"Inadimplentes". Pra isso funcionar, o card precisa continuar visível na coluna
+mesmo depois que o atendimento que o colocou ali foi fechado.
+
+### Correção
+
+Em `ListTicketsServiceKanban.ts`, antes de montar a condição de status, busca-se
+agora os ids de todos os tickets que já têm alguma tag de Kanban aplicada
+(`TicketTag` com join em `Tag` filtrando `kanban: 1` e `companyId`), e o filtro
+de status passa a ser: **pending/open OU o ticket estar nessa lista** —
+em vez de só pending/open. Assim, um ticket fechado continua aparecendo na
+lane da tag que foi atribuída a ele, e o board continua não mostrando
+atendimentos fechados **sem** tag de Kanban (comportamento antigo preservado
+pra quem não usa essa tag).
+
+⚠️ Nota técnica: esse arquivo já tinha um padrão pré-existente de alguns blocos
+(`dateStart`/`dateEnd`, `updatedAt`) que **substituem** `whereCondition` inteiro
+em vez de mesclar — não foi mexido nesta correção porque a tela do Kanban do
+frontend nunca envia esses dois parâmetros (envia `startDate`/`endDate`, nomes
+diferentes), então esses blocos nunca disparam nesse fluxo. Fica registrado
+como possível dívida técnica se um dia esses parâmetros passarem a ser usados
+de verdade.
+
+### Testado
+
+Criado ticket fechado (`status: "closed"`) com uma tag de Kanban aplicada
+diretamente no banco → chamada a `GET /ticket/kanban` autenticada → confirmado
+que o ticket aparece na resposta com a tag correta. Dados de teste removidos
+do banco depois.

@@ -91,9 +91,31 @@ const ListTicketsServiceKanban = async ({
     whereCondition = { queueId: { [Op.or]: [queueIds, null] } };
   }
 
+  // Tickets já classificados numa coluna do Kanban (tag com `kanban = 1`)
+  // continuam aparecendo no board mesmo depois de fechados — o board é usado
+  // pra segmentação/triagem de clientes (ex.: disparo de campanha só pra
+  // quem está na coluna "Inadimplentes"), não só pra atendimentos em
+  // andamento.
+  const kanbanTaggedTicketIds = (
+    await TicketTag.findAll({
+      attributes: ["ticketId"],
+      include: [
+        {
+          model: Tag,
+          as: "tag",
+          attributes: [],
+          where: { kanban: 1, companyId }
+        }
+      ]
+    })
+  ).map(ticketTag => ticketTag.ticketId);
+
   whereCondition = {
     ...whereCondition,
-    status: { [Op.or]: ["pending", "open"] }
+    [Op.or]: [
+      { status: { [Op.or]: ["pending", "open"] } },
+      { id: { [Op.in]: kanbanTaggedTicketIds.length ? kanbanTaggedTicketIds : [-1] } }
+    ]
   };
 
   if (searchParam) {

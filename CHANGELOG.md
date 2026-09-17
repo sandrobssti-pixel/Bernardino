@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.33] — Correção: atendimento fechado sumia do Kanban — 2026-09-17
+
+### Corrigido
+- `GET /ticket/kanban` sempre excluía tickets fechados do board, mesmo com
+  uma tag de Kanban aplicada — o filtro de status era incondicional. Agora um
+  ticket fechado com tag de Kanban continua aparecendo na lane correspondente
+  (essencial pra segmentação/campanhas por tag, ex.: "Inadimplentes").
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 17.
+
 ## [2.3.32] — Cadastro obrigatório unificado no "Editar contato" — 2026-09-17
 
 ### Alterado
