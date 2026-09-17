@@ -170,7 +170,12 @@ const useStyles = makeStyles((theme) => {
       backgroundColor: isDark ? "#111d33" : "#fbfdff",
       marginBottom: theme.spacing(0.8),
       paddingLeft: theme.spacing(0.5),
-      overflow: "hidden"
+      overflow: "hidden",
+      transition: "box-shadow 0.3s ease, border-color 0.3s ease"
+    },
+    ticketRowHighlighted: {
+      borderColor: "#7c3aed",
+      boxShadow: "0 0 0 3px rgba(124,58,237,0.35)"
     },
     ticketRowContent: {
       borderLeft: "4px solid transparent",
@@ -359,6 +364,8 @@ const DashboardManage = () => {
   const [messageTarget, setMessageTarget] = useState(null);
   const [transferTarget, setTransferTarget] = useState(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [highlightedTicketId, setHighlightedTicketId] = useState(null);
+  const highlightTimeoutRef = useRef(null);
   const canSupervise = user.super || !!supervisorAccess?.hasAccess;
 
   useEffect(() => {
@@ -385,6 +392,43 @@ const DashboardManage = () => {
       toastError(err);
     }
   };
+
+  // "Ir direto no atendimento" a partir do card de uma Regra de SLA (ver
+  // docs/MANUAL_TECNICO.md): usa a mesma resolução de regra por ticket já
+  // feita no backend (/supervisor-panel/live) em vez de tentar reproduzir
+  // a lógica de precedência de regras aqui no front — pega o atendimento
+  // mais urgente daquela regra (a lista já vem ordenada por minutos
+  // decrescentes) e rola a tela até ele, com um destaque temporário.
+  const handleSelectRule = async (rule) => {
+    try {
+      const live = await supervisorPanel.getLive();
+      const match = live.find((row) => row.ruleId === rule.ruleId);
+
+      if (!match) {
+        toast.info(`Nenhum atendimento ativo no momento para a regra "${rule.ruleName}".`);
+        return;
+      }
+
+      const element = document.getElementById(`ticket-row-${match.ticketId}`);
+      if (!element) {
+        toast.info(
+          `Atendimento mais urgente da regra "${rule.ruleName}": ${match.contactName || match.contactNumber} (${match.elapsedMinutes} min) — não está visível nesta tela agora.`
+        );
+        return;
+      }
+
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+      setHighlightedTicketId(match.ticketId);
+      highlightTimeoutRef.current = setTimeout(() => setHighlightedTicketId(null), 4000);
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  useEffect(() => () => {
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+  }, []);
 
   const companyId = user.companyId;
   const socketDebounceRef = useRef(null);
@@ -544,7 +588,12 @@ const DashboardManage = () => {
 
     return (
       <List key={ticket.id} style={{ paddingTop: 0 }}>
-        <ListItem dense button className={classes.ticketRow}>
+        <ListItem
+          id={`ticket-row-${ticket.id}`}
+          dense
+          button
+          className={`${classes.ticketRow} ${highlightedTicketId === ticket.id ? classes.ticketRowHighlighted : ""}`}
+        >
           <Box className={classes.ticketRowContent} style={{ borderLeftColor: sla.color, width: "100%" }}>
             <Box display="flex" justifyContent="space-between" alignItems="flex-start" style={{ width: "100%", minWidth: 0 }}>
               <Box style={{ minWidth: 0 }}>
@@ -757,7 +806,9 @@ const DashboardManage = () => {
           </Box>
         </Paper>
 
-        {canSupervise && <SupervisorOverviewPanel supervisorPanel={supervisorPanel} />}
+        {canSupervise && (
+          <SupervisorOverviewPanel supervisorPanel={supervisorPanel} onSelectRule={handleSelectRule} />
+        )}
 
         <Box className={classes.container}>
           {renderPendingColumn()}

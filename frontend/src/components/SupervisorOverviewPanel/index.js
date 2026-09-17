@@ -67,6 +67,12 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     flexDirection: "column",
     gap: 4,
+    cursor: "pointer",
+    transition: "transform 0.15s ease, box-shadow 0.15s ease",
+    "&:hover": {
+      transform: "translateY(-2px)",
+      boxShadow: theme.shadows[2],
+    },
   },
   ruleName: {
     fontSize: "0.78rem",
@@ -118,7 +124,7 @@ export const formatElapsed = (minutes) => {
 // dois gráficos ao vivo, pensado pra ser embutido dentro do "Painel"
 // (MomentsUser) já existente, em vez de uma tela separada — o cliente pediu
 // pra unificar tudo num lugar só.
-const SupervisorOverviewPanel = ({ supervisorPanel }) => {
+const SupervisorOverviewPanel = ({ supervisorPanel, onSelectRule }) => {
   const classes = useStyles();
   const { user, socket } = useContext(AuthContext);
   const [summary, setSummary] = useState(null);
@@ -242,7 +248,8 @@ const SupervisorOverviewPanel = ({ supervisorPanel }) => {
                   variant="outlined"
                   className={classes.ruleCard}
                   style={highlightColor ? { borderColor: highlightColor } : undefined}
-                  title={`${rule.ruleName} — ${rule.queueName} — risco ${rule.riskMinutes} min / fora do prazo ${rule.overdueMinutes} min`}
+                  title={`${rule.ruleName} — ${rule.queueName} — risco ${rule.riskMinutes} min / fora do prazo ${rule.overdueMinutes} min. Clique para ir direto ao atendimento mais urgente dessa regra.`}
+                  onClick={() => onSelectRule?.(rule)}
                 >
                   <span className={classes.ruleName}>{rule.ruleName}</span>
                   <span className={classes.ruleScope}>{rule.queueName}</span>

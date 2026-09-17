@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.43 (Etapa 6.8 — Painel Vigia ganha card e gráfico ao vivo por Regra de SLA, e a contagem de SLA não zera mais quando o atendimento sai de "aguardando" para "atendendo" — ver `docs/MANUAL_TECNICO.md`, seções 26 e 27)**
+**Versão atual: 2.3.44 (Etapa 6.9 — clicar no card de uma Regra de SLA no Painel leva direto ao atendimento mais urgente daquela regra, com rolagem e destaque automáticos — ver `docs/MANUAL_TECNICO.md`, seção 28)**
 
 ## Documentação
 

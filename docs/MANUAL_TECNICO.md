@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.43
-**Etapa:** 6.8 — SLA não zera mais ao sair de "aguardando" para "atendendo"
+**Versão do documento:** 2.3.44
+**Etapa:** 6.9 — Clicar no card de uma Regra de SLA vai direto ao atendimento
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2084,3 +2084,60 @@ Ticket então aceito por um atendente (`status: "open"`, o que reescreve
 min (não zerou), confirmando que a contagem agora usa `createdAt` da
 tracking e ignora a reescrita de `startedAt`. Dados de teste removidos do
 banco depois.
+
+---
+
+## 28. Clicar no card de uma Regra de SLA vai direto ao atendimento (v2.3.44)
+
+Completa o pedido da seção 26: o cliente queria não só ver o card/gráfico
+por regra, mas também **clicar** nele e ir direto pro atendimento mais
+urgente daquela regra ("indo no local mais rápido e uma posterior tomada
+de decisão").
+
+### Por que não dava pra simplesmente rolar a tela
+
+O Painel (`MomentsUser`) organiza os atendimentos em colunas **por
+atendente** (mais a coluna de "Pendentes"), não por fila/regra — não
+existia nenhuma âncora ligando um atendimento renderizado na tela à regra
+de SLA que se aplica a ele. Era preciso: (1) uma forma de saber qual
+atendimento, entre os que existem agora, é o mais urgente pra uma regra
+específica, e (2) uma forma de "achar" esse atendimento no DOM já
+renderizado, onde quer que ele esteja (dentro da coluna do atendente dele,
+ou nos "Pendentes").
+
+### Implementação
+
+`frontend/src/components/SupervisorOverviewPanel/index.js`: os cards de
+regra (seção 26) ganharam `onClick`, chamando uma função `onSelectRule`
+passada pelo componente pai com a regra clicada.
+
+`frontend/src/components/MomentsUser/index.js`:
+
+- Nova função `handleSelectRule(rule)`: em vez de tentar reproduzir a
+  lógica de precedência de regras (fila específica > padrão da empresa >
+  padrão do sistema) aqui no front, ela busca a lista `/supervisor-panel/live`
+  (que já vem com o `ruleId` resolvido por ticket, seção 26) e pega o
+  **primeiro** atendimento com aquele `ruleId` — como a lista já vem
+  ordenada por minutos decrescentes (mais urgente primeiro), isso já é o
+  atendimento mais crítico daquela regra.
+- Cada linha de atendimento (`renderTicket`) ganhou um `id` de DOM
+  (`ticket-row-<id do ticket>`), único em toda a tela (independente da
+  coluna). Ao clicar num card de regra, `handleSelectRule` acha o elemento
+  por esse id com `document.getElementById` e chama
+  `scrollIntoView({ behavior: "smooth", block: "center" })`, além de
+  aplicar um destaque visual temporário (borda + sombra roxa, 4 segundos)
+  pra chamar atenção do supervisor sobre qual atendimento é aquele.
+- Casos sem atendimento pra mostrar: se a regra não tem nenhum atendimento
+  ativo no momento, ou se o atendimento existe mas por algum motivo não
+  está renderizado na tela (dessincronia momentânea entre o
+  `/usersMoments` que alimenta o Painel e o `/supervisor-panel/live`),
+  mostra um toast informativo em vez de falhar silenciosamente.
+
+### Testado
+
+Sandbox: criado ticket de teste em risco de atraso numa fila com regra
+específica → clique no card da regra rolou a tela até a linha certa
+(dentro da coluna do atendente correspondente) e aplicou o destaque roxo
+por ~4 segundos. Clique numa regra sem nenhum atendimento ativo → toast
+"Nenhum atendimento ativo no momento para a regra...". Dados de teste
+removidos do banco depois.

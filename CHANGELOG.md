@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.44] — Clicar na Regra de SLA vai direto ao atendimento — 2026-09-17
+
+### Adicionado
+- Clicar no card de uma Regra de SLA no Painel agora rola a tela e destaca
+  (por alguns segundos) o atendimento mais urgente daquela regra — sem
+  precisar procurar manualmente entre as colunas de atendentes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 28.
+
 ## [2.3.43] — SLA não zera mais de "aguardando" pra "atendendo" — 2026-09-17
 
 ### Corrigido
