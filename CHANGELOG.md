@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.46] — Corrige build quebrado do frontend — 2026-09-17
+
+### Corrigido
+- `npm run build` do frontend falhava com `'onElementsRemove' is not
+  exported from 'react-flow-renderer'`, travando o `instalador.sh` antes
+  de reiniciar os processos. Era um import não usado em
+  `FlowBuilderConfig/index.js` — removido, sem relação com as mudanças do
+  Painel Vigia. Build de produção testado localmente com sucesso.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 30.
+
 ## [2.3.45] — Card automático "Atendimento fora do expediente ADM" — 2026-09-17
 
 ### Adicionado

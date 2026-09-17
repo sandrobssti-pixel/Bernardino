@@ -62,7 +62,6 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
-  onElementsRemove,
   useReactFlow,
 } from "react-flow-renderer";
 import FlowBuilderAddTextModal from "../../components/FlowBuilderAddTextModal";

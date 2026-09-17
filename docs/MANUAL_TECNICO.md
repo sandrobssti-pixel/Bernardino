@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.45
-**Etapa:** 6.10 — "Atendimento fora do expediente ADM" vira card automático no Painel
+**Versão do documento:** 2.3.46
+**Etapa:** 6.11 — Corrige build quebrado do frontend (import inválido no FlowBuilder)
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2200,3 +2200,41 @@ card automático mostrou 1, com borda roxa. Clique no card rolou a tela até
 o ticket certo. Configurado um horário cobrindo o dia inteiro → contador
 voltou a 0 no próximo refresh (15s), sem precisar recarregar a página.
 Configuração e dados de teste revertidos depois.
+
+---
+
+## 30. Corrige build quebrado do frontend (import inválido no FlowBuilder) (v2.3.46)
+
+Ao rodar `./instalador.sh` na v2.3.45, o `npm run build` do frontend
+falhou com `Failed to compile. Attempted import error: 'onElementsRemove'
+is not exported from 'react-flow-renderer'`, interrompendo a atualização
+antes do `pm2 restart all` — bug real, sem relação com as mudanças do
+Painel Vigia dessa sessão.
+
+### Causa
+
+`frontend/src/pages/FlowBuilderConfig/index.js` importava
+`onElementsRemove` de `"react-flow-renderer"` junto com outros itens
+(`Controls`, `useNodesState`, `addEdge` etc.), mas esse nome **nunca foi
+um export de verdade** da biblioteca instalada (confirmado: a versão
+exata `10.3.17`, a mesma travada em `package.json`, não tem esse export —
+`onElementsRemove` é o nome de uma *prop* que se passa pro componente
+`<ReactFlow>`, não uma função exportada pelo pacote). O import nunca era
+usado em nenhum outro lugar do arquivo (confirmado por busca no arquivo
+inteiro) — código morto que, por algum motivo do cache/resolução do `npm
+install` em builds anteriores, não travava o build, mas passou a travar
+depois do `rm -rf node_modules package-lock.json` do `instalador.sh`.
+
+### Correção
+
+Removida a linha `onElementsRemove,` do import — sem nenhum outro efeito,
+já que não era referenciada em lugar nenhum do arquivo.
+
+### Testado
+
+Build de produção rodado neste ambiente de desenvolvimento
+(`npx craco build`) com o `node_modules` já instalado (mesma versão
+`10.3.17` do `react-flow-renderer` que causou o erro no servidor do
+cliente) → `Compiled successfully.`, confirmando que a remoção do import
+resolve o problema sem quebrar o FlowBuilder (nenhuma outra função do
+arquivo dependia dele).

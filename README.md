@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.45 (Etapa 6.10 — "Atendimento fora do expediente ADM" agora é um card automático na faixa de Regras de SLA do Painel, ligado direto ao módulo Horário de Atendimento — ver `docs/MANUAL_TECNICO.md`, seção 29)**
+**Versão atual: 2.3.46 (Etapa 6.11 — corrige build do frontend quebrado por um import inválido no FlowBuilder (`onElementsRemove`) — ver `docs/MANUAL_TECNICO.md`, seção 30)**
 
 ## Documentação
 
