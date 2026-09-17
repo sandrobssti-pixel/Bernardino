@@ -29,26 +29,48 @@ export interface LiveTicketRow {
   overdueMinutes: number;
   status: "onTime" | "risk" | "overdue";
   outOfHours: boolean;
+  ruleId: number | null;
+  ruleName: string;
 }
+
+// ID sentinel pra quando nenhuma Regra de SLA foi cadastrada (nem específica
+// da fila, nem padrão da empresa) — usa os minutos padrão do sistema
+// (15/20) sem existir uma linha em SlaRule. Precisa de uma identidade
+// própria (id + nome) pra poder aparecer como card no painel por regra,
+// junto com as regras cadastradas manualmente.
+const FALLBACK_RULE_ID = 0;
+const FALLBACK_RULE_NAME = "Padrão do sistema (15/20 min)";
 
 const resolveSlaRule = (
   queueId: number | null,
   rules: SlaRule[]
-): { riskMinutes: number; overdueMinutes: number } => {
+): { riskMinutes: number; overdueMinutes: number; ruleId: number; ruleName: string } => {
   const specific = rules.find(rule => rule.queueId === queueId);
   if (specific) {
-    return { riskMinutes: specific.riskMinutes, overdueMinutes: specific.overdueMinutes };
+    return {
+      riskMinutes: specific.riskMinutes,
+      overdueMinutes: specific.overdueMinutes,
+      ruleId: specific.id,
+      ruleName: specific.name
+    };
   }
 
   const companyDefault = rules.find(rule => rule.queueId === null);
   if (companyDefault) {
     return {
       riskMinutes: companyDefault.riskMinutes,
-      overdueMinutes: companyDefault.overdueMinutes
+      overdueMinutes: companyDefault.overdueMinutes,
+      ruleId: companyDefault.id,
+      ruleName: companyDefault.name
     };
   }
 
-  return { riskMinutes: DEFAULT_RISK_MINUTES, overdueMinutes: DEFAULT_OVERDUE_MINUTES };
+  return {
+    riskMinutes: DEFAULT_RISK_MINUTES,
+    overdueMinutes: DEFAULT_OVERDUE_MINUTES,
+    ruleId: FALLBACK_RULE_ID,
+    ruleName: FALLBACK_RULE_NAME
+  };
 };
 
 // Fora do expediente é lido do módulo "Horário de Atendimento" já existente
@@ -118,12 +140,18 @@ export const listLiveTickets = async (
         order: [["createdAt", "DESC"]]
       });
 
-      const startedAt = traking?.startedAt || ticket.createdAt;
+      // Usa TicketTraking.createdAt (quando o atendimento entrou na fila,
+      // "aguardando") em vez de startedAt (que UpdateTicketService.ts
+      // reescreve pra "agora" quando um atendente aceita/transfere o
+      // atendimento) — pedido do cliente: a contagem do SLA não pode
+      // zerar só porque o atendimento saiu de "aguardando" e foi pra
+      // "atendendo", tem que continuar contando desde a chegada.
+      const startedAt = traking?.createdAt || ticket.createdAt;
       const elapsedMinutes = startedAt
         ? Math.max(0, (now - new Date(startedAt).getTime()) / 60000)
         : 0;
 
-      const { riskMinutes, overdueMinutes } = resolveSlaRule(
+      const { riskMinutes, overdueMinutes, ruleId, ruleName } = resolveSlaRule(
         ticket.queueId || null,
         rules
       );
@@ -151,7 +179,9 @@ export const listLiveTickets = async (
         riskMinutes,
         overdueMinutes,
         status,
-        outOfHours
+        outOfHours,
+        ruleId,
+        ruleName
       };
     })
   );
@@ -172,12 +202,29 @@ export interface SupervisorSummary {
     risk: number;
     overdue: number;
   }[];
+  byRule: {
+    ruleId: number;
+    ruleName: string;
+    queueName: string;
+    riskMinutes: number;
+    overdueMinutes: number;
+    total: number;
+    onTime: number;
+    risk: number;
+    overdue: number;
+  }[];
 }
 
 export const getSummary = async (
   companyId: number
 ): Promise<SupervisorSummary> => {
-  const rows = await listLiveTickets(companyId);
+  const [rows, rules] = await Promise.all([
+    listLiveTickets(companyId),
+    SlaRule.findAll({
+      where: { companyId },
+      include: [{ model: Queue, as: "queue", attributes: ["id", "name"] }]
+    })
+  ]);
 
   const totalOnTime = rows.filter(r => r.status === "onTime").length;
   const totalRisk = rows.filter(r => r.status === "risk").length;
@@ -204,6 +251,60 @@ export const getSummary = async (
     else bucket.overdue += 1;
   });
 
+  // Painel por regra: cada Regra de SLA cadastrada (seção 25) ganha seu
+  // próprio card ao vivo, já assim que é criada — mesmo com 0 atendimentos
+  // no momento — pra confirmar visualmente que está sendo monitorada, sem
+  // precisar esperar um atendimento entrar em risco/atraso pra aparecer.
+  const byRuleMap = new Map<
+    number,
+    {
+      ruleId: number;
+      ruleName: string;
+      queueName: string;
+      riskMinutes: number;
+      overdueMinutes: number;
+      total: number;
+      onTime: number;
+      risk: number;
+      overdue: number;
+    }
+  >();
+
+  rules.forEach(rule => {
+    byRuleMap.set(rule.id, {
+      ruleId: rule.id,
+      ruleName: rule.name,
+      queueName: rule.queue?.name || "Padrão (todas as filas)",
+      riskMinutes: rule.riskMinutes,
+      overdueMinutes: rule.overdueMinutes,
+      total: 0,
+      onTime: 0,
+      risk: 0,
+      overdue: 0
+    });
+  });
+
+  rows.forEach(row => {
+    if (!byRuleMap.has(row.ruleId)) {
+      byRuleMap.set(row.ruleId, {
+        ruleId: row.ruleId,
+        ruleName: row.ruleName,
+        queueName: row.queueName || "Sem fila",
+        riskMinutes: row.riskMinutes,
+        overdueMinutes: row.overdueMinutes,
+        total: 0,
+        onTime: 0,
+        risk: 0,
+        overdue: 0
+      });
+    }
+    const bucket = byRuleMap.get(row.ruleId);
+    bucket.total += 1;
+    if (row.status === "onTime") bucket.onTime += 1;
+    else if (row.status === "risk") bucket.risk += 1;
+    else bucket.overdue += 1;
+  });
+
   return {
     totalActive: rows.length,
     totalOnTime,
@@ -211,6 +312,7 @@ export const getSummary = async (
     totalOverdue,
     totalOutOfHours,
     avgElapsedMinutes,
-    byQueue: Array.from(byQueueMap.values())
+    byQueue: Array.from(byQueueMap.values()),
+    byRule: Array.from(byRuleMap.values())
   };
 };

@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.43] — SLA não zera mais de "aguardando" pra "atendendo" — 2026-09-17
+
+### Corrigido
+- A contagem de minutos do Painel Vigia (cards, gráficos e alertas do
+  sino) zerava quando um atendimento saía de "aguardando" e um atendente
+  aceitava ("atendendo") — o cálculo usava o horário em que o atendente
+  foi atribuído, não o horário em que o cliente chegou na fila. Agora a
+  contagem é contínua desde a chegada, através das duas fases.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 27.
+
+## [2.3.42] — Card e gráfico ao vivo por Regra de SLA — 2026-09-17
+
+### Adicionado
+- Cada Regra de SLA cadastrada (CRUD do Painel Vigia) ganha o próprio card
+  ao vivo no Painel, com contagem de atendimentos no prazo/risco/atraso
+  específica daquela regra — aparece com zero assim que a regra é criada,
+  confirmando visualmente que já está sendo monitorada.
+- Novo gráfico "Por regra de SLA" (barras empilhadas), no mesmo padrão dos
+  gráficos que já existiam ("Distribuição por status" e "Por fila").
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 26.
+
 ## [2.3.41] — Card "Fora do expediente" reposicionado + backup automático — 2026-09-17
 
 ### Alterado

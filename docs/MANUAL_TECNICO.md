@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.41
-**Etapa:** 6.6 — Card "Fora do expediente" reposicionado + backup automático a cada atualização
+**Versão do documento:** 2.3.43
+**Etapa:** 6.8 — SLA não zera mais ao sair de "aguardando" para "atendendo"
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1951,3 +1951,136 @@ chamada ao backup só acontece se `backup-para-drive.sh` existir, então não
 quebra em cópias antigas do projeto sem o script. Reordenação do card
 testada visualmente no sandbox (Playwright): os cinco cards aparecem na
 nova ordem, com os mesmos estilos/cores de antes.
+
+---
+
+## 26. Painel Vigia ganha card e gráfico ao vivo por Regra de SLA (v2.3.42)
+
+O cliente insistiu num ponto que ficou incompleto na seção 25: reposicionar
+o card "Fora do expediente" ao lado do "Fora do prazo" resolvia só a
+posição de **um** card fixo — mas o pedido de fundo era outro: **cada
+Regra de SLA cadastrada** (seção 20, CRUD acessível pelo ícone de
+engrenagem no Painel) precisa ganhar o **próprio painel visual ao vivo**
+assim que é criada, não só entrar como mais uma linha invisível no cálculo
+agregado. Antes desta etapa, os cards "Risco de atraso"/"Fora do prazo" e
+o gráfico "Por fila" mostravam só o total geral — não dava pra saber,
+olhando o Painel, se um atraso específico vinha da regra "Atendimento fora
+do expediente ADM", de uma regra por fila, ou da regra padrão do sistema.
+Isso que o cliente descreveu como "ir no local mais rápido" pra decisão —
+sem granularidade por regra, o supervisor via só o número total e tinha
+que investigar caso a caso.
+
+### Por que não existia isso desde o início
+
+As Regras de SLA (`SlaRule`) sempre alimentaram o cálculo de
+risco/atraso (`resolveSlaRule`), mas o resultado usado por
+`listLiveTickets` descartava a identidade da regra — só guardava os
+minutos (`riskMinutes`/`overdueMinutes`) resolvidos pra cada ticket. Não
+havia como agrupar depois "quantos tickets estão em atraso pela regra X",
+porque o dado de qual regra tinha sido usada já tinha sido jogado fora.
+Faltava então: (1) manter o `ruleId`/`ruleName` em cada ticket calculado,
+e (2) agregar por regra no resumo (`getSummary`), do mesmo jeito que já
+era feito por fila (`byQueue`).
+
+### Implementação
+
+`backend/src/services/SupervisorPanelService/SupervisorPanelService.ts`:
+
+- `resolveSlaRule` agora devolve também `ruleId`/`ruleName` (usa um
+  sentinela `ruleId: 0`, nome "Padrão do sistema (15/20 min)", pros
+  tickets que não caem em nenhuma regra cadastrada — nem específica da
+  fila, nem padrão da empresa).
+- `LiveTicketRow` ganhou os campos `ruleId`/`ruleName`.
+- `getSummary` passou a buscar todas as `SlaRule` da empresa (com a fila
+  associada) e monta `byRule`: um registro por regra com
+  `ruleName`/`queueName`/`riskMinutes`/`overdueMinutes` e as contagens
+  `total`/`onTime`/`risk`/`overdue` — **inicializado a partir das regras
+  cadastradas**, não só dos tickets em andamento, então uma regra nova
+  aparece com zero atendimentos assim que é criada (confirmando
+  visualmente que já está sendo monitorada, sem esperar um atendimento
+  entrar em risco).
+
+`frontend/src/components/SupervisorOverviewPanel/index.js`:
+
+- Nova seção "Regras de SLA (ao vivo, por regra)" logo abaixo da fileira
+  de cards principais (a mesma fileira que tem o "Fora do prazo") — um
+  card por regra cadastrada, com nome da regra, fila (ou "Padrão (todas as
+  filas)"), e três contadores (no prazo/risco/atraso). O card ganha borda
+  vermelha se tiver algum atendimento em atraso por aquela regra, ou
+  amarela se só tiver risco — pra chamar atenção visualmente sem precisar
+  ler os números.
+- Novo gráfico de barras empilhadas "Por regra de SLA" (mesmo padrão dos
+  gráficos "Distribuição por status" e "Por fila" que já existiam),
+  mostrando a mesma quebra por regra de forma gráfica — pedido explícito
+  do cliente ("criar o gráfico visual para monitoramento"), complementando
+  os cards com números.
+- Tudo atualiza no mesmo ciclo que já existia (poll de 15s + refresh
+  imediato ao receber `company-${companyId}-notification` por socket) —
+  nenhum novo mecanismo de tempo real precisou ser criado.
+
+### Limitação conhecida (não implementada nesta etapa)
+
+Clicar num card de regra **não** leva direto ao atendimento específico
+("ir no local") — o Painel (`MomentsUser`) organiza os atendimentos por
+**atendente**, não por fila/regra, então não existe hoje uma âncora visual
+por fila pra rolar a tela até lá. Implementar isso exigiria reorganizar a
+lista de atendimentos por fila (ou adicionar um filtro), o que é uma
+mudança maior na tela — não foi pedido explicitamente ainda e fica como
+possível próximo passo caso o cliente confirme que quer.
+
+### Testado
+
+Sandbox: criada uma `SlaRule` de teste vinculada a uma fila específica →
+card da regra apareceu imediatamente com 0/0/0 (fila sem atendimento
+ainda). Criado um ticket de teste nessa fila com `TicketTraking.startedAt`
+21 minutos atrás → card da regra passou a mostrar 1 em "atraso" e ganhou
+borda vermelha; gráfico "Por regra de SLA" mostrou a mesma barra. Ticket e
+regra de teste removidos do banco depois.
+
+---
+
+## 27. SLA não zera mais ao sair de "aguardando" para "atendendo" (v2.3.43)
+
+Bug relatado pelo cliente: quando um atendimento saía de "aguardando"
+(pending, na fila, sem atendente) e um atendente aceitava (virava "open"),
+a contagem do SLA no Painel Vigia **zerava** — o atendimento que já estava
+há 18 minutos esperando voltava a mostrar poucos minutos assim que era
+aceito, escondendo o tempo real de espera do cliente.
+
+### Causa
+
+`listLiveTickets` calculava o início da contagem com
+`traking?.startedAt || ticket.createdAt`. Só que
+`TicketTraking.startedAt` **não é** o horário em que o atendimento chegou
+— é o horário em que um atendente **aceitou/foi atribuído** ao ticket, e é
+reescrito pra "agora" em mais de um lugar do `UpdateTicketService.ts`
+(inclusive numa transferência). Ou seja, o campo usado como "início" era,
+na prática, o horário da última mudança de responsável, não o horário de
+chegada do cliente — daí o "zerar" ao mudar de fase.
+
+### Correção
+
+`backend/src/services/SupervisorPanelService/SupervisorPanelService.ts`:
+trocado `traking?.startedAt` por `traking?.createdAt` — o `createdAt` da
+linha de `TicketTraking` é gravado **uma única vez**, quando a linha é
+criada (`FindOrCreateATicketTrakingService`, chamado assim que a primeira
+mensagem cria/reabre o atendimento) e nunca é reescrito depois — nem ao
+aceitar, nem ao transferir dentro do mesmo ticket. Com isso a contagem de
+minutos no Painel (cards, gráficos, alertas do sino) passa a refletir o
+tempo total desde que o cliente entrou na fila, contínuo através de
+"aguardando" → "atendendo", exatamente como pedido.
+
+Único caso em que a contagem reinicia de propósito: quando a transferência
+fecha o ticket antigo e cria um **ticket novo** (`closeTicketOnTransfer`
+ligado) — aí é mesmo um atendimento novo, com seu próprio
+`TicketTraking`, e reiniciar faz sentido.
+
+### Testado
+
+Ticket de teste criado como "pending" (na fila) com o `TicketTraking`
+criado há 18 minutos → Painel mostrou 18 min, status "risco de atraso".
+Ticket então aceito por um atendente (`status: "open"`, o que reescreve
+`startedAt` pra "agora" como sempre fez) → Painel continuou mostrando ~18
+min (não zerou), confirmando que a contagem agora usa `createdAt` da
+tracking e ignora a reescrita de `startedAt`. Dados de teste removidos do
+banco depois.

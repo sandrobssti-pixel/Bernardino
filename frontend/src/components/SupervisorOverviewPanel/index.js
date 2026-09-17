@@ -46,6 +46,58 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(1.5),
     borderRadius: 10,
   },
+  ruleSectionTitle: {
+    fontSize: "0.72rem",
+    color: theme.palette.text.secondary,
+    textTransform: "uppercase",
+    fontWeight: 600,
+    letterSpacing: 0.3,
+    marginBottom: theme.spacing(0.5),
+  },
+  ruleRow: {
+    display: "flex",
+    gap: theme.spacing(1),
+    flexWrap: "wrap",
+    marginBottom: theme.spacing(1.5),
+  },
+  ruleCard: {
+    flex: "1 1 190px",
+    padding: theme.spacing(1),
+    borderRadius: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  ruleName: {
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  ruleScope: {
+    fontSize: "0.68rem",
+    color: theme.palette.text.secondary,
+  },
+  ruleCounts: {
+    display: "flex",
+    gap: theme.spacing(1),
+    marginTop: 2,
+  },
+  ruleCount: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  ruleCountValue: {
+    fontSize: "1.05rem",
+    fontWeight: 700,
+    lineHeight: 1.1,
+  },
+  ruleCountLabel: {
+    fontSize: "0.6rem",
+    color: theme.palette.text.secondary,
+  },
 }));
 
 export const STATUS_META = {
@@ -129,6 +181,22 @@ const SupervisorOverviewPanel = ({ supervisorPanel }) => {
     };
   }, [summary]);
 
+  const byRuleOption = useMemo(() => {
+    const rows = summary?.byRule || [];
+    return {
+      tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
+      legend: { bottom: 0, textStyle: { fontSize: 11 } },
+      grid: { left: 36, right: 12, top: 20, bottom: 40 },
+      xAxis: { type: "category", data: rows.map((r) => r.ruleName), axisLabel: { fontSize: 10, rotate: rows.length > 3 ? 20 : 0 } },
+      yAxis: { type: "value", minInterval: 1 },
+      series: [
+        { name: "No prazo", type: "bar", stack: "total", data: rows.map((r) => r.onTime), itemStyle: { color: STATUS_META.onTime.color } },
+        { name: "Risco de atraso", type: "bar", stack: "total", data: rows.map((r) => r.risk), itemStyle: { color: STATUS_META.risk.color } },
+        { name: "Fora do prazo", type: "bar", stack: "total", data: rows.map((r) => r.overdue), itemStyle: { color: STATUS_META.overdue.color } },
+      ],
+    };
+  }, [summary]);
+
   if (!summary) return null;
 
   return (
@@ -156,6 +224,49 @@ const SupervisorOverviewPanel = ({ supervisorPanel }) => {
         </Paper>
       </Box>
 
+      {summary.byRule?.length > 0 && (
+        <Box>
+          <Typography className={classes.ruleSectionTitle}>
+            Regras de SLA (ao vivo, por regra)
+          </Typography>
+          <Box className={classes.ruleRow}>
+            {summary.byRule.map((rule) => {
+              const highlightColor = rule.overdue > 0
+                ? STATUS_META.overdue.color
+                : rule.risk > 0
+                  ? STATUS_META.risk.color
+                  : undefined;
+              return (
+                <Paper
+                  key={rule.ruleId}
+                  variant="outlined"
+                  className={classes.ruleCard}
+                  style={highlightColor ? { borderColor: highlightColor } : undefined}
+                  title={`${rule.ruleName} — ${rule.queueName} — risco ${rule.riskMinutes} min / fora do prazo ${rule.overdueMinutes} min`}
+                >
+                  <span className={classes.ruleName}>{rule.ruleName}</span>
+                  <span className={classes.ruleScope}>{rule.queueName}</span>
+                  <Box className={classes.ruleCounts}>
+                    <Box className={classes.ruleCount}>
+                      <span className={classes.ruleCountValue} style={{ color: STATUS_META.onTime.color }}>{rule.onTime}</span>
+                      <span className={classes.ruleCountLabel}>no prazo</span>
+                    </Box>
+                    <Box className={classes.ruleCount}>
+                      <span className={classes.ruleCountValue} style={{ color: STATUS_META.risk.color }}>{rule.risk}</span>
+                      <span className={classes.ruleCountLabel}>risco</span>
+                    </Box>
+                    <Box className={classes.ruleCount}>
+                      <span className={classes.ruleCountValue} style={{ color: STATUS_META.overdue.color }}>{rule.overdue}</span>
+                      <span className={classes.ruleCountLabel}>atraso</span>
+                    </Box>
+                  </Box>
+                </Paper>
+              );
+            })}
+          </Box>
+        </Box>
+      )}
+
       {summary.totalActive > 0 && (
         <Box className={classes.chartsRow}>
           <Paper variant="outlined" className={classes.chartPaper}>
@@ -166,6 +277,12 @@ const SupervisorOverviewPanel = ({ supervisorPanel }) => {
             <Typography variant="subtitle2" gutterBottom>Por fila</Typography>
             <ReactECharts option={byQueueOption} style={{ height: 200 }} />
           </Paper>
+          {summary.byRule?.length > 0 && (
+            <Paper variant="outlined" className={classes.chartPaper}>
+              <Typography variant="subtitle2" gutterBottom>Por regra de SLA</Typography>
+              <ReactECharts option={byRuleOption} style={{ height: 200 }} />
+            </Paper>
+          )}
         </Box>
       )}
     </Box>
