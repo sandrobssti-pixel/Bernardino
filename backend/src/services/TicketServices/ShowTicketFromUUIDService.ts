@@ -45,7 +45,7 @@ const ShowTicketUUIDService = async (uuid: string,
       {
         model: Contact,
         as: "contact",
-        attributes: ["id", "name", "number", "email", "profilePicUrl", "acceptAudioMessage", "active", "disableBot", "urlPicture", "companyId"],
+        attributes: ["id", "name", "number", "email", "profilePicUrl", "acceptAudioMessage", "active", "disableBot", "urlPicture", "companyId", "document", "address", "contact2"],
         include: ["extraInfo", "tags",
           {
             association: "wallets",

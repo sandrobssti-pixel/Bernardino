@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.34] — Botão de fechar atendimento com rótulo dinâmico — 2026-09-17
+
+### Alterado
+- O único botão de fechar atendimento agora mostra "Cadastrar Contato"
+  enquanto o cliente não tem o cadastro completo, e "Resolver" depois de
+  completo — mesma ação nos dois casos, só o texto muda pra deixar claro o
+  que vai acontecer.
+
+### Corrigido
+- `ShowTicketFromUUIDService` não carregava `document`/`address`/`contact2`
+  do contato ao abrir a tela de atendimento, então o frontend nunca sabia se
+  o cadastro estava completo pro ticket aberto no momento.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 18.
+
 ## [2.3.33] — Correção: atendimento fechado sumia do Kanban — 2026-09-17
 
 ### Corrigido

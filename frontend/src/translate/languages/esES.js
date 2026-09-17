@@ -1668,6 +1668,7 @@ const messages = {
           buttons: {
             return: "Retornar",
             resolve: "Resolver",
+            registerContact: "Registrar Contacto",
             reopen: "Reabrir",
             accept: "Aceptar",
             rating: "Enviar Evaluación",

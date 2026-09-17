@@ -1681,6 +1681,7 @@ const messages = {
           buttons: {
             return: "Return",
             resolve: "Resolve",
+            registerContact: "Register Contact",
             reopen: "Reopen",
             accept: "Accept",
             rating: "Send Rating",

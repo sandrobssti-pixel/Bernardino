@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.33 (Etapa 5.8 — corrigido: atendimento fechado com tag de Kanban voltou a aparecer no board do Kanban, essencial pra segmentação/campanhas por tag — ver `docs/MANUAL_TECNICO.md`, seção 17)**
+**Versão atual: 2.3.34 (Etapa 5.9 — botão de fechar atendimento passa a mostrar "Cadastrar Contato" enquanto o cliente não tem o cadastro completo, e "Resolver" depois — ver `docs/MANUAL_TECNICO.md`, seção 18)**
 
 ## Documentação
 

@@ -20,6 +20,7 @@ import TransferTicketModalCustom from "../TransferTicketModalCustom";
 import AcceptTicketWithouSelectQueue from "../AcceptTicketWithoutQueueModal";
 import CloseTicketFarewellDialog from "../CloseTicketFarewellDialog";
 import ContactModal from "../ContactModal";
+import isContactFullyRegistered from "../../helpers/isContactFullyRegistered";
 
 //icones
 import HighlightOffIcon from "@material-ui/icons/HighlightOff";
@@ -245,6 +246,14 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
     const [mandatoryRegistrationOpen, setMandatoryRegistrationOpen] = useState(false);
     const pendingCloseRef = useRef(null);
     const canDeleteTickets = user.profile === "admin" || user.canDeleteTickets === "enabled";
+    // Enquanto o contato não tem o cadastro completo, o botão de resolver o
+    // atendimento é rotulado como "Cadastrar Contato" — ao clicar, abre o
+    // Editar Contato pra completar o cadastro antes de fechar de verdade.
+    const resolveButtonLabel = i18n.t(
+        isContactFullyRegistered(ticket?.contact)
+            ? "messagesList.header.buttons.resolve"
+            : "messagesList.header.buttons.registerContact"
+    );
 
     useEffect(() => {
         fetchData();
@@ -634,7 +643,7 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
                         {!isMobile && (
                             <>
                                 <div className={classes.buttonGroup}>
-                                    <Tooltip title={i18n.t("messagesList.header.buttons.resolve")}>
+                                    <Tooltip title={resolveButtonLabel}>
                                         <IconButton
                                             className={classes.iconButtonResolve}
                                             onClick={handleClickOpen}
@@ -744,7 +753,7 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
                     {/* Ações de atendimento — apenas no mobile (no desktop ficam como botões no header) */}
                     {isMobile && (ticket.status === "open" || ticket.status === "group") && [
                         <MenuItem key="resolve" onClick={() => { handleCloseMenu(); handleClickOpen(); }}>
-                            {i18n.t("messagesList.header.buttons.resolve")}
+                            {resolveButtonLabel}
                         </MenuItem>,
                         <MenuItem key="return" onClick={(e) => { handleCloseMenu(); handleUpdateTicketStatus(e, "pending", null); }}>
                             {i18n.t("tickets.buttons.returnQueue")}

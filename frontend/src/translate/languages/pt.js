@@ -1751,6 +1751,7 @@ const messages = {
           buttons: {
             return: "Retornar",
             resolve: "Resolver",
+            registerContact: "Cadastrar Contato",
             reopen: "Reabrir",
             accept: "Aceitar",
             rating: "Enviar Avaliação",

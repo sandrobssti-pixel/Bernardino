@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.33
-**Etapa:** 5.8 — Corrigido: atendimento fechado com tag não voltava a aparecer no Kanban
+**Versão do documento:** 2.3.34
+**Etapa:** 5.9 — Botão de fechar atendimento rotulado dinamicamente ("Cadastrar Contato" / "Resolver")
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1501,3 +1501,47 @@ Criado ticket fechado (`status: "closed"`) com uma tag de Kanban aplicada
 diretamente no banco → chamada a `GET /ticket/kanban` autenticada → confirmado
 que o ticket aparece na resposta com a tag correta. Dados de teste removidos
 do banco depois.
+
+---
+
+## 18. Botão de fechar atendimento com rótulo dinâmico: "Cadastrar Contato" / "Resolver" (v2.3.34)
+
+Pedido do cliente pra deixar mais claro o que o único botão de fechamento faz
+em cada situação, já que ele mesmo serve pras duas coisas (fechar direto, ou
+abrir o cadastro obrigatório primeiro): em vez de sempre mostrar "Resolver", o
+botão agora mostra **"Cadastrar Contato"** enquanto o cliente do ticket ainda
+não tem o cadastro completo (mesma regra de
+`IsContactFullyRegistered` do backend — nome, e-mail, documento, endereço e
+contato 2 preenchidos), e volta a mostrar **"Resolver"** assim que o cadastro
+estiver completo. O clique continua fazendo exatamente a mesma coisa nos dois
+casos — só o texto/tooltip muda, pra avisar o atendente do que vai acontecer
+antes de clicar.
+
+- `frontend/src/helpers/isContactFullyRegistered.js` (novo): mesma checagem do
+  backend, em JS puro, sem chamada de API — usa os dados do contato que já
+  vêm carregados junto com o ticket.
+- `frontend/src/components/TicketActionButtonsCustom/index.js`: calcula
+  `resolveButtonLabel` uma vez (`i18n.t("messagesList.header.buttons.resolve")`
+  ou `i18n.t("messagesList.header.buttons.registerContact")`) e usa nos três
+  lugares que hoje mostram esse texto (tooltip do ícone no desktop, item do
+  menu mobile).
+- Nova chave de tradução `messagesList.header.buttons.registerContact`
+  ("Cadastrar Contato" / "Register Contact" / "Registrar Contacto") nos 4
+  idiomas ativos.
+
+⚠️ **Bug relacionado encontrado e corrigido nesta mesma etapa**: o serviço que
+carrega os dados do ticket ao abrir a tela de atendimento
+(`backend/src/services/TicketServices/ShowTicketFromUUIDService.ts`) não
+incluía `document`/`address`/`contact2` nos atributos do `Contact` —
+diferente do `ShowTicketService.ts` (usado em outro fluxo), que já tinha sido
+corrigido na v2.3.30. Sem isso, o frontend nunca via esses campos pro ticket
+atualmente aberto, então o rótulo dinâmico sempre calculava "incompleto"
+mesmo pra contato já cadastrado. Corrigido adicionando os 3 campos na lista de
+`attributes`.
+
+### Testado
+
+Ticket com contato incompleto → botão mostra "Cadastrar Contato" (confirmado
+via atributo `title` do elemento). Depois de completar os 5 campos
+obrigatórios do mesmo contato direto no banco e recarregar a página → botão
+volta a mostrar "Resolver". Dados de teste removidos do banco depois.
