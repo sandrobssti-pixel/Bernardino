@@ -72,6 +72,8 @@ import SaleItem from "../models/SaleItem";
 import FiscalDocument from "../models/FiscalDocument";
 import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
+import SlaRule from "../models/SlaRule";
+import Notification from "../models/Notification";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -151,7 +153,9 @@ const models = [
   SaleItem,
   FiscalDocument,
   JobPosting,
-  JobApplication
+  JobApplication,
+  SlaRule,
+  Notification
 ];
 
 sequelize.addModels(models);

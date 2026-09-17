@@ -231,6 +231,14 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   hrAccess: boolean;
 
+  // Acesso ao Painel Vigia (monitoramento de atrasos em tempo real) — mesmo
+  // padrão do financialAccess/hrAccess: só tem efeito se o plano incluir
+  // (Plan.useSupervisorPanel); Admin e Master sempre têm acesso quando o
+  // módulo está ativo, independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  supervisorPanelAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

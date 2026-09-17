@@ -999,6 +999,7 @@ const messages = {
           chats: "Chat Interno",
           financeiro: "Financeiro",
           rh: "RH",
+          painelVigia: "Painel Vigia",
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",

@@ -24,6 +24,7 @@ import Company from "./models/Company";
 import Contact from "./models/Contact";
 import Queue from "./models/Queue";
 import { ClosedAllOpenTickets } from "./services/WbotServices/wbotClosedTickets";
+import { runSlaMonitor } from "./services/SupervisorPanelService/SlaMonitorService";
 import Ticket from "./models/Ticket";
 import ShowContactService from "./services/ContactServices/ShowContactService";
 import UserQueue from "./models/UserQueue";
@@ -2739,6 +2740,27 @@ async function handleCloseTicketsAutomatic() {
   job.start();
 }
 
+// Painel Vigia — verifica a cada minuto se algum atendimento em aberto
+// cruzou o limiar de risco/fora do prazo (ver docs/MANUAL_TECNICO.md).
+async function handleSupervisorSlaMonitor() {
+  const job = new CronJob("*/1 * * * *", async () => {
+    const companies = await Company.findAll({
+      where: {
+        status: true
+      }
+    });
+    companies.map(async c => {
+      try {
+        await runSlaMonitor(c.id);
+      } catch (e: any) {
+        Sentry.captureException(e);
+        logger.error(`SupervisorSlaMonitor -> Verify: error ${e.message}`);
+      }
+    });
+  });
+  job.start();
+}
+
 async function handleWhatsapp() {
   const jobW = new CronJob(
     "* 15 3 * * *",
@@ -3067,6 +3089,7 @@ handleWhatsapp();
 handleProcessLanes();
 handleCloseTicketsAutomatic();
 handleRandomUser();
+handleSupervisorSlaMonitor();
 
 export async function startQueueProcess() {
   logger.info("Iniciando processamento de filas");

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.34 (Etapa 5.9 — botão de fechar atendimento passa a mostrar "Cadastrar Contato" enquanto o cliente não tem o cadastro completo, e "Resolver" depois — ver `docs/MANUAL_TECNICO.md`, seção 18)**
+**Versão atual: 2.3.35 (Etapa 6 — Painel Vigia: monitoramento em tempo real de atrasos/risco de atraso no atendimento, com regras de SLA configuráveis, alertas no sino e mensagens ao vivo do supervisor pro atendente — ver `docs/MANUAL_TECNICO.md`, seção 19)**
 
 ## Documentação
 

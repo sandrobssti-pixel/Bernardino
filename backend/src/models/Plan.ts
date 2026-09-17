@@ -122,6 +122,13 @@ class Plan extends Model<Plan> {
   @Default(false)
   @Column
   useHR: boolean;
+
+  // Painel Vigia (monitoramento em tempo real de atrasos/risco de atraso no
+  // atendimento, com alertas e mensagens ao vivo do supervisor) — add-on
+  // separado. Ver docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  useSupervisorPanel: boolean;
 }
 
 export default Plan;

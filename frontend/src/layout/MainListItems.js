@@ -39,6 +39,7 @@ import CakeIcon from "@material-ui/icons/Cake";
 import ForumIcon from "@material-ui/icons/Forum";
 import LocalAtmIcon from "@material-ui/icons/LocalAtm";
 import WorkOutlineIcon from "@material-ui/icons/WorkOutline";
+import TrackChangesIcon from "@material-ui/icons/TrackChanges";
 import {
   AllInclusive,
   AttachFile,
@@ -1368,6 +1369,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<WorkOutlineIcon />}
                   iconKey="rh"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/painel-vigia"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.painelVigia"
+                  )}
+                  icon={<TrackChangesIcon />}
+                  iconKey="painelVigia"
                   tooltip={collapsed}
                 />
               )}

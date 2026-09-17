@@ -64,6 +64,7 @@ import globalConfigRoutes from "./globalConfigRoutes";
 import financeRoutes from "./financeRoutes";
 import fiscalRoutes from "./fiscalRoutes";
 import hrRoutes from "./hrRoutes";
+import supervisorPanelRoutes from "./supervisorPanelRoutes";
 
 const routes = Router();
 
@@ -133,5 +134,6 @@ routes.use("/global-config", globalConfigRoutes);
 routes.use(financeRoutes);
 routes.use(fiscalRoutes);
 routes.use(hrRoutes);
+routes.use(supervisorPanelRoutes);
 
 export default routes;

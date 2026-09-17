@@ -6,6 +6,8 @@ import { instrument } from "@socket.io/admin-ui";
 import { z } from "zod";
 import jwt from "jsonwebtoken";
 import { ReceibedWhatsAppService } from "../services/WhatsAppOficial/ReceivedWhatsApp";
+import User from "../models/User";
+import EnsureSupervisorPanelAccess from "../services/SupervisorPanelService/EnsureSupervisorPanelAccess";
 
 // Define namespaces permitidos
 // Mantém compatibilidade com clientes antigos (/123) e novos (/workspace-123)
@@ -175,6 +177,23 @@ export const initIO = (httpServer: Server): SocketIO => {
     }
 
     logger.info(`Cliente conectado ao namespace ${socket.nsp.name} (IP: ${clientIp})`);
+
+    // Painel Vigia: sala pessoal (mensagens/alertas dirigidos a este
+    // usuário) e, se autorizado, a sala "supervisors" (alertas de SLA da
+    // empresa toda). Ver docs/MANUAL_TECNICO.md.
+    if (!socket.data.isOfficialApi && userId) {
+      socket.join(`user-${userId}`);
+      User.findByPk(userId)
+        .then(user => {
+          if (!user) return;
+          return EnsureSupervisorPanelAccess(user as any).then(allowed => {
+            if (allowed) socket.join("supervisors");
+          });
+        })
+        .catch(err => {
+          logger.warn(`Falha ao verificar acesso ao Painel Vigia pro socket: ${err.message}`);
+        });
+    }
 
     socket.on("joinChatBox", (ticketId: string, callback?: (error?: string) => void) => {
       try {

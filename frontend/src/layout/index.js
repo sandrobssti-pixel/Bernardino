@@ -31,6 +31,7 @@ import CachedIcon from "@material-ui/icons/Cached";
 
 import MainListItems from "./MainListItems";
 import NotificationsPopOver from "../components/NotificationsPopOver";
+import SupervisorAlertsBell from "../components/SupervisorAlertsBell";
 import NotificationsVolume from "../components/NotificationsVolume";
 import UserModal from "../components/UserModal";
 import { AuthContext } from "../context/Auth/AuthContext";
@@ -824,6 +825,12 @@ const LoggedInLayout = ({ children }) => {
                     notificationMuted={notificationMuted}
                     notificationGroupMuted={notificationGroupMuted}
                   />
+                </div>
+              )}
+
+              {user.id && (
+                <div className={classes.topbarActionWrapper}>
+                  <SupervisorAlertsBell />
                 </div>
               )}
 

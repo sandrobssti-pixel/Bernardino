@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.35] — Painel Vigia (monitoramento de SLA em tempo real) — 2026-09-17
+
+### Adicionado
+- Novo módulo "Painel Vigia" (add-on por plano/usuário, mesmo padrão do
+  Financeiro/RH): monitoramento em tempo real de atendimentos com risco de
+  atraso (15 min, configurável) ou fora do prazo (20 min, configurável).
+- Regras de SLA com CRUD completo (criar/editar/excluir), por fila ou padrão
+  da empresa.
+- Tela "Ao vivo": cards de totais, gráficos (donut de status + barras por
+  fila) e tabela com atendente (online/offline), cliente, fila, tempo
+  decorrido e status, com botão pra mandar mensagem ao vivo pro atendente.
+- Alertas automáticos (a cada minuto) quando um atendimento cruza o limiar
+  de risco/atraso, entregues em tempo real e num sino novo, separado do sino
+  de tickets — visível pra todo mundo, com opção de apagar restrita a quem
+  tem acesso ao módulo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 19.
+
 ## [2.3.34] — Botão de fechar atendimento com rótulo dinâmico — 2026-09-17
 
 ### Alterado

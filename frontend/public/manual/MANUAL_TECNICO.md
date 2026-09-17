@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.34
-**Etapa:** 5.9 — Botão de fechar atendimento rotulado dinamicamente ("Cadastrar Contato" / "Resolver")
+**Versão do documento:** 2.3.35
+**Etapa:** 6 — Painel Vigia (monitoramento de SLA em tempo real)
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1545,3 +1545,125 @@ Ticket com contato incompleto → botão mostra "Cadastrar Contato" (confirmado
 via atributo `title` do elemento). Depois de completar os 5 campos
 obrigatórios do mesmo contato direto no banco e recarregar a página → botão
 volta a mostrar "Resolver". Dados de teste removidos do banco depois.
+
+---
+
+## 19. Painel Vigia — monitoramento de SLA em tempo real (v2.3.35)
+
+Pedido do cliente: um painel de supervisão pra ver, ao vivo, quais
+atendimentos estão demorando demais — com dois limiares configuráveis
+("risco de atraso" e "fora do prazo"), alerta automático no sino, indicação
+de quem está online, e um jeito do supervisor mandar uma mensagem direta pro
+atendente durante o atendimento (ex.: "confirme o CPF antes de fechar").
+Usado tanto pra cobrar o atendimento em tempo real quanto pra métricas
+gerais (gráfico da operação).
+
+### Novo módulo: add-on por plano + por usuário
+
+Mesmo padrão do Financeiro/RH (`docs/MANUAL_TECNICO.md`, seção 6.2):
+`Plan.useSupervisorPanel` (o Master libera por plano) + `User.supervisorPanelAccess`
+(o Admin da empresa libera usuário a usuário) + `EnsureSupervisorPanelAccess.ts`
+(`backend/src/services/SupervisorPanelService/`). Admin e Master sempre têm
+acesso quando o módulo está ativo no plano.
+
+### Regras de SLA (`SlaRule`)
+
+Nova tabela `SlaRules` (migração `20260917100200-create-sla-rules.ts`):
+`name`, `riskMinutes` (padrão 15), `overdueMinutes` (padrão 20), `queueId`
+opcional (regra específica de uma fila) ou `null` (regra padrão da empresa,
+aplicada a filas sem regra própria). CRUD completo (criar/editar/excluir) em
+`backend/src/services/SupervisorPanelService/SlaRuleService.ts` +
+`SlaRuleController.ts`, rotas `/sla-rules`. Se a empresa não tiver nenhuma
+regra cadastrada, cai no padrão hardcoded 15/20 minutos.
+
+### Cálculo de atraso: baseado em `TicketTraking.startedAt`, não em `Ticket.createdAt`
+
+`backend/src/services/SupervisorPanelService/SupervisorPanelService.ts`:
+`listLiveTickets(companyId)` busca todos os tickets com `status: "open"`,
+resolve a regra de SLA aplicável (da fila do ticket, senão a padrão da
+empresa, senão 15/20 hardcoded) e calcula `elapsedMinutes` a partir do
+`TicketTraking.startedAt` do atendimento atual (`finishedAt: null`) — é o
+mesmo campo já usado pelo Dashboard pra `avgSupportTime`/`avgWaitTime`, não
+um campo novo no `Ticket`. Classifica cada ticket em `onTime`/`risk`/`overdue`.
+`getSummary(companyId)` agrega isso em totais (pra os cards) e por fila (pro
+gráfico de barras).
+
+### Verificação automática (cron) + alerta
+
+`backend/src/services/SupervisorPanelService/SlaMonitorService.ts`
+(`runSlaMonitor`) roda a cada minuto (`handleSupervisorSlaMonitor` em
+`backend/src/queues.ts`, mesmo padrão `CronJob` do
+`handleCloseTicketsAutomatic` — Bull `repeat` foi evitado de propósito nesse
+arquivo por já ter travado silenciosamente antes, ver comentários no próprio
+`queues.ts`). Pra cada ticket em risco/fora do prazo, cria **no máximo uma
+vez por ticket/tipo desde o início do atendimento atual** (dedupe checando se
+já existe uma `Notification` daquele tipo criada depois do `startedAt` atual
+— importante pra um ticket reaberto poder alertar de novo) uma notificação
+persistida (tabela `Notifications`, migração
+`20260917100300-create-notifications.ts`) e emite em tempo real: pra sala
+pessoal do atendente (`user-${userId}`) e pra sala `supervisors` (todo mundo
+com acesso ao Painel Vigia).
+
+### Salas de socket novas (`backend/src/libs/socket.ts`)
+
+Ao conectar, todo socket autenticado (não-API-oficial) entra automaticamente
+em `user-${userId}` (mensagens/alertas dirigidos a ele). Além disso, é feita
+uma checagem (`EnsureSupervisorPanelAccess`) e, se autorizado, o socket
+também entra em `supervisors` (alertas de SLA da empresa toda). Isso é só
+pra roteamento de eventos em tempo real — a API REST sempre revalida o
+acesso a cada chamada, então essa checagem no socket não é a única barreira.
+
+### Mensagem ao vivo do supervisor pro atendente
+
+`POST /supervisor-panel/message` (`SupervisorPanelController.sendMessage`,
+exige `EnsureSupervisorPanelAccess`): persiste como `Notification` (tipo
+`supervisor_message`) e emite `company-${companyId}-supervisorMessage` só
+pra sala do atendente (`user-${userId}`). O frontend mostra isso como um
+toast imediato (`SupervisorAlertsBell`) — não trava a tela do atendente, só
+avisa.
+
+### Frontend
+
+- `frontend/src/pages/SupervisorPanel/index.js` (rota `/painel-vigia`, menu
+  lateral "Painel Vigia"): duas abas.
+  - **Ao vivo**: 4 cards (atendimentos ativos, risco de atraso, fora do
+    prazo, tempo médio em aberto), dois gráficos ECharts (donut de
+    distribuição por status + barras empilhadas por fila — mesma biblioteca
+    já usada no Dashboard principal) e uma tabela com atendente (bolinha
+    verde/cinza de online, reaproveitando `User.online`, o mesmo campo do
+    Dashboard), cliente, fila, tempo decorrido, status e um botão pra mandar
+    mensagem ao atendente daquele ticket. Atualiza via polling (15s) e via
+    socket (`company-${companyId}-notification` força um refresh imediato
+    quando um novo alerta chega).
+  - **Regras de SLA**: reaproveita o componente genérico `FinanceRecordList`
+    (já usado no módulo Financeiro) — CRUD completo (criar/editar/excluir)
+    sem precisar de nenhum componente novo de tabela/modal.
+- `frontend/src/hooks/useSupervisorPanel/index.js`: wrapper de API, mesmo
+  padrão do `useFinance`.
+- `frontend/src/components/SupervisorAlertsBell/index.js`: sino **separado**
+  do sino normal de tickets (`NotificationsPopOver`) — decisão deliberada
+  pra não mexer num componente já complexo (notificação do navegador, push,
+  som, lista de tickets). Mostra os alertas de SLA e as mensagens do
+  supervisor; qualquer usuário vê os próprios, quem tem acesso ao Painel
+  Vigia vê todos da empresa; apagar (individual ou "apagar todas") é
+  restrito a quem tem acesso ao módulo — o backend revalida isso de novo
+  (`EnsureSupervisorPanelAccess`) mesmo que o frontend já esconda o botão.
+
+### Bug corrigido durante o teste
+
+`SlaRuleService.create/update` quebrava com `invalid input syntax for type
+integer` ao salvar uma regra "padrão" (sem fila específica) — o seletor de
+fila manda `queueId: ""` (string vazia) pro campo `select` sem opção
+marcada, e a coluna é `INTEGER`. Corrigido normalizando `""`/`undefined`
+pra `null` antes de gravar.
+
+### Testado
+
+Ticket aberto com `TicketTraking.startedAt` de 25+ minutos atrás → aparece
+como "Fora do prazo" em `/supervisor-panel/live` e no card/gráfico da tela →
+rodar o monitor manualmente cria a `Notification` (confirmado que rodar de
+novo **não** duplica) → aparece no sino novo com o atendente/cliente certos
+→ criar uma Regra de SLA pela tela (aba "Regras de SLA") → mandar uma
+mensagem ao vivo pelo botão da tabela → toast de confirmação + `Notification`
+tipo `supervisor_message` persistida e listada no sino. Dados de teste
+removidos do banco depois.

@@ -953,6 +953,8 @@ const messages = {
           announcements: "Announcements",
           chats: "Internal Chat",
           financeiro: "Financial",
+          rh: "HR",
+          painelVigia: "Watch Panel",
           queueIntegration: "Integrations",
           version: "Version",
           kanban: "CRM / Kanban",
