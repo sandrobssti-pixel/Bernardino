@@ -18,8 +18,12 @@ require_cmd() {
 # Backup diário do AtendeFlow — dump do banco (Postgres) + arquivos
 # enviados (backend/public: currículos do RH, mídia do WhatsApp, fotos de
 # perfil, etc.) + configuração crítica do servidor (.env do backend/
-# frontend, config do túnel Cloudflare, crontab) — enviados pro Google
-# Drive combinado com o cliente.
+# frontend, config do túnel Cloudflare, crontab) + código-fonte completo
+# (backend/frontend/api_oficial, sem node_modules/dist/build) — enviados
+# pro Google Drive combinado com o cliente. O código-fonte vai numa
+# subpasta própria ("codigo-fonte") dentro da mesma pasta do Drive — é um
+# backup independente do GitHub, útil se algum dia faltar acesso à conta/
+# repositório.
 #
 # A parte de configuração foi adicionada depois de um incidente real
 # (v2.3.28, ver docs/MANUAL_TECNICO.md): sem um backup da configuração de
@@ -126,12 +130,32 @@ CONFIG_FILE="$WORK_DIR/atendeflow_config_${TIMESTAMP}.tar.gz"
 tar -czf "$CONFIG_FILE" -C "$WORK_DIR" config
 log "Configuração compactada: $(du -h "$CONFIG_FILE" | cut -f1)"
 
+# Código-fonte completo (backend + frontend + api_oficial) — backup extra
+# independente do GitHub, pra recuperação mesmo sem acesso à conta/repo.
+# Exclui tudo que é gerado (node_modules/dist/build), dados de cliente já
+# cobertos pelo backup de "uploads" acima (backend/public) e segredos
+# (.env já vão no backup de config acima — não precisa duplicar aqui).
+log "Compactando código-fonte completo..."
+CODE_FILE="$WORK_DIR/atendeflow_codigo_fonte_${TIMESTAMP}.tar.gz"
+tar -czf "$CODE_FILE" -C "$PROJECT_ROOT" \
+  --exclude='node_modules' \
+  --exclude='dist' \
+  --exclude='build' \
+  --exclude='.git' \
+  --exclude='./backend/public' \
+  --exclude='*.env' \
+  --exclude='*.env.local' \
+  --exclude='*.log' \
+  .
+log "Código-fonte compactado: $(du -h "$CODE_FILE" | cut -f1)"
+
 log "Enviando pro Google Drive (remote '$RCLONE_REMOTE', pasta $DRIVE_FOLDER_ID)..."
 rclone copy "$DUMP_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 if [ -n "$UPLOADS_FILE" ]; then
   rclone copy "$UPLOADS_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 fi
 rclone copy "$CONFIG_FILE" "${RCLONE_REMOTE}:" --drive-root-folder-id "$DRIVE_FOLDER_ID"
+rclone copy "$CODE_FILE" "${RCLONE_REMOTE}:codigo-fonte/" --drive-root-folder-id "$DRIVE_FOLDER_ID"
 
 log "Backup concluido com sucesso."
 

@@ -121,4 +121,12 @@ npx craco build
 
 pm2 restart all
 
+cd "$PROJECT_ROOT"
+if [ -f "$PROJECT_ROOT/backup-para-drive.sh" ]; then
+  log "Rodando backup para o Google Drive (banco, uploads, config e codigo-fonte)..."
+  bash "$PROJECT_ROOT/backup-para-drive.sh" || log "Aviso: backup falhou, mas a atualizacao do sistema foi concluida. Verifique manualmente."
+else
+  log "Aviso: backup-para-drive.sh nao encontrado em $PROJECT_ROOT, pulando backup automatico."
+fi
+
 log "Atualizacao finalizada com sucesso."

@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.41] — Card "Fora do expediente" reposicionado + backup automático — 2026-09-17
+
+### Alterado
+- Card "Fora do expediente" no Painel agora fica ao lado do "Fora do
+  prazo" (antes ficava por último, depois de "Tempo médio em aberto").
+- `instalador.sh` (script de atualização rodado no servidor do cliente)
+  passou a chamar o `backup-para-drive.sh` automaticamente no final de
+  cada atualização — não depende mais de rodar o backup manualmente depois
+  de atualizar o código.
+
+Confirmado também que o AtendeFlow não depende de nenhuma conexão com o
+Claude/Anthropic em tempo de execução — o assistente é usado só durante o
+desenvolvimento do código-fonte.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 25.
+
+## [2.3.40] — Backup do código-fonte completo — 2026-09-17
+
+### Adicionado
+- `backup-para-drive.sh` passou a enviar também todo o código-fonte do
+  projeto (backend/frontend/api_oficial, sem `node_modules`/`dist`/
+  `build`/`.git`/segredos) pro mesmo Google Drive já combinado com o
+  cliente, numa subpasta própria (`codigo-fonte/`) — backup independente
+  do GitHub.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 24.
+
 ## [2.3.39] — Painel Vigia lê o Horário de Atendimento — 2026-09-17
 
 ### Adicionado

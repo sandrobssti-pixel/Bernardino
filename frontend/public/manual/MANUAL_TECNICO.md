@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.39
-**Etapa:** 6.4 — Painel Vigia lê "fora do expediente" do módulo Horário de Atendimento
+**Versão do documento:** 2.3.41
+**Etapa:** 6.6 — Card "Fora do expediente" reposicionado + backup automático a cada atualização
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1857,3 +1857,97 @@ cobrindo o dia inteiro de hoje → o mesmo ticket passou pra
 `outOfHours: false` imediatamente, sem reiniciar nada — confirma que lê o
 horário certo em tempo real. Configuração da empresa restaurada
 (`scheduleType: "disabled"`) e dados de teste removidos depois.
+
+---
+
+## 24. Backup do código-fonte completo (v2.3.40)
+
+Pedido do cliente: além do dump do banco, dos arquivos enviados e da
+configuração crítica do servidor (já cobertos desde a v2.3.28), o
+`backup-para-drive.sh` passou a enviar também **todo o código-fonte** do
+projeto pro mesmo Google Drive combinado com o cliente — um backup
+independente do GitHub, útil se um dia faltar acesso à conta/repositório.
+
+### Implementação
+
+Um quarto artefato foi adicionado ao script, gerado com `tar` a partir da
+raiz do projeto (`backend/`, `frontend/`, `api_oficial/`, `docs/`),
+excluindo:
+
+- `node_modules`, `dist`, `build` — tudo gerado, reconstruído a partir do
+  código-fonte com `npm install && npm run build`;
+- `.git` — histórico do GitHub, não faz sentido duplicar aqui;
+- `./backend/public` — dados de cliente (mídia do WhatsApp, currículos do
+  RH, fotos de perfil) já cobertos pelo backup de "uploads" existente;
+- `*.env`, `*.env.local`, `*.log` — segredos (senhas, tokens) já vão no
+  backup de configuração existente; não precisa duplicar aqui.
+
+O arquivo resultante (`atendeflow_codigo_fonte_<timestamp>.tar.gz`) é
+enviado com `rclone copy ... "${RCLONE_REMOTE}:codigo-fonte/"` — uma
+subpasta própria dentro da mesma pasta do Drive, pra não misturar com os
+dumps de banco/uploads/config que já ficam soltos na raiz da pasta.
+
+### Testado
+
+`tar -czf` rodado numa cópia de teste do projeto (sandbox) gerou um
+arquivo de ~12MB (a árvore original passa de alguns GB por causa dos
+`node_modules` de `backend/`, `frontend/` e `api_oficial/`, todos
+excluídos). Conferido com `tar -tzf ... | grep -E
+"node_modules|/dist/|/build/|\.git/|backend/public/|\.env$"` — nenhum
+resultado, confirmando que as exclusões funcionaram. `bash -n
+backup-para-drive.sh` validado sem erros de sintaxe. Execução real (com
+envio pro Drive) só é possível no servidor do cliente, que tem as
+credenciais do rclone configuradas — não reproduzível neste ambiente de
+desenvolvimento.
+
+---
+
+## 25. Cartão "Fora do expediente" ao lado de "Fora do prazo" + backup automático a cada atualização (v2.3.41)
+
+Dois ajustes pedidos pelo cliente, sem relação direta entre si:
+
+### Reordenação do card "Fora do expediente"
+
+No Painel, os cartões de totais seguiam a ordem: Atendimentos ativos,
+Risco de atraso, Fora do prazo, Tempo médio em aberto, Fora do
+expediente (esse último tinha sido adicionado no fim, na v2.3.39). O
+cliente pediu pra esse card ficar **ao lado do "Fora do prazo"**, seguindo
+o mesmo padrão visual dos demais (o card já usava o mesmo `Paper`/estilo
+dos outros — só a posição mudou).
+`frontend/src/components/SupervisorOverviewPanel/index.js`: nova ordem —
+Atendimentos ativos, Risco de atraso, Fora do prazo, **Fora do
+expediente**, Tempo médio em aberto.
+
+### Backup automático a cada atualização de código
+
+O cliente pediu que, toda vez que o código-fonte for alterado (ou seja, a
+cada atualização feita no servidor), o backup pro Google Drive rode
+automaticamente — sem depender de lembrar de rodar o
+`backup-para-drive.sh` manualmente depois. Como o `instalador.sh` já é o
+script que o cliente roda no servidor pra puxar/instalar cada atualização
+(`npm install`, `npm run build`, `pm2 restart all`), ele passou a chamar o
+`backup-para-drive.sh` automaticamente no final, se o script existir na
+raiz do projeto — cobrindo tanto o backup de código (seção 24) quanto os
+já existentes (banco, uploads, config), tudo numa passada só, sem passo
+manual extra.
+
+### Independência do sistema em relação ao Claude
+
+O cliente perguntou se o AtendeFlow depende de alguma conexão com o
+Claude pra funcionar. Resposta: **não** — o Claude (este assistente) é
+usado só durante o **desenvolvimento**, nesta sessão de trabalho no
+código-fonte; o sistema em produção (backend Node/Express, frontend
+React, WhatsApp via Baileys) não faz nenhuma chamada de API pra Claude/
+Anthropic em tempo de execução — conferido buscando por "claude"/
+"anthropic" em todo `backend/src` e `frontend/src`, sem nenhum resultado.
+O AtendeFlow roda de forma independente no servidor do cliente (Node +
+Postgres + Redis + pm2), e o Claude só volta a ser acionado quando o
+cliente pedir uma nova atualização.
+
+### Testado
+
+Revisão manual do novo trecho do `instalador.sh` (`bash -n` validado) —
+chamada ao backup só acontece se `backup-para-drive.sh` existir, então não
+quebra em cópias antigas do projeto sem o script. Reordenação do card
+testada visualmente no sandbox (Playwright): os cinco cards aparecem na
+nova ordem, com os mesmos estilos/cores de antes.

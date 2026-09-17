@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.39 (Etapa 6.4 — Painel Vigia ganhou o card "Fora do expediente", lido direto do módulo Horário de Atendimento já existente (por empresa/fila/conexão) — ver `docs/MANUAL_TECNICO.md`, seção 23)**
+**Versão atual: 2.3.41 (Etapa 6.6 — card "Fora do expediente" ao lado do "Fora do prazo" no Painel, e o backup pro Google Drive passa a rodar automaticamente a cada atualização feita pelo `instalador.sh` — ver `docs/MANUAL_TECNICO.md`, seção 25)**
 
 ## Documentação
 

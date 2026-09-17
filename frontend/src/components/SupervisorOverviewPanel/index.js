@@ -146,13 +146,13 @@ const SupervisorOverviewPanel = ({ supervisorPanel }) => {
           <span className={classes.kpiLabel}>Fora do prazo (SLA)</span>
           <span className={classes.kpiValue} style={{ color: STATUS_META.overdue.color }}>{summary.totalOverdue}</span>
         </Paper>
-        <Paper variant="outlined" className={classes.kpiCard}>
-          <span className={classes.kpiLabel}>Tempo médio em aberto</span>
-          <span className={classes.kpiValue}>{formatElapsed(summary.avgElapsedMinutes)}</span>
-        </Paper>
         <Paper variant="outlined" className={classes.kpiCard} style={{ borderColor: "#7c3aed" }}>
           <span className={classes.kpiLabel}>Fora do expediente</span>
           <span className={classes.kpiValue} style={{ color: "#7c3aed" }}>{summary.totalOutOfHours}</span>
+        </Paper>
+        <Paper variant="outlined" className={classes.kpiCard}>
+          <span className={classes.kpiLabel}>Tempo médio em aberto</span>
+          <span className={classes.kpiValue}>{formatElapsed(summary.avgElapsedMinutes)}</span>
         </Paper>
       </Box>
 
