@@ -19,7 +19,7 @@ import ConfirmationModal from "../ConfirmationModal";
 import TransferTicketModalCustom from "../TransferTicketModalCustom";
 import AcceptTicketWithouSelectQueue from "../AcceptTicketWithoutQueueModal";
 import CloseTicketFarewellDialog from "../CloseTicketFarewellDialog";
-import MandatoryContactRegistrationModal from "../MandatoryContactRegistrationModal";
+import ContactModal from "../ContactModal";
 
 //icones
 import HighlightOffIcon from "@material-ui/icons/HighlightOff";
@@ -585,10 +585,13 @@ const TicketActionButtonsCustom = ({ ticket, onToggleSearch, isSearching
                 />
             )}
             {mandatoryRegistrationOpen && (
-                <MandatoryContactRegistrationModal
+                <ContactModal
                     open={mandatoryRegistrationOpen}
-                    ticket={ticket}
-                    onSaved={() => {
+                    contactId={ticket.contact?.id}
+                    ticketId={ticket.id}
+                    requireFullRegistration
+                    onClose={() => setMandatoryRegistrationOpen(false)}
+                    onSave={() => {
                         setMandatoryRegistrationOpen(false);
                         const retry = pendingCloseRef.current;
                         pendingCloseRef.current = null;

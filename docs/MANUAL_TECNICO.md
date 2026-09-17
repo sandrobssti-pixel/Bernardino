@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.31
-**Etapa:** 5.6 — Seletor de idiomas com bandeiras (Brasil, Paraguai, Espanha, Estados Unidos)
+**Versão do documento:** 2.3.32
+**Etapa:** 5.7 — Cadastro obrigatório unificado no "Editar contato" + remoção do botão de fechamento redundante
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1391,3 +1391,64 @@ Turco (`tr`), que existia antes, saiu da lista.
   arquivos de tradução ativos (`pt.js`, `en.js`, `es.js`, `esES.js`) pra
   desambiguar as duas variantes de espanhol: "Espanhol (Paraguai)"/"Espanhol
   (Espanha)" etc., cada um no próprio idioma do arquivo.
+
+---
+
+## 16. Cadastro obrigatório unificado no "Editar contato" + remoção do botão de fechamento redundante (v2.3.32)
+
+Feedback do cliente depois de testar a v2.3.30 em produção: achou redundante ter
+um popup novo e separado (`MandatoryContactRegistrationModal`) só pra preencher o
+cadastro obrigatório, já que o app já tem uma tela de "Editar contato" pra isso.
+Pediu pra unificar tudo ali, e também percebeu que existiam **dois botões
+diferentes** pra fechar um atendimento — um redundante que não tinha a trava do
+cadastro obrigatório.
+
+### 1. Cadastro obrigatório passou a usar o "Editar contato" existente
+
+- `frontend/src/components/ContactModal/index.js` (o modal de "Adicionar/Editar
+  contato" já usado em Contatos, no drawer do ticket, etc.) ganhou os 3 campos
+  novos (`document`, `address`, `contact2`) — agora sempre visíveis, pra qualquer
+  contato, não só quando o cadastro é obrigatório.
+- Dois novos props opcionais, só usados pelo fluxo de fechamento obrigatório:
+  - `ticketId`: quando informado junto com `requireFullRegistration`, mostra um
+    seletor extra de **Coluna do Kanban** (busca as tags via `GET /tag/kanban/`,
+    igual antes) e, ao salvar, faz `DELETE /ticket-tags/:ticketId` + `PUT
+    /ticket-tags/:ticketId/:tagId` pra aplicar a tag escolhida.
+  - `requireFullRegistration`: exibe um aviso (`Alert` azul) explicando que o
+    cadastro está incompleto, torna `email`/`document`/`address`/`contact2`
+    obrigatórios no Yup (schema construído dinamicamente por
+    `buildContactSchema(requireFullRegistration)`), e troca o texto do botão de
+    salvar pra "Salvar e fechar atendimento".
+  - Sem esses dois props (uso normal em Contatos, no drawer, etc.) o modal se
+    comporta exatamente como antes — nenhum campo novo é obrigatório e o seletor
+    de Kanban não aparece.
+- `frontend/src/components/TicketActionButtonsCustom/index.js`: ao receber
+  `ERR_CONTACT_REGISTRATION_REQUIRED`, agora abre o `ContactModal` (com
+  `contactId`, `ticketId` e `requireFullRegistration`) em vez do modal dedicado
+  antigo. A lógica de guardar a ação de fechamento pendente numa ref
+  (`pendingCloseRef`) e rechamar automaticamente ao salvar continua igual.
+- `frontend/src/components/MandatoryContactRegistrationModal/` foi **removido**
+  do repositório (ficou sem nenhuma referência depois da troca acima).
+
+### 2. Botão de fechamento redundante removido
+
+`frontend/src/components/TicketOptionsMenu/index.js` tinha seu **próprio**
+`handleCloseTicketWithoutFarewellMsg`, com um item de menu ("Fechar sem mensagem
+de despedida") que chamava `PUT /tickets/:id` diretamente — sem nenhum
+tratamento do erro `ERR_CONTACT_REGISTRATION_REQUIRED`. Fechar por esse caminho
+simplesmente mostrava um toast de erro sem nunca dar ao atendente uma forma de
+completar o cadastro, o que explica reclamações de "o mesmo erro sempre
+aparece". Esse item de menu (e a função/estado que só ele usava) foi **removido**
+— agora só existe **um** jeito de fechar um atendimento pela tela: o botão
+"Resolver" em `TicketActionButtonsCustom`, que já tem a trava e o modal
+corretos.
+
+### Testado
+
+Fluxo completo revalidado via Playwright na v2.3.32: contato incompleto + ticket
+aberto → clique em "Resolver" → confirma → abre o modal **"Editar contato"**
+(não mais um popup separado) já com o aviso de cadastro incompleto, os campos
+`document`/`address`/`contact2` e o seletor "Coluna do Kanban" → preenche tudo →
+"Salvar e fechar atendimento" → confirmado no banco: contato com os campos
+salvos, ticket com `status: "closed"`, `TicketTags` com a tag do Kanban
+aplicada. Dados de teste removidos do banco depois.

@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useRef, useState } from "react";
-import { useHistory } from "react-router-dom";
 
 import MenuItem from "@material-ui/core/MenuItem";
 import Menu from "@material-ui/core/Menu";
@@ -18,10 +17,8 @@ const TicketOptionsMenu = ({ ticket, menuOpen, handleClose, anchorEl }) => {
 	const [transferTicketModalOpen, setTransferTicketModalOpen] = useState(false);
 	const isMounted = useRef(true);
 	const { user } = useContext(AuthContext);
-	const history = useHistory();
 	const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
 	const [contactId, setContactId] = useState(null);
-	const [loading, setLoading] = useState(false);
 	const [acceptAudioMessage, setAcceptAudio] = useState(Boolean(ticket?.contact?.acceptAudioMessage));
 	const canDeleteTickets = user.profile === "admin" || user.canDeleteTickets === "enabled";
 
@@ -56,24 +53,6 @@ const TicketOptionsMenu = ({ ticket, menuOpen, handleClose, anchorEl }) => {
 	const handleCloseTransferTicketModal = () => {
 		if (isMounted.current) {
 			setTransferTicketModalOpen(false);
-		}
-	};
-
-	const handleCloseTicketWithoutFarewellMsg = async () => {
-		setLoading(true);
-		try {
-			await api.put(`/tickets/${ticket.id}`, {
-				status: "closed",
-				userId: user?.id || null,
-				sendFarewellMessage: false,
-			});
-
-			setLoading(false);
-
-			history.push("/tickets");
-		} catch (err) {
-			setLoading(false);
-			toastError(err);
 		}
 	};
 
@@ -119,9 +98,6 @@ const TicketOptionsMenu = ({ ticket, menuOpen, handleClose, anchorEl }) => {
 				open={menuOpen}
 				onClose={handleClose}
 			>
-				<MenuItem onClick={handleCloseTicketWithoutFarewellMsg}>
-					{i18n.t("ticketOptionsMenu.resolveWithNoFarewell")}
-				</MenuItem>
 				<MenuItem onClick={handleOpenScheduleModal}>
 					{i18n.t("ticketOptionsMenu.schedule")}
 				</MenuItem>

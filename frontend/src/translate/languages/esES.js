@@ -480,12 +480,18 @@ const messages = {
           extraValue: "Valor",
           chatBotContact: "Deshabilitar flujo",
           termsLGDP: "Términos LGPD aceptados en:",
-          whatsapp: "Conexión Origen: "
+          whatsapp: "Conexión Origen: ",
+          document: "DNI o documento de identidad",
+          address: "Dirección completa",
+          contact2: "Contacto 2 (teléfono/WhatsApp)",
+          kanbanColumn: "Columna del Kanban",
+          fullRegistrationNotice: "Este cliente todavía no tiene el registro completo. Complete los campos de abajo y elija la columna del Kanban antes de cerrar la atención.",
         },
         buttons: {
           addExtraInfo: "Agregar información",
           okAdd: "Agregar",
           okEdit: "Guardar",
+          okEditAndClose: "Guardar y cerrar atención",
           cancel: "Cancelar"
         },
         success: "Contacto guardado con éxito."

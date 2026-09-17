@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.32] — Cadastro obrigatório unificado no "Editar contato" — 2026-09-17
+
+### Alterado
+- O cadastro obrigatório de cliente novo (v2.3.30) deixou de abrir um popup
+  próprio (`MandatoryContactRegistrationModal`, removido) e passou a usar o
+  modal já existente de "Editar contato" — agora com os campos CPF/documento,
+  endereço e contato 2 sempre disponíveis, e com um seletor extra de "Coluna
+  do Kanban" quando aberto a partir do fechamento de um atendimento.
+
+### Removido
+- Item de menu redundante "Fechar sem mensagem de despedida" em
+  `TicketOptionsMenu` — não tinha a trava de cadastro obrigatório e deixava o
+  atendente preso no mesmo erro sem um jeito de resolver. Agora só existe um
+  caminho pra fechar um atendimento: o botão "Resolver".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 16.
+
 ## [2.3.31] — Seletor de idiomas com bandeiras — 2026-09-17
 
 ### Adicionado

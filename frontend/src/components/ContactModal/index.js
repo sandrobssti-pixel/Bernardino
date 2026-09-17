@@ -17,6 +17,8 @@ import IconButton from "@material-ui/core/IconButton";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Switch from "@material-ui/core/Switch";
+import MenuItem from "@material-ui/core/MenuItem";
+import Alert from "@material-ui/lab/Alert";
 
 import { i18n } from "../../translate/i18n";
 
@@ -252,16 +254,36 @@ const useStyles = makeStyles(theme => ({
 	},
 }));
 
-const ContactSchema = Yup.object().shape({
-	name: Yup.string()
-		.min(2, "Too Short!")
-		.max(250, "Too Long!")
-		.required("Required"),
-	number: Yup.string().min(8, "Too Short!").max(50, "Too Long!"),
-	email: Yup.string().email("Invalid email"),
-});
+const buildContactSchema = requireFullRegistration =>
+	Yup.object().shape({
+		name: Yup.string()
+			.min(2, "Too Short!")
+			.max(250, "Too Long!")
+			.required("Required"),
+		number: Yup.string().min(8, "Too Short!").max(50, "Too Long!"),
+		email: requireFullRegistration
+			? Yup.string().email("Invalid email").required("Required")
+			: Yup.string().email("Invalid email"),
+		document: requireFullRegistration
+			? Yup.string().required("Required")
+			: Yup.string(),
+		address: requireFullRegistration
+			? Yup.string().required("Required")
+			: Yup.string(),
+		contact2: requireFullRegistration
+			? Yup.string().required("Required")
+			: Yup.string(),
+	});
 
-const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
+const ContactModal = ({
+	open,
+	onClose,
+	contactId,
+	initialValues,
+	onSave,
+	ticketId,
+	requireFullRegistration,
+}) => {
 	const classes = useStyles();
 	const isMounted = useRef(true);
 
@@ -269,6 +291,9 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 		name: "",
 		number: "",
 		email: "",
+		document: "",
+		address: "",
+		contact2: "",
 		disableBot: false,
 		lgpdAcceptedAt: "",
 		birthDate: ""
@@ -277,6 +302,9 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 	const [contact, setContact] = useState(initialState);
 	const [disableBot, setDisableBot] = useState(false);
 	const [pendingTags, setPendingTags] = useState([]);
+	const [kanbanTags, setKanbanTags] = useState([]);
+	const [kanbanTagId, setKanbanTagId] = useState("");
+	const [kanbanError, setKanbanError] = useState(false);
 	useEffect(() => {
 		return () => {
 			isMounted.current = false;
@@ -318,30 +346,58 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 		fetchContact();
 	}, [contactId, open, initialValues]);
 
+	useEffect(() => {
+		if (!open || !requireFullRegistration || !ticketId) return;
+		(async () => {
+			try {
+				const { data } = await api.get("/tag/kanban/");
+				if (isMounted.current) {
+					setKanbanTags(data?.lista || data || []);
+				}
+			} catch (err) {
+				toastError(err);
+			}
+		})();
+	}, [open, requireFullRegistration, ticketId]);
+
 	const handleClose = () => {
 		onClose();
 		setContact(initialState);
 		setPendingTags([]);
+		setKanbanTagId("");
+		setKanbanError(false);
 	};
 
 	const handleSaveContact = async values => {
+		if (requireFullRegistration && ticketId && !kanbanTagId) {
+			setKanbanError(true);
+			return;
+		}
+
 		try {
+			let data;
 			if (contactId) {
-				const { data } = await api.put(`/contacts/${contactId}`, { ...values, disableBot: disableBot });
-				if (onSave) {
-					onSave(data);
-				}
-				handleClose();
+				({ data } = await api.put(`/contacts/${contactId}`, { ...values, disableBot: disableBot }));
 			} else {
-				const { data } = await api.post("/contacts", { ...values, disableBot: disableBot });
+				({ data } = await api.post("/contacts", { ...values, disableBot: disableBot }));
 				if (Array.isArray(pendingTags) && pendingTags.length > 0) {
 					await api.post("/tags/sync", { contactId: data.id, tags: pendingTags });
 				}
-				if (onSave) {
-					onSave(data);
-				}
-				handleClose();
 			}
+
+			if (requireFullRegistration && ticketId && kanbanTagId) {
+				try {
+					await api.delete(`/ticket-tags/${ticketId}`);
+				} catch (err) {
+					// Sem problema se o ticket ainda não tinha nenhuma tag de kanban.
+				}
+				await api.put(`/ticket-tags/${ticketId}/${kanbanTagId}`);
+			}
+
+			if (onSave) {
+				onSave(data);
+			}
+			handleClose();
 			toast.success(i18n.t("contactModal.success"));
 		} catch (err) {
 			toastError(err);
@@ -365,7 +421,7 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 				<Formik
 					initialValues={contact}
 					enableReinitialize={true}
-					validationSchema={ContactSchema}
+					validationSchema={buildContactSchema(!!requireFullRegistration)}
 					onSubmit={(values, actions) => {
 						setTimeout(() => {
 							handleSaveContact(values);
@@ -376,6 +432,11 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 						{({ values, errors, touched, isSubmitting }) => (
 						<Form className={classes.formRoot}>
 							<DialogContent dividers className={classes.dialogContent}>
+								{requireFullRegistration && (
+									<Alert severity="info" style={{ marginBottom: 16 }}>
+										{i18n.t("contactModal.form.fullRegistrationNotice")}
+									</Alert>
+								)}
 								<Typography variant="subtitle1" className={classes.sectionTitle}>
 									{i18n.t("contactModal.form.mainInfo")}
 								</Typography>
@@ -421,6 +482,72 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 										className={classes.textField}
 									/>
 								</div>
+								<div className={classes.fieldRow}>
+									<div className={classes.fieldHalf}>
+										<Field
+											as={TextField}
+											label={i18n.t("contactModal.form.document")}
+											name="document"
+											error={touched.document && Boolean(errors.document)}
+											helperText={touched.document && errors.document}
+											variant="outlined"
+											margin="dense"
+											className={classes.textField}
+										/>
+									</div>
+									<div className={classes.fieldHalf}>
+										<Field
+											as={TextField}
+											label={i18n.t("contactModal.form.contact2")}
+											name="contact2"
+											error={touched.contact2 && Boolean(errors.contact2)}
+											helperText={touched.contact2 && errors.contact2}
+											variant="outlined"
+											margin="dense"
+											className={classes.textField}
+										/>
+									</div>
+								</div>
+								<div>
+									<Field
+										as={TextField}
+										label={i18n.t("contactModal.form.address")}
+										name="address"
+										error={touched.address && Boolean(errors.address)}
+										helperText={touched.address && errors.address}
+										multiline
+										minRows={2}
+										fullWidth
+										margin="dense"
+										variant="outlined"
+										className={classes.textField}
+									/>
+								</div>
+								{requireFullRegistration && ticketId && (
+									<div>
+										<TextField
+											select
+											label={i18n.t("contactModal.form.kanbanColumn")}
+											value={kanbanTagId}
+											onChange={e => {
+												setKanbanTagId(e.target.value);
+												setKanbanError(false);
+											}}
+											error={kanbanError}
+											helperText={kanbanError ? "Required" : ""}
+											fullWidth
+											margin="dense"
+											variant="outlined"
+											className={classes.textField}
+										>
+											{kanbanTags.map(tag => (
+												<MenuItem key={tag.id} value={tag.id}>
+													{tag.name}
+												</MenuItem>
+											))}
+										</TextField>
+									</div>
+								)}
 								<div>
 									<Field
 										as={TextField}
@@ -558,7 +685,9 @@ const ContactModal = ({ open, onClose, contactId, initialValues, onSave }) => {
 									variant="contained"
 									className={`${classes.btnWrapper} ${classes.primaryButton}`}
 								>
-									{contactId
+									{requireFullRegistration
+										? `${i18n.t("contactModal.buttons.okEditAndClose")}`
+										: contactId
 										? `${i18n.t("contactModal.buttons.okEdit")}`
 										: `${i18n.t("contactModal.buttons.okAdd")}`}
 									{isSubmitting && (
