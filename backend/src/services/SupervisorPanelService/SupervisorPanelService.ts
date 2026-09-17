@@ -5,6 +5,8 @@ import User from "../../models/User";
 import Queue from "../../models/Queue";
 import TicketTraking from "../../models/TicketTraking";
 import SlaRule from "../../models/SlaRule";
+import CompaniesSettings from "../../models/CompaniesSettings";
+import VerifyCurrentSchedule from "../CompanyService/VerifyCurrentSchedule";
 
 const DEFAULT_RISK_MINUTES = 15;
 const DEFAULT_OVERDUE_MINUTES = 20;
@@ -26,6 +28,7 @@ export interface LiveTicketRow {
   riskMinutes: number;
   overdueMinutes: number;
   status: "onTime" | "risk" | "overdue";
+  outOfHours: boolean;
 }
 
 const resolveSlaRule = (
@@ -48,6 +51,44 @@ const resolveSlaRule = (
   return { riskMinutes: DEFAULT_RISK_MINUTES, overdueMinutes: DEFAULT_OVERDUE_MINUTES };
 };
 
+// Fora do expediente é lido do módulo "Horário de Atendimento" já existente
+// (CompaniesSettings.scheduleType + Company/Queue/Whatsapp.schedules) — não
+// é uma configuração nova do Painel Vigia. Cada empresa já configura os
+// próprios horários lá; aqui só reaproveitamos o mesmo VerifyCurrentSchedule
+// usado pra decidir a mensagem automática de fora de expediente.
+const buildOutOfHoursChecker = async (companyId: number) => {
+  const settings = await CompaniesSettings.findOne({ where: { companyId } });
+  const scheduleType = settings?.scheduleType;
+  const cache = new Map<string, boolean>();
+
+  return async (queueId: number | null, whatsappId: number | null): Promise<boolean> => {
+    if (!scheduleType || scheduleType === "disabled") return false;
+
+    let key: string;
+    let args: [number, number, number];
+
+    if (scheduleType === "queue") {
+      if (!queueId) return false;
+      key = `queue-${queueId}`;
+      args = [companyId, queueId, 0];
+    } else if (scheduleType === "connection") {
+      if (!whatsappId) return false;
+      key = `connection-${whatsappId}`;
+      args = [companyId, 0, whatsappId];
+    } else {
+      key = "company";
+      args = [companyId, 0, 0];
+    }
+
+    if (cache.has(key)) return cache.get(key) as boolean;
+
+    const result = await VerifyCurrentSchedule(...args);
+    const outOfHours = !result.inActivity;
+    cache.set(key, outOfHours);
+    return outOfHours;
+  };
+};
+
 export const listLiveTickets = async (
   companyId: number
 ): Promise<LiveTicketRow[]> => {
@@ -55,7 +96,7 @@ export const listLiveTickets = async (
   // "atendendo" (open, já aceito) — um cliente esperando sem resposta é tão
   // ou mais urgente quanto um atendimento em andamento (ver
   // docs/MANUAL_TECNICO.md).
-  const [tickets, rules] = await Promise.all([
+  const [tickets, rules, checkOutOfHours] = await Promise.all([
     Ticket.findAll({
       where: { companyId, status: { [Op.or]: ["open", "pending"] } },
       include: [
@@ -64,7 +105,8 @@ export const listLiveTickets = async (
         { model: Queue, as: "queue", attributes: ["id", "name", "color"] }
       ]
     }),
-    SlaRule.findAll({ where: { companyId } })
+    SlaRule.findAll({ where: { companyId } }),
+    buildOutOfHoursChecker(companyId)
   ]);
 
   const now = Date.now();
@@ -90,6 +132,8 @@ export const listLiveTickets = async (
       if (elapsedMinutes >= overdueMinutes) status = "overdue";
       else if (elapsedMinutes >= riskMinutes) status = "risk";
 
+      const outOfHours = await checkOutOfHours(ticket.queueId || null, ticket.whatsappId || null);
+
       return {
         ticketId: ticket.id,
         ticketUuid: ticket.uuid,
@@ -106,7 +150,8 @@ export const listLiveTickets = async (
         elapsedMinutes: Math.round(elapsedMinutes),
         riskMinutes,
         overdueMinutes,
-        status
+        status,
+        outOfHours
       };
     })
   );
@@ -119,6 +164,7 @@ export interface SupervisorSummary {
   totalOnTime: number;
   totalRisk: number;
   totalOverdue: number;
+  totalOutOfHours: number;
   avgElapsedMinutes: number;
   byQueue: {
     queueName: string;
@@ -136,6 +182,7 @@ export const getSummary = async (
   const totalOnTime = rows.filter(r => r.status === "onTime").length;
   const totalRisk = rows.filter(r => r.status === "risk").length;
   const totalOverdue = rows.filter(r => r.status === "overdue").length;
+  const totalOutOfHours = rows.filter(r => r.outOfHours).length;
 
   const avgElapsedMinutes = rows.length
     ? Math.round(rows.reduce((sum, r) => sum + r.elapsedMinutes, 0) / rows.length)
@@ -162,6 +209,7 @@ export const getSummary = async (
     totalOnTime,
     totalRisk,
     totalOverdue,
+    totalOutOfHours,
     avgElapsedMinutes,
     byQueue: Array.from(byQueueMap.values())
   };

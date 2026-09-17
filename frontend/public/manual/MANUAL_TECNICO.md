@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.38
-**Etapa:** 6.3 — Alerta "fora do prazo" repetitivo/geral + transferir atendimento pelo Painel
+**Versão do documento:** 2.3.39
+**Etapa:** 6.4 — Painel Vigia lê "fora do expediente" do módulo Horário de Atendimento
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1812,3 +1812,48 @@ simular 6 minutos passados (`UPDATE ... SET "createdAt" = now() - interval
 — confirma a repetição a cada 5 min. Botão de transferir testado na tela:
 abre o `TransferTicketModalCustom` normalmente, com o ticket certo. Dados de
 teste removidos do banco depois.
+
+---
+
+## 23. Painel Vigia lê "fora do expediente" do módulo Horário de Atendimento (v2.3.39)
+
+O cliente criou uma "Regra de SLA" chamada "Atendimento fora do expediente
+ADM" tentando descrever um horário semanal (seg-sex 18h-21h, sábado
+12h-17h, domingo 8h-17h, feriados 8h-17h) — mas o formulário de Regras de
+SLA só tem `riskMinutes`/`overdueMinutes` por fila, não serve pra isso.
+Esclarecido que "fora do expediente" não é uma configuração nova: o sistema
+já tem um módulo completo pra isso — **Horário de Atendimento**
+(`/attendance-schedule`, `Company`/`Queue`/`Whatsapp.schedules` +
+`CompaniesSettings.scheduleType`), com horários por dia da semana, dois
+turnos por dia, feriados com data específica, e escopo por empresa/fila/
+conexão — exatamente o que cada empresa-cliente já configura com seus
+próprios horários. O Painel Vigia passou a **ler direto desse módulo**, sem
+nenhuma configuração duplicada.
+
+### Implementação
+
+`backend/src/services/SupervisorPanelService/SupervisorPanelService.ts`:
+nova função `buildOutOfHoursChecker(companyId)` — lê
+`CompaniesSettings.scheduleType` uma vez (`"company"`, `"queue"`,
+`"connection"` ou `"disabled"`) e devolve uma função que, pra cada ticket,
+chama o mesmo `VerifyCurrentSchedule` já usado pra decidir a mensagem
+automática de fora de expediente (`backend/src/services/CompanyService/VerifyCurrentSchedule.ts`)
+— com cache por fila/conexão dentro da mesma chamada, pra não repetir a
+consulta pra tickets da mesma fila. Se `scheduleType` for `"disabled"` (ou
+não configurado), `outOfHours` fica sempre `false` — o recurso só liga
+quando a empresa já usa o módulo de horário. Cada linha de
+`listLiveTickets` ganhou o campo `outOfHours: boolean`, e `getSummary`
+ganhou `totalOutOfHours`.
+
+`frontend/src/components/SupervisorOverviewPanel/index.js`: novo card
+"Fora do expediente" ao lado dos outros KPIs.
+
+### Testado
+
+Configurado `scheduleType: "company"` com `Company.schedules: []` (nenhum
+horário cadastrado pro dia da semana atual) → ticket de teste veio com
+`outOfHours: true` e `totalOutOfHours: 1`. Depois, configurado um horário
+cobrindo o dia inteiro de hoje → o mesmo ticket passou pra
+`outOfHours: false` imediatamente, sem reiniciar nada — confirma que lê o
+horário certo em tempo real. Configuração da empresa restaurada
+(`scheduleType: "disabled"`) e dados de teste removidos depois.

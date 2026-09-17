@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.39] — Painel Vigia lê o Horário de Atendimento — 2026-09-17
+
+### Adicionado
+- Novo card "Fora do expediente" no Painel — lido direto do módulo Horário
+  de Atendimento já existente (por empresa, fila ou conexão), sem precisar
+  configurar nada de novo. Antes disso, a única forma de tentar expressar
+  "horário de expediente" era via Regras de SLA, que não serve pra isso
+  (é minutos de resposta, não horário semanal).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 23.
+
 ## [2.3.38] — Alerta geral repetitivo + transferir pelo Painel — 2026-09-17
 
 ### Alterado
