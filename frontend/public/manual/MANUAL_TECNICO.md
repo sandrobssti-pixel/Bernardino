@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.36
-**Etapa:** 6.1 — Painel Vigia unificado dentro do "Painel" (`/moments`) já existente
+**Versão do documento:** 2.3.37
+**Etapa:** 6.2 — Painel Vigia monitora também "aguardando" (fila), não só "atendendo"
 **Última atualização:** 2026-09-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -1731,3 +1731,39 @@ corretos junto com as colunas por atendente já existentes; botão de mandar
 mensagem no ticket abre o diálogo, envia e confirma com toast; ícone de
 engrenagem abre o CRUD de Regras de SLA num diálogo, sem sair da tela.
 Dados de teste removidos do banco depois.
+
+---
+
+## 21. Painel Vigia passa a monitorar "aguardando", não só "atendendo" (v2.3.37)
+
+Feedback do cliente: criou uma Regra de SLA e não viu nada mudar no painel.
+Causa raiz: `SupervisorPanelService.listLiveTickets` só buscava tickets com
+`status: "open"` (já aceitos por um atendente) — um cliente parado
+**"aguardando"** (`status: "pending"`, ainda na fila, sem atendente
+atribuído) nunca entrava na conta, nos gráficos, nem disparava alerta no
+sino. Pra quem está do lado do supervisor, um cliente esperando sem ninguém
+responder é tão ou mais urgente quanto um atendimento já em andamento.
+
+### Correção
+
+`backend/src/services/SupervisorPanelService/SupervisorPanelService.ts`:
+o filtro de status virou `{ [Op.or]: ["open", "pending"] }`. Um ticket
+"aguardando" costuma não ter `userId` nem uma `TicketTraking` com
+`startedAt` preenchido ainda (só é criada/atualizada quando alguém aceita) —
+o código já tinha o fallback `traking?.startedAt || ticket.createdAt`, então
+o tempo decorrido de um ticket aguardando é calculado a partir de quando ele
+**entrou** no sistema, que é a métrica certa pra esse caso. Adicionado um
+campo novo `ticketStatus` ("pending"/"open") em cada linha, e o texto da
+notificação (`SlaMonitorService.ts`) agora diz explicitamente "aguardando"
+ou "em atendimento" pra ficar claro qual dos dois casos disparou o alerta —
+inclui "(sem atendente ainda)" quando for um ticket aguardando, já que nesse
+caso o alerta só vai pra sala `supervisors` (não tem atendente pra avisar
+individualmente).
+
+### Testado
+
+Criado ticket com `status: "pending"`, sem `userId`, criado há 30 minutos →
+`GET /supervisor-panel/live` retorna o ticket com `ticketStatus: "pending"`
+e `status: "overdue"` → `runSlaMonitor` cria a notificação com o texto
+"...30 min aguardando (sem atendente ainda)." Dados de teste removidos do
+banco depois.

@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.37] — Painel Vigia monitora "aguardando" também — 2026-09-17
+
+### Corrigido
+- O Painel Vigia só considerava atendimentos já "em atendimento" (aceitos
+  por um atendente) pros cards, gráficos e alertas de SLA — clientes
+  "aguardando" na fila, sem atendente ainda, ficavam de fora. Agora as duas
+  situações são monitoradas; o texto do alerta diz qual das duas é.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 21.
+
 ## [2.3.36] — Painel Vigia unificado no "Painel" existente — 2026-09-17
 
 ### Alterado

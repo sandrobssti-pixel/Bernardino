@@ -30,14 +30,16 @@ export const runSlaMonitor = async (companyId: number): Promise<void> => {
     if (alreadyNotified) continue;
 
     try {
+      const situacao = row.ticketStatus === "pending" ? "aguardando" : "em atendimento";
+
       const title =
         type === "sla_overdue"
-          ? `Atendimento fora do prazo (${row.elapsedMinutes} min)`
-          : `Risco de atraso no atendimento (${row.elapsedMinutes} min)`;
+          ? `Atendimento fora do prazo (${row.elapsedMinutes} min, ${situacao})`
+          : `Risco de atraso no atendimento (${row.elapsedMinutes} min, ${situacao})`;
 
-      const message = `${row.contactName || row.contactNumber} — ${row.elapsedMinutes} min em atendimento${
+      const message = `${row.contactName || row.contactNumber} — ${row.elapsedMinutes} min ${situacao}${
         row.queueName ? ` na fila ${row.queueName}` : ""
-      }.`;
+      }${row.ticketStatus === "pending" ? " (sem atendente ainda)" : ""}.`;
 
       const notification = await Notification.create({
         type,

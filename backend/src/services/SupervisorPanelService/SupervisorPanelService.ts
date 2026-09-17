@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import Ticket from "../../models/Ticket";
 import Contact from "../../models/Contact";
 import User from "../../models/User";
@@ -19,6 +20,7 @@ export interface LiveTicketRow {
   queueId: number | null;
   queueName: string | null;
   queueColor: string | null;
+  ticketStatus: "pending" | "open";
   startedAt: Date | null;
   elapsedMinutes: number;
   riskMinutes: number;
@@ -49,9 +51,13 @@ const resolveSlaRule = (
 export const listLiveTickets = async (
   companyId: number
 ): Promise<LiveTicketRow[]> => {
+  // Monitora tanto "aguardando" (pending, ainda na fila, sem atendente) quanto
+  // "atendendo" (open, já aceito) — um cliente esperando sem resposta é tão
+  // ou mais urgente quanto um atendimento em andamento (ver
+  // docs/MANUAL_TECNICO.md).
   const [tickets, rules] = await Promise.all([
     Ticket.findAll({
-      where: { companyId, status: "open" },
+      where: { companyId, status: { [Op.or]: ["open", "pending"] } },
       include: [
         { model: Contact, as: "contact", attributes: ["id", "name", "number"] },
         { model: User, as: "user", attributes: ["id", "name", "online"] },
@@ -95,6 +101,7 @@ export const listLiveTickets = async (
         queueId: ticket.queue?.id || null,
         queueName: ticket.queue?.name || null,
         queueColor: ticket.queue?.color || null,
+        ticketStatus: ticket.status as "pending" | "open",
         startedAt: startedAt || null,
         elapsedMinutes: Math.round(elapsedMinutes),
         riskMinutes,
