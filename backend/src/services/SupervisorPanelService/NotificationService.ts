@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import AppError from "../../errors/AppError";
 import Notification from "../../models/Notification";
 import Contact from "../../models/Contact";
@@ -16,6 +17,7 @@ const includeTicketContact = [
   {
     model: Ticket,
     as: "ticket",
+    required: false,
     attributes: ["id", "uuid", "status"],
     include: [{ model: Contact, as: "contact", attributes: ["id", "name", "number"] }]
   },
@@ -26,15 +28,26 @@ const isSupervisor = (user: RequestUser): boolean =>
   !!user.super || user.profile === "admin" || !!user.supervisorPanelAccess;
 
 export const list = async (user: RequestUser): Promise<Notification[]> => {
-  const where = isSupervisor(user)
+  const baseWhere = isSupervisor(user)
     ? { companyId: user.companyId }
     : { companyId: user.companyId, userId: user.id };
 
+  // Depois que o atendimento é fechado, o alerta dele deixa de fazer
+  // sentido no sino — só interessa quem ainda está esperando (aguardando/
+  // atendendo) ou um aviso sem ticket (ex.: futuras notificações gerais do
+  // sistema). Não apaga a notificação do banco, só para de mostrar no sino.
   return Notification.findAll({
-    where,
+    where: {
+      ...baseWhere,
+      [Op.or]: [
+        { ticketId: null },
+        { "$ticket.status$": { [Op.ne]: "closed" } }
+      ]
+    },
     include: includeTicketContact,
     order: [["createdAt", "DESC"]],
-    limit: 100
+    limit: 100,
+    subQuery: false
   });
 };
 

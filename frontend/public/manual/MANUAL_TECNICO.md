@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.46
-**Etapa:** 6.11 — Corrige build quebrado do frontend (import inválido no FlowBuilder)
-**Última atualização:** 2026-09-17
+**Versão do documento:** 2.3.47
+**Etapa:** 6.12 — Sino do Painel Vigia para de mostrar alerta de atendimento já fechado
+**Última atualização:** 2026-09-18
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -2238,3 +2238,54 @@ Build de produção rodado neste ambiente de desenvolvimento
 cliente) → `Compiled successfully.`, confirmando que a remoção do import
 resolve o problema sem quebrar o FlowBuilder (nenhuma outra função do
 arquivo dependia dele).
+
+---
+
+## 31. Sino do Painel Vigia para de mostrar alerta de atendimento já fechado (v2.3.47)
+
+Bug relatado pelo cliente: depois que um atendimento era **fechado**, o
+alerta dele (risco de atraso / fora do prazo) continuava aparecendo no
+sino do Painel Vigia — poluindo a lista com avisos de atendimentos que já
+tinham terminado. O pedido foi claro: o sino só precisa mostrar (1)
+clientes que ainda estão esperando pra ser atendidos (aguardando ou
+atendendo) e (2) avisos que não são de um atendimento específico
+(mensagens gerais/atualizações do sistema).
+
+### Causa
+
+`SlaMonitorService.runSlaMonitor` já só cria **novos** alertas pra
+atendimentos "aguardando"/"atendendo" (`listLiveTickets` nunca inclui
+tickets fechados) — isso sempre esteve certo. O problema era outro: um
+alerta criado **antes** do atendimento ser fechado continuava gravado na
+tabela `Notifications`, e `NotificationService.list` (usada pelo sino)
+devolvia todo o histórico da empresa sem checar se o ticket relacionado
+ainda estava em aberto — então o alerta antigo simplesmente nunca saía da
+lista, mesmo depois do atendimento encerrado.
+
+### Correção
+
+`backend/src/services/SupervisorPanelService/NotificationService.ts`:
+`list` passou a excluir notificações cujo ticket relacionado já está
+`closed`, mantendo só: notificações de tickets ainda "aguardando"/
+"atendendo", e notificações sem ticket nenhum (`ticketId: null` —
+reservado pra um futuro aviso geral do sistema, sem atendimento
+associado). A notificação **não é apagada do banco** (continua existindo
+pra histórico/auditoria) — só para de aparecer no sino a partir do
+momento em que o atendimento é fechado.
+
+Tecnicamente, o include de `Ticket` virou `required: false` (LEFT JOIN,
+pra não excluir sem querer as notificações sem ticket) e o filtro usa a
+referência `"$ticket.status$"` do Sequelize pra comparar a coluna do
+ticket relacionado direto no `WHERE`, com `subQuery: false` pra garantir
+que o `LIMIT` não quebre essa combinação de `JOIN` + condição na tabela
+relacionada.
+
+### Testado
+
+Script direto contra `dist/models` (sem precisar do servidor rodando):
+criados três avisos de teste — um preso a um ticket "open", um preso a um
+ticket "closed" e um sem ticket nenhum. Chamando
+`NotificationService.list` como super admin, só vieram os dois primeiros
+(o do ticket aberto e o sem ticket) — o do ticket fechado ficou de fora,
+confirmando o comportamento pedido. Dados de teste removidos do banco
+depois.

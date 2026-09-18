@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.47] — Sino para de mostrar alerta de atendimento fechado — 2026-09-18
+
+### Corrigido
+- O sino do Painel Vigia continuava mostrando alertas de risco/atraso de
+  atendimentos que já tinham sido fechados. Agora só aparecem alertas de
+  atendimentos ainda em aberto (aguardando/atendendo) e avisos sem
+  atendimento associado. A notificação não é apagada do banco, só some do
+  sino quando o atendimento é encerrado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 31.
+
 ## [2.3.46] — Corrige build quebrado do frontend — 2026-09-17
 
 ### Corrigido
