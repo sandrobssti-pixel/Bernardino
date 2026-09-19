@@ -96,6 +96,23 @@ services:
     volumes:
       - atendeflow_redisdata:/data
 
+  # Cloudflare Tunnel — deixa o backend e o frontend acessíveis pela
+  # internet sem precisar de IP público nem porta aberta no VPS (mesmo
+  # esquema já usado no servidor físico atual). O túnel se conecta de
+  # dentro pra fora até o Cloudflare; os hostnames públicos (configurados
+  # lá no painel do Cloudflare, aba Zero Trust > Networks > Tunnels) apontam
+  # pra "http://backend:8080" e "http://frontend:3000" — os nomes dos
+  # serviços aqui do compose, que o Docker resolve sozinho dentro da rede
+  # interna. Não precisa criar Domains nem certificado no Coolify.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: atendeflow-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - backend
+      - frontend
+
 volumes:
   atendeflow_public:
   atendeflow_redisdata:

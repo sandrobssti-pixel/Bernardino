@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.48
-**Etapa:** 6.13 — Deploy do AtendeFlow via Coolify (Dockerfiles + docker-compose)
+**Versão do documento:** 2.3.49
+**Etapa:** 6.14 — Cloudflare Tunnel embutido no docker-compose.coolify.yml
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2406,3 +2406,81 @@ as imagens de verdade neste ambiente de desenvolvimento (o daemon do
 Docker não roda dentro deste sandbox — limitação do ambiente, não do
 Dockerfile) — a validação completa do build precisa acontecer no VPS
 real, o que o próprio Coolify faz automaticamente ao criar o recurso.
+
+---
+
+## 33. Cloudflare Tunnel embutido no docker-compose.coolify.yml (v2.3.49)
+
+Durante a migração real pra um VPS com Coolify (cliente usando um recurso
+"Docker Compose" colado direto na interface, não conectado a um
+repositório Git — ver seção 32 sobre a diferença), ficou definido que o
+acesso público ao AtendeFlow novo seguiria o mesmo padrão do servidor
+físico atual: **Cloudflare Tunnel**, em vez de expor porta/IP do VPS
+direto. Motivo prático: o VPS só tinha um IP do Tailscale (privado, só
+alcançável pelos dispositivos da própria rede Tailscale do cliente) no
+momento da migração — Cloudflare Tunnel não depende de IP público nem de
+porta aberta, então resolve isso sem precisar esperar/mexer em rede.
+
+### Implementação
+
+`docker-compose.coolify.yml` ganhou um quarto serviço:
+
+```yaml
+cloudflared:
+  image: cloudflare/cloudflared:latest
+  command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  depends_on:
+    - backend
+    - frontend
+```
+
+Ele se conecta de dentro pra fora até a borda do Cloudflare (não precisa
+de porta publicada nem de configuração de rede especial). Os hostnames
+públicos são configurados do lado de fora, no painel do Cloudflare (Zero
+Trust > Networks > Tunnels), apontando pra `http://backend:8080` e
+`http://frontend:3000` — os nomes dos próprios serviços deste compose,
+que o Docker resolve sozinho dentro da rede interna criada pelo Coolify
+pra esse recurso. `.env.coolify.example` ganhou a variável
+`CLOUDFLARE_TUNNEL_TOKEN`.
+
+### Subdomínios usados nesta migração
+
+Pra não derrubar o servidor antigo (que já usa
+`atendeflow.confiancatechnologies.com` em produção), a migração/teste no
+VPS novo usou subdomínios temporários:
+- Frontend: `atendeflow-novo.confiancatechnologies.com`
+- Backend: `atendeflow-novo-api.confiancatechnologies.com`
+
+Quando o cliente validar que o VPS novo está funcionando igual ou melhor
+que o antigo, o corte final é só repontar o túnel do domínio definitivo
+(`atendeflow.confiancatechnologies.com`) pro VPS novo e desligar o túnel
+do servidor antigo — não precisa mudar nada no código nem no
+`docker-compose.coolify.yml`, só a configuração do túnel no painel do
+Cloudflare e as variáveis `BACKEND_URL`/`FRONTEND_URL`/
+`REACT_APP_BACKEND_URL` (essa última exige rebuild do frontend, por ser
+variável de build).
+
+### Passo a passo do lado do Cloudflare
+
+1. No painel do Cloudflare, ir em **Zero Trust > Networks > Tunnels >
+   Create a tunnel**, escolher o tipo **Cloudflared**, dar um nome (ex:
+   `atendeflow-vps-novo`).
+2. Copiar o **token** gerado — é o valor que vai na variável
+   `CLOUDFLARE_TUNNEL_TOKEN` no Coolify.
+3. Na mesma tela de configuração do túnel, aba **Public Hostname**,
+   adicionar duas entradas:
+   - `atendeflow-novo.confiancatechnologies.com` → Service `HTTP`,
+     `frontend:3000`.
+   - `atendeflow-novo-api.confiancatechnologies.com` → Service `HTTP`,
+     `backend:8080`.
+4. Salvar. O Cloudflare já cuida do certificado HTTPS público — não
+   precisa configurar nada de domínio nem SSL do lado do Coolify.
+
+### Testado
+
+`docker compose -f docker-compose.coolify.yml config` com
+`CLOUDFLARE_TUNNEL_TOKEN` de teste — o comando do serviço `cloudflared`
+foi montado corretamente (`tunnel --no-autoupdate run --token <valor>`).
+Mesma limitação da seção anterior: build real das imagens e teste de
+conectividade do túnel só são possíveis no VPS real, não neste ambiente
+de desenvolvimento.

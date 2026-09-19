@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.48 (Etapa 6.13 — Dockerfiles e docker-compose pra rodar o AtendeFlow via Coolify — ver `docs/MANUAL_TECNICO.md`, seção 32)**
+**Versão atual: 2.3.49 (Etapa 6.14 — Cloudflare Tunnel embutido no docker-compose.coolify.yml, pra acesso público sem precisar de IP fixo no VPS — ver `docs/MANUAL_TECNICO.md`, seção 33)**
 
 ## Documentação
 

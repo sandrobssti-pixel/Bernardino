@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.49] — Cloudflare Tunnel no docker-compose.coolify.yml — 2026-09-19
+
+### Adicionado
+- Serviço `cloudflared` no `docker-compose.coolify.yml` — deixa o
+  AtendeFlow acessível pela internet via Cloudflare Tunnel, sem precisar
+  de IP público nem porta aberta no VPS (mesmo esquema do servidor
+  atual). Nova variável `CLOUDFLARE_TUNNEL_TOKEN` no
+  `.env.coolify.example`.
+
+Detalhes e passo a passo do lado do Cloudflare em
+`docs/MANUAL_TECNICO.md`, seção 33.
+
 ## [2.3.48] — Deploy via Coolify (Dockerfiles + docker-compose) — 2026-09-19
 
 ### Adicionado
