@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.49
-**Etapa:** 6.14 — Cloudflare Tunnel embutido no docker-compose.coolify.yml
+**Versão do documento:** 2.3.50
+**Etapa:** 6.15 — Suporte a SSL na conexão com o Postgres (Coolify exige)
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2484,3 +2484,45 @@ foi montado corretamente (`tunnel --no-autoupdate run --token <valor>`).
 Mesma limitação da seção anterior: build real das imagens e teste de
 conectividade do túnel só são possíveis no VPS real, não neste ambiente
 de desenvolvimento.
+
+---
+
+## 34. Suporte a SSL na conexão com o Postgres (v2.3.50)
+
+Durante a configuração real do VPS, duas informações da tela do recurso
+Postgres no Coolify se mostraram inconsistentes entre si: o campo "Port
+mappings" mostrava `5433:5433`, mas o campo "Postgres URL (internal)"
+(gerado pelo próprio Coolify) mostrava a porta `5432` — **e** terminava
+em `?sslmode=require`. A `Postgres URL (internal)` é a fonte confiável
+(é literalmente a string de conexão que o Coolify monta pra uso entre
+containers), então a porta certa pra `DB_PORT` é **5432**, não 5433 como
+tinha sido usado antes nesta mesma migração. Além disso, esse Postgres
+**exige conexão criptografada (SSL)** mesmo internamente — e o
+AtendeFlow **não tinha nenhum suporte a SSL** na conexão com o banco até
+essa etapa (`backend/src/config/database.ts` nunca configurava
+`dialectOptions.ssl`), então a conexão falharia sem esse ajuste.
+
+### Implementação
+
+`backend/src/config/database.ts`: nova variável `DB_SSL` (`"true"` liga o
+SSL) que, quando ativa, adiciona `dialectOptions.ssl = { require: true,
+rejectUnauthorized: ... }`. `rejectUnauthorized` fica `false` por padrão
+(controlado por `DB_SSL_REJECT_UNAUTHORIZED`) porque bancos Postgres
+gerenciados por Coolify/Docker tipicamente usam certificado autoassinado
+— exigir validação de certificado (`rejectUnauthorized: true`) sem ter um
+CA de verdade configurado quebraria a conexão. A criptografia em trânsito
+continua ativa de qualquer forma; só a validação da identidade do
+certificado fica mais permissiva, o que é aceitável pra tráfego que já
+fica dentro da rede interna do Docker/Coolify, não exposto à internet.
+
+`docker-compose.coolify.yml` e `.env.coolify.example` ganharam
+`DB_SSL`/`DB_SSL_REJECT_UNAUTHORIZED`, com uma nota explicando pra
+conferir a "Postgres URL (internal)" (não o "Port mappings") como fonte
+confiável de host/porta.
+
+### Testado
+
+`npx tsc --noEmit` depois da mudança — compila sem erros. Não foi
+possível testar a conexão SSL de verdade contra o Postgres do Coolify
+neste ambiente de desenvolvimento (banco só acessível de dentro da rede
+do VPS do cliente) — a validação final acontece no próprio deploy.

@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.50] — Suporte a SSL na conexão com o Postgres — 2026-09-19
+
+### Adicionado
+- `DB_SSL`/`DB_SSL_REJECT_UNAUTHORIZED` em `backend/src/config/database.ts`
+  — necessário porque o Postgres gerenciado pelo Coolify exige conexão
+  criptografada mesmo internamente. Sem isso a conexão falhava.
+
+### Corrigido
+- A porta interna correta do Postgres do Coolify é `5432` (confirmado na
+  "Postgres URL (internal)"), não `5433` como usado antes nesta mesma
+  migração — o campo "Port mappings" da tela do Coolify mostra outra
+  porta (mapeamento externo), que não é a mesma coisa.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 34.
+
 ## [2.3.49] — Cloudflare Tunnel no docker-compose.coolify.yml — 2026-09-19
 
 ### Adicionado

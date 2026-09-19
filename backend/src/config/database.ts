@@ -3,6 +3,12 @@ require("../bootstrap");
 
 // são paulo timezone
 
+// Alguns provedores (ex.: Postgres gerenciado pelo Coolify) exigem SSL
+// mesmo na conexão interna entre containers, e usam certificado
+// autoassinado — por isso rejectUnauthorized vem desligado por padrão.
+// Ative com DB_SSL=true; force validação de certificado com
+// DB_SSL_REJECT_UNAUTHORIZED=true se um dia usar um CA de verdade.
+const useSSL = process.env.DB_SSL === "true";
 
 module.exports = {
   define: {
@@ -35,5 +41,13 @@ module.exports = {
   database: process.env.DB_NAME,
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
+  dialectOptions: useSSL
+    ? {
+        ssl: {
+          require: true,
+          rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === "true"
+        }
+      }
+    : undefined,
   logging: false
 };
