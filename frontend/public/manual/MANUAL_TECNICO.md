@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.47
-**Etapa:** 6.12 — Sino do Painel Vigia para de mostrar alerta de atendimento já fechado
-**Última atualização:** 2026-09-18
+**Versão do documento:** 2.3.48
+**Etapa:** 6.13 — Deploy do AtendeFlow via Coolify (Dockerfiles + docker-compose)
+**Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -2289,3 +2289,120 @@ ticket "closed" e um sem ticket nenhum. Chamando
 (o do ticket aberto e o sem ticket) — o do ticket fechado ficou de fora,
 confirmando o comportamento pedido. Dados de teste removidos do banco
 depois.
+
+---
+
+## 32. Deploy do AtendeFlow via Coolify (v2.3.48)
+
+O cliente montou um VPS novo com Coolify e um recurso de PostgreSQL já
+configurado, pra migrar o AtendeFlow inteiro pra lá (backend, frontend,
+redis), saindo do servidor atual (pm2 + Cloudflare Tunnel, ver seções
+anteriores sobre `instalador.sh`/`backup-para-drive.sh`). Coolify é uma
+plataforma self-hosted que builda e roda containers Docker a partir de um
+repositório Git — o jeito mais direto de integrar um projeto com ele é
+fornecer um `docker-compose.yml` (ou Dockerfiles) que ele saiba buildar.
+
+### Por que não existia isso antes
+
+O `docker-compose.yml` da raiz do projeto **já existia**, mas só sobe
+Postgres + Redis — é só pra desenvolvimento local (ver `README.md`,
+"Início rápido"). O backend e o frontend sempre rodaram direto com
+`npm`/`pm2` (via `instalador.sh`) no servidor físico do cliente, sem
+nunca terem sido containerizados. Pra rodar no Coolify, precisava de
+Dockerfiles pro backend e pro frontend, e um compose separado que suba os
+dois.
+
+### O que foi criado
+
+- **`backend/Dockerfile`** — build em duas etapas: instala dependências e
+  compila TypeScript (`npm run build`) num estágio, copia só o
+  necessário pro estágio final (`dist/`, `node_modules`, `.sequelizerc`).
+  Ao subir, roda `npx sequelize-cli db:migrate` (idempotente — só aplica
+  migrations pendentes) antes de iniciar `node dist/server.js`. A pasta
+  `public/` (uploads: mídia do WhatsApp, currículos do RH, fotos de
+  perfil) fica marcada como `VOLUME`, pra não sumir a cada novo deploy.
+  A sessão do WhatsApp (Baileys) **não precisa de volume** — ela já é
+  salva direto no Postgres (`backend/src/helpers/authState.ts`), não no
+  disco.
+- **`frontend/Dockerfile`** — build com o mesmo ajuste de
+  `--legacy-peer-deps` + `ajv@^8.17.1`/`ajv-keywords@^5.1.0` que já era
+  usado no `instalador.sh` (conflito de peer-dependency conhecido do
+  projeto). Serve o build estático com `serve -s build`, igual já era
+  feito via pm2 no servidor atual.
+- **`docker-compose.coolify.yml`** (na raiz, separado do
+  `docker-compose.yml` de desenvolvimento) — sobe `backend` + `frontend`
+  + `redis`. **Não sobe um Postgres próprio** — o backend se conecta no
+  Postgres que o Coolify já tem configurado no VPS, via variáveis de
+  ambiente (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`).
+- **`.env.coolify.example`** (na raiz) — lista todas as variáveis que
+  precisam ser preenchidas na aba de variáveis de ambiente do recurso
+  "Docker Compose" no Coolify, com comentário explicando de onde tirar
+  cada uma.
+- **`backend/.dockerignore`** e **`frontend/.dockerignore`** — evitam
+  copiar `node_modules`, `.env` e `.git` pra dentro da imagem.
+
+### Ponto de atenção: variáveis do frontend são de BUILD, não de runtime
+
+As variáveis `REACT_APP_BACKEND_URL`, `REACT_APP_NUMBER_SUPPORT` e
+`REACT_APP_WA_CONNECT_URL` do Create React App são gravadas dentro dos
+arquivos JS estáticos **no momento do build** — trocar a variável depois
+e só reiniciar o container não muda nada, precisa reconstruir a imagem.
+No `docker-compose.coolify.yml` elas entram como `args` do build do
+serviço `frontend` (não como `environment`), e no Coolify precisam ser
+configuradas como variável disponível pro build (a aba certa pode se
+chamar "Build Variables" ou similar, dependendo da versão do Coolify).
+
+### Passo a passo pra configurar no Coolify
+
+1. No painel do Coolify, criar um novo recurso do tipo **Docker Compose**,
+   apontando pro repositório Git do AtendeFlow, branch de produção, e
+   usando o arquivo `docker-compose.coolify.yml` (não o `docker-compose.yml`
+   padrão) como compose file.
+2. Descobrir o **host interno do Postgres já configurado** no Coolify:
+   normalmente aparece nos detalhes do recurso de banco (algo como
+   `nome-do-servico-postgres` na rede interna do Coolify, com a porta
+   `5432`) — copiar esse host pra variável `DB_HOST`.
+3. Preencher as variáveis de ambiente do recurso Docker Compose usando o
+   `.env.coolify.example` como roteiro — `BACKEND_URL`/`FRONTEND_URL` com
+   os domínios reais, `DB_*` com os dados do Postgres do passo 2,
+   segredos (`JWT_SECRET`, `JWT_REFRESH_SECRET`, `MASTER_KEY`,
+   `REDIS_SECRET_KEY`) gerados novos (nunca reaproveitar os do servidor
+   antigo), e `REACT_APP_BACKEND_URL` apontando pro domínio público da
+   API.
+4. Configurar os domínios/proxy do Coolify: um domínio pro serviço
+   `backend` (porta 8080) e outro pro `frontend` (porta 3000) — o próprio
+   Coolify cuida do certificado HTTPS.
+5. Rodar o deploy. A primeira subida do backend já aplica todas as
+   migrations no Postgres do Coolify (banco novo, do zero) — não precisa
+   rodar nada manualmente antes.
+6. Testar login com o `ADMIN_USERNAME`/`ADMIN_PASSWORD` configurados, e
+   conectar uma conexão de WhatsApp de teste pra confirmar que a sessão
+   está sendo salva certinho no Postgres novo.
+
+### O que fica de fora deste primeiro passo
+
+- **`api_oficial/`** (microsserviço da API Oficial da Meta, NestJS +
+  Prisma) já tinha seu próprio `Dockerfile` antes desta etapa, mas não
+  foi incluído no `docker-compose.coolify.yml` — só entra em cena se a
+  empresa-cliente usar `USE_WHATSAPP_OFICIAL=true`. Pode ser adicionado
+  como um serviço a mais (ou um recurso separado no Coolify) quando for
+  necessário.
+- **Backup automático** (`backup-para-drive.sh`) foi pensado pro servidor
+  físico atual (via `pg_dump` local, cron). Rodando no Coolify, o backup
+  do Postgres deve ser feito pelo mecanismo de backup do próprio recurso
+  de banco no Coolify (a maioria das versões tem isso embutido) — não
+  faz sentido tentar reaproveitar o script atual como está.
+- Migração dos **dados existentes** (banco atual → Postgres novo do
+  Coolify) não foi feita aqui — se for pra migrar dados de produção, e
+  não começar do zero, o caminho é um `pg_dump` do banco atual seguido de
+  `pg_restore`/`psql` no banco novo, antes do primeiro deploy.
+
+### Testado
+
+`docker compose -f docker-compose.coolify.yml config` rodado com valores
+de teste pra todas as variáveis obrigatórias — o arquivo faz parse e
+interpola corretamente, sem erro de sintaxe. **Não foi possível** buildar
+as imagens de verdade neste ambiente de desenvolvimento (o daemon do
+Docker não roda dentro deste sandbox — limitação do ambiente, não do
+Dockerfile) — a validação completa do build precisa acontecer no VPS
+real, o que o próprio Coolify faz automaticamente ao criar o recurso.

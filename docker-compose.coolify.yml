@@ -1,0 +1,101 @@
+# Stack de PRODUÇÃO do AtendeFlow pra rodar no Coolify.
+#
+# Diferente do docker-compose.yml da raiz (esse aqui é só banco+redis pra
+# desenvolvimento local), este arquivo sobe o sistema inteiro: backend,
+# frontend e redis. NÃO sobe um Postgres próprio de propósito — o VPS já
+# tem um recurso de PostgreSQL configurado no Coolify, e é nele que o
+# backend deve se conectar (ver docs/MANUAL_TECNICO.md, seção "Deploy com
+# Coolify", pra saber como pegar o host/porta desse banco já existente).
+#
+# Todas as variáveis entre chaves (${...}) devem ser preenchidas na aba de
+# variáveis de ambiente do recurso "Docker Compose" no Coolify — nunca
+# direto neste arquivo.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      HOST: "0.0.0.0"
+      BACKEND_URL: ${BACKEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
+      PROXY_PORT: "8080"
+
+      DB_DIALECT: postgres
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      DB_POOL_MAX: "20"
+      DB_POOL_MIN: "5"
+      DB_POOL_ACQUIRE: "30000"
+      DB_POOL_IDLE: "10000"
+
+      REDIS_URI: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      IO_REDIS_URI: redis://redis:6379
+      IO_REDIS_PORT: "6379"
+      REDIS_SECRET_KEY: ${REDIS_SECRET_KEY}
+      REDIS_OPT_LIMITER_MAX: "1"
+      REDIS_OPT_LIMITER_DURATION: "3000"
+
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      MASTER_KEY: ${MASTER_KEY}
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      COOKIE_SECURE: "true"
+      COOKIE_SAMESITE: "lax"
+
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_SECURE: ${MAIL_SECURE:-false}
+      MAIL_FROM: ${MAIL_FROM:-}
+
+      USE_WHATSAPP_OFICIAL: ${USE_WHATSAPP_OFICIAL:-false}
+      URL_API_OFICIAL: ${URL_API_OFICIAL:-}
+      TOKEN_API_OFICIAL: ${TOKEN_API_OFICIAL:-}
+      COMPANY_TOKEN: ${COMPANY_TOKEN:-}
+      ENV_TOKEN: ${ENV_TOKEN:-}
+      VERIFY_TOKEN: ${VERIFY_TOKEN:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+    volumes:
+      - atendeflow_public:/app/public
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
+        REACT_APP_NUMBER_SUPPORT: ${REACT_APP_NUMBER_SUPPORT:-}
+        REACT_APP_WA_CONNECT_URL: ${REACT_APP_WA_CONNECT_URL:-}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+
+  redis:
+    image: redis:7-alpine
+    container_name: atendeflow-redis-prod
+    restart: unless-stopped
+    volumes:
+      - atendeflow_redisdata:/data
+
+volumes:
+  atendeflow_public:
+  atendeflow_redisdata:

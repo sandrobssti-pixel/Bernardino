@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.48] — Deploy via Coolify (Dockerfiles + docker-compose) — 2026-09-19
+
+### Adicionado
+- `backend/Dockerfile` e `frontend/Dockerfile`, prontos pra build no
+  Coolify (ou qualquer orquestrador Docker).
+- `docker-compose.coolify.yml` — sobe backend + frontend + redis,
+  conectando no Postgres que o Coolify já tenha configurado (não sobe
+  banco próprio).
+- `.env.coolify.example` — roteiro de todas as variáveis de ambiente
+  necessárias pra configurar no Coolify.
+
+Detalhes e passo a passo em `docs/MANUAL_TECNICO.md`, seção 32.
+
 ## [2.3.47] — Sino para de mostrar alerta de atendimento fechado — 2026-09-18
 
 ### Corrigido

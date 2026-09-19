@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.47 (Etapa 6.12 — o sino do Painel Vigia não mostra mais alerta de atendimento já fechado — ver `docs/MANUAL_TECNICO.md`, seção 31)**
+**Versão atual: 2.3.48 (Etapa 6.13 — Dockerfiles e docker-compose pra rodar o AtendeFlow via Coolify — ver `docs/MANUAL_TECNICO.md`, seção 32)**
 
 ## Documentação
 
