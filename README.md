@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.50 (Etapa 6.15 — conexão com o Postgres agora suporta SSL, exigido por bancos gerenciados pelo Coolify — ver `docs/MANUAL_TECNICO.md`, seção 34)**
+**Versão atual: 2.3.51 (Etapa 6.16 — deploy passou a rodar via SSH/docker compose direto no VPS, e as portas publicadas de backend/frontend foram removidas — ver `docs/MANUAL_TECNICO.md`, seção 35)**
 
 ## Documentação
 

@@ -76,8 +76,6 @@ services:
       - atendeflow_public:/app/public
     depends_on:
       - redis
-    ports:
-      - "8080:8080"
 
   frontend:
     build:
@@ -88,8 +86,6 @@ services:
         REACT_APP_NUMBER_SUPPORT: ${REACT_APP_NUMBER_SUPPORT:-}
         REACT_APP_WA_CONNECT_URL: ${REACT_APP_WA_CONNECT_URL:-}
     restart: unless-stopped
-    ports:
-      - "3000:3000"
 
   redis:
     image: redis:7-alpine

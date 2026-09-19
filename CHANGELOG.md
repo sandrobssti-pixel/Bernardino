@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.51] — Deploy via SSH direto + remove portas publicadas — 2026-09-19
+
+### Alterado
+- O recurso "Docker Compose" do Coolify (colar YAML direto, sem
+  repositório Git) não consegue buildar `backend`/`frontend` — não tem
+  como fornecer o código-fonte pro `build: context:`. O deploy passou a
+  ser feito via `git clone` + `docker compose ... up -d --build` direto
+  por SSH no VPS. O Postgres continua gerenciado pelo Coolify
+  normalmente.
+- Removidas as seções `ports:` de `backend` e `frontend` no
+  `docker-compose.coolify.yml` — o Cloudflare Tunnel já alcança os
+  containers pela rede interna do Docker, não precisa publicar porta no
+  host (e isso estava conflitando com outra porta já em uso no VPS).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 35.
+
 ## [2.3.50] — Suporte a SSL na conexão com o Postgres — 2026-09-19
 
 ### Adicionado

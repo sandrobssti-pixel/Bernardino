@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.50
-**Etapa:** 6.15 — Suporte a SSL na conexão com o Postgres (Coolify exige)
+**Versão do documento:** 2.3.51
+**Etapa:** 6.16 — Deploy via SSH/docker compose direto (não pelo recurso "Docker Compose" colado do Coolify) + remove portas publicadas
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2526,3 +2526,80 @@ confiável de host/porta.
 possível testar a conexão SSL de verdade contra o Postgres do Coolify
 neste ambiente de desenvolvimento (banco só acessível de dentro da rede
 do VPS do cliente) — a validação final acontece no próprio deploy.
+
+---
+
+## 35. Deploy via SSH/docker compose direto, não pelo recurso "Docker Compose" do Coolify (v2.3.51)
+
+Na tentativa real de deploy no VPS do cliente, o tipo de recurso "Docker
+Compose" do Coolify usado (o de colar o YAML direto numa caixa de texto,
+sem conectar repositório Git — ver seção 32) travou com um erro definitivo:
+
+```
+unable to prepare context: path "/data/coolify/services/.../backend" not found
+```
+
+### Causa
+
+Esse tipo específico de recurso do Coolify **nunca clona o repositório**
+— ele só guarda o texto do compose. Os serviços `redis` e `cloudflared`
+funcionaram normalmente (usam `image:` pronta, não precisam de código-
+fonte), mas `backend` e `frontend` usam `build: context: ./backend` /
+`./frontend`, que exigem o código-fonte de verdade presente no disco do
+servidor — e esse código nunca foi baixado, porque esse tipo de recurso
+não tem esse conceito de "fonte Git". Diferente do que foi assumido na
+seção 32 (que já alertava pra essa possibilidade e sugeria migrar pra
+"Application" resources como alternativa).
+
+### Solução adotada
+
+Em vez de recriar tudo como recursos "Application" separados no Coolify
+(o que exigiria reconfigurar tudo de novo pela interface, com o mesmo
+tipo de atrito já visto), a decisão foi rodar o `docker compose` **direto
+via SSH no próprio VPS**, sem depender dessa tela específica do Coolify
+pra essa parte:
+
+```bash
+git clone -b claude/tender-carson-h1zc86 https://github.com/sandrobssti-pixel/Bernardino.git atendeflow
+cd atendeflow
+# .env criado manualmente com as mesmas variáveis (ver .env.coolify.example)
+docker compose -f docker-compose.coolify.yml --env-file .env up -d --build
+```
+
+O banco de dados Postgres continua exatamente como estava, gerenciado
+pelo Coolify normalmente (nada mudou nele) — só a aplicação (backend,
+frontend, redis, cloudflared) passou a ser gerenciada por `docker
+compose` direto, fora da interface do Coolify. Reduz a superfície de
+atrito da interface (que já causou: erro de parsing por texto colado
+errado, variáveis que precisam existir tanto na aba "Environment
+Variables" quanto referenciadas dentro do próprio YAML colado, e agora
+esse bloqueio de build) em troca de comandos de terminal diretos e mais
+previsíveis.
+
+### Removidas as portas publicadas (`ports:`) de backend/frontend
+
+Durante essa mesma tentativa de deploy, o `docker compose up` falhou de
+novo, agora por conflito de porta:
+
+```
+failed to bind host port 0.0.0.0:3000/tcp: address already in use
+```
+
+A porta 3000 (e potencialmente a 8080) já estava em uso por outro
+processo no VPS. Como o Cloudflare Tunnel acessa `backend`/`frontend`
+direto pela rede interna do Docker (por nome de serviço, não por porta
+publicada no host), **as seções `ports:` de `backend` e `frontend` foram
+removidas** do `docker-compose.coolify.yml` — nunca foram necessárias pra
+esse desenho (só serviriam pra acessar os containers direto pelo IP do
+host, o que não é o caso aqui). Isso também reduz a superfície exposta no
+host.
+
+### Testado
+
+`docker compose -f docker-compose.coolify.yml config` com variáveis de
+teste — confirmado que nenhuma porta aparece mais como `published` na
+configuração final. No VPS real do cliente, o build completo (backend +
+frontend) rodou com sucesso via SSH (~150s de build), confirmando que os
+Dockerfiles funcionam de ponta a ponta num ambiente real — o bloqueio
+anterior era estritamente da falta de código-fonte no disco, não dos
+Dockerfiles em si.
