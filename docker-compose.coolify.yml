@@ -10,6 +10,18 @@
 # Todas as variáveis entre chaves (${...}) devem ser preenchidas na aba de
 # variáveis de ambiente do recurso "Docker Compose" no Coolify — nunca
 # direto neste arquivo.
+#
+# Todos os serviços entram na rede "coolify" (externa, já existente,
+# criada pelo próprio Coolify) em vez da rede própria que o
+# `docker compose` criaria sozinho — é nessa rede que o container do
+# Postgres já configurado no Coolify vive, e é só assim que o backend
+# consegue resolver o host dele pelo nome (ver docs/MANUAL_TECNICO.md,
+# seção "Deploy com Coolify"). Sem isso, os containers deste compose
+# ficam isolados numa rede própria e não enxergam o banco.
+
+networks:
+  coolify:
+    external: true
 
 services:
   backend:
@@ -76,6 +88,8 @@ services:
       - atendeflow_public:/app/public
     depends_on:
       - redis
+    networks:
+      - coolify
 
   frontend:
     build:
@@ -86,6 +100,8 @@ services:
         REACT_APP_NUMBER_SUPPORT: ${REACT_APP_NUMBER_SUPPORT:-}
         REACT_APP_WA_CONNECT_URL: ${REACT_APP_WA_CONNECT_URL:-}
     restart: unless-stopped
+    networks:
+      - coolify
 
   redis:
     image: redis:7-alpine
@@ -93,6 +109,8 @@ services:
     restart: unless-stopped
     volumes:
       - atendeflow_redisdata:/data
+    networks:
+      - coolify
 
   # Cloudflare Tunnel — deixa o backend e o frontend acessíveis pela
   # internet sem precisar de IP público nem porta aberta no VPS (mesmo
@@ -110,6 +128,8 @@ services:
     depends_on:
       - backend
       - frontend
+    networks:
+      - coolify
 
 volumes:
   atendeflow_public:

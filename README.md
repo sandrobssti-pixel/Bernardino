@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.51 (Etapa 6.16 — deploy passou a rodar via SSH/docker compose direto no VPS, e as portas publicadas de backend/frontend foram removidas — ver `docs/MANUAL_TECNICO.md`, seção 35)**
+**Versão atual: 2.3.52 (Etapa 6.17 — os containers do docker-compose.coolify.yml passaram a entrar na rede "coolify", senão o backend não enxerga o Postgres gerenciado pelo Coolify — ver `docs/MANUAL_TECNICO.md`, seção 36)**
 
 ## Documentação
 

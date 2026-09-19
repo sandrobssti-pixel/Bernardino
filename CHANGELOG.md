@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.52] — Containers entram na rede "coolify" — 2026-09-19
+
+### Corrigido
+- O backend ficava travado tentando conectar no Postgres (sem nunca dar
+  erro visível) porque o `docker compose` rodado direto por SSH cria uma
+  rede própria, diferente da rede `coolify` onde o container do Postgres
+  gerenciado pelo Coolify realmente vive. Agora todos os serviços do
+  `docker-compose.coolify.yml` (`backend`, `frontend`, `redis`,
+  `cloudflared`) se conectam na rede `coolify` (externa, já existente),
+  e conseguem resolver o host do banco pelo nome.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 36.
+
 ## [2.3.51] — Deploy via SSH direto + remove portas publicadas — 2026-09-19
 
 ### Alterado

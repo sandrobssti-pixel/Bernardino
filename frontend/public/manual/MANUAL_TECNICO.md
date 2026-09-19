@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.51
-**Etapa:** 6.16 — Deploy via SSH/docker compose direto (não pelo recurso "Docker Compose" colado do Coolify) + remove portas publicadas
+**Versão do documento:** 2.3.52
+**Etapa:** 6.17 — Containers do compose entram na rede "coolify" (senão não enxergam o Postgres)
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2603,3 +2603,44 @@ frontend) rodou com sucesso via SSH (~150s de build), confirmando que os
 Dockerfiles funcionam de ponta a ponta num ambiente real — o bloqueio
 anterior era estritamente da falta de código-fonte no disco, não dos
 Dockerfiles em si.
+
+---
+
+## 36. Containers do compose entram na rede "coolify" (v2.3.52)
+
+Depois do deploy via SSH (seção 35) funcionar de ponta a ponta pro build,
+o container do `backend` subiu e ficou **"Up" mas travado**, sem nunca
+terminar de rodar `sequelize-cli db:migrate` — o log parava logo depois
+de "Loaded configuration file", sem avançar nem dar erro visível.
+
+### Causa
+
+Quando o `docker compose` é rodado direto (fora da interface do
+Coolify), ele cria uma rede Docker **própria e isolada** pro projeto
+(`atendeflow_default`) — diferente da rede `coolify`, onde o container do
+Postgres gerenciado pelo Coolify vive (confirmado com
+`docker inspect <host-do-postgres> --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}'`
+→ retornou `coolify`). Containers em redes Docker diferentes não
+enxergam uns aos outros pelo nome — por isso o backend nunca conseguia
+resolver o host do Postgres, e ficava preso tentando (o `retry` do
+Sequelize em `database.ts` tenta até 100 vezes, sem logar cada
+tentativa, por isso parecia "travado" em vez de dar erro na hora).
+
+### Correção
+
+`docker-compose.coolify.yml`: declarada a rede `coolify` como `external:
+true` (ela já existe, criada pelo próprio Coolify — não é criada por
+este arquivo), e todos os quatro serviços (`backend`, `frontend`,
+`redis`, `cloudflared`) passaram a se conectar nela em vez da rede padrão
+que o `docker compose` criaria sozinho. Com isso, o backend consegue
+resolver o host do Postgres pelo nome, e o `cloudflared` continua
+enxergando `backend`/`frontend` normalmente (mesma rede pra todo mundo).
+
+### Testado
+
+`docker compose -f docker-compose.coolify.yml config` confirma a rede
+`coolify` marcada como `external: true` e todos os serviços conectados
+nela. Validação de que o backend passa a completar as migrations de
+verdade depende de recriar os containers no VPS real do cliente com essa
+mudança — não reproduzível neste ambiente de desenvolvimento (sem acesso
+à rede `coolify`/Postgres do cliente).
