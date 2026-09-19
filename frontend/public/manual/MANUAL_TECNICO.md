@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.52
-**Etapa:** 6.17 — Containers do compose entram na rede "coolify" (senão não enxergam o Postgres)
+**Versão do documento:** 2.3.53
+**Etapa:** 6.18 — Migração dos dados de produção pro novo VPS e troca do domínio definitivo
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2644,3 +2644,100 @@ nela. Validação de que o backend passa a completar as migrations de
 verdade depende de recriar os containers no VPS real do cliente com essa
 mudança — não reproduzível neste ambiente de desenvolvimento (sem acesso
 à rede `coolify`/Postgres do cliente).
+
+---
+
+## 37. Migração dos dados de produção pro novo VPS e troca do domínio definitivo (v2.3.53)
+
+Com o novo deploy (seções 32-36) já rodando com banco vazio, faltavam
+dois passos pra ele virar o servidor de produção de verdade: trazer os
+dados reais do servidor antigo, e apontar o domínio definitivo
+(`atendeflow.confiancatechnologies.com`) pra ele.
+
+### Migração dos dados
+
+O servidor "antigo" e o novo VPS são a mesma máquina física (confirmado
+pelo prompt do SSH continuar `sandro@ConfianzaThechnologies` nas duas
+pastas) — então a migração foi feita com `pg_dump`/`psql` local, sem
+precisar transferir arquivo entre hosts:
+
+```bash
+PGPASSWORD=postgres pg_dump -h localhost -p 5432 -U postgres -d atendeflow \
+  --no-owner --no-acl > /tmp/atendeflow_dump.sql
+```
+
+Pra restaurar no Postgres gerenciado pelo Coolify, o banco `atendeflow`
+precisou ser dropado e recriado vazio primeiro. Isso esbarrou num
+problema: `DROP DATABASE` falhava com "being accessed by other users"
+mesmo depois de `pg_terminate_backend`, porque as conexões voltavam
+imediatamente. A causa: o **backend continuava rodando** (não tinha sido
+parado de fato) e ficava reconectando. A correção foi bloquear novas
+conexões *antes* de derrubar as existentes:
+
+```sql
+UPDATE pg_database SET datallowconn = false WHERE datname = 'atendeflow';
+SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'atendeflow';
+DROP DATABASE atendeflow;
+CREATE DATABASE atendeflow;
+```
+
+Com o banco realmente vazio, o restore rodou limpo:
+
+```bash
+sudo docker exec -i -e PGPASSWORD <container-postgres> psql -U postgres \
+  -d atendeflow < /tmp/atendeflow_dump.sql
+```
+
+Depois do restore, era preciso **recriar** o container do backend (não
+só `restart`) pra ele abrir conexões novas contra o banco populado — um
+`docker compose restart` sozinho não refaz a inicialização da aplicação
+da forma esperada quando o banco foi trocado por baixo dele durante a
+execução. Confirmado funcionando pelos logs: `No migrations were
+executed, database schema was already up to date` e reconexão automática
+a uma sessão real do WhatsApp (`[WBOT] listener bound`).
+
+### Troca do domínio definitivo
+
+Com os dados migrados e confirmados (login real funcionando, tickets/
+contatos/WhatsApp OK), o domínio real `atendeflow.confiancatechnologies.com`
+e `api.confiancatechnologies.com` (que antes apontavam pro túnel
+Cloudflare do servidor antigo) foram apontados pro túnel do novo VPS. Passos:
+
+1. `.env` do novo servidor atualizado: `BACKEND_URL`, `FRONTEND_URL` e
+   `REACT_APP_BACKEND_URL` trocados pros domínios reais (sem o sufixo
+   `-novo`), com rebuild do frontend (variável de build) e **recriação**
+   do backend (`up -d --force-recreate`, não `restart` — necessário pra
+   ele reler o `.env` atualizado).
+2. No Cloudflare Zero Trust, as rotas antigas foram removidas do túnel
+   do servidor antigo e recriadas no túnel do novo VPS, apontando pra
+   `http://frontend:3000` e `http://backend:8080` (nomes dos serviços do
+   compose).
+
+Dois problemas apareceram nesse processo, importantes de registrar:
+
+- **Apagar um túnel inteiro por engano também derruba outros domínios
+  que moram nele.** O túnel antigo tinha 3 rotas (o AtendeFlow e mais um
+  site institucional não relacionado, `site.confiancatechnologies.com`,
+  em outra porta). Ao apagar o túnel inteiro em vez de só as 2 rotas do
+  AtendeFlow, o terceiro site também saiu do ar. Corrigido criando um
+  túnel novo dedicado só pra esse serviço. **Lição:** nunca apagar um
+  túnel Cloudflare sem antes conferir todas as rotas que vivem nele.
+- **Error 1033 (Cloudflare Tunnel error) mesmo com tudo aparentemente
+  certo.** Ao recriar manualmente os registros de DNS (CNAME apontando
+  pra `<id>.cfargotunnel.com`), foi usado por engano o **Connector ID**
+  do túnel (identifica uma réplica/instância específica do `cloudflared`
+  rodando) no lugar do **Tunnel ID** de verdade (identifica o túnel em
+  si — é o valor certo pro alvo do CNAME). São dois UUIDs parecidos e
+  fáceis de confundir. A correção definitiva foi deixar o próprio
+  Cloudflare criar o registro DNS automaticamente pelo botão "Adicionar
+  rota" do túnel (em vez de criar o CNAME manualmente), que sempre usa o
+  Tunnel ID correto.
+
+### Testado
+
+Login real (`master`/usuário da empresa) funcionando em
+`https://atendeflow.confiancatechnologies.com/login` com dados de
+produção (tickets, contatos, sessão de WhatsApp), depois da correção do
+DNS e da recriação do backend com o `FRONTEND_URL` atualizado (necessário
+pro CORS aceitar requisições vindas do novo domínio). `site.confiancatechnologies.com`
+restaurado num túnel próprio, sem afetar o AtendeFlow.

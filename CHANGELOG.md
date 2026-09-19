@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.53] — Migração dos dados de produção e troca do domínio definitivo — 2026-09-19
+
+### Adicionado
+- Dados reais de produção migrados do servidor antigo pro novo VPS
+  (Coolify) via `pg_dump`/`psql`, e o domínio definitivo
+  `atendeflow.confiancatechnologies.com` / `api.confiancatechnologies.com`
+  passaram a apontar pro túnel Cloudflare do servidor novo.
+
+### Corrigido
+- `DROP DATABASE` falhava por conexões persistentes do backend (que
+  não tinha sido parado de fato) — corrigido bloqueando novas conexões
+  (`datallowconn = false`) antes de derrubar as existentes.
+- Troca de `FRONTEND_URL`/`BACKEND_URL` no `.env` não tinha efeito com
+  `docker compose restart` — precisa de `up -d --force-recreate` pra
+  recarregar as variáveis de ambiente.
+- Registro de DNS manual usando o Connector ID do túnel em vez do
+  Tunnel ID causava `Error 1033`; corrigido deixando o Cloudflare criar
+  o registro automaticamente pelo botão "Adicionar rota".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 37.
+
 ## [2.3.52] — Containers entram na rede "coolify" — 2026-09-19
 
 ### Corrigido

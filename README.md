@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.52 (Etapa 6.17 — os containers do docker-compose.coolify.yml passaram a entrar na rede "coolify", senão o backend não enxerga o Postgres gerenciado pelo Coolify — ver `docs/MANUAL_TECNICO.md`, seção 36)**
+**Versão atual: 2.3.53 (Etapa 6.18 — migração dos dados de produção pro novo VPS/Coolify e troca do domínio definitivo atendeflow.confiancatechnologies.com pro servidor novo — ver `docs/MANUAL_TECNICO.md`, seção 37)**
 
 ## Documentação
 
