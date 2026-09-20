@@ -29,7 +29,9 @@ require_cmd tar
 require_cmd gzip
 
 [ -f "$ENV_FILE" ] || { echo "Erro: $ENV_FILE não encontrado." >&2; exit 1; }
-[ -d "$BACKUP_DIR" ] || { echo "Erro: $BACKUP_DIR não está montado." >&2; exit 1; }
+# mountpoint (não só "existe a pasta"), senão um NAS caído faria o script
+# "funcionar" gravando no disco local, sem proteção real nenhuma.
+mountpoint -q "$BACKUP_DIR" || { echo "Erro: $BACKUP_DIR não está montado (NAS caiu?) — abortando." >&2; exit 1; }
 
 # shellcheck disable=SC1090
 source "$ENV_FILE"
