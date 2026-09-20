@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.54
-**Etapa:** 6.19 — Corrigido backup-para-drive.sh (apontava pro banco antigo/pré-migração)
-**Última atualização:** 2026-09-19
+**Versão do documento:** 2.3.55
+**Etapa:** 6.20 — Corrigido host do Redis no docker-compose.coolify.yml (colisão de nome com o Redis do Coolify)
+**Última atualização:** 2026-09-20
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -2878,3 +2878,78 @@ correto e usa `docker exec` para o dump) — não reproduzível neste
 ambiente de desenvolvimento por falta de acesso ao Docker/rclone/Google
 Drive reais do cliente; validação funcional plena depende de rodar o
 script no VPS real.
+
+---
+
+## 39. Bug real: colisão de nome do Redis derrubava as sessões do WhatsApp (v2.3.55)
+
+Depois de um dia inteiro de reinícios do servidor e dos containers
+(seções 36-38), o AtendeFlow parou de enviar/receber mensagens do
+WhatsApp. O painel mostrava a conexão como desconectada, sem QR code
+novo aparecendo.
+
+### Diagnóstico
+
+O log do backend mostrava, repetidas vezes:
+
+```
+[ioredis] Unhandled error event: ReplyError: NOAUTH Authentication required.
+ERROR: Session <nome>: init timeout: não recebeu open/qr dentro do prazo
+ERROR: ERR_WAPP_INIT_TIMEOUT: 4
+```
+
+As credenciais da sessão do Baileys (WhatsApp) **não ficam num arquivo**
+neste projeto — ficam salvas no Redis (ver
+`backend/src/helpers/useMultiFileAuthState.ts`, chaves
+`sessions:<whatsappId>:<arquivo>`). Se o backend não consegue autenticar
+no Redis, a sessão inteira do WhatsApp trava: não lê as credenciais
+salvas, não consegue gerar/renovar o QR code, e a inicialização estoura
+o tempo limite.
+
+O `docker-compose.coolify.yml` configura um Redis próprio pro AtendeFlow
+(serviço `redis`, `container_name: atendeflow-redis-prod`, sem senha) —
+mas esse serviço, junto com todos os outros do compose, está na rede
+Docker externa **`coolify`** (necessária pra enxergar o Postgres do
+Coolify, ver seção 36). Essa mesma rede também é usada pelo **Redis
+interno do próprio Coolify** (`coolify-redis`), que EXIGE senha. Como o
+nome do serviço no compose (`redis`) vira automaticamente um apelido de
+rede (alias) dentro de QUALQUER rede a que o container se conecta —
+inclusive a externa/compartilhada — e é provável que o compose interno
+do Coolify use esse mesmo nome genérico `redis` pro serviço dele, os dois
+containers podem registrar o mesmo alias `redis` na rede `coolify`. A
+resolução de nome do Docker nessa situação pode devolver ora um
+container, ora outro — nas vezes em que o backend caía no Redis do
+Coolify (que pede senha) em vez do seu próprio, dava `NOAUTH` e a sessão
+do WhatsApp parava de funcionar.
+
+### Correção
+
+`docker-compose.coolify.yml`: as variáveis `REDIS_URI`, `REDIS_HOST` e
+`IO_REDIS_URI` do backend passaram a apontar pro **nome único do
+container** (`atendeflow-redis-prod`, o `container_name` já definido no
+próprio serviço) em vez do nome genérico do serviço (`redis`), que é o
+que colide. O `container_name` de um container sempre gera um nome de
+rede próprio e não-ambíguo, diferente do alias baseado no nome do
+serviço, que pode ser reaproveitado por qualquer outro compose na mesma
+rede externa.
+
+```yaml
+REDIS_URI: redis://atendeflow-redis-prod:6379
+REDIS_HOST: atendeflow-redis-prod
+IO_REDIS_URI: redis://atendeflow-redis-prod:6379
+```
+
+**Lição geral**: ao colocar múltiplos containers de composes/stacks
+diferentes numa mesma rede Docker externa/compartilhada (necessário aqui
+pra alcançar o Postgres do Coolify), nomes de serviço genéricos
+(`redis`, `db`, `app`, etc.) são um risco real de colisão de alias — sempre
+usar `container_name` explícito e único, e referenciar esse nome nas
+variáveis de ambiente de outros serviços, nunca o nome genérico do
+serviço do compose.
+
+### Testado
+
+Depois de aplicar a correção e recriar o container do backend
+(`docker compose ... up -d --force-recreate backend`), o erro `NOAUTH`
+parou de aparecer no log, e a inicialização da sessão do WhatsApp passou
+a completar sem o timeout `ERR_WAPP_INIT_TIMEOUT`.

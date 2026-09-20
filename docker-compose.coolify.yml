@@ -50,12 +50,19 @@ services:
       DB_POOL_ACQUIRE: "30000"
       DB_POOL_IDLE: "10000"
 
-      REDIS_URI: redis://redis:6379
-      REDIS_HOST: redis
+      # Usa o nome único do container (container_name), não o nome genérico
+      # "redis" do serviço do compose — na rede externa "coolify",
+      # compartilhada com o Redis interno do próprio Coolify (que também se
+      # chama "redis" no compose dele), o alias genérico "redis" pode
+      # colidir e resolver às vezes pro Redis ERRADO (o do Coolify, que
+      # exige senha), causando "NOAUTH Authentication required" e travando
+      # a sessão do WhatsApp (Baileys guarda as credenciais no Redis).
+      REDIS_URI: redis://atendeflow-redis-prod:6379
+      REDIS_HOST: atendeflow-redis-prod
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ""
       REDIS_DB: "0"
-      IO_REDIS_URI: redis://redis:6379
+      IO_REDIS_URI: redis://atendeflow-redis-prod:6379
       IO_REDIS_PORT: "6379"
       REDIS_SECRET_KEY: ${REDIS_SECRET_KEY}
       REDIS_OPT_LIMITER_MAX: "1"

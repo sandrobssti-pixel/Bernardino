@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.55] — Corrigido host do Redis no docker-compose.coolify.yml — 2026-09-20
+
+### Corrigido
+- WhatsApp (Baileys) parou de enviar/receber mensagens: o `backend`
+  apontava pro Redis usando o alias genérico `redis://redis:6379`, que
+  na rede externa `coolify` (compartilhada com o próprio Coolify) às
+  vezes colidia com o Redis **interno do Coolify** (que exige senha),
+  causando `NOAUTH Authentication required`. Isso quebrava a leitura/
+  escrita das credenciais do Baileys no Redis, derrubando a sessão do
+  WhatsApp para `DISCONNECTED` sem se reconectar sozinha. Corrigido
+  apontando `REDIS_URI`/`REDIS_HOST`/`IO_REDIS_URI` pro nome único do
+  container (`atendeflow-redis-prod`) em vez do alias genérico do
+  serviço do compose.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 39.
+
 ## [2.3.54] — Backup local no NAS + correção do backup-para-drive.sh — 2026-09-19
 
 ### Adicionado
