@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.56] — Seafile: solução de arquivos tipo Google Drive para as empresas — 2026-09-20
+
+### Adicionado
+- Seafile (Community Edition) rodando na VPS em stack Docker separado
+  (`docker-compose.seafile.yml`), com os dados em disco local dedicado
+  (`/srv/seafile-data`, partição de ~220GB) em vez de rede — mais rápido
+  e confiável. Acesso público em
+  `https://arquivos.confiancatechnologies.com`, via o mesmo túnel
+  Cloudflare do AtendeFlow.
+- Backup diário automático do Seafile (banco MySQL + biblioteca de
+  arquivos) pro NAS, com retenção de 30 dias (`backup-seafile.sh`,
+  agendado no cron).
+- `backup-atendeflow.sh` trazido pro repositório (antes só existia na
+  VPS, fora do controle de versão).
+
+### Corrigido
+- Os scripts de backup (`backup-atendeflow.sh`, `backup-seafile.sh`) só
+  checavam se a pasta de destino existia, não se o compartilhamento do
+  NAS estava de fato montado — um NAS desmontado (aconteceu de verdade
+  nesta etapa, após um reboot) faria o backup ser gravado silenciosamente
+  no disco local da VPS, sem proteção real. Trocado por `mountpoint -q`.
+- `/etc/fstab` dos compartilhamentos `atendeflow-backup` e
+  `seafile-data` sem `x-systemd.automount`/`nofail`, causando o problema
+  acima; corrigido alinhando com o `confianza-backup`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 40.
+
 ## [2.3.55] — Corrigido host do Redis no docker-compose.coolify.yml — 2026-09-20
 
 ### Corrigido

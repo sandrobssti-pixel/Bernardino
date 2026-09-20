@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.55 (Etapa 6.20 — corrigido host do Redis no docker-compose.coolify.yml: o alias genérico "redis" colidia com o Redis interno do próprio Coolify na rede compartilhada, causando "NOAUTH" e derrubando as sessões do WhatsApp — ver `docs/MANUAL_TECNICO.md`, seção 39)**
+**Versão atual: 2.3.56 (Etapa 6.21 — Seafile: solução própria tipo "Google Drive" pros arquivos das empresas, rodando em disco local dedicado, com backup automático pro NAS — ver `docs/MANUAL_TECNICO.md`, seção 40)**
 
 ## Documentação
 

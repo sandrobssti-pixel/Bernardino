@@ -2953,3 +2953,174 @@ Depois de aplicar a correção e recriar o container do backend
 (`docker compose ... up -d --force-recreate backend`), o erro `NOAUTH`
 parou de aparecer no log, e a inicialização da sessão do WhatsApp passou
 a completar sem o timeout `ERR_WAPP_INIT_TIMEOUT`.
+
+## 40. Seafile — solução tipo "Google Drive" para arquivos das empresas (v2.3.56)
+
+Segunda parte do projeto do NAS (a primeira foi o backup local, seção
+38): uma solução própria de compartilhamento/sincronização de arquivos
+das empresas, hospedada na própria infraestrutura, em vez de depender de
+um serviço de terceiros.
+
+### Decisões de arquitetura
+
+- **Software escolhido:** Seafile (Community Edition, imagem oficial
+  `seafileltd/seafile-mc:12.0-latest`), em vez de FileBrowser (opção mais
+  simples, mas sem sincronização de verdade nem histórico de versões).
+- **Onde os dados ficam:** inicialmente o plano era usar o NAS via SMB
+  (pasta `seafile-data` criada na seção 38), mas foi trocado por **disco
+  local dedicado** — surgiu uma partição de 240GB nova na própria VPS
+  (`/dev/sdb2`, antes só montada automaticamente pelo ambiente gráfico em
+  `/run/media/sandro/Aequivo 2`, sem sobreviver a reboot). Motivo: banco
+  de dados/servidor de arquivos em disco local é mais rápido e confiável
+  que acessar via rede (SMB) a cada operação; o NAS continua entrando,
+  mas só como **destino do backup** (ver mais abaixo), mantendo o padrão
+  3-2-1 já usado pro AtendeFlow.
+- **Isolamento do stack:** roda separado do `docker-compose.coolify.yml`
+  do AtendeFlow, em `docker-compose.seafile.yml` próprio, com nome de
+  projeto Docker Compose dedicado (`-p seafile`) pra nunca ser confundido
+  com o stack do AtendeFlow em comandos `up`/`down`.
+
+### Montagem da partição local
+
+```bash
+sudo umount "/run/media/sandro/Aequivo 2"
+sudo mkdir -p /srv/seafile-data
+echo "UUID=7ae4044d-88a4-4f70-8196-4ce2592bf04d /srv/seafile-data ext4 defaults,noatime 0 2" | sudo tee -a /etc/fstab
+sudo mount -a
+sudo chown -R sandro:sandro /srv/seafile-data
+```
+
+### Stack Docker (`docker-compose.seafile.yml`)
+
+Três serviços: `seafile-db` (MariaDB), `seafile-memcached` e `seafile`
+(Seahub + servidor de arquivos + Nginx interno). O banco e o memcached
+ficam numa rede interna isolada (`seafile-internal`, exclusiva desse
+stack); só o container `confianza-seafile` entra também na rede externa
+`coolify`, pra ser alcançado pelo túnel Cloudflare — replicando a lição
+da seção 39: todos os `container_name` são únicos e prefixados
+`confianza-` pra nunca colidir com outro stack numa rede compartilhada.
+
+```bash
+cd ~/atendeflow
+cp .env.seafile.example .env.seafile
+# preencher SEAFILE_DB_ROOT_PASSWORD, SEAFILE_JWT_PRIVATE_KEY,
+# SEAFILE_ADMIN_EMAIL, SEAFILE_ADMIN_PASSWORD (senhas geradas com
+# openssl rand, direto no arquivo, sem passar pelo chat)
+sudo docker compose -p seafile -f docker-compose.seafile.yml --env-file .env.seafile up -d
+```
+
+### Problemas reais encontrados e correções
+
+1. **`JWT_PRIVATE_KEY` obrigatória, não documentada no compose inicial**
+   — a imagem `seafileltd/seafile-mc:12.0` (Seafile 9+) exige essa
+   variável (usada internamente entre Seahub e o servidor de arquivos).
+   Sem ela: `Cannot find JWT_PRIVATE_KEY value from environment... .env
+   file not found`, e o container falha no boot. Corrigido gerando um
+   valor com `openssl rand -base64 32` e passando via `.env.seafile`.
+
+2. **`docker compose down` sem nome de projeto ("`-p`") reconhece
+   containers de OUTRO stack como "órfãos"** — como o
+   `docker-compose.seafile.yml` e o `docker-compose.coolify.yml` do
+   AtendeFlow ficam na mesma pasta (`~/atendeflow`), o Compose usa o nome
+   da pasta como projeto por padrão pros dois, e um `down` do Seafile sem
+   escopo próprio lista os containers do AtendeFlow como "orphan
+   containers". Nenhum foi removido (não foi passado `--remove-orphans`),
+   mas pra eliminar esse risco por completo todo comando do Seafile agora
+   usa `-p seafile` explícito.
+
+3. **Container "seafile" ignora `MEMCACHED_HOST`/`MEMCACHED_PORT`** — ao
+   contrário do `DB_HOST` (que é de fato configurável), o Seahub sempre
+   tenta resolver o hostname fixo `memcached`, não o valor passado por
+   variável de ambiente. Sintoma: `pylibmc.ServerDown ... host:
+   memcached:11211` no log (`/shared/seafile/logs/seahub.log`, dentro do
+   container) e erro 500 ("Página indisponível") ao tentar logar.
+   Corrigido dando um **alias de rede** `memcached` pro container
+   `confianza-seafile-memcached`, só dentro da rede interna
+   `seafile-internal` (exclusiva desse stack — diferente da rede
+   `coolify` compartilhada, não repete o risco de colisão da seção 39):
+   ```yaml
+   seafile-memcached:
+     networks:
+       seafile-internal:
+         aliases:
+           - memcached
+   ```
+
+4. **Senha do admin inicial não funcionou no primeiro login** — resetada
+   direto pelo script oficial do Seafile dentro do container:
+   ```bash
+   printf 'admin@confiancatechnologies.com\n<nova-senha>\n<nova-senha>\n' \
+     | docker exec -i confianza-seafile /opt/seafile/seafile-server-12.0.14/reset-admin.sh
+   ```
+
+### Acesso público (Cloudflare Tunnel)
+
+Reaproveitado o mesmo túnel do AtendeFlow (`atendeflow-vps`), já que ele
+roda na mesma VPS e mesma rede Docker `coolify`. Rota criada pelo painel
+Cloudflare Zero Trust (Networks → Tunnels → túnel → Public Hostname →
+Add a public hostname):
+
+| Campo | Valor |
+|---|---|
+| Subdomain | `arquivos` |
+| Domain | `confiancatechnologies.com` |
+| Type | `HTTP` |
+| URL | `confianza-seafile:80` |
+
+Resultado: `https://arquivos.confiancatechnologies.com` → tela de login
+do Seafile.
+
+### Backup do Seafile (`backup-seafile.sh`)
+
+Mesma lógica do `backup-atendeflow.sh` (dump + tar com timestamp,
+retenção de 30 dias): dump das 3 bases MySQL (`ccnet_db`, `seafile_db`,
+`seahub_db`) via `docker exec ... mysqldump`, mais um `tar` da pasta
+`/srv/seafile-data/seafile` (excluindo `logs`), salvos em
+`/mnt/nas-seafile` — a mesma pasta do NAS criada na seção 38 pra ser o
+armazenamento principal, reaproveitada agora como destino do backup
+depois que a decisão mudou pra disco local. Agendado no cron:
+
+```
+30 3 * * * /home/sandro/scripts/backup-seafile.sh
+```
+
+### Bug real encontrado durante a configuração do backup: NAS desmontado silenciosamente
+
+Ao conferir o backup, `/mnt/nas-seafile` e `/mnt/nas-backup` apareceram
+como **desmontados** (o `df` mostrava o disco raiz `/dev/sda2` por
+baixo do ponto de montagem, não o compartilhamento SMB) — provavelmente
+caíram num reboot anterior, já que as entradas do `/etc/fstab` desses
+dois compartilhamentos não tinham `x-systemd.automount` (diferente do
+`nas-confianza`, que já tinha).
+
+Dois problemas ficaram claros com isso:
+
+1. **Os scripts de backup só checavam se a *pasta* existia
+   (`[ -d "$BACKUP_DIR" ]`), não se ela era de fato um *ponto de
+   montagem*.** Com o NAS desmontado, a pasta local (vazia) ainda
+   existe — o script "funcionaria" gravando o backup no disco local da
+   própria VPS, sem nenhuma proteção real, e sem erro nenhum no log.
+   Corrigido nos dois scripts (`backup-atendeflow.sh` e
+   `backup-seafile.sh`) trocando a checagem por `mountpoint -q`, que
+   falha alto se não for um mount de verdade.
+
+2. **`/etc/fstab` sem `x-systemd.automount`/`nofail`** nos
+   compartilhamentos `atendeflow-backup` e `seafile-data` — corrigido
+   alinhando com o `confianza-backup`, que já tinha essa configuração:
+   ```
+   //192.168.3.21/atendeflow-backup /mnt/nas-backup cifs credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,iocharset=utf8,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.after=network-online.target 0 0
+   //192.168.3.21/seafile-data /mnt/nas-seafile cifs credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,iocharset=utf8,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.after=network-online.target 0 0
+   ```
+
+`backup-atendeflow.sh` também foi trazido pro repositório nesta etapa
+(antes existia só na VPS, fora do controle de versão).
+
+### Testado
+
+- Login no painel do Seafile funcionando via
+  `https://arquivos.confiancatechnologies.com` após o reset de senha.
+- `backup-seafile.sh` rodado manualmente com sucesso: dump do banco
+  (19K) + tar dos arquivos (397K) salvos em `/mnt/nas-seafile`.
+- Os dois compartilhamentos do NAS remontados corretamente após a
+  correção do `fstab` (`df -h` confirmando o tamanho real do
+  compartilhamento SMB, não mais o disco raiz).
