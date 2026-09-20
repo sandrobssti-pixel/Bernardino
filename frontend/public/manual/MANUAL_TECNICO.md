@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.53
-**Etapa:** 6.18 — Migração dos dados de produção pro novo VPS e troca do domínio definitivo
+**Versão do documento:** 2.3.54
+**Etapa:** 6.19 — Corrigido backup-para-drive.sh (apontava pro banco antigo/pré-migração)
 **Última atualização:** 2026-09-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -2741,3 +2741,140 @@ produção (tickets, contatos, sessão de WhatsApp), depois da correção do
 DNS e da recriação do backend com o `FRONTEND_URL` atualizado (necessário
 pro CORS aceitar requisições vindas do novo domínio). `site.confiancatechnologies.com`
 restaurado num túnel próprio, sem afetar o AtendeFlow.
+
+---
+
+## 38. Backup local (NAS) e correção do backup-para-drive.sh (v2.3.54)
+
+Com o VPS já estável, a próxima etapa foi montar uma política de backup
+própria (banco de dados + arquivos), sem depender só do Google Drive:
+um NAS Synology na mesma rede, com 8 TB de armazenamento.
+
+### 38.1. Backup local no NAS (novo)
+
+O NAS (Synology DS223j, sem suporte a NFS nesse modelo) foi integrado via
+**SMB**, com duas pastas compartilhadas dedicadas:
+
+- `atendeflow-backup` (cota de 200 GB) — dump do banco + arquivos enviados
+- `seafile-data` — reservada pra próxima etapa (solução tipo "Google
+  Drive" das empresas, com Seafile)
+
+Um usuário de serviço dedicado (`atendeflow-sync`, sem ser o admin) recebeu
+permissão de leitura/gravação nas duas pastas. As pastas são montadas no
+VPS via `cifs-utils`, com credenciais num arquivo protegido:
+
+```bash
+sudo apt install -y cifs-utils
+sudo mkdir -p /mnt/nas-backup /mnt/nas-seafile /etc/samba
+
+# /etc/samba/credentials-atendeflow-sync (chmod 600):
+# username=atendeflow-sync
+# password=<senha>
+```
+
+`/etc/fstab`:
+
+```
+//192.168.3.21/atendeflow-backup /mnt/nas-backup cifs credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,iocharset=utf8,vers=3.0,_netdev 0 0
+//192.168.3.21/seafile-data /mnt/nas-seafile cifs credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,iocharset=utf8,vers=3.0,_netdev 0 0
+```
+
+O script `~/scripts/backup-atendeflow.sh` roda `pg_dump` via `docker exec`
+no container do Postgres, compacta o volume Docker
+`atendeflow_atendeflow_public` (arquivos enviados) e salva os dois com
+timestamp em `/mnt/nas-backup`, apagando backups com mais de 30 dias.
+Agendado via cron às 3h da manhã:
+
+```
+0 3 * * * /home/sandro/scripts/backup-atendeflow.sh
+```
+
+#### Problema encontrado: pasta compartilhada com nome errado
+
+Ao criar a pasta `seafile-data` no DSM, ela ficou registrada como
+`seafile-data Confianca` (nome com espaço, provavelmente autocompletar do
+navegador) e, ao tentar corrigir removendo só o espaço, virou
+`seafile-dataconfianca` (as palavras se juntaram). Nomes de
+compartilhamento com espaço complicam o `mount.cifs`/fstab. Corrigido
+apagando a pasta (ainda vazia) e recriando do zero com o nome exato
+`seafile-data`.
+
+#### Problema encontrado: "Permission denied" mesmo com a permissão certa
+
+Depois de corrigir o nome, o mount da pasta `seafile-data` continuou
+falhando com `mount error(13): Permission denied`, mesmo com a permissão
+de Leitura/Gravação do usuário `atendeflow-sync` visivelmente marcada no
+DSM. Testando com `smbclient //192.168.3.21/seafile-data -U
+atendeflow-sync -c 'ls'`, o erro exato era `NT_STATUS_ACCESS_DENIED` no
+"tree connect" — ou seja, negado na conexão com o compartilhamento em si,
+não num arquivo específico. Isso indica um estado de permissão
+inconsistente, provavelmente resíduo das tentativas de renomear a pasta
+com o nome errado. Resolvido apagando a pasta (vazia) e recriando do
+zero, com a permissão marcada já na tela de criação (em vez de editar
+depois).
+
+### 38.2. Bug real corrigido: backup-para-drive.sh fazia backup do banco errado
+
+Ao revisar o cron do servidor, apareceu um backup diário já existente
+(`backup-para-drive.sh`, criado antes desta sessão — ver histórico do
+arquivo), rodando às 23h30 e enviando pro Google Drive combinado com o
+cliente. Esse script lia o banco a partir de
+`~/Bernardino/backend/.env`, que aponta pra `DB_HOST=localhost,
+DB_PASS=postgres` — **o Postgres local antigo, de antes da migração pro
+Coolify** (seções 32-37).
+
+Ou seja: desde a migração, esse backup rodava "com sucesso" todas as
+noites, mas fazia backup de uma cópia **congelada no momento da
+migração** do banco, sem nenhum dado de produção criado depois disso
+(tickets, mensagens, contatos novos). O cliente tinha uma falsa sensação
+de segurança — o backup "funcionava", só que não continha os dados reais
+atuais.
+
+#### Correção
+
+`backup-para-drive.sh` passou a:
+
+- Ler o `.env` do diretório de deploy real (`~/atendeflow` por padrão,
+  configurável via `ATENDEFLOW_DEPLOY_DIR`), não mais de
+  `~/Bernardino/backend/.env`.
+- Gerar o dump do banco via `docker exec` no container do Postgres do
+  Coolify (mesmo mecanismo do backup local pro NAS), em vez de
+  `pg_dump -h $DB_HOST` direto no host (que não alcança o Postgres
+  containerizado da mesma forma).
+- Compactar o volume Docker `atendeflow_atendeflow_public` (arquivos
+  enviados) em vez da pasta `backend/public`, que não recebe mais uploads
+  desde que o backend passou a rodar em container.
+- Incluir `docker-compose.coolify.yml` no backup de configuração, além do
+  `.env`.
+
+O restante do script (configuração do túnel Cloudflare, crontab,
+código-fonte completo, envio via `rclone` pro Google Drive do cliente)
+foi mantido — continua sendo uma cópia **fora do local físico** do
+VPS+NAS, complementar ao backup no NAS (seção 38.1).
+
+### 38.3. Backup no Google Drive desativado (custo mensal)
+
+Depois da correção acima, o cliente decidiu não continuar pagando a
+assinatura do Google One/Workspace mantida só por causa desse backup, e
+não tem por enquanto outro local físico disponível pra montar uma cópia
+externa gratuita (ex.: um HD/mini-PC em outro endereço, acessível via
+Tailscale). Por isso, a linha do `backup-para-drive.sh` foi **removida do
+crontab** — o backup ativo hoje é só o local, no NAS (seção 38.1).
+
+O script continua no repositório, já corrigido (seção 38.2), e pode ser
+reativado a qualquer momento (basta adicionar a linha de volta no
+crontab) se o cliente conseguir um local físico externo pra guardar essa
+cópia sem custo recorrente, ou decidir voltar a pagar o espaço no Google
+Drive.
+
+### Testado
+
+Backup local no NAS executado manualmente com sucesso: dump do banco
+(1006K) e arquivos (729K) salvos em `/mnt/nas-backup`, log confirmando
+início/fim e remoção de backups antigos. Escrita testada nas duas pastas
+montadas (`touch`/`rm`). A correção do `backup-para-drive.sh` foi
+validada por leitura de código (lê o `.env` do diretório de deploy
+correto e usa `docker exec` para o dump) — não reproduzível neste
+ambiente de desenvolvimento por falta de acesso ao Docker/rclone/Google
+Drive reais do cliente; validação funcional plena depende de rodar o
+script no VPS real.

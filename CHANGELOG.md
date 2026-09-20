@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.54] — Backup local no NAS + correção do backup-para-drive.sh — 2026-09-19
+
+### Adicionado
+- Backup local diário (banco + arquivos) num NAS Synology na rede local,
+  via SMB, com retenção de 30 dias (`~/scripts/backup-atendeflow.sh`,
+  agendado no cron).
+
+### Corrigido
+- `backup-para-drive.sh` (backup para o Google Drive do cliente) fazia
+  backup do banco Postgres **antigo/pré-migração** (`localhost:5432`),
+  rodando "com sucesso" todas as noites sem nunca conter os dados reais
+  de produção desde a migração pro Coolify. Corrigido para ler o `.env`
+  do diretório de deploy real e usar `docker exec` no container do
+  Postgres, igual ao backup local.
+
+### Removido
+- Backup para o Google Drive desativado do cron (o cliente não vai
+  continuar pagando a assinatura do Google só por causa disso); o script
+  corrigido continua no repositório, pronto pra reativar se surgir um
+  local externo gratuito ou o cliente optar por manter o Google Drive.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 38.
+
 ## [2.3.53] — Migração dos dados de produção e troca do domínio definitivo — 2026-09-19
 
 ### Adicionado

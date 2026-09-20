@@ -15,10 +15,11 @@ require_cmd() {
   fi
 }
 
-# Backup diário do AtendeFlow — dump do banco (Postgres) + arquivos
-# enviados (backend/public: currículos do RH, mídia do WhatsApp, fotos de
-# perfil, etc.) + configuração crítica do servidor (.env do backend/
-# frontend, config do túnel Cloudflare, crontab) + código-fonte completo
+# Backup diário do AtendeFlow — dump do banco (Postgres, via container
+# Docker) + arquivos enviados (volume Docker atendeflow_atendeflow_public:
+# currículos do RH, mídia do WhatsApp, fotos de perfil, etc.) +
+# configuração crítica do servidor (.env e docker-compose.coolify.yml do
+# deploy, config do túnel Cloudflare, crontab) + código-fonte completo
 # (backend/frontend/api_oficial, sem node_modules/dist/build) — enviados
 # pro Google Drive combinado com o cliente. O código-fonte vai numa
 # subpasta própria ("codigo-fonte") dentro da mesma pasta do Drive — é um
@@ -49,10 +50,26 @@ require_cmd() {
 # Se o nome do remote ou a pasta de destino forem diferentes do padrão,
 # rode com as variáveis de ambiente, ex.:
 #   RCLONE_REMOTE=meudrive DRIVE_FOLDER_ID=xxxx ./backup-para-drive.sh
+#
+# IMPORTANTE (v2.3.54): desde a migração pro deploy via Docker
+# Compose + Coolify (docs/MANUAL_TECNICO.md, seções 32-37), o backend não
+# roda mais direto neste clone (~/Bernardino) nem lê seu .env — quem sobe
+# em produção é um segundo clone (por padrão ~/atendeflow, configurável
+# via ATENDEFLOW_DEPLOY_DIR) via docker-compose.coolify.yml, com o
+# Postgres também rodando num container do Coolify, não em localhost:5432.
+# Um bug real: até essa correção, este script continuava lendo
+# backend/.env (DB_HOST=localhost, senha antiga) e fazendo backup do banco
+# LOCAL/pré-migração, congelado no momento da migração — o backup enviado
+# pro Google Drive do cliente vinha "funcionando" todo dia sem nunca conter
+# os dados reais pós-migração. Corrigido lendo o .env do diretório de
+# deploy e usando `docker exec` no container do Postgres (mesmo mecanismo
+# do backup local pro NAS, ver ~/scripts/backup-atendeflow.sh).
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BACKEND_DIR="$PROJECT_ROOT/backend"
-ENV_FILE="$BACKEND_DIR/.env"
+DEPLOY_DIR="${ATENDEFLOW_DEPLOY_DIR:-$HOME/atendeflow}"
+ENV_FILE="$DEPLOY_DIR/.env"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-6glet7ucc6hill7pbv6kkhm1}"
+PUBLIC_VOLUME="${PUBLIC_VOLUME:-atendeflow_atendeflow_public}"
 
 # Pasta combinada com o cliente:
 # https://drive.google.com/drive/folders/17fYidSzfl_co2wONMs_XwI1-uCFL5cUQ
@@ -60,11 +77,11 @@ RCLONE_REMOTE="${RCLONE_REMOTE:-gdrive}"
 DRIVE_FOLDER_ID="${DRIVE_FOLDER_ID:-17fYidSzfl_co2wONMs_XwI1-uCFL5cUQ}"
 
 require_cmd rclone
-require_cmd pg_dump
+require_cmd docker
 require_cmd tar
 
 if [ ! -f "$ENV_FILE" ]; then
-  echo "[ERRO] Arquivo .env nao encontrado em $ENV_FILE"
+  echo "[ERRO] Arquivo .env nao encontrado em $ENV_FILE (ajuste ATENDEFLOW_DEPLOY_DIR se o deploy estiver em outra pasta)"
   exit 1
 fi
 
@@ -76,8 +93,6 @@ read_env_var() {
 
 DB_NAME="$(read_env_var DB_NAME)"
 DB_USER="$(read_env_var DB_USER)"
-DB_HOST="$(read_env_var DB_HOST)"
-DB_PORT="$(read_env_var DB_PORT)"
 DB_PASS="$(read_env_var DB_PASS)"
 
 TIMESTAMP="$(date '+%Y-%m-%d_%H-%M-%S')"
@@ -86,28 +101,25 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 log "Iniciando backup do AtendeFlow ($TIMESTAMP)"
 
-log "Gerando dump do banco '$DB_NAME'..."
+log "Gerando dump do banco '$DB_NAME' (container $POSTGRES_CONTAINER)..."
 DUMP_FILE="$WORK_DIR/atendeflow_db_${TIMESTAMP}.sql.gz"
-PGPASSWORD="$DB_PASS" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+docker exec -e PGPASSWORD="$DB_PASS" "$POSTGRES_CONTAINER" \
+  pg_dump -U "$DB_USER" -d "$DB_NAME" --no-owner --no-acl \
   | gzip > "$DUMP_FILE"
 log "Dump gerado: $(du -h "$DUMP_FILE" | cut -f1)"
 
-UPLOADS_FILE=""
-if [ -d "$BACKEND_DIR/public" ]; then
-  log "Compactando arquivos enviados (backend/public)..."
-  UPLOADS_FILE="$WORK_DIR/atendeflow_uploads_${TIMESTAMP}.tar.gz"
-  tar -czf "$UPLOADS_FILE" -C "$BACKEND_DIR" public
-  log "Arquivos compactados: $(du -h "$UPLOADS_FILE" | cut -f1)"
-else
-  log "Pasta $BACKEND_DIR/public nao existe, pulando essa parte."
-fi
+log "Compactando arquivos enviados (volume Docker $PUBLIC_VOLUME)..."
+UPLOADS_FILE="$WORK_DIR/atendeflow_uploads_${TIMESTAMP}.tar.gz"
+docker run --rm -v "$PUBLIC_VOLUME":/data -v "$WORK_DIR":/backup alpine \
+  tar czf "/backup/$(basename "$UPLOADS_FILE")" -C /data .
+log "Arquivos compactados: $(du -h "$UPLOADS_FILE" | cut -f1)"
 
-log "Reunindo configuração crítica do servidor (.env, túnel, crontab)..."
+log "Reunindo configuração crítica do servidor (.env, compose, túnel, crontab)..."
 CONFIG_STAGE_DIR="$WORK_DIR/config"
 mkdir -p "$CONFIG_STAGE_DIR"
 
-[ -f "$BACKEND_DIR/.env" ] && cp "$BACKEND_DIR/.env" "$CONFIG_STAGE_DIR/backend.env"
-[ -f "$PROJECT_ROOT/frontend/.env" ] && cp "$PROJECT_ROOT/frontend/.env" "$CONFIG_STAGE_DIR/frontend.env"
+[ -f "$DEPLOY_DIR/.env" ] && cp "$DEPLOY_DIR/.env" "$CONFIG_STAGE_DIR/atendeflow.env"
+[ -f "$DEPLOY_DIR/docker-compose.coolify.yml" ] && cp "$DEPLOY_DIR/docker-compose.coolify.yml" "$CONFIG_STAGE_DIR/docker-compose.coolify.yml"
 
 # Config do Cloudflare Tunnel — pode estar em /etc/cloudflared (rodando
 # como serviço systemd) e/ou em ~/.cloudflared (config original do

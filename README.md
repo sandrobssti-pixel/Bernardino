@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.53 (Etapa 6.18 — migração dos dados de produção pro novo VPS/Coolify e troca do domínio definitivo atendeflow.confiancatechnologies.com pro servidor novo — ver `docs/MANUAL_TECNICO.md`, seção 37)**
+**Versão atual: 2.3.54 (Etapa 6.19 — corrigido o backup-para-drive.sh, que continuava fazendo backup do banco Postgres antigo/pré-migração em vez do banco real do Coolify — ver `docs/MANUAL_TECNICO.md`, seção 38)**
 
 ## Documentação
 
