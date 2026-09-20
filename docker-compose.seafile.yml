@@ -55,6 +55,7 @@ services:
       SEAFILE_ADMIN_PASSWORD: ${SEAFILE_ADMIN_PASSWORD}
       SEAFILE_SERVER_HOSTNAME: ${SEAFILE_SERVER_HOSTNAME}
       SEAFILE_SERVER_PROTOCOL: https
+      JWT_PRIVATE_KEY: ${SEAFILE_JWT_PRIVATE_KEY}
     volumes:
       - /srv/seafile-data/seafile:/shared
     networks:
