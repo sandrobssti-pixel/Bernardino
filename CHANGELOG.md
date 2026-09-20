@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.58] — Sino do Painel Vigia continuava com alerta de atendimento fechado — 2026-09-20
+
+### Corrigido
+- Cliente relatou que, mesmo fechando o atendimento corretamente, o
+  alerta dele continuava aparecendo no sino do Painel Vigia — o mesmo
+  bug já corrigido na v2.3.47 (seção 31), agora numa camada nova de
+  front-end (`SupervisorAlertsBell`) que só buscava a lista uma vez ao
+  carregar a página e depois só empilhava alertas recebidos ao vivo,
+  sem nunca reconsultar o backend (que já filtra atendimentos fechados)
+  nem remover um alerta quando o ticket dele fechava. Corrigido
+  reconsultando a lista toda vez que o sino é aberto, e removendo o
+  alerta na hora via socket quando o ticket relacionado é fechado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 42.
+
 ## [2.3.57] — Corrigido PROXY_PORT: imagem/áudio/vídeo chegavam sem abrir — 2026-09-20
 
 ### Corrigido

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.57 (Etapa 6.22 — corrigido PROXY_PORT nas URLs de mídia: imagem, áudio e vídeo do WhatsApp chegavam sem visualização nem download desde a migração pro Cloudflare Tunnel — ver `docs/MANUAL_TECNICO.md`, seção 41)**
+**Versão atual: 2.3.58 (Etapa 6.23 — sino do Painel Vigia continuava mostrando alerta de atendimento já fechado, agora numa camada nova de front-end; corrigido reconsultando ao abrir e removendo ao vivo quando o ticket fecha — ver `docs/MANUAL_TECNICO.md`, seção 42)**
 
 ## Documentação
 

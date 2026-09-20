@@ -109,16 +109,39 @@ const SupervisorAlertsBell = () => {
       toast.info(`${payload.title}: ${payload.message}`, { autoClose: 8000 });
     };
 
+    // Assim que um atendimento é fechado, o alerta dele deixa de fazer
+    // sentido aqui (mesma regra do backend, ver NotificationService.list
+    // e docs/MANUAL_TECNICO.md seção 31) — mas como esse sino só busca a
+    // lista uma vez ao montar e depois só empilha o que chega ao vivo, um
+    // alerta recebido antes do fechamento ficava preso na tela pra sempre.
+    // Remove na hora, sem esperar reabrir o sino ou recarregar a página.
+    const onTicketUpdate = (payload) => {
+      if (payload?.ticket?.status !== "closed") return;
+      const closedTicketId = payload.ticket.id;
+      setItems((prev) => prev.filter((i) => i.ticket?.id !== closedTicketId));
+    };
+
     socket.on(`company-${companyId}-notification`, onNotification);
     socket.on(`company-${companyId}-supervisorMessage`, onSupervisorMessage);
+    socket.on(`company-${companyId}-ticket`, onTicketUpdate);
 
     return () => {
       socket.off(`company-${companyId}-notification`, onNotification);
       socket.off(`company-${companyId}-supervisorMessage`, onSupervisorMessage);
+      socket.off(`company-${companyId}-ticket`, onTicketUpdate);
     };
   }, [socket, user]);
 
-  const handleClick = () => setIsOpen((prev) => !prev);
+  const handleClick = () => {
+    setIsOpen((prev) => {
+      // Reconsulta o backend (que já filtra atendimentos fechados) toda
+      // vez que o sino é aberto, além da remoção ao vivo acima — cobre o
+      // caso de um alerta de atendimento fechado em outra aba/dispositivo
+      // antes desse socket chegar.
+      if (!prev) fetchItems();
+      return !prev;
+    });
+  };
   const handleClickAway = () => setIsOpen(false);
 
   const handleOpenTicket = (item) => {

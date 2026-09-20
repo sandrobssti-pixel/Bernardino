@@ -3217,3 +3217,61 @@ sudo docker compose -f docker-compose.coolify.yml --env-file .env up -d --force-
 Cliente confirmou (via navegador, testando imagem/áudio/vídeo em
 conversa individual) que a mídia passou a abrir e baixar normalmente
 depois da correção.
+
+## 42. Sino do Painel Vigia voltou a mostrar alerta de atendimento fechado — agora no front-end (v2.3.58)
+
+### Sintoma
+
+Cliente relatou: "quando finaliza o atendimento faz tudo certo, porém
+está ficando registro de mensagens e alertas — só é pra ficar em
+mensagens e alertas de atendimento novo, não quando finaliza". Esse é
+literalmente o mesmo bug da **seção 31** (v2.3.47) — mas a correção de
+lá continuava funcionando certinho; o problema reapareceu numa peça
+**nova** construída depois, que não herdou a mesma regra.
+
+### Causa
+
+A seção 31 corrigiu o endpoint `NotificationService.list` (usado pra
+carregar o sino) pra excluir notificações de tickets já `closed` — e
+esse filtro **continua correto e intacto**. O que mudou desde então foi
+a chegada do componente `SupervisorAlertsBell` (frontend), que:
+
+1. Busca a lista do backend **uma única vez**, quando o componente é
+   montado (`useEffect(() => { fetchItems() }, [])`).
+2. Depois disso, só **acrescenta** ao estado local os alertas que
+   chegam ao vivo por socket (`company-${companyId}-notification`,
+   `company-${companyId}-supervisorMessage`).
+3. Nunca reconsulta o backend de novo, e não tinha nenhum listener pra
+   remover um alerta quando o ticket dele é fechado.
+
+Resultado: um alerta de SLA criado enquanto o atendimento ainda estava
+aberto ficava preso na lista local do navegador pra sempre, mesmo depois
+do atendimento ser fechado — mesmo o backend nunca tendo devolvido esse
+alerta de novo numa nova consulta.
+
+### Correção
+
+`frontend/src/components/SupervisorAlertsBell/index.js`:
+
+1. **Remoção ao vivo**: novo listener no socket
+   `company-${companyId}-ticket` — quando chega um evento com
+   `ticket.status === "closed"`, remove do estado local qualquer alerta
+   cujo `ticket.id` seja o do atendimento fechado.
+2. **Reconsulta ao abrir**: `handleClick` (abrir o sino) agora chama
+   `fetchItems()` sempre que o popover está fechado e vai abrir — cobre
+   o caso de um atendimento ter sido fechado por outro atendente/aba
+   antes do evento de socket chegar nessa sessão.
+
+### Lição
+
+A regra "alerta de atendimento fechado não aparece mais" precisa ser
+respeitada em **toda** peça que lê notificações — backend (`list`,
+seção 31) e frontend (estado ao vivo, aqui). Um filtro correto só no
+backend não é suficiente quando o frontend guarda seu próprio cache
+local alimentado por eventos em tempo real e nunca o resincroniza.
+
+### Testado
+
+Lint (`eslint`) limpo no arquivo alterado. Aguardando confirmação do
+cliente em uso real (fechar um atendimento com alerta de SLA ativo e
+confirmar que ele some do sino).
