@@ -1,0 +1,62 @@
+# Seafile — solução tipo "Google Drive" para os arquivos das empresas.
+#
+# Roda separado do AtendeFlow (stack independente), mas na mesma VPS.
+# O banco (seafile-db) e o memcached ficam numa rede interna isolada,
+# só o serviço "seafile" entra na rede externa "coolify" pra ser
+# alcançado pelo túnel Cloudflare — evitando o mesmo tipo de colisão de
+# nome que já derrubou o Redis do AtendeFlow (ver docs/MANUAL_TECNICO.md,
+# seção 39): por isso os container_name aqui são todos únicos e
+# prefixados com "confianza-".
+#
+# Dados ficam em disco local (/srv/seafile-data, partição dedicada de
+# 240GB), não em compartilhamento de rede — mais rápido e confiável que
+# o NAS via SMB pra um banco de dados/servidor de arquivos.
+
+networks:
+  seafile-internal:
+    name: seafile-internal
+  coolify:
+    external: true
+
+services:
+  seafile-db:
+    image: mariadb:10.11
+    container_name: confianza-seafile-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${SEAFILE_DB_ROOT_PASSWORD}
+    volumes:
+      - /srv/seafile-data/mysql:/var/lib/mysql
+    networks:
+      - seafile-internal
+
+  seafile-memcached:
+    image: memcached:1.6.29
+    container_name: confianza-seafile-memcached
+    restart: unless-stopped
+    entrypoint: memcached -m 256
+    networks:
+      - seafile-internal
+
+  seafile:
+    image: seafileltd/seafile-mc:12.0-latest
+    container_name: confianza-seafile
+    restart: unless-stopped
+    depends_on:
+      - seafile-db
+      - seafile-memcached
+    environment:
+      DB_HOST: confianza-seafile-db
+      DB_ROOT_PASSWD: ${SEAFILE_DB_ROOT_PASSWORD}
+      MEMCACHED_HOST: confianza-seafile-memcached
+      MEMCACHED_PORT: "11211"
+      TIME_ZONE: America/Asuncion
+      SEAFILE_ADMIN_EMAIL: ${SEAFILE_ADMIN_EMAIL}
+      SEAFILE_ADMIN_PASSWORD: ${SEAFILE_ADMIN_PASSWORD}
+      SEAFILE_SERVER_HOSTNAME: ${SEAFILE_SERVER_HOSTNAME}
+      SEAFILE_SERVER_PROTOCOL: https
+    volumes:
+      - /srv/seafile-data/seafile:/shared
+    networks:
+      - seafile-internal
+      - coolify
