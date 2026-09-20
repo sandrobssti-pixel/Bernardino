@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.57] — Corrigido PROXY_PORT: imagem/áudio/vídeo chegavam sem abrir — 2026-09-20
+
+### Corrigido
+- Imagem, áudio e vídeo (recebidos e enviados) apareciam na conversa
+  sem visualização nem opção de baixar (`net::ERR_SSL_PROTOCOL_ERROR` /
+  erro de CORS no navegador, apontando pra
+  `api.confiancatechnologies.com:8080`). Causa: a variável
+  `PROXY_PORT=8080` era concatenada em toda URL de mídia
+  (`BACKEND_URL:PROXY_PORT/public/...`), resquício de quando o backend
+  era acessado direto por IP:8080 — desde a migração pro Cloudflare
+  Tunnel (v2.3.53) o domínio público serve tudo por HTTPS/443 sem essa
+  porta exposta. Corrigido zerando `PROXY_PORT` no
+  `docker-compose.coolify.yml`; como a URL é montada dinamicamente a
+  cada leitura da mensagem, mensagens antigas e novas foram corrigidas
+  ao mesmo tempo, sem precisar de migração no banco.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 41.
+
 ## [2.3.56] — Seafile: solução de arquivos tipo Google Drive para as empresas — 2026-09-20
 
 ### Adicionado

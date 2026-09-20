@@ -3124,3 +3124,96 @@ Dois problemas ficaram claros com isso:
 - Os dois compartilhamentos do NAS remontados corretamente após a
   correção do `fstab` (`df -h` confirmando o tamanho real do
   compartilhamento SMB, não mais o disco raiz).
+
+## 41. Bug real: `PROXY_PORT` quebrava toda mídia (imagem/áudio/vídeo) desde a migração pro Cloudflare Tunnel (v2.3.57)
+
+### Sintoma
+
+Cliente reportou: mensagens de imagem, áudio e vídeo (recebidas e
+enviadas) apareciam na conversa — o texto/miniatura "chegava" — mas sem
+visualização nem opção de baixar. No console do navegador (F12):
+
+```
+net::ERR_SSL_PROTOCOL_ERROR
+  https://api.confiancatechnologies.com:8080/public/company3/....jpeg
+
+Solicitud de origen cruzado bloqueada (CORS)
+  https://api.confiancatechnologies.com:8080/public/company3/....jpeg
+```
+
+### Diagnóstico (descartando hipóteses até achar a causa real)
+
+1. **Não era o backend Postgres/Redis nem o `docker-compose.coolify.yml`
+   dessa sessão** — o arquivo salvo em disco (`docker exec ... file`)
+   estava correto e era servido com `HTTP 200` quando testado direto
+   por `curl https://api.confiancatechnologies.com/public/...`
+   (sem porta, funcionando).
+2. **Não era cache do navegador nem Service Worker** — reproduzido em
+   aba anônima e em outro navegador (Firefox), com o mesmo erro.
+3. **Não era o bundle do frontend** — depois de um rebuild
+   (`docker compose build --no-cache frontend`), o JS gerado não tinha
+   mais nenhuma referência a `:8080` além de coincidências inofensivas
+   (`#808080`, um placeholder de exemplo `127.0.0.1:8080`), e o hash do
+   arquivo (`main.792b4ebf.js`) confirmava ser o build novo (timestamp
+   batendo com o horário do build).
+4. **Achado**: mesmo assim, mensagens **novíssimas** continuavam vindo
+   com `:8080` na URL — ou seja, a porta não vinha do frontend, e sim
+   de algo montado **no backend, em tempo de leitura**.
+
+### Causa raiz
+
+`backend/src/models/Message.ts` (e o mesmo padrão repetido em
+`Contact.ts`, `Announcement.ts`, `QuickMessage.ts` e
+`helpers/BuildWebchatPublicUrl.ts`) tem um getter `mediaUrl` que monta a
+URL pública da mídia **dinamicamente a cada leitura** (não fica gravada
+fixa no banco), concatenando `BACKEND_URL` + `PROXY_PORT`:
+
+```ts
+const buildBackendBaseUrl = (): string => {
+  const rawBackendUrl = (process.env.BACKEND_URL || "").trim();
+  const proxyPort = (process.env.PROXY_PORT || "").trim();
+  ...
+  const parsedUrl = new URL(rawBackendUrl);
+  if (proxyPort && !parsedUrl.port) {
+    parsedUrl.port = proxyPort;   // <- aqui
+  }
+  return parsedUrl.toString().replace(/\/$/, "");
+};
+```
+
+No `docker-compose.coolify.yml`, `PROXY_PORT: "8080"` — resquício de
+quando o backend era acessado direto por `IP:8080` (antes da migração
+pro Cloudflare Tunnel, seção 37). Resultado:
+`BACKEND_URL=https://api.confiancatechnologies.com` +
+`PROXY_PORT=8080` → `https://api.confiancatechnologies.com:8080/...`,
+uma porta que **não existe publicamente** (o túnel Cloudflare serve tudo
+por HTTPS/443; a porta 8080 só existe dentro da rede Docker interna).
+
+### Correção
+
+```yaml
+# docker-compose.coolify.yml, serviço backend
+PROXY_PORT: ""
+```
+
+Como a checagem em todos os getters é `if (proxyPort && !parsedUrl.port)`,
+uma `PROXY_PORT` vazia desliga a concatenação da porta **em todos os
+lugares de uma vez só** (imagem/áudio/vídeo de mensagem, foto de
+contato, anexo de anúncio, webchat) — sem precisar editar 5 arquivos
+diferentes.
+
+**Importante**: como a URL é montada em tempo de leitura (não gravada
+fixa no banco), essa correção resolve **mensagens antigas e novas ao
+mesmo tempo**, só recriando o container do backend — não precisou de
+nenhuma migração ou correção manual no banco de dados.
+
+```bash
+cd ~/atendeflow
+sudo docker compose -f docker-compose.coolify.yml --env-file .env up -d --force-recreate backend
+```
+
+### Testado
+
+Cliente confirmou (via navegador, testando imagem/áudio/vídeo em
+conversa individual) que a mídia passou a abrir e baixar normalmente
+depois da correção.
