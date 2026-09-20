@@ -25,6 +25,10 @@ import {
   IconButton,
   Tooltip,
   Box,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@material-ui/core";
 
 import SearchIcon from "@material-ui/icons/Search";
@@ -36,6 +40,7 @@ import AddIcon from "@material-ui/icons/Add";
 import PublishIcon from "@material-ui/icons/Publish";
 import ArrowBackIcon from "@material-ui/icons/ArrowBack";
 import PeopleOutlineIcon from "@material-ui/icons/PeopleOutline";
+import VisibilityIcon from "@material-ui/icons/Visibility";
 
 import api from "../../services/api";
 import TableRowSkeleton from "../../components/TableRowSkeleton";
@@ -427,6 +432,7 @@ const ContactListItems = () => {
   const [contactListItemModalOpen, setContactListItemModalOpen] = useState(false);
   const [deletingContact, setDeletingContact] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [detailsContact, setDetailsContact] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [contactList, setContactList] = useState({});
   const [refreshKey, setRefreshKey] = useState(0);
@@ -669,6 +675,22 @@ const ContactListItems = () => {
         )}
       </ConfirmationModal>
 
+      <Dialog open={!!detailsContact} onClose={() => setDetailsContact(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Dados da planilha — {detailsContact?.name}</DialogTitle>
+        <DialogContent dividers>
+          {detailsContact?.extraData &&
+            Object.entries(detailsContact.extraData).map(([key, value]) => (
+              <Box key={key} display="flex" justifyContent="space-between" py={0.5}>
+                <Typography variant="body2" color="textSecondary">{key}</Typography>
+                <Typography variant="body2">{String(value ?? "")}</Typography>
+              </Box>
+            ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsContact(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Hidden file input */}
       <input
         style={{ display: "none" }}
@@ -823,6 +845,21 @@ const ContactListItems = () => {
                   </TableCell>
                   <TableCell className={classes.tableCell} align="right">
                     <div className={classes.actionsCell}>
+                      {contact.extraData && Object.keys(contact.extraData).length > 0 && (
+                        <Tooltip
+                          title="Ver dados da planilha (CPF, vigência, status, etc.)"
+                          arrow
+                          classes={{ tooltip: classes.tooltip }}
+                        >
+                          <IconButton
+                            className={classes.actionIconBtn}
+                            size="small"
+                            onClick={() => setDetailsContact(contact)}
+                          >
+                            <VisibilityIcon style={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip
                         title="Editar contato"
                         arrow

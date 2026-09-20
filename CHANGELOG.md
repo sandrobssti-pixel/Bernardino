@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.59] — Importar Arquivo na Lista de Contatos, com campos extras — 2026-09-20
+
+### Adicionado
+- Botão "Importar Arquivo" direto na tela de Listas de Contatos
+  (`ContactLists`), sem precisar entrar em "Ver Contatos" primeiro
+  (esse fluxo já existia lá, agora também no nível de cima).
+- Colunas da planilha que não são nome/número/e-mail (CPF, vigência,
+  mês, status, etc.) agora ficam guardadas em `ContactListItem.extraData`
+  e visíveis por um botão "Ver dados da planilha" na listagem de
+  contatos — só uso interno, nunca entra na campanha (que continua
+  usando só o número de WhatsApp normalizado).
+- Reimportar a mesma planilha (ex.: lista de inadimplentes atualizada
+  todo mês) agora atualiza nome/e-mail/dados extras dos contatos que já
+  existiam na lista, em vez de só contar como duplicado.
+
+### Corrigido
+- Detecção do nome na planilha importada dependia de um cabeçalho
+  reconhecido ("nome"/"name"/"contato") — planilhas com outro nome de
+  coluna (ex.: "atirador", "cliente", "sócio") importavam sem nome
+  nenhum. Agora cai pra primeira coluna da planilha quando nenhum alias
+  bate.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 43.
+
 ## [2.3.58] — Sino do Painel Vigia continuava com alerta de atendimento fechado — 2026-09-20
 
 ### Corrigido

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.58 (Etapa 6.23 — sino do Painel Vigia continuava mostrando alerta de atendimento já fechado, agora numa camada nova de front-end; corrigido reconsultando ao abrir e removendo ao vivo quando o ticket fecha — ver `docs/MANUAL_TECNICO.md`, seção 42)**
+**Versão atual: 2.3.59 (Etapa 6.24 — Lista de Contatos ganhou "Importar Arquivo" direto da tela de listas, guardando todas as colunas da planilha (CPF, vigência, status, etc.) como dado extra só de consulta — ver `docs/MANUAL_TECNICO.md`, seção 43)**
 
 ## Documentação
 

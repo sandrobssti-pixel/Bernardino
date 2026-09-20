@@ -3275,3 +3275,76 @@ local alimentado por eventos em tempo real e nunca o resincroniza.
 Lint (`eslint`) limpo no arquivo alterado. Aguardando confirmação do
 cliente em uso real (fechar um atendimento com alerta de SLA ativo e
 confirmar que ele some do sino).
+
+## 43. Lista de Contatos: "Importar Arquivo" com campos extras da planilha (v2.3.59)
+
+### Pedido do cliente
+
+Na tela de Campanha → Lista de Contatos, só existiam: baixar planilha
+exemplo, ver contatos, importar contatos do sistema, editar lista e
+excluir lista. Pedido: uma opção de **importar um arquivo Excel** e
+montar a lista já organizada com todos os campos do arquivo (ex.: uma
+planilha de cobrança de "filiados inadimplentes" com colunas de nome,
+telefone, e-mail, CPF, vigência de/até, mês e status) — os campos extras
+ficam só pra uso interno/organização; a campanha continua usando só o
+número de WhatsApp.
+
+### O que já existia (descoberto ao investigar, antes de construir)
+
+- O **backend** já tinha um endpoint completo pra isso:
+  `POST /contact-lists/:id/upload` →
+  `ContactListService/ImportContacts.ts` — lê a planilha (`xlsx`),
+  detecta nome/número/e-mail por uma lista de apelidos de cabeçalho
+  (`nome`, `telefone`, `email`, etc.), normaliza o número
+  (`normalizeCampaignContactNumber` — já resolve o formato
+  `55DDDNÚMERO`, sem caracteres, aceitando o número com ou sem `55`
+  na frente) e valida no WhatsApp.
+- A tela "Ver Contatos" (`ContactListItems`, um nível abaixo na
+  navegação) **já tinha** um botão "Importar" usando esse mesmo
+  endpoint — só não existia na tela de cima (lista de listas,
+  `ContactLists`), que era onde o cliente esperava encontrar.
+
+### O que foi adicionado
+
+1. **Botão "Importar Arquivo" na tela de Listas de Contatos**
+   (`frontend/src/components/ImportFileContactsModal`, plugado em
+   `ContactLists/index.js`) — escolhe o arquivo, mostra o progresso
+   (reaproveitando o socket `company-{id}-ContactListImport-{listId}`
+   que o backend já emitia) e fecha sozinho quando termina. Convive com
+   o botão que já existia dentro de "Ver Contatos".
+
+2. **Campo `extraData` (JSON) no `ContactListItem`** — migration
+   `20260920120000-add-extradata-to-contactlistitems.ts`. Guarda todas
+   as colunas da planilha que não foram usadas como nome/número/e-mail
+   (CPF, vigência de/até, mês, status, ou qualquer outra coluna que a
+   planilha do cliente tiver). Só uso interno: a campanha nunca lê esse
+   campo, só o número normalizado.
+
+3. **`ImportContacts.ts` corrigido pra planilha com cabeçalhos
+   arbitrários**: a detecção de nome dependia de um cabeçalho
+   reconhecido (`nome`/`name`/`contato`) — a planilha real do cliente
+   usa `atirador` como primeira coluna, que não batia com nenhum alias,
+   então **todo contato importava sem nome**. Corrigido caindo pra
+   **primeira coluna da planilha** quando nenhum alias de nome bate
+   (sempre existe, e normalmente é o identificador da linha).
+
+4. **Reimportação atualiza o contato existente**: antes, reimportar a
+   mesma planilha (ex.: lista de inadimplentes atualizada todo mês) só
+   contava como "duplicado" e não atualizava nada. Agora atualiza
+   nome/e-mail/`extraData` do contato já existente (mantém número e
+   validação de WhatsApp já feitos), pra status/vigência ficarem
+   sempre com o dado mais recente.
+
+5. **Botão "Ver dados da planilha" na listagem de contatos**
+   (`ContactListItems`) — só aparece quando o contato tem `extraData`;
+   abre um diálogo simples listando todas as colunas extras
+   (chave/valor), sem precisar de uma coluna fixa por campo (cada
+   planilha pode ter colunas diferentes).
+
+### Testado
+
+- Lint (`eslint`) limpo nos arquivos de frontend alterados.
+- `tsc --noEmit` limpo no backend inteiro (nenhum erro introduzido).
+- Não testado ainda em produção com a planilha real do cliente
+  (`Planilha_de_cobrança_filiados_vencidos_ago-set.xlsx`) — pendente de
+  rodar a migration e importar de verdade após o deploy.

@@ -23,6 +23,7 @@ import PeopleIcon from "@material-ui/icons/People";
 import DownloadIcon from "@material-ui/icons/GetApp";
 import AddIcon from "@material-ui/icons/Add";
 import PlaylistAddCheckIcon from "@material-ui/icons/PlaylistAddCheck";
+import PublishIcon from "@material-ui/icons/Publish";
 
 import MainHeader from "../../components/MainHeader";
 
@@ -32,6 +33,7 @@ import TableRowSkeleton from "../../components/TableRowSkeleton";
 import ContactListDialog from "../../components/ContactListDialog";
 import ConfirmationModal from "../../components/ConfirmationModal";
 import ImportSystemContactsModal from "../../components/ImportSystemContactsModal";
+import ImportFileContactsModal from "../../components/ImportFileContactsModal";
 import toastError from "../../errors/toastError";
 import { Grid } from "@material-ui/core";
 
@@ -222,6 +224,8 @@ const ContactLists = () => {
   const [contactListModalOpen, setContactListModalOpen] = useState(false);
   const [importSystemModalOpen, setImportSystemModalOpen] = useState(false);
   const [importTargetContactList, setImportTargetContactList] = useState(null);
+  const [importFileModalOpen, setImportFileModalOpen] = useState(false);
+  const [importFileTargetContactList, setImportFileTargetContactList] = useState(null);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [searchParam, setSearchParam] = useState("");
   const [contactLists, dispatch] = useReducer(reducer, []);
@@ -320,6 +324,16 @@ const ContactLists = () => {
     setImportTargetContactList(null);
   };
 
+  const handleOpenImportFileModal = (contactList) => {
+    setImportFileTargetContactList(contactList);
+    setImportFileModalOpen(true);
+  };
+
+  const handleCloseImportFileModal = () => {
+    setImportFileModalOpen(false);
+    setImportFileTargetContactList(null);
+  };
+
   const loadMore = () => {
     setPageNumber((prevState) => prevState + 1);
   };
@@ -359,6 +373,11 @@ const ContactLists = () => {
         open={importSystemModalOpen}
         onClose={handleCloseImportSystemModal}
         contactList={importTargetContactList}
+      />
+      <ImportFileContactsModal
+        open={importFileModalOpen}
+        onClose={handleCloseImportFileModal}
+        contactList={importFileTargetContactList}
       />
 
       <MainHeader>
@@ -459,6 +478,16 @@ const ContactLists = () => {
                           onClick={() => handleOpenImportSystemModal(contactList)}
                         >
                           <PlaylistAddCheckIcon style={{ fontSize: 15 }} />
+                        </IconButton>
+                      </Tooltip>
+
+                      <Tooltip title="Importar Arquivo" arrow>
+                        <IconButton
+                          size="small"
+                          className={classes.actionIconBtn}
+                          onClick={() => handleOpenImportFileModal(contactList)}
+                        >
+                          <PublishIcon style={{ fontSize: 15 }} />
                         </IconButton>
                       </Tooltip>
 

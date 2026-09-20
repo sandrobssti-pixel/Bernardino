@@ -9,7 +9,8 @@ import {
   AllowNull,
   Default,
   ForeignKey,
-  BelongsTo
+  BelongsTo,
+  DataType
 } from "sequelize-typescript";
 import Company from "./Company";
 import ContactList from "./ContactList";
@@ -59,6 +60,14 @@ class ContactListItem extends Model<ContactListItem> {
 
   @Column
   isGroup: boolean;
+
+  // Colunas extras de uma planilha importada (ex.: cpf, vigência, mês,
+  // status) que não são nome/número/e-mail — uso só interno (visualização/
+  // organização da lista). Nunca é usado pela campanha, que só envia pro
+  // número de WhatsApp normalizado.
+  @AllowNull(true)
+  @Column(DataType.JSON)
+  extraData?: Record<string, any> | null;
 
   /* ====== ADIÇÕES PARA SUPORTE A LID/JID (não quebram nada existente) ====== */
   @AllowNull(true)

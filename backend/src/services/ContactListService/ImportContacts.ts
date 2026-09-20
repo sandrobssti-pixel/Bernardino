@@ -41,6 +41,49 @@ const getFallbackNumberFromRow = (row: Record<string, any>): string => {
   return "";
 };
 
+const NAME_ALIASES = ["nome", "name", "contato"];
+const NUMBER_ALIASES = [
+  "numero",
+  "número",
+  "telefone",
+  "celular",
+  "whatsapp",
+  "phone",
+  "telefone1",
+  "fone",
+  "tel"
+];
+const EMAIL_ALIASES = ["email", "e-mail"];
+
+// Planilhas de terceiros raramente usam "nome"/"telefone" literalmente (ex.:
+// "atirador", "cliente", "sócio"...). Quando nenhum alias bate, cai pra
+// primeira coluna da planilha como nome — sempre existe e normalmente é
+// o identificador da linha (ver docs/MANUAL_TECNICO.md).
+const getNameFromRow = (row: Record<string, any>): string => {
+  const byAlias = getRowValueByAliases(row, NAME_ALIASES);
+  if (byAlias) return String(byAlias);
+
+  const firstKey = Object.keys(row || {})[0];
+  return firstKey ? String(row[firstKey] ?? "") : "";
+};
+
+// Todas as colunas da planilha que não foram usadas como nome/número/e-mail
+// ficam guardadas em ContactListItem.extraData, só pra uso interno (nunca
+// vai pra campanha, que só usa o número normalizado).
+const getExtraDataFromRow = (row: Record<string, any>): Record<string, any> => {
+  const usedAliases = new Set(
+    [...NAME_ALIASES, ...NUMBER_ALIASES, ...EMAIL_ALIASES].map(normalizeHeader)
+  );
+
+  const extra: Record<string, any> = {};
+  for (const [key, value] of Object.entries(row || {})) {
+    if (usedAliases.has(normalizeHeader(key))) continue;
+    if (value === null || value === undefined || value === "") continue;
+    extra[key] = value instanceof Date ? value.toISOString() : value;
+  }
+  return extra;
+};
+
 const isValidationInfraUnavailable = (error: any): boolean => {
   const message = String(error?.message || "");
   return (
@@ -70,32 +113,26 @@ export async function ImportContacts(
   const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 0 });
   const contacts = rows.map(row => {
     const rowObj = (row || {}) as Record<string, any>;
-    let name = "";
-    let number: unknown = "";
-    let email = "";
 
-    name = getRowValueByAliases(rowObj, ["nome", "name", "contato"]);
+    const name = getNameFromRow(rowObj);
 
-    number = getRowValueByAliases(rowObj, [
-      "numero",
-      "número",
-      "telefone",
-      "celular",
-      "whatsapp",
-      "phone",
-      "telefone1",
-      "fone",
-      "tel"
-    ]);
-
+    let number: unknown = getRowValueByAliases(rowObj, NUMBER_ALIASES);
     number = normalizeCampaignContactNumber(number);
     if (!number) {
       number = getFallbackNumberFromRow(rowObj);
     }
 
-    email = getRowValueByAliases(rowObj, ["email", "e-mail"]);
+    const email = getRowValueByAliases(rowObj, EMAIL_ALIASES);
+    const extraData = getExtraDataFromRow(rowObj);
 
-    return { name, number: String(number || ""), email, contactListId, companyId };
+    return {
+      name,
+      number: String(number || ""),
+      email,
+      contactListId,
+      companyId,
+      extraData: Object.keys(extraData).length > 0 ? extraData : null
+    };
   });
 
   const candidates = contacts.filter(contact => Boolean(contact.number));
@@ -189,6 +226,15 @@ export async function ImportContacts(
       imported += 1;
       contactList.push(newContact);
     } else {
+      // Reimportação da mesma planilha (ex.: lista de inadimplentes
+      // atualizada todo mês) — atualiza nome/e-mail/dados extras (status,
+      // vigência etc.) do contato já existente, sem mexer no número nem na
+      // validação de WhatsApp já feitas.
+      await newContact.update({
+        name: contact.name || newContact.name,
+        email: contact.email || newContact.email,
+        extraData: contact.extraData ?? newContact.extraData
+      });
       duplicates += 1;
     }
 
