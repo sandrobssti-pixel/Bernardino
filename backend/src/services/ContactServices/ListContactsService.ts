@@ -101,10 +101,14 @@ const ListContactsService = async ({ searchParam = "",
   }
 
   if (isGroup === "false") {
-    console.log("isGroup", isGroup)
     whereCondition = {
       ...whereCondition,
       isGroup: false
+    }
+  } else if (isGroup === "true") {
+    whereCondition = {
+      ...whereCondition,
+      isGroup: true
     }
   }
 
@@ -124,7 +128,8 @@ const ListContactsService = async ({ searchParam = "",
       "profilePicUrl",
       "active",
       "companyId",
-      "channel"
+      "channel",
+      "whatsappId"
     ],
     limit,
     include: [

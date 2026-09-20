@@ -15,6 +15,7 @@ import ContactList from "../models/ContactList";
 import AppError from "../errors/AppError";
 import { ImportContacts } from "../services/ContactListService/ImportContacts";
 import ImportSystemContactsService from "../services/ContactListService/ImportSystemContactsService";
+import GetOrCreateQuickListService from "../services/ContactListService/GetOrCreateQuickListService";
 
 type IndexQuery = {
   searchParam: string;
@@ -42,6 +43,15 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
   });
 
   return res.json({ records, count, hasMore });
+};
+
+export const getQuickList = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { companyId } = req.user;
+  const list = await GetOrCreateQuickListService(companyId);
+  return res.status(200).json(list);
 };
 
 export const store = async (req: Request, res: Response): Promise<Response> => {

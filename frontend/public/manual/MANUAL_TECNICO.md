@@ -3348,3 +3348,85 @@ número de WhatsApp.
 - Não testado ainda em produção com a planilha real do cliente
   (`Planilha_de_cobrança_filiados_vencidos_ago-set.xlsx`) — pendente de
   rodar a migration e importar de verdade após o deploy.
+
+## 44. Campanha: mandar direto pra grupo do WhatsApp ou contato individual (v2.3.60)
+
+### Pedido do cliente
+
+"Essas campanhas são disparos em massa para grupos, contatos individuais
+e lista de contatos prontas" — na tela de campanha só existia a opção de
+escolher uma lista de contatos pronta (ou uma tag). Faltava dar pra
+escolher, na hora de criar a campanha, entre: lista de contatos, grupo
+do WhatsApp ou um número avulso — sem precisar sair da tela de campanha
+pra montar uma lista antes.
+
+### Descoberta importante antes de construir
+
+Investigando o motor de disparo (`queues.ts`) pra saber por onde
+implementar isso com o menor risco possível, achou-se que ele **já
+suporta mandar campanha pra um grupo**:
+
+```ts
+const chatId = campaignShipping.contact.isGroup
+  ? `${campaignShipping.number}@g.us`
+  : campaignChatKey || `${campaignShipping.number}@s.whatsapp.net`;
+```
+
+Ou seja: `ContactListItem` já tem o campo `isGroup`, e a fila de envio já
+sabe montar o JID de grupo (`@g.us`) quando esse campo é `true`. Isso
+significa que **não foi preciso mudar nada no `Campaign`, no
+`CampaignShipping` nem na fila de envio** — só automatizar a criação do
+item certo numa lista, e apontar a campanha pra essa lista. Uma mudança
+grande (que mexeria no motor de disparo mais crítico do sistema) virou
+uma mudança pequena e de baixo risco.
+
+Outra descoberta: os **grupos já existem como `Contact`** normal (não
+`ContactListItem`) com `isGroup: true` — todo grupo que já trocou
+mensagem com a conexão já está lá (ver `verifyContact` em
+`wbotMessageListener.ts`). Não foi preciso chamar o Baileys
+(`groupFetchAllParticipating`) pra listar grupos: só reaproveitar
+`GET /contacts` com o filtro que já existia.
+
+### O que foi construído
+
+1. **`GET /contact-lists/quick-list`** — pega (ou cria, na primeira vez)
+   uma lista fixa por empresa chamada "Envios avulsos (grupos e contatos
+   individuais)" (`GetOrCreateQuickListService`). É essa lista que
+   recebe os itens avulsos escolhidos na campanha.
+
+2. **`POST /contact-list-items/group`** — adiciona um grupo como item de
+   lista (`AddGroupItemService` → arquivo `AddGroupService.ts`), **sem**
+   validar o número como telefone de pessoa (diferente do
+   `CreateService` normal): o ID de um grupo (ex.:
+   `120363042078274095`) não é um número de WhatsApp e falharia na
+   validação normal.
+
+3. **Componente `CampaignRecipientPicker`** (frontend), plugado no
+   `CampaignModal` ao lado do campo "Lista de contatos": botão "Grupo ou
+   contato avulso" abre um diálogo com duas abas —
+   - **Grupo do WhatsApp**: lista os grupos já conhecidos da conexão
+     selecionada (`GET /contacts?isGroup=true`, filtrado por
+     `whatsappId` no front).
+   - **Contato individual**: nome (opcional) + número, reaproveitando o
+     `POST /contact-list-items` normal (com toda a validação de
+     WhatsApp que uma lista de contatos já tem).
+
+   Ao confirmar, o item é criado/reaproveitado na lista "guarda-chuva" e
+   o campo `contactListId` da campanha é preenchido automaticamente —
+   como se o usuário tivesse escolhido essa lista manualmente.
+
+### Bug real encontrado no caminho: `isGroup=true` era ignorado
+
+`ListContactsService` (usado por `GET /contacts`) só tinha a checagem
+`if (isGroup === "false")` — o valor `"true"` caía no vazio e devolvia
+**todos** os contatos (grupos e pessoas juntos), não só os grupos.
+Faltava também `whatsappId` na lista de atributos retornados, quebrando
+o filtro por conexão no picker novo. Os dois corrigidos.
+
+### Testado
+
+- Lint (`eslint`) limpo nos arquivos de frontend alterados.
+- `tsc --noEmit` limpo no backend inteiro.
+- Não testado ainda em uso real (escolher um grupo/contato avulso e
+  confirmar que a campanha realmente dispara pra ele) — pendente de
+  deploy.

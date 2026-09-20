@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.60] — Campanha para grupo do WhatsApp ou contato individual — 2026-09-20
+
+### Adicionado
+- Botão "Grupo ou contato avulso" na tela de campanha: escolhe um grupo
+  do WhatsApp (dentre os que a conexão já trocou mensagem) ou digita um
+  número individual, sem precisar montar uma lista de contatos antes.
+  Por baixo dos panos reaproveita o mesmo motor de disparo já existente
+  (lista de contatos + item de lista), criando/reaproveitando
+  automaticamente uma lista "Envios avulsos (grupos e contatos
+  individuais)" por empresa — sem nenhuma mudança na fila de envio.
+- Endpoints novos: `GET /contact-lists/quick-list` (pega ou cria essa
+  lista guarda-chuva) e `POST /contact-list-items/group` (adiciona um
+  grupo como item de lista, sem tentar validar o ID do grupo como se
+  fosse número de telefone de pessoa).
+
+### Corrigido
+- `ListContactsService` (usado pra listar contatos) só filtrava
+  `isGroup=false`; `isGroup=true` (necessário pra listar só os grupos no
+  novo seletor) era ignorado silenciosamente e devolvia todo mundo.
+  Também faltava `whatsappId` nos atributos retornados, quebrando o
+  filtro por conexão.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 44.
+
 ## [2.3.59] — Importar Arquivo na Lista de Contatos, com campos extras — 2026-09-20
 
 ### Adicionado

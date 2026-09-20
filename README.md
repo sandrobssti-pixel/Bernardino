@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.59 (Etapa 6.24 — Lista de Contatos ganhou "Importar Arquivo" direto da tela de listas, guardando todas as colunas da planilha (CPF, vigência, status, etc.) como dado extra só de consulta — ver `docs/MANUAL_TECNICO.md`, seção 43)**
+**Versão atual: 2.3.60 (Etapa 6.25 — Campanha ganhou opção de mandar direto pra um grupo do WhatsApp ou pra um contato individual, sem precisar montar lista antes — ver `docs/MANUAL_TECNICO.md`, seção 44)**
 
 ## Documentação
 

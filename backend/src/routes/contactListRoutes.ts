@@ -10,6 +10,7 @@ const routes = express.Router();
 const upload = multer(uploadConfig);
 
 routes.get("/contact-lists/list", isAuth, ContactListController.findList);
+routes.get("/contact-lists/quick-list", isAuth, ContactListController.getQuickList);
 routes.get("/contact-lists", isAuth, ContactListController.index);
 routes.get("/contact-lists/:id", isAuth, ContactListController.show);
 routes.post("/contact-lists", isAuth, ContactListController.store);

@@ -17,6 +17,12 @@ routes.get("/contact-list-items/:id", isAuth, ContactListItemController.show);
 
 routes.post("/contact-list-items", isAuth, ContactListItemController.store);
 
+routes.post(
+  "/contact-list-items/group",
+  isAuth,
+  ContactListItemController.addGroup
+);
+
 routes.put("/contact-list-items/:id", isAuth, ContactListItemController.update);
 
 routes.delete(
