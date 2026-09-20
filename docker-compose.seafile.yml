@@ -36,7 +36,15 @@ services:
     restart: unless-stopped
     entrypoint: memcached -m 256
     networks:
-      - seafile-internal
+      seafile-internal:
+        # O Seahub não respeita a variável MEMCACHED_HOST/MEMCACHED_PORT
+        # (só o DB_HOST é de fato configurável) e sempre tenta resolver
+        # o hostname fixo "memcached". Como essa rede é isolada só desse
+        # stack (não é a "coolify" compartilhada), dar esse alias aqui é
+        # seguro e não repete o problema de colisão do Redis (seção 39
+        # do manual).
+        aliases:
+          - memcached
 
   seafile:
     image: seafileltd/seafile-mc:12.0-latest
@@ -48,8 +56,6 @@ services:
     environment:
       DB_HOST: confianza-seafile-db
       DB_ROOT_PASSWD: ${SEAFILE_DB_ROOT_PASSWORD}
-      MEMCACHED_HOST: confianza-seafile-memcached
-      MEMCACHED_PORT: "11211"
       TIME_ZONE: America/Asuncion
       SEAFILE_ADMIN_EMAIL: ${SEAFILE_ADMIN_EMAIL}
       SEAFILE_ADMIN_PASSWORD: ${SEAFILE_ADMIN_PASSWORD}
