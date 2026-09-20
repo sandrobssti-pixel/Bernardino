@@ -18,6 +18,13 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# tzdata: a imagem "slim" não traz os dados de fuso horário por padrão —
+# sem isso, a variável de ambiente TZ (docker-compose.coolify.yml) seria
+# ignorada silenciosamente e o container continuaria rodando em UTC.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tzdata \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/.sequelizerc ./.sequelizerc

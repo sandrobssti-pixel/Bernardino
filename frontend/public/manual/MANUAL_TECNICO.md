@@ -3430,3 +3430,80 @@ o filtro por conexão no picker novo. Os dois corrigidos.
 - Não testado ainda em uso real (escolher um grupo/contato avulso e
   confirmar que a campanha realmente dispara pra ele) — pendente de
   deploy.
+
+## 45. Bug real: fuso horário do container do backend (rodava em UTC) — horário de campanha errado (v2.3.61)
+
+### Sintoma
+
+Cliente relatou: agendou uma campanha pra `19:20`, e ela salvou/apareceu
+como `16:15` na listagem — a **data** ficou certa, só a **hora** veio
+errada, sempre "adiantada" (mostrando um horário mais cedo do que o
+digitado).
+
+### Causa
+
+O container do backend roda em **UTC** por padrão (comportamento normal
+do Docker — nenhuma imagem base define fuso horário sozinha). O
+`scheduledAt` da campanha chega do frontend como uma string **sem fuso
+explícito**:
+
+```js
+// CampaignModal/index.js
+dataValues.scheduledAt = moment(value).format("YYYY-MM-DD HH:mm:ss");
+// -> "2026-09-20 19:20:00" (sem "Z", sem offset)
+```
+
+Quando o Node (rodando em UTC) recebe essa string sem fuso, ele
+interpreta como **19:20 UTC** — que corresponde a **16:20 no horário de
+Brasília** (UTC-3). Ao carregar a campanha de volta, o navegador do
+cliente (já no fuso certo) mostra esse valor errado sem re-converter
+nada, daí o "adiantamento" de ~3h.
+
+**Achado ao investigar**: essa mesma classe de bug (fuso ambíguo por
+causa do container rodar em UTC) já tinha sido corrigida manualmente,
+ponto a ponto, em vários lugares do código —
+`backend/src/jobs/BirthdayJob.ts`, `backend/src/queues.ts` e
+`backend/src/utils/logger.ts` chamam explicitamente
+`moment().tz('America/Sao_Paulo')`, e `backend/src/config/database.ts`
+já tinha `timezone: 'America/Sao_Paulo'` na config do Sequelize. Só que
+cada ponto novo do sistema que lida com data precisa lembrar de fazer
+essa compensação manualmente — a tela de agendamento de campanha
+(mais nova) não tinha.
+
+### Correção (na raiz, não ponto a ponto)
+
+Em vez de adicionar mais um `.tz('America/Sao_Paulo')` manual (que só
+resolveria esse caso específico e deixaria a mesma armadilha pra
+próxima tela nova), a correção foi no **nível do container**: fazer o
+processo do Node já rodar no fuso certo por padrão, pra qualquer código
+futuro que lide com data sem se preocupar com isso.
+
+`docker-compose.coolify.yml`, serviço `backend`:
+```yaml
+TZ: America/Sao_Paulo
+```
+
+`backend/Dockerfile` (estágio final): a imagem `node:20-bookworm-slim`
+**não vem com os dados de fuso horário instalados** — sem isso, a
+variável `TZ` seria ignorada silenciosamente e o container continuaria
+em UTC mesmo com a variável definida:
+```dockerfile
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends tzdata \
+  && rm -rf /var/lib/apt/lists/*
+```
+
+### Importante: campanhas já agendadas antes da correção
+
+O valor errado já ficou gravado no banco pras campanhas criadas antes
+desse fix (ex.: a campanha "renovação filiação 2026", agendada com
+`16:15` em vez de `19:20`). A correção só vale pra novos agendamentos —
+**precisa reabrir e reagendar manualmente** as campanhas afetadas depois
+do deploy.
+
+### Testado
+
+- `tsc --noEmit` limpo (mudança só em config/Dockerfile, sem código
+  TypeScript alterado).
+- Não testado ainda em produção — pendente rebuildar a imagem do
+  backend (mudança no Dockerfile) e recriar o container.

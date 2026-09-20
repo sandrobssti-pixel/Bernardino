@@ -33,6 +33,13 @@ services:
       NODE_ENV: production
       PORT: "8080"
       HOST: "0.0.0.0"
+      # Sem isso, o container roda em UTC (padrão do Docker). Datas
+      # digitadas sem fuso explícito (ex.: scheduledAt da campanha, salvo
+      # como string "YYYY-MM-DD HH:mm:ss" pelo frontend) são interpretadas
+      # como UTC em vez de horário de Brasília, chegando ~3h adiantadas —
+      # bug real relatado pelo cliente (horário da campanha errado, data
+      # certa). Ver docs/MANUAL_TECNICO.md, seção 45.
+      TZ: America/Sao_Paulo
       BACKEND_URL: ${BACKEND_URL}
       FRONTEND_URL: ${FRONTEND_URL}
       # Vazio de propósito: PROXY_PORT era usado para montar as URLs de

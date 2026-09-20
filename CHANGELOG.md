@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.61] — Corrigido fuso horário do container do backend — 2026-09-20
+
+### Corrigido
+- Horário agendado de campanha salvava ~3h adiantado (data certa, hora
+  errada) — o container do backend roda em UTC por padrão (Docker), e o
+  `scheduledAt` chega do frontend como uma string sem fuso explícito
+  ("2026-09-20 19:20:00"), que o Node interpretava como UTC em vez de
+  horário de Brasília. Corrigido definindo `TZ=America/Sao_Paulo` no
+  `docker-compose.coolify.yml` (mesma zona já usada manualmente em vários
+  pontos do código — `BirthdayJob.ts`, `queues.ts`, `logger.ts` — via
+  `.tz('America/Sao_Paulo')`, mas que essa tela nova não tinha) e
+  instalando o pacote `tzdata` no Dockerfile (a imagem "slim" não traz
+  os dados de fuso por padrão, o que faria o `TZ` ser ignorado
+  silenciosamente).
+- Campanhas já agendadas antes dessa correção continuam com o horário
+  errado gravado — precisam ser reabertas e reagendadas manualmente pra
+  pegar o horário certo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 45.
+
 ## [2.3.60] — Campanha para grupo do WhatsApp ou contato individual — 2026-09-20
 
 ### Adicionado

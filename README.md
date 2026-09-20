@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.60 (Etapa 6.25 — Campanha ganhou opção de mandar direto pra um grupo do WhatsApp ou pra um contato individual, sem precisar montar lista antes — ver `docs/MANUAL_TECNICO.md`, seção 44)**
+**Versão atual: 2.3.61 (Etapa 6.26 — corrigido fuso horário do container do backend (rodava em UTC): horário agendado de campanha chegava ~3h adiantado — ver `docs/MANUAL_TECNICO.md`, seção 45)**
 
 ## Documentação
 
