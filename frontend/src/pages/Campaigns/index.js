@@ -613,6 +613,27 @@ const Campaigns = () => {
     }
   };
 
+  // Bolinha de status de envio (não confundir com campaign.confirmation,
+  // que é a config de "mensagem de confirmação" — outra coisa): verde só
+  // quando pelo menos um disparo real foi confirmado entregue; vermelha
+  // quando já tentou enviar mas nenhum confirmou; cinza quando a campanha
+  // ainda não rodou (nada pra confirmar ainda).
+  const getSendStatusMeta = (campaign) => {
+    const total = campaign.shippingTotal || 0;
+    const delivered = campaign.shippingDelivered || 0;
+
+    if (total === 0) {
+      return { color: "#94a3b8", label: "Ainda não enviou nenhum disparo" };
+    }
+    if (delivered === 0) {
+      return { color: "#ef4444", label: `Não enviada — 0 de ${total} confirmados` };
+    }
+    if (delivered < total) {
+      return { color: "#22c55e", label: `Enviada parcialmente — ${delivered} de ${total} confirmados` };
+    }
+    return { color: "#22c55e", label: `Enviada — ${delivered} de ${total} confirmados` };
+  };
+
   const cancelCampaign = async (campaign) => {
     try {
       await api.post(`/campaigns/${campaign.id}/cancel`);
@@ -898,17 +919,14 @@ const Campaigns = () => {
                             : "Não concluída"}
                         </TableCell>
                         <TableCell align="center" className={classes.tableCellText}>
-                          <Tooltip
-                            title={campaign.confirmation ? "Confirmação de envio habilitada" : "Confirmação de envio desabilitada"}
-                            arrow
-                          >
+                          <Tooltip title={getSendStatusMeta(campaign).label} arrow>
                             <span
                               style={{
                                 display: "inline-block",
                                 width: 12,
                                 height: 12,
                                 borderRadius: "50%",
-                                backgroundColor: campaign.confirmation ? "#22c55e" : "#ef4444"
+                                backgroundColor: getSendStatusMeta(campaign).color
                               }}
                             />
                           </Tooltip>

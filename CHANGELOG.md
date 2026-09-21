@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.64] — Bolinha de envio real, edição total da campanha, relatório em Excel — 2026-09-21
+
+### Adicionado
+- Listagem de campanhas: a bolinha da coluna "Confirmação" agora mostra
+  o **status real de envio** (verde = pelo menos um disparo confirmado
+  entregue, vermelha = tentou enviar mas nenhum confirmou, cinza = ainda
+  não rodou) — antes mostrava a configuração de "mensagem de
+  confirmação" (habilitada/desabilitada), o que confundia com o status
+  de entrega.
+- Botão "Habilitar edição total" no formulário de campanha: quando uma
+  campanha já enviada/agendada normalmente bloqueia os campos, esse
+  botão libera todos pra correção manual de um erro de digitação, sem
+  precisar cancelar e recriar a campanha do zero.
+- Relatório de campanha: exportação trocada de CSV (só pendentes) para
+  **Excel com duas abas** ("Enviados" e "Não enviados"), cada uma com
+  nome/número/e-mail dos contatos correspondentes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 47.
+
 ## [2.3.63] — Corrigido bug real de campanha não entregue (número sem o 9º dígito) — 2026-09-21
 
 ### Corrigido

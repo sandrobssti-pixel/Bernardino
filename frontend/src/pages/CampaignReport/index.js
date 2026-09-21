@@ -11,6 +11,7 @@ import {
 } from "@material-ui/core";
 import api from "../../services/api";
 import { has, get, isNull } from "lodash";
+import * as XLSX from "xlsx";
 import GroupIcon from "@material-ui/icons/Group";
 import ScheduleIcon from "@material-ui/icons/Schedule";
 import EventAvailableIcon from "@material-ui/icons/EventAvailable";
@@ -317,6 +318,7 @@ const CampaignReport = () => {
   const [percent, setPercent] = useState(0);
   const [loading, setLoading] = useState(false);
   const [notDeliveredContacts, setNotDeliveredContacts] = useState([]);
+  const [deliveredContacts, setDeliveredContacts] = useState([]);
   const mounted = useRef(true);
   const { user, socket } = useContext(AuthContext);
 
@@ -381,7 +383,11 @@ const CampaignReport = () => {
       const pending = contactList.filter(
         (contact) => contact.isWhatsappValid && !deliveredIds.has(contact.id)
       );
+      const sent = contactList.filter(
+        (contact) => contact.isWhatsappValid && deliveredIds.has(contact.id)
+      );
       setNotDeliveredContacts(pending);
+      setDeliveredContacts(sent);
     }
   }, [campaign]);
 
@@ -422,35 +428,34 @@ const CampaignReport = () => {
     setLoading(false);
   };
 
-  const downloadNotDeliveredCsv = () => {
-    if (!notDeliveredContacts.length) {
-      toast.info("Não há contatos pendentes para exportar.");
+  // Excel com duas abas — enviados e não enviados — em vez do CSV só com
+  // pendentes de antes. Pedido do cliente: "baixar um arquivo em excel
+  // mostrando os contatos que não foram enviados e os contatos que foram
+  // enviados".
+  const downloadReportXlsx = () => {
+    if (!deliveredContacts.length && !notDeliveredContacts.length) {
+      toast.info("Não há contatos pra exportar ainda.");
       return;
     }
 
-    const lines = [
-      ["nome", "numero", "e-mail"],
-      ...notDeliveredContacts.map((c) => [c.name || "", c.number || "", c.email || ""]),
-    ];
-    const csv = lines
-      .map((row) =>
-        row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(";")
-      )
-      .join("\n");
+    const toRow = (c) => ({
+      nome: c.name || "",
+      numero: c.number || "",
+      "e-mail": c.email || "",
+    });
 
-    const csvWithBom = `﻿${csv}`;
-    const blob = new Blob([csvWithBom], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute(
-      "download",
-      `campanha-${campaignId}-nao-enviados-${new Date().toISOString().slice(0, 10)}.csv`
+    const wb = XLSX.utils.book_new();
+
+    const sentSheet = XLSX.utils.json_to_sheet(deliveredContacts.map(toRow));
+    XLSX.utils.book_append_sheet(wb, sentSheet, "Enviados");
+
+    const notSentSheet = XLSX.utils.json_to_sheet(notDeliveredContacts.map(toRow));
+    XLSX.utils.book_append_sheet(wb, notSentSheet, "Nao enviados");
+
+    XLSX.writeFile(
+      wb,
+      `campanha-${campaignId}-relatorio-${new Date().toISOString().slice(0, 10)}.xlsx`
     );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   // ── Stat card ────────────────────────────────────────────────────────────
@@ -496,9 +501,9 @@ const CampaignReport = () => {
             className={classes.btnGhost}
             size="small"
             startIcon={<CloudDownloadIcon style={{ fontSize: 15 }} />}
-            onClick={downloadNotDeliveredCsv}
+            onClick={downloadReportXlsx}
           >
-            Baixar não enviados
+            Baixar relatório (Excel)
           </Button>
         </div>
       </div>

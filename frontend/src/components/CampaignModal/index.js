@@ -344,7 +344,14 @@ useEffect(() => {
   const [messageTab, setMessageTab] = useState(0);
   const [attachment, setAttachment] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const [campaignEditable, setCampaignEditable] = useState(true);
+  const [naturalEditable, setNaturalEditable] = useState(true);
+  const [forceEditAll, setForceEditAll] = useState(false);
+  // "campaignEditable" é o valor final usado em todo o formulário — soma
+  // a regra normal (status/horário) com a opção manual de forçar edição.
+  // Pedido do cliente: "botão editar não abre todos os campos, às vezes
+  // acontece de errar" — precisa de um jeito de corrigir uma campanha já
+  // enviada/agendada, mesmo fora da janela normal de edição.
+  const campaignEditable = naturalEditable || forceEditAll;
   const attachmentFile = useRef(null);
 
 
@@ -498,12 +505,14 @@ useEffect(() => {
       campaign.status === "INATIVA" ||
       (campaign.status === "PROGRAMADA" && moreThenAnHour);
 
-    setCampaignEditable(isEditable);
+    setNaturalEditable(isEditable);
+    setForceEditAll(false);
   }, [campaign.status, campaign.scheduledAt]);
 
   const handleClose = () => {
     onClose();
     setCampaign(initialState);
+    setForceEditAll(false);
   };
 
   const handleAttachmentFile = (e) => {
@@ -732,6 +741,35 @@ useEffect(() => {
           {({ values, errors, touched, isSubmitting, setFieldValue }) => (
             <Form className={classes.dialogForm}>
               <DialogContent dividers className={classes.dialogContent}>
+                {!naturalEditable && (
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    p={1.5}
+                    mb={2}
+                    style={{
+                      backgroundColor: forceEditAll ? "#fef3c7" : "#f1f5f9",
+                      border: `1px solid ${forceEditAll ? "#f59e0b" : "#cbd5e1"}`,
+                      borderRadius: 8
+                    }}
+                  >
+                    <Typography variant="body2">
+                      {forceEditAll
+                        ? "Edição total habilitada — todos os campos podem ser alterados, mesmo a campanha já tendo sido enviada/agendada. Use com cuidado."
+                        : "Essa campanha normalmente não pode mais ser editada (já foi enviada, está em andamento, ou está agendada pra menos de 1h). Se precisar corrigir algum erro, habilite a edição total abaixo."}
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant={forceEditAll ? "outlined" : "contained"}
+                      color={forceEditAll ? "default" : "primary"}
+                      onClick={() => setForceEditAll((prev) => !prev)}
+                      style={{ marginLeft: 16, whiteSpace: "nowrap" }}
+                    >
+                      {forceEditAll ? "Voltar ao normal" : "Habilitar edição total"}
+                    </Button>
+                  </Box>
+                )}
                 <Box className={`${classes.sectionCard} ${classes.compactForm}`}>
                   <Typography className={classes.sectionTitle}>Dados Gerais</Typography>
                   <Typography className={classes.sectionHint}>

@@ -3594,3 +3594,83 @@ qualquer país), em vez de só contar dígitos (12-14):
 
 `tsc --noEmit` limpo. Ainda não testado em produção — pendente rebuild
 do backend (nova dependência `libphonenumber-js`).
+
+## 47. Listagem de campanhas com envio real, edição total, relatório em Excel (v2.3.64)
+
+### Pedido do cliente (3 itens)
+
+1. "Coloque uma opção pra editar que todos os campos possa ser
+   modificados, às vezes acontece de errar e o botão editar não abre
+   todos os campos."
+2. "Dentro de listagem o campo confirmação coloca o status: bolinha
+   verde confirmado o envio, bolinha vermelha não confirmado envio."
+3. "Tem que informar um painel de quantos foram enviados e recebidos e
+   de quantos não foram enviados, baixar um arquivo em excel mostrando
+   os contatos que não foram enviados e os que foram enviados."
+
+### 1. Edição total da campanha
+
+`CampaignModal`: o campo `campaignEditable` (que trava os campos
+quando a campanha já foi enviada, está em andamento, ou está agendada
+pra menos de 1h) virou um valor **derivado**, não mais um estado bruto:
+
+```js
+const [naturalEditable, setNaturalEditable] = useState(true); // regra normal
+const [forceEditAll, setForceEditAll] = useState(false);      // override manual
+const campaignEditable = naturalEditable || forceEditAll;
+```
+
+Quando `naturalEditable` é falso, aparece um aviso no topo do
+formulário com um botão "Habilitar edição total" — todos os campos
+(que já usavam `disabled={!campaignEditable}`) liberam automaticamente,
+sem precisar mexer em cada um. O override reseta sozinho ao fechar o
+modal ou trocar de campanha (não "vaza" pra próxima).
+
+### 2. Bolinha de status real na listagem
+
+**Importante**: a primeira versão dessa bolinha (v2.3.62) usava
+`campaign.confirmation` — só que esse campo é a config de **"mensagem
+de confirmação"** (um recurso separado, de duplo aviso), não o status
+de entrega. O cliente corrigiu o pedido: a bolinha precisa refletir se
+a campanha **enviou de verdade**.
+
+Corrigido em duas pontas:
+
+- **Backend** (`CampaignService/ListService.ts`): depois de buscar a
+  página de campanhas (20 por vez), uma consulta extra e leve busca só
+  `campaignId` + `deliveredAt` de `CampaignShipping` pras campanhas
+  daquela página, e calcula `shippingTotal`/`shippingDelivered` por
+  campanha (evita um JOIN pesado na consulta principal).
+- **Frontend** (`Campaigns/index.js`): `getSendStatusMeta(campaign)`
+  decide a cor —
+  - **cinza**: `shippingTotal === 0` (campanha ainda não rodou);
+  - **vermelha**: tentou enviar mas `shippingDelivered === 0`;
+  - **verde**: `shippingDelivered > 0` (enviou, mesmo que parcial).
+
+### 3. Relatório em Excel (enviados + não enviados)
+
+A tela de relatório (`CampaignReport`) já calculava os números certos
+de válidos/entregues/pendentes a partir de `campaign.contactList.contacts`
+e `campaign.shipping` (sem limite/paginação na consulta — números
+exatos, não estimativa) — e já tinha um botão de exportar **CSV só dos
+pendentes**. Trocado por um **Excel com duas abas** ("Enviados" e "Não
+enviados"), reaproveitando a biblioteca `xlsx` (SheetJS) já usada em
+outras telas do sistema (`Reports/index.js`).
+
+### Nota sobre o "1/1" visto antes de todos esses fixes
+
+Durante a investigação, um relatório mostrou "1 Contatos Válidos, 1
+Entregues" pra uma campanha que na verdade tinha 3 contatos válidos e 3
+entregues (confirmado direto no banco). Como a consulta do relatório
+não tem paginação nem limite, e os 3 disparos foram criados e entregues
+dentro do mesmo minuto do envio, o mais provável é que a tela tenha
+sido vista **no meio do processamento** (antes do 2º/3º disparo
+terminar), não um bug de contagem — recarregar a página depois do envio
+concluído mostrou os números corretos.
+
+### Testado
+
+- Lint (`eslint`) limpo nos três arquivos de frontend alterados.
+- `tsc --noEmit` limpo no backend (mudança em `ListService.ts`).
+- Não testado ainda em produção — pendente rebuild do frontend e do
+  backend.
