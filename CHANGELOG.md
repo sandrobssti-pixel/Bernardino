@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.78] — Bug real: editar tag no ticket apagava a tag-coluna do Kanban — 2026-09-21
+
+### Corrigido
+- Confirmado em produção que a correção da v2.3.77 resolveu de vez o
+  bug de "Importar de grupos → Participantes" (cliente testou o envio
+  pro Grupo Administração inteiro e a mensagem chegou certa).
+- Novo bug real encontrado: as tags-coluna do Kanban ("Fornecedor",
+  "Inadimplente") voltaram a sumir do campo Tags da Nova Campanha,
+  mesmo depois da correção das seções 54/55. Causa: o widget de tags
+  do cabeçalho do ticket (`TagsContainer`) só conhece tags normais
+  (`kanban=0`), e `SyncTagsService` fazia um replace total do
+  `ContactTag` do contato a cada edição — apagando também a
+  associação da tag-coluna do Kanban, que o widget nem sabe que
+  existe.
+- Corrigido escopando o replace só às tags normais: agora só apaga e
+  recria `ContactTag` para tags `kanban=0`, nunca mexendo nas
+  associações de tags-coluna do Kanban.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 61.
+
 ## [2.3.77] — Corrigida causa raiz: número errado ao importar participantes de grupo por @lid — 2026-09-21
 
 ### Corrigido

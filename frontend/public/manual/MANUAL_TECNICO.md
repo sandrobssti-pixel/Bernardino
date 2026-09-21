@@ -4655,6 +4655,59 @@ confirmar em produção que a resolução está batendo certo.
 ### Testado
 
 - `tsc --noEmit` limpo no backend.
-- Pendente: reteste do cliente no Grupo Administração confirmando que
-  os 7 membros (ou os que o WhatsApp expuser o número) aparecem
-  corretos na lista.
+- **Confirmado pelo cliente em produção**: mandou uma campanha de
+  teste pro Grupo Administração inteiro (usando uma lista nova,
+  importada do zero pelo fluxo correto) e a mensagem chegou nos
+  membros reais do grupo.
+
+## 61. Bug real: editar qualquer tag no ticket apagava a tag-coluna do Kanban do contato (v2.3.78)
+
+### Relato do cliente
+
+Além do bug de importação de grupos, o cliente notou que tags usadas
+como coluna do Kanban ("Fornecedor", "Inadimplente") voltaram a sumir
+do campo "Tags" de Nova Campanha — o mesmo sintoma das seções 54/55,
+mesmo depois daquela correção (que ensinou o Kanban a também gravar em
+`ContactTag`) e do backfill retroativo já terem sido aplicados.
+
+### Causa raiz
+
+Uma segunda via, além do drag-and-drop do Kanban, também escreve em
+`ContactTag`: o widget de tags do cabeçalho do ticket
+(`TagsContainer/index.js`), usado pra adicionar/remover tag de um
+contato durante o atendimento. Só que esse widget:
+
+- Busca as opções de tag só com `kanban: 0` (`GET /tags/list?kanban=0`)
+  — ele nem sabe que tags-coluna do Kanban existem.
+- Ao mudar qualquer seleção (adicionar ou remover qualquer tag, mesmo
+  uma sem nada a ver com o Kanban), chama `POST /tags/sync` mandando a
+  lista inteira de tags selecionadas.
+- `SyncTagsService.ts` fazia um "replace total": apagava **todas** as
+  linhas de `ContactTag` daquele contato e recriava só a partir do que
+  foi mandado. Como a lista mandada nunca inclui tags-coluna do
+  Kanban (o widget não as conhece), qualquer edição de tag no
+  cabeçalho do ticket apagava de vez a marcação Kanban do contato pra
+  fins de campanha — sem ninguém ter tirado a tag do Kanban.
+
+### Correção
+
+`SyncTagsService.ts`: o "replace" agora é escopado só às tags normais
+(`kanban: 0`) — busca os ids das tags `kanban: 1` da empresa do
+contato e:
+
+- Apaga só as linhas de `ContactTag` cujo `tagId` **não** está nessa
+  lista (preserva as tags-coluna do Kanban, sejam quais forem).
+- Recria só a partir das tags mandadas que também não estão nessa
+  lista (evita recriar uma tag-coluna que por acaso viesse no payload,
+  já que ela não foi apagada).
+
+Assim o widget de tags do ticket continua gerindo só as tags normais,
+igual sempre foi a intenção dele, e nunca mais mexe na marcação feita
+pelo Kanban.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- Pendente: reteste do cliente — editar uma tag normal num ticket cujo
+  contato também tem tag-coluna do Kanban, e confirmar que ela
+  continua aparecendo em Nova Campanha depois.
