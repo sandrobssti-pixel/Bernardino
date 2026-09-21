@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import AppError from "../errors/AppError";
 import TicketTag from '../models/TicketTag';
 import Tag from '../models/Tag'
+import ContactTag from '../models/ContactTag';
 import { getIO } from "../libs/socket";
 import Ticket from "../models/Ticket";
 import ShowTicketService from "../services/TicketServices/ShowTicketService";
@@ -19,6 +20,18 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     }
 
     const ticket = await ShowTicketService(ticketId, companyId);
+
+    // Arrastar um ticket pra uma coluna do Kanban só gravava a tag no
+    // TICKET (TicketTag) — a campanha por tag segmenta pelo CONTATO
+    // (ContactTag), uma relação separada. Sem isso, uma tag usada como
+    // coluna do Kanban nunca tinha contato associado e ficava invisível
+    // pra escolha na campanha, mesmo já "cheia" de tickets no board. Ver
+    // docs/MANUAL_TECNICO.md.
+    if (ticket?.contactId) {
+      await ContactTag.findOrCreate({
+        where: { contactId: ticket.contactId, tagId: Number(tagId) }
+      });
+    }
 
     const io = getIO();
     io.of(String(companyId))

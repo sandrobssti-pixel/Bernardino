@@ -4180,3 +4180,86 @@ mudar o default ali afetaria esses outros lugares sem necessidade.
 - Lint (`eslint`) limpo em `CampaignModal/index.js` (só avisos
   pré-existentes).
 - Não testado ainda em produção — pendente rebuild do frontend.
+
+## 55. Tag do Kanban ainda não aparecia na campanha — 0 contatos associados (v2.3.72)
+
+### Investigação
+
+Depois do fix da seção 54, o cliente ainda não via "Filiados
+Inadimplentes" na campanha. Consulta direta no banco:
+
+```
+ id |         name           | kanban | total_contatos
+----+-------------------------+--------+----------------
+  6 | Filiados Inadimplentes  |      1 |              0
+ 13 | Filiados inadimplentes  |      0 |              0
+```
+
+A tag existe, está corretamente marcada como `kanban=1`, mas tem
+**zero contatos** associados — mesmo já tendo vários tickets na coluna
+do board (confirmado por print da tela: só apareciam na campanha as
+tags que já tinham contato de verdade, como "Atendimento Finalizado
+(10)").
+
+### Causa raiz
+
+Duas relações diferentes no banco:
+
+- **`TicketTag`** (tag ↔ ticket): é o que o Kanban usa. Arrastar um
+  ticket pra uma coluna chama `PUT /ticket-tags/:ticketId/:tagId`
+  (`TicketTagController.store`), que só cria um registro em
+  `TicketTag`.
+- **`ContactTag`** (tag ↔ contato): é o que a campanha usa pra listar
+  tags disponíveis e seus contatos (`TagServices/SimpleListService.ts`,
+  `include: [{ model: Contact, as: "contacts" }]`).
+
+Uma tag do Kanban nunca ganhava um `ContactTag` correspondente — por
+isso, mesmo com tickets nela, `contacts.length` sempre ficava em 0 e a
+tag nunca aparecia disponível pra campanha.
+
+### Correção
+
+`TicketTagController.store` agora, depois de criar o `TicketTag`,
+também garante (`findOrCreate`) o `ContactTag` correspondente (mesmo
+`tagId`, contato do ticket):
+
+```ts
+if (ticket?.contactId) {
+  await ContactTag.findOrCreate({
+    where: { contactId: ticket.contactId, tagId: Number(tagId) }
+  });
+}
+```
+
+Daqui pra frente, toda vez que um ticket é arrastado pra uma coluna do
+Kanban, o contato dele também fica marcado com aquela tag — passando a
+aparecer certinho na campanha.
+
+Por decisão de design, a tag **não é removida** do contato quando o
+ticket sai da coluna (`TicketTagController.remove` não mexe em
+`ContactTag`) — evita perder segmentação de campanha por causa de uma
+mudança de status do atendimento; quem quiser desmarcar o contato faz
+isso manualmente na tela de Contatos.
+
+### Correção retroativa (tickets que já estavam na coluna antes do fix)
+
+Esse fix só vale pra movimentações **novas**. Pra sincronizar o que já
+existe (tickets que já estavam numa coluna do Kanban antes da v2.3.72),
+rodar direto no Postgres:
+
+```sql
+INSERT INTO "ContactTags" ("contactId", "tagId", "createdAt", "updatedAt")
+SELECT DISTINCT t."contactId", tt."tagId", NOW(), NOW()
+FROM "TicketTags" tt
+JOIN "Tickets" t ON t.id = tt."ticketId"
+WHERE NOT EXISTS (
+  SELECT 1 FROM "ContactTags" ct
+  WHERE ct."contactId" = t."contactId" AND ct."tagId" = tt."tagId"
+);
+```
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`TicketTagController.ts`).
+- Não testado ainda em produção — pendente rebuild do backend e rodar
+  a query de correção retroativa.

@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.72] — Tag do Kanban agora marca o contato (não só o ticket) — 2026-09-21
+
+### Corrigido
+- Depois do fix da v2.3.71, a tag do Kanban ainda não aparecia na
+  campanha — investigação no banco mostrou que a tag tinha **0
+  contatos** associados, mesmo com vários tickets na coluna. Causa:
+  arrastar um ticket no Kanban só grava a tag no **ticket**
+  (`TicketTag`); a campanha por tag segmenta pelo **contato**
+  (`ContactTag`) — são relações diferentes no banco. Corrigido:
+  `TicketTagController.store` agora também garante o vínculo
+  tag↔contato (`ContactTag`) sempre que uma tag é aplicada a um ticket
+  pelo Kanban.
+- **Atenção**: isso só vale pra movimentações novas no board — tickets
+  que já estavam numa coluna do Kanban antes desse fix continuam sem o
+  vínculo de contato. Rodar a query de correção retroativa (ver seção
+  55 do manual) resolve os que já existem, sem precisar re-arrastar
+  cada um manualmente.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 55.
+
 ## [2.3.71] — Tags do Kanban agora aparecem na campanha — 2026-09-21
 
 ### Corrigido
