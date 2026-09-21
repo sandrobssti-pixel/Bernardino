@@ -56,7 +56,7 @@ const ContactListSchema = Yup.object().shape({
     .required("Required"),
 });
 
-const ContactListModal = ({ open, onClose, contactListId }) => {
+const ContactListModal = ({ open, onClose, contactListId, onSaved }) => {
   const classes = useStyles();
 
   const initialState = {
@@ -89,12 +89,16 @@ const ContactListModal = ({ open, onClose, contactListId }) => {
   const handleSaveContactList = async (values) => {
     const contactListData = { ...values };
     try {
+      let savedContactList = null;
       if (contactListId) {
-        await api.put(`/contact-lists/${contactListId}`, contactListData);
+        const { data } = await api.put(`/contact-lists/${contactListId}`, contactListData);
+        savedContactList = data;
       } else {
-        await api.post("/contact-lists", contactListData);
+        const { data } = await api.post("/contact-lists", contactListData);
+        savedContactList = data;
       }
       toast.success(i18n.t("contactList.dialog"));
+      onSaved?.(savedContactList);
     } catch (err) {
       toastError(err);
     }

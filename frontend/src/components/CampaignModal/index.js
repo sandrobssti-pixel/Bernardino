@@ -42,7 +42,6 @@ import ConfirmationModal from "../ConfirmationModal";
 import UserStatusIcon from "../UserModal/statusIcon";
 import Autocomplete, { createFilterOptions } from "@material-ui/lab/Autocomplete";
 import useQueues from "../../hooks/useQueues";
-import CampaignRecipientPicker from "../CampaignRecipientPicker";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -847,19 +846,6 @@ useEffect(() => {
                           ))}
                       </Field>
                     </FormControl>
-                    <CampaignRecipientPicker
-                      whatsappId={whatsappId}
-                      disabled={!campaignEditable}
-                      onPicked={(quickListId, quickListName) => {
-                        setContactLists((prev) =>
-                          prev.some((l) => l.id === quickListId)
-                            ? prev
-                            : [...prev, { id: quickListId, name: quickListName }]
-                        );
-                        setFieldValue("contactListId", quickListId);
-                        setFieldValue("tagListId", "");
-                      }}
-                    />
                     </Grid>
                     <Grid xs={12} md={4} item>
                     <FormControl

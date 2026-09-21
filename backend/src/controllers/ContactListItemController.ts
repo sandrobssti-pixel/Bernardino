@@ -8,7 +8,6 @@ import ShowService from "../services/ContactListItemService/ShowService";
 import UpdateService from "../services/ContactListItemService/UpdateService";
 import DeleteService from "../services/ContactListItemService/DeleteService";
 import FindService from "../services/ContactListItemService/FindService";
-import AddGroupService from "../services/ContactListItemService/AddGroupService";
 
 import ContactListItem from "../models/ContactListItem";
 
@@ -64,34 +63,6 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
   const record = await CreateService({
     ...data,
-    companyId
-  });
-
-  const io = getIO();
-  io.of(String(companyId))
-    .emit(`company-${companyId}-ContactListItem`, {
-      action: "create",
-      record
-    });
-
-  return res.status(200).json(record);
-};
-
-export const addGroup = async (
-  req: Request,
-  res: Response
-): Promise<Response> => {
-  const { companyId } = req.user;
-  const { name, number, contactListId } = req.body as {
-    name: string;
-    number: string;
-    contactListId: number;
-  };
-
-  const record = await AddGroupService({
-    name,
-    number,
-    contactListId: Number(contactListId),
     companyId
   });
 

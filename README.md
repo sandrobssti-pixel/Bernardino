@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.73 (Etapa 6.38 — botão "Sincronizar grupos" na tela de Conexões, que busca os grupos direto do WhatsApp e cria o atendimento de cada um, sem depender de mensagem trocada — ver `docs/MANUAL_TECNICO.md`, seção 56)**
+**Versão atual: 2.3.74 (Etapa 6.39 — Lista de Contatos vira o único lugar de onde toda lista nasce (arquivo, grupo — participantes ou os grupos —, ou contato avulso); campanha só escolhe entre listas já prontas — ver `docs/MANUAL_TECNICO.md`, seção 57)**
 
 ## Documentação
 

@@ -4342,3 +4342,120 @@ eles que o cliente apontou.
 - Não testado ainda em produção — pendente rebuild do backend e do
   frontend, habilitar "Permitir grupos" na conexão e rodar a
   sincronização.
+
+## 57. Lista de Contatos vira o único lugar de onde toda lista nasce (v2.3.74)
+
+### Pedido do cliente
+
+"Em campanhas → lista de contatos → criar nova lista, colocar a opção
+importar contatos de grupos, selecionar 1 ou mais grupos ou todos os
+grupos; quando selecionar, mostre carregando os números, no painel de
+gerência dos números tenha opção de adicionar número ou retirar depois
+de montada a lista. Tem mais essa opção de adicionar ou remover algum
+contato. Deixar esse módulo gerenciável, que a partir dele se crie
+todas as listas de contatos — individual, coletivo por listagem em
+arquivo padrão do sistema já implantado, ou por grupos. Depois de
+criadas as listas, na parte 'Nova Campanha' não precisa mais colocar
+grupos ou contatos avulsos, pois essa opção é exclusiva de Lista de
+Contatos — já definidas todas as listas antes."
+
+Confirmado por perguntas de esclarecimento antes de implementar:
+"importar de grupos" cobre os dois modos (participantes OU o grupo em
+si — escolha na hora), e selecionando vários grupos de uma vez o
+resultado é **uma lista só**, sem duplicar quem está em mais de um
+grupo.
+
+### Mudança de arquitetura
+
+Antes desta etapa, existiam **dois** lugares que criavam destinatário
+de campanha:
+
+1. Lista de Contatos (manual, por arquivo) — já existia.
+2. Dentro do formulário de Nova Campanha, o botão "Grupo ou contato
+   avulso" (`CampaignRecipientPicker`, seções 44/49), que criava uma
+   lista "guarda-chuva" reaproveitada (`GetOrCreateQuickListService`)
+   por baixo dos panos.
+
+Agora só existe **um**: Lista de Contatos. A campanha voltou a só
+escolher entre listas já prontas (`contactListId`), sem nenhuma forma
+de criar destinatário "no meio do caminho".
+
+### 1. Menu "Adicionar nova lista" (`ContactLists/index.js`)
+
+O botão virou um `Menu` com 4 opções:
+
+- **Lista vazia** — mesmo fluxo de sempre (`ContactListDialog`, só
+  pede o nome).
+- **Anexar arquivo** — antes exigia 2 passos (criar a lista vazia,
+  depois ir na linha da tabela clicar em "Importar Arquivo"). Agora é
+  1 fluxo guiado: abre o mesmo `ContactListDialog` (pede o nome), e ao
+  salvar (novo callback `onSaved` no `ContactListDialog`, opcional,
+  não quebra quem já usava o componente sem ele), abre automaticamente
+  o `ImportFileContactsModal` apontando pra lista recém-criada.
+- **Importar de grupos** (novo) — abre `ImportGroupContactsModal`.
+- **Contato avulso** (novo) — abre `AddSingleContactListModal`.
+
+### 2. `ImportGroupContactsModal` (novo componente)
+
+Formulário com: nome da lista, `Select` de conexão (`GET /whatsapp`),
+`RadioGroup` "Participantes dos grupos" vs "Os grupos como
+destinatário", lista de checkboxes dos grupos da conexão escolhida
+(reaproveita `GET /whatsapp/:id/groups`, já existente desde a seção
+44) com opção "Selecionar todos". Ao confirmar, chama
+`POST /contact-lists/import-groups` e mostra o resumo (quantos
+importados/repetidos/sem número identificável).
+
+### 3. `AddSingleContactListModal` (novo componente)
+
+Formulário simples: nome da lista + nome do contato (opcional) +
+número. Cria a `ContactList` (`POST /contact-lists`) e o item
+(`POST /contact-list-items`) em sequência — reaproveita as mesmas rotas
+já existentes, só que criando uma lista nova por vez, em vez daquela
+lista guarda-chuva compartilhada de antes.
+
+### 4. Backend — `ImportGroupContactsService.ts` (novo)
+
+Recebe `whatsappId`, `groupIds[]`, `mode` (`"participants"` |
+`"groups"`) e `name`. Sempre cria uma `ContactList` nova primeiro.
+
+- **`mode: "groups"`**: pra cada grupo, busca o nome
+  (`wbot.groupMetadata`) e cria um `ContactListItem` com
+  `isGroup: true` (mesma lógica que já existia no extinto
+  `AddGroupService` — id do grupo tratado como texto, nunca com
+  `replace(/\D/g, "")`, pra não repetir o bug da seção 52 com grupos
+  de id com hífen).
+- **`mode: "participants"`**: pra cada grupo, busca
+  `wbot.groupMetadata(...).participants` e extrai o número de cada
+  um. Participante endereçado por `@lid` (sem número exposto
+  diretamente) tenta resolver via `Contact.lid` já salvo na empresa;
+  se não conseguir, conta como "não identificado" e segue (não
+  quebra a importação). Usa um `Set` pra nunca duplicar o mesmo
+  número entre grupos diferentes selecionados junto.
+- Retorna `{ contactList, totalGroups, imported, duplicates,
+  unresolved }`.
+
+Rota: `POST /contact-lists/import-groups`
+(`ContactListController.importGroups`).
+
+### 5. Removido: seletor de grupo/avulso de dentro da campanha
+
+- `frontend/src/components/CampaignRecipientPicker/` — componente
+  inteiro removido (nenhum outro lugar do código importava mais ele).
+- `CampaignModal/index.js` — removida a renderização e o import do
+  `CampaignRecipientPicker`.
+- Backend: `GetOrCreateQuickListService.ts` e `AddGroupService.ts`
+  removidos, junto das rotas que só existiam pra eles
+  (`GET /contact-lists/quick-list`, `POST /contact-list-items/group`)
+  e das actions correspondentes nos controllers — nenhum consumidor
+  restante depois da remoção do picker.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`ImportGroupContactsService.ts`,
+  `ContactListController.ts`, `ContactListItemController.ts`, rotas).
+- Lint (`eslint`) limpo nos arquivos de frontend alterados/criados
+  (`ContactLists`, `ImportGroupContactsModal`,
+  `AddSingleContactListModal`, `ContactListDialog`, `CampaignModal`) —
+  só os mesmos avisos pré-existentes de sempre, nenhum novo.
+- Não testado ainda em produção — pendente rebuild do backend e do
+  frontend.

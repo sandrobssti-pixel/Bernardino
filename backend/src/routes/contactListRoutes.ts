@@ -10,10 +10,10 @@ const routes = express.Router();
 const upload = multer(uploadConfig);
 
 routes.get("/contact-lists/list", isAuth, ContactListController.findList);
-routes.get("/contact-lists/quick-list", isAuth, ContactListController.getQuickList);
 routes.get("/contact-lists", isAuth, ContactListController.index);
 routes.get("/contact-lists/:id", isAuth, ContactListController.show);
 routes.post("/contact-lists", isAuth, ContactListController.store);
+routes.post("/contact-lists/import-groups", isAuth, ContactListController.importGroups);
 routes.post("/contact-lists/:id/upload",isAuth,upload.array("file"),ContactListController.upload);
 routes.post("/contact-lists/:id/import-system-contacts", isAuth, ContactListController.importSystemContacts);
 routes.post("/contact-lists/:id/revalidate-numbers", isAuth, ContactListController.revalidateNumbers);

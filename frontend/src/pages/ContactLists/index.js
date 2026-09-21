@@ -24,6 +24,10 @@ import DownloadIcon from "@material-ui/icons/GetApp";
 import AddIcon from "@material-ui/icons/Add";
 import PlaylistAddCheckIcon from "@material-ui/icons/PlaylistAddCheck";
 import PublishIcon from "@material-ui/icons/Publish";
+import ArrowDropDownIcon from "@material-ui/icons/ArrowDropDown";
+import GroupIcon from "@material-ui/icons/Group";
+import PersonAddIcon from "@material-ui/icons/PersonAdd";
+import NoteAddIcon from "@material-ui/icons/NoteAdd";
 
 import MainHeader from "../../components/MainHeader";
 
@@ -34,8 +38,10 @@ import ContactListDialog from "../../components/ContactListDialog";
 import ConfirmationModal from "../../components/ConfirmationModal";
 import ImportSystemContactsModal from "../../components/ImportSystemContactsModal";
 import ImportFileContactsModal from "../../components/ImportFileContactsModal";
+import ImportGroupContactsModal from "../../components/ImportGroupContactsModal";
+import AddSingleContactListModal from "../../components/AddSingleContactListModal";
 import toastError from "../../errors/toastError";
-import { Grid } from "@material-ui/core";
+import { Grid, Menu, MenuItem, ListItemIcon, ListItemText } from "@material-ui/core";
 
 import planilhaExemplo from "../../assets/planilha.xlsx";
 import { AuthContext } from "../../context/Auth/AuthContext";
@@ -226,6 +232,10 @@ const ContactLists = () => {
   const [importTargetContactList, setImportTargetContactList] = useState(null);
   const [importFileModalOpen, setImportFileModalOpen] = useState(false);
   const [importFileTargetContactList, setImportFileTargetContactList] = useState(null);
+  const [addMenuAnchorEl, setAddMenuAnchorEl] = useState(null);
+  const [contactListModalPendingAction, setContactListModalPendingAction] = useState(null);
+  const [importGroupModalOpen, setImportGroupModalOpen] = useState(false);
+  const [addSingleContactModalOpen, setAddSingleContactModalOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [searchParam, setSearchParam] = useState("");
   const [contactLists, dispatch] = useReducer(reducer, []);
@@ -350,6 +360,56 @@ const ContactLists = () => {
     history.push(`/contact-lists/${id}/contacts`);
   };
 
+  // Menu de "Adicionar nova lista" — reúne, num só lugar, todos os jeitos
+  // de criar uma lista (manual, por arquivo, por grupo, avulsa). É o único
+  // ponto de entrada pra criar listas; a campanha só escolhe entre listas
+  // já prontas (ver docs/MANUAL_TECNICO.md).
+  const handleOpenAddMenu = (event) => setAddMenuAnchorEl(event.currentTarget);
+  const handleCloseAddMenu = () => setAddMenuAnchorEl(null);
+
+  const handlePickEmptyList = () => {
+    handleCloseAddMenu();
+    setContactListModalPendingAction(null);
+    handleOpenContactListModal();
+  };
+
+  const handlePickImportFile = () => {
+    handleCloseAddMenu();
+    setContactListModalPendingAction("import-file");
+    handleOpenContactListModal();
+  };
+
+  const handlePickImportGroups = () => {
+    handleCloseAddMenu();
+    setImportGroupModalOpen(true);
+  };
+
+  const handlePickAddSingleContact = () => {
+    handleCloseAddMenu();
+    setAddSingleContactModalOpen(true);
+  };
+
+  // Callback do ContactListDialog: quando a lista acabou de nascer pelo
+  // caminho "Anexar arquivo" do menu, já abre a importação em seguida, sem
+  // precisar o usuário ir até a linha da tabela pra achar o botão.
+  const handleContactListSaved = (savedContactList) => {
+    if (contactListModalPendingAction === "import-file" && savedContactList?.id) {
+      setImportFileTargetContactList(savedContactList);
+      setImportFileModalOpen(true);
+    }
+    setContactListModalPendingAction(null);
+  };
+
+  const handleGroupsImported = (contactList) => {
+    setImportGroupModalOpen(false);
+    if (contactList?.id) goToContacts(contactList.id);
+  };
+
+  const handleSingleContactCreated = (contactList) => {
+    setAddSingleContactModalOpen(false);
+    if (contactList?.id) goToContacts(contactList.id);
+  };
+
   return (
     <div className={classes.pageRoot}>
       <ConfirmationModal
@@ -366,6 +426,7 @@ const ContactLists = () => {
       <ContactListDialog
         open={contactListModalOpen}
         onClose={handleCloseContactListModal}
+        onSaved={handleContactListSaved}
         aria-labelledby="form-dialog-title"
         contactListId={selectedContactList && selectedContactList.id}
       />
@@ -378,6 +439,16 @@ const ContactLists = () => {
         open={importFileModalOpen}
         onClose={handleCloseImportFileModal}
         contactList={importFileTargetContactList}
+      />
+      <ImportGroupContactsModal
+        open={importGroupModalOpen}
+        onClose={() => setImportGroupModalOpen(false)}
+        onImported={handleGroupsImported}
+      />
+      <AddSingleContactListModal
+        open={addSingleContactModalOpen}
+        onClose={() => setAddSingleContactModalOpen(false)}
+        onCreated={handleSingleContactCreated}
       />
 
       <MainHeader>
@@ -409,12 +480,55 @@ const ContactLists = () => {
                     fullWidth
                     variant="contained"
                     color="primary"
-                    onClick={handleOpenContactListModal}
+                    onClick={handleOpenAddMenu}
                     className={classes.actionButton}
                     startIcon={<AddIcon style={{ fontSize: 16 }} />}
+                    endIcon={<ArrowDropDownIcon />}
                   >
                     {i18n.t("contactLists.buttons.add")}
                   </Button>
+                  <Menu
+                    anchorEl={addMenuAnchorEl}
+                    open={Boolean(addMenuAnchorEl)}
+                    onClose={handleCloseAddMenu}
+                  >
+                    <MenuItem onClick={handlePickEmptyList}>
+                      <ListItemIcon>
+                        <AddIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Lista vazia"
+                        secondary="Cria a lista e você adiciona os contatos manualmente"
+                      />
+                    </MenuItem>
+                    <MenuItem onClick={handlePickImportFile}>
+                      <ListItemIcon>
+                        <NoteAddIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Anexar arquivo"
+                        secondary="Importa uma planilha (.xlsx/.csv)"
+                      />
+                    </MenuItem>
+                    <MenuItem onClick={handlePickImportGroups}>
+                      <ListItemIcon>
+                        <GroupIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Importar de grupos"
+                        secondary="Participantes ou os próprios grupos como destinatário"
+                      />
+                    </MenuItem>
+                    <MenuItem onClick={handlePickAddSingleContact}>
+                      <ListItemIcon>
+                        <PersonAddIcon fontSize="small" />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Contato avulso"
+                        secondary="Um único número, pra campanha individual"
+                      />
+                    </MenuItem>
+                  </Menu>
                 </Grid>
               </Grid>
             </Paper>

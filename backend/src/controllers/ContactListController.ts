@@ -15,8 +15,8 @@ import ContactList from "../models/ContactList";
 import AppError from "../errors/AppError";
 import { ImportContacts } from "../services/ContactListService/ImportContacts";
 import ImportSystemContactsService from "../services/ContactListService/ImportSystemContactsService";
-import GetOrCreateQuickListService from "../services/ContactListService/GetOrCreateQuickListService";
 import RevalidateNumbersService from "../services/ContactListItemService/RevalidateNumbersService";
+import ImportGroupContactsService from "../services/ContactListService/ImportGroupContactsService";
 
 type IndexQuery = {
   searchParam: string;
@@ -46,15 +46,6 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
   return res.json({ records, count, hasMore });
 };
 
-export const getQuickList = async (
-  req: Request,
-  res: Response
-): Promise<Response> => {
-  const { companyId } = req.user;
-  const list = await GetOrCreateQuickListService(companyId);
-  return res.status(200).json(list);
-};
-
 export const store = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
   const data = req.body as StoreData;
@@ -82,6 +73,36 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     });
 
   return res.status(200).json(record);
+};
+
+export const importGroups = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { companyId } = req.user;
+  const { whatsappId, groupIds, mode, name } = req.body as {
+    whatsappId: string | number;
+    groupIds: string[];
+    mode: "participants" | "groups";
+    name: string;
+  };
+
+  const result = await ImportGroupContactsService({
+    whatsappId,
+    companyId,
+    groupIds,
+    mode,
+    name
+  });
+
+  const io = getIO();
+  io.of(String(companyId))
+    .emit(`company-${companyId}-ContactList`, {
+      action: "create",
+      record: result.contactList
+    });
+
+  return res.status(200).json(result);
 };
 
 export const show = async (req: Request, res: Response): Promise<Response> => {

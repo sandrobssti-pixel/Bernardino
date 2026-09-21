@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.74] — Lista de Contatos vira o único lugar de onde toda lista nasce — 2026-09-21
+
+### Adicionado
+- Botão "Adicionar nova lista" (Lista de Contatos) virou um menu com 4
+  opções: **Lista vazia** (como já era), **Anexar arquivo** (agora já
+  pede o nome e abre a importação em seguida, num fluxo só), **Importar
+  de grupos** (novo) e **Contato avulso** (novo, movido de dentro da
+  campanha pra cá).
+- **Importar de grupos**: escolhe a conexão, escolhe 1+ grupos (ou
+  "selecionar todos"), e escolhe o que importar — os **participantes**
+  de dentro dos grupos (cada membro vira um contato individual, sem
+  duplicar quem está em mais de um grupo selecionado) ou os **próprios
+  grupos** como destinatário (cada grupo escolhido vira 1 item "grupo"
+  na lista). Tudo cai numa lista só, nomeada pelo usuário.
+- **Contato avulso**: cria uma lista com um único número, sem precisar
+  de arquivo nem grupo.
+
+### Removido
+- O seletor "Grupo ou contato avulso" que existia dentro do formulário
+  de Nova Campanha (`CampaignRecipientPicker`) — essa escolha agora só
+  existe em Lista de Contatos; a campanha volta a só escolher entre
+  listas já prontas no campo "Lista de Contato". Componente e os
+  endpoints exclusivos dele (`/contact-lists/quick-list`,
+  `/contact-list-items/group`) removidos por não terem mais nenhum uso.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 57.
+
 ## [2.3.73] — Botão "Sincronizar grupos" na tela de Conexões — 2026-09-21
 
 ### Adicionado
