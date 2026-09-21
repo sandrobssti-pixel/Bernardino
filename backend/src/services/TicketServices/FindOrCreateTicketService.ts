@@ -354,7 +354,9 @@ const FindOrCreateTicketService = async (
       }
 
       await ticket.update({
-        status: "pending",
+        // Mesma regra: ticket de grupo nunca reabre como "pending" (ver
+        // docs/MANUAL_TECNICO.md).
+        status: ticket.isGroup || groupContact ? "group" : "pending",
         unreadMessages,
         isBot: groupContact ? false : true,
         contactId: groupContact ? groupContact.id : contact.id,

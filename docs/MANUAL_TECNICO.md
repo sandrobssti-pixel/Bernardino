@@ -4770,3 +4770,58 @@ mandou a mensagem.
 - Pendente: reteste do cliente — fechar um ticket de grupo, mandar uma
   mensagem nova nele (de qualquer participante) e confirmar que ele
   volta pra aba Grupos, não pra Aguardando.
+
+## 63. Continuação da seção 62: mais 3 pontos do backend forçavam "pending" num ticket de grupo (v2.3.80)
+
+### Relato do cliente
+
+Mesmo depois da correção da seção 62, o cliente testou de novo e o
+ticket de grupo caiu na aba Atendendo, exigindo selecionar uma fila
+pra aceitar — confirmado que a conexão usada tinha "Tratar grupos como
+ticket" **desabilitada** (comportamento padrão, então não é isso).
+Pediu: grupo é só pra mandar mensagem, responder e disparo em massa,
+ficando sempre no módulo Grupos, sem NENHUMA troca de status, pra
+qualquer usuário habilitado a responder grupos.
+
+### Causa raiz
+
+A seção 62 corrigiu 4 pontos, mas existia outro handler de mensagem
+inteiramente separado (usado no fluxo principal atual de recebimento
+de mensagem) com a mesma lógica de reabrir ticket fechado, também sem
+checar grupo:
+
+- `wbotMessageListener.ts`: bloco
+  `if (ticket.status === "closed" && !msg.key.fromMe) { ... status:
+  "pending" ... }`, dentro do handler principal de mensagem recebida
+  (`reopenedFromClosed`) — esse é o caminho realmente percorrido pela
+  conexão testada, diferente dos 3 já corrigidos na seção 62.
+
+Além dele, mais dois pontos "de segurança" (menos prováveis de bater,
+mas na mesma categoria) também foram corrigidos preventivamente:
+
+- `FindOrCreateTicketService.ts`: bloco de fallback quando dois
+  processos tentam criar o mesmo ticket ao mesmo tempo (conflito de
+  chave única lid/jid) também forçava `"pending"`.
+- `UpdateTicketService.ts`: a regra "transferência sem atendente
+  definido → força pending" (`isTransfered && !userId`) também não
+  checava grupo — usada tanto por transferência manual quanto por
+  fluxos de chatbot/flowbuilder que transferem pra fila.
+
+### Correção
+
+Mesma regra nos 3 pontos: o status de reabertura/transferência passa
+a depender de `ticket.isGroup` (buscado do banco quando o objeto
+`ticket` ainda não estava carregado no escopo, como no
+`UpdateTicketService`), nunca mais `"pending"` fixo.
+
+Com os 4 pontos da seção 62 somados a esses 3, todos os lugares do
+backend que reabrem/transferem um ticket já existente respeitam
+`isGroup` — grupo nunca mais deveria "vazar" pra Aguardando/Atendendo,
+não importa por qual caminho a mensagem chegou.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- Pendente: reteste do cliente no cenário exato que falhou (grupo com
+  ticket fechado recebendo mensagem de um participante) confirmando
+  que fica só na aba Grupos, sem pedir fila.

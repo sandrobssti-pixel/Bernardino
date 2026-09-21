@@ -4149,7 +4149,9 @@ export const transferQueue = async (
     ticketData: {
       isTransfered: true,        // <- aciona a lógica de transferência
       queueId: targetQueueId,    // <- fila de destino
-      status: "pending",         // <- **** AQUI !!!! (Aguardando)
+      // Ticket de grupo nunca vira "pending" (aba Aguardando), nem numa
+      // transferência de fluxo/chatbot para fila (ver docs/MANUAL_TECNICO.md).
+      status: ticket.isGroup ? "group" : "pending", // <- **** AQUI !!!! (Aguardando)
       userId: null,              // <- libera para qualquer atendente pegar
       msgTransfer: msgTransfer ?? 
         `Transferindo você para um de nossos atendentes humanos.`
@@ -5284,8 +5286,11 @@ const handleMessage = async (
     let reopenedFromClosed = false;
     if (ticket.status === "closed" && !msg.key.fromMe) {
       reopenedFromClosed = true;
+      // Mesma regra: ticket de grupo nunca reabre como "pending" (aba
+      // Aguardando) — sempre volta como "group" (ver
+      // docs/MANUAL_TECNICO.md).
       await ticket.update({
-        status: "pending",
+        status: ticket.isGroup ? "group" : "pending",
         unreadMessages,
         isBot: true,
         queueId: null,

@@ -217,7 +217,13 @@ const UpdateTicketService = async ({
     // Isso cobre inclusive chamadas onde alguém ainda mande "open" por engano.
     if (isTransfered && (userId === null || userId === undefined)) {
       if (!status || status === "open") {
-        status = "pending";
+        // Ticket de grupo nunca vira "pending" (aba Aguardando), nem
+        // nessa regra de transferência sem atendente definido (ver
+        // docs/MANUAL_TECNICO.md).
+        const transferTargetTicket = await Ticket.findByPk(ticketId, {
+          attributes: ["isGroup"]
+        });
+        status = transferTargetTicket?.isGroup ? "group" : "pending";
       }
     }
 

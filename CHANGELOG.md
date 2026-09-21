@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.80] — Mais 3 pontos corrigidos: grupo ainda vazava pra Aguardando/Atendendo — 2026-09-21
+
+### Corrigido
+- Mesmo depois da v2.3.79, o cliente testou de novo (conexão com
+  "Tratar grupos como ticket" confirmadamente desabilitada) e o ticket
+  de grupo continuou caindo em "Atendendo", pedindo pra selecionar uma
+  fila. Achado o caminho real: um handler de mensagem separado (o
+  usado de fato pela conexão testada) tinha a mesma lógica de reabrir
+  ticket fechado como `"pending"` sem checar `isGroup`.
+- Corrigido esse ponto e mais dois preventivamente, na mesma
+  categoria: o fallback de conflito de criação simultânea de ticket
+  (`FindOrCreateTicketService`) e a regra de transferência sem
+  atendente definido (`UpdateTicketService`, usada por transferência
+  manual e por fluxos de chatbot/flowbuilder).
+- Com isso, todo ponto do backend que reabre ou transfere um ticket já
+  existente agora respeita `ticket.isGroup` — grupo só usa mensagens,
+  respostas e disparo em massa, sempre na aba Grupos, sem nenhuma
+  troca de status, pra qualquer usuário habilitado a responder grupos.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 63.
+
 ## [2.3.79] — Bug real: ticket de grupo voltava pra "Aguardando" ao responder — 2026-09-21
 
 ### Corrigido
