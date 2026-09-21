@@ -297,7 +297,13 @@ const NotificationsPopOver = ({ volume, notificationSound, notificationMuted, no
 
 	useEffect(() => {
 		const processNotifications = () => {
-			const merged = [...tickets, ...pendingTickets].filter(canAccessTicket);
+			// Grupo nunca entra em Mensagens/Alertas do sino — nem existente
+			// nem novo, independente de qualquer configuração de som/aviso
+			// (que só controla notificação sonora/desktop, não essa lista;
+			// ver docs/MANUAL_TECNICO.md).
+			const merged = [...tickets, ...pendingTickets]
+				.filter(ticket => !ticket.isGroup)
+				.filter(canAccessTicket);
 			const deduped = merged.filter(
 				(ticket, index) => merged.findIndex(t => t.id === ticket.id) === index
 			);
@@ -365,11 +371,15 @@ const NotificationsPopOver = ({ volume, notificationSound, notificationMuted, no
 				// ) {
 				// 
 				
+					// Grupo (existente ou novo) nunca entra em Mensagens/Alertas do
+					// sino, nem toca som, nem gera aviso — independente de
+					// "showGroupNotification" ou qualquer outra configuração (ver
+					// docs/MANUAL_TECNICO.md).
 					if (
 						data.action === "create" && !data.message.fromMe &&
 						canAccessTicket(data.ticket) &&
-						(!["lgpd", "nps", "group"].includes(data.ticket?.status) ||
-							(data.ticket?.status === "group" && showGroupNotification === true))
+						!data.ticket?.isGroup &&
+						!["lgpd", "nps", "group"].includes(data.ticket?.status)
 					) {
 					const isGroupMuted = data.ticket.isGroup && notificationGroupMuted;
 

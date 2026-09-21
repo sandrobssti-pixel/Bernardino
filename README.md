@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.80 (Etapa 6.45 — mais 3 pontos do backend corrigidos pra ticket de grupo nunca virar "Aguardando"/"Atendendo" — inclusive o handler principal de mensagem recebida, que era o caminho real batido no teste do cliente — ver `docs/MANUAL_TECNICO.md`, seção 63)**
+**Versão atual: 2.3.81 (Etapa 6.46 — corrigido bug real: mensagem de grupo aparecia no sino "Mensagens e Alertas" — agora grupo nunca entra nessa lista, sem depender de nenhuma configuração — ver `docs/MANUAL_TECNICO.md`, seção 64)**
 
 ## Documentação
 

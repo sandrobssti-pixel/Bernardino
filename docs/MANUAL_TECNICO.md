@@ -4825,3 +4825,53 @@ não importa por qual caminho a mensagem chegou.
 - Pendente: reteste do cliente no cenário exato que falhou (grupo com
   ticket fechado recebendo mensagem de um participante) confirmando
   que fica só na aba Grupos, sem pedir fila.
+
+## 64. Bug real: mensagem de grupo aparecia no sino "Mensagens e Alertas" (v2.3.81)
+
+### Relato do cliente
+
+"Quando recebe mensagens de grupo não é pra ficar registrado em
+Mensagens e Alertas — nenhum grupo, os existentes ou os novos que por
+ventura façam parte, não se deve ficar registrado no campo mensagens e
+alertas."
+
+### Causa raiz
+
+O sino de notificações (`NotificationsPopOver/index.js`) monta a lista
+que aparece nas abas "Mensagens" (ícone de chat) e "Alertas" (ícone de
+sino) a partir de um único estado (`notifications`), preenchido de
+duas formas:
+
+- Na carga inicial/atualização periódica: `[...tickets,
+  ...pendingTickets].filter(canAccessTicket)` — os hooks `useTickets`
+  que alimentam `tickets`/`pendingTickets` não excluíam ticket de
+  grupo.
+- Em tempo real, via socket (`onCompanyAppMessageNotificationsPopover`):
+  a condição só bloqueava grupo quando `showGroupNotification` (um
+  estado que já nasce `false`, mas é alterável) estivesse desligado —
+  ou seja, dependia de uma configuração, não era uma regra fixa.
+
+### Correção
+
+Os dois pontos passaram a excluir `ticket.isGroup` de forma
+incondicional, sem depender de nenhuma configuração:
+
+- `[...tickets, ...pendingTickets].filter(ticket =>
+  !ticket.isGroup).filter(canAccessTicket)` na montagem inicial.
+- A condição do socket ganhou `!data.ticket?.isGroup` obrigatório —
+  removida a exceção que deixava passar quando
+  `showGroupNotification === true`. Como consequência, mensagem de
+  grupo também não toca mais som nem gera notificação de
+  desktop por esse caminho (o handler inteiro passa a ignorar
+  mensagens de grupo).
+
+Grupo continua tendo sua própria notificação/contador dentro do módulo
+Grupos (isso não foi tocado) — só deixou de aparecer no sino geral de
+Mensagens/Alertas, que é compartilhado com o atendimento normal.
+
+### Testado
+
+- `eslint` limpo em `NotificationsPopOver/index.js` (só os mesmos
+  avisos pré-existentes de sempre).
+- Pendente: reteste do cliente — grupo (existente e um novo) recebendo
+  mensagem, confirmando que nada aparece no sino Mensagens/Alertas.

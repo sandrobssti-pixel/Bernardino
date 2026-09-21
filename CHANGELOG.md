@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.81] — Bug real: mensagem de grupo aparecia no sino Mensagens/Alertas — 2026-09-21
+
+### Corrigido
+- Mensagem de grupo estava aparecendo nas abas "Mensagens" e "Alertas"
+  do sino de notificações (`NotificationsPopOver`), tanto na carga
+  inicial (hooks `useTickets` sem excluir `isGroup`) quanto em tempo
+  real via socket (condição só bloqueava grupo quando a configuração
+  `showGroupNotification` estivesse desligada, em vez de ser uma regra
+  fixa).
+- Corrigido nos dois pontos: grupo agora é excluído incondicionalmente
+  dessa lista, sem depender de nenhuma configuração — nem existente
+  nem novo grupo aparece em Mensagens/Alertas, e mensagem de grupo
+  também não toca mais som por esse caminho.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 64.
+
 ## [2.3.80] — Mais 3 pontos corrigidos: grupo ainda vazava pra Aguardando/Atendendo — 2026-09-21
 
 ### Corrigido
