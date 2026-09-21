@@ -898,7 +898,20 @@ const Campaigns = () => {
                             : "Não concluída"}
                         </TableCell>
                         <TableCell align="center" className={classes.tableCellText}>
-                          {campaign.confirmation ? "Habilitada" : "Desabilitada"}
+                          <Tooltip
+                            title={campaign.confirmation ? "Confirmação de envio habilitada" : "Confirmação de envio desabilitada"}
+                            arrow
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 12,
+                                height: 12,
+                                borderRadius: "50%",
+                                backgroundColor: campaign.confirmation ? "#22c55e" : "#ef4444"
+                              }}
+                            />
+                          </Tooltip>
                         </TableCell>
                         <TableCell align="center" className={classes.actionCell}>
                           <div className={classes.actionsCell}>
