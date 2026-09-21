@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.81 (Etapa 6.46 — corrigido bug real: mensagem de grupo aparecia no sino "Mensagens e Alertas" — agora grupo nunca entra nessa lista, sem depender de nenhuma configuração — ver `docs/MANUAL_TECNICO.md`, seção 64)**
+**Versão atual: 2.3.82 (Etapa 6.47 — campanha "Renovação 2026" mandou mensagem pra contato sem relação (tag errada selecionada); adicionada tela de confirmação obrigatória mostrando o público exato antes de criar/salvar qualquer campanha — ver `docs/MANUAL_TECNICO.md`, seção 65)**
 
 ## Documentação
 

@@ -4875,3 +4875,85 @@ Mensagens/Alertas, que é compartilhado com o atendimento normal.
   avisos pré-existentes de sempre).
 - Pendente: reteste do cliente — grupo (existente e um novo) recebendo
   mensagem, confirmando que nada aparece no sino Mensagens/Alertas.
+
+## 65. Bug grave: campanha "Renovação 2026" mandou mensagem pra contato sem relação (v2.3.82)
+
+### Relato do cliente
+
+"Mandei uma campanha de disparos para lista de contato de arquivo e
+foi para um número que não faz parte: Tereza Cristina Py, +59 (59)
+9327-3303, tereza@gmail.com."
+
+### Investigação
+
+A campanha "Renovação 2026" foi consultada no banco: o nome da lista
+de contatos auto-gerada era "Renovacao 2026 | TAG: 7 - ...", ou seja,
+foi criada com `tagListId = 7` (a lógica de `CampaignController.store`
+que cria uma lista a partir de uma tag, ver seção 58), não com a lista
+de arquivo de 96 registros que o cliente pretendia usar.
+
+A tag id=7 é **"Atendimento Pendente"** — uma tag genérica, sem
+nenhuma relação com "Renovação 2026". "Tereza Cristina Py" (contato
+id=8771) está marcada com essa tag (provavelmente por ter tido um
+ticket pendente em algum momento), e foi assim que ela entrou na lista
+de destinatários sem ter nada a ver com a campanha de renovação.
+
+O código da correção anterior (v2.3.75 — Lista de Contato e Tag
+mutuamente exclusivas, seção 58) foi revisado e está funcionando
+corretamente: escolher a Lista de Contato limpa a Tag automaticamente,
+nos dois campos. `tagListId` também não é uma coluna persistida no
+model `Campaign` (só existe no momento da criação), então não haveria
+como uma tag "vazar" de uma edição ou duplicação de campanha antiga —
+o valor só pode vir de uma seleção feita no próprio formulário no
+momento da criação. Ou seja: **não foi encontrado um bug de código
+reincidente** aqui — o cenário mais provável é a tag ter ficado
+selecionada no formulário sem o cliente perceber, com a Lista de
+Contato nunca tendo sido de fato escolhida.
+
+### Correção: confirmação antes de enviar
+
+Como o risco (mensagem pro destinatário errado) é alto e o erro é
+silencioso — nada na tela avisa qual vai ser o público final antes de
+enviar —, foi adicionada uma tela de confirmação obrigatória antes de
+criar ou atualizar qualquer campanha, mostrando exatamente pra quem
+vai a mensagem:
+
+> "Essa campanha vai enviar mensagens para: Lista de Contato
+> "<nome>" (X contatos). Confirma?"
+>
+> ou: "Essa campanha vai enviar mensagens para: Tag "<nome>". Confirma?"
+
+- `frontend/src/components/CampaignModal/index.js`: `handleSaveCampaign`
+  agora só faz a validação e monta esse resumo (`getRecipientSummary`),
+  abrindo um `ConfirmationModal` (o mesmo componente já usado pra
+  confirmar exclusão de mídia) em vez de salvar direto. O salvamento em
+  si (POST/PUT + upload de anexo) virou uma função separada
+  (`performSaveCampaign`), chamada só depois que o usuário confirma no
+  modal.
+- `backend/src/services/ContactListService/FindService.ts` (usado por
+  `GET /contact-lists/list`, o combo "Lista de Contato" da campanha):
+  passou a devolver `contactsCount` (contagem via subquery em
+  `ContactListItems`) junto de cada lista, pra alimentar a quantidade
+  mostrada nesse resumo. A tag já trazia a contagem embutida no nome
+  desde a v2.3.71 (`"<nome> (<contatos>)"`).
+
+Esse resumo funciona como uma última checagem visual — mesmo que o
+usuário tenha selecionado a lista/tag errada sem perceber, ele vê
+exatamente pra quem vai antes de confirmar, e ainda tem a chance de
+cancelar.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- `eslint` limpo em `CampaignModal/index.js` (só os mesmos avisos
+  pré-existentes de sempre).
+- Pendente: reteste do cliente — criar uma campanha e confirmar que a
+  tela de confirmação aparece com o resumo certo antes de salvar.
+
+### Backfill retroativo aplicado
+
+A tag "Filiados Inadimplentes" (id=6, coluna do Kanban) tinha voltado
+a ficar com 0 contatos em `ContactTags` (mesmo bug da seção 61, dessa
+vez porque a v2.3.78 ainda não tinha sido implantada quando o problema
+aconteceu de novo). Rodado o mesmo backfill retroativo da seção 55 a
+partir de `TicketTags`, recuperando as associações.

@@ -340,6 +340,8 @@ useEffect(() => {
 
   const [contactLists, setContactLists] = useState([]);
   const [tagLists, setTagLists] = useState([]);
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [pendingSaveValues, setPendingSaveValues] = useState(null);
   const [messageTab, setMessageTab] = useState(0);
   const [attachment, setAttachment] = useState(null);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
@@ -558,6 +560,37 @@ useEffect(() => {
         return;
       }
 
+      // Antes de criar/salvar de fato, mostra um resumo do destinatário
+      // escolhido (lista ou tag + quantidade) pra confirmar — evita repetir
+      // o erro de mandar campanha pra lista/tag errada sem perceber (ver
+      // docs/MANUAL_TECNICO.md).
+      setPendingSaveValues(values);
+      setConfirmSendOpen(true);
+    } catch (err) {
+      console.log(err);
+      toastError(err);
+    }
+  };
+
+  const getRecipientSummary = (values) => {
+    if (values?.contactListId) {
+      const list = contactLists.find(
+        (l) => String(l.id) === String(values.contactListId)
+      );
+      if (list) {
+        const count = list.contactsCount ?? list.contacts?.length ?? "?";
+        return `Lista de Contato "${list.name}" (${count} contato${count === 1 ? "" : "s"})`;
+      }
+    }
+    if (values?.tagListId) {
+      const tag = tagLists.find((t) => String(t.id) === String(values.tagListId));
+      if (tag) return `Tag "${tag.name}"`;
+    }
+    return "nenhum destinatário selecionado";
+  };
+
+  const performSaveCampaign = async (values) => {
+    try {
       const dataValues = {
         ...values,  // Merge the existing values object
         userId: selectedUser?.id ?? values.userId ?? null,
@@ -615,6 +648,14 @@ useEffect(() => {
       console.log(err);
       toastError(err);
     }
+  };
+
+  const handleConfirmSend = () => {
+    setConfirmSendOpen(false);
+    if (pendingSaveValues) {
+      performSaveCampaign(pendingSaveValues);
+    }
+    setPendingSaveValues(null);
   };
 
   const deleteMedia = async () => {
@@ -698,6 +739,19 @@ useEffect(() => {
         onConfirm={deleteMedia}
       >
         {i18n.t("campaigns.confirmationModal.deleteMessage")}
+      </ConfirmationModal>
+      <ConfirmationModal
+        title="Confirmar envio da campanha"
+        open={confirmSendOpen}
+        onClose={() => {
+          setConfirmSendOpen(false);
+          setPendingSaveValues(null);
+        }}
+        onConfirm={handleConfirmSend}
+      >
+        {`Essa campanha vai enviar mensagens para: ${getRecipientSummary(
+          pendingSaveValues
+        )}. Confirma?`}
       </ConfirmationModal>
       <Dialog
         open={open}

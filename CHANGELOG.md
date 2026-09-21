@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.82] — Confirmação obrigatória antes de enviar campanha — 2026-09-21
+
+### Corrigido / Adicionado
+- Campanha "Renovação 2026" mandou mensagem pra "Tereza Cristina Py",
+  contato sem nenhuma relação com a lista pretendida. Investigado: a
+  campanha foi criada com a tag "Atendimento Pendente" selecionada
+  (tag genérica, id=7), não com a lista de arquivo de 96 registros —
+  o código da correção de mútua exclusão Lista/Tag (v2.3.75) foi
+  revisado e está funcionando corretamente; o cenário mais provável é
+  a tag ter ficado selecionada sem o cliente perceber.
+- Como o erro é silencioso (nada avisa o público final antes de
+  enviar), adicionada uma tela de confirmação obrigatória antes de
+  criar/salvar qualquer campanha, mostrando exatamente o destinatário
+  ("Lista de Contato "X" (Y contatos)" ou "Tag "X"") antes de
+  confirmar. `GET /contact-lists/list` agora também devolve a
+  quantidade de contatos de cada lista para alimentar esse resumo.
+- Backfill retroativo aplicado de novo na tag "Filiados Inadimplentes"
+  (tinha voltado a 0 contatos — mesmo bug da seção 61, dessa vez por
+  falta de deploy da v2.3.78 no momento em que aconteceu).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 65.
+
 ## [2.3.81] — Bug real: mensagem de grupo aparecia no sino Mensagens/Alertas — 2026-09-21
 
 ### Corrigido
