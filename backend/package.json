@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "2.3.62",
+  "version": "2.3.63",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -65,6 +65,7 @@
     "ioredis": "^5.3.0",
     "jimp": "^1.6.1",
     "jsonwebtoken": "^8.5.1",
+    "libphonenumber-js": "^1.13.13",
     "link-preview-js": "^3.0.5",
     "mercadopago": "^2.0.15",
     "microsoft-cognitiveservices-speech-sdk": "1.31.0",

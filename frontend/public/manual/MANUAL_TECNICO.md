@@ -3507,3 +3507,90 @@ do deploy.
   TypeScript alterado).
 - Não testado ainda em produção — pendente rebuildar a imagem do
   backend (mudança no Dockerfile) e recriar o container.
+
+## 46. Bug real: campanha "entregue" mas mensagem não chegava — número sem o 9º dígito (v2.3.63)
+
+### Sintoma
+
+Cliente testou uma campanha real ("filiacao") pra 3 contatos: o sistema
+marcou os 3 como entregues (`deliveredAt` preenchido no
+`CampaignShipping`), mas testando manualmente com o número
+`5571988789015`, a mensagem **não chegou**. Depois relatou: "teve alguns
+que chegaram" — comportamento inconsistente, sem padrão aparente.
+
+### Diagnóstico
+
+Conferindo o banco direto: dois dos três contatos da lista
+(`ContactListItems`) estavam salvos com o número `557188789015` — **12
+dígitos**, faltando o 9º dígito do celular (o certo seria
+`5571988789015`, 13 dígitos). Mesmo assim, `isWhatsappValid` estava
+`true` pra esses dois.
+
+Causa: `CheckContactNumber` (`backend/src/services/WbotServices/
+CheckNumber.ts`), usado tanto na hora de criar um contato quanto de
+importar uma planilha, monta uma lista de "candidatos" (variações do
+número) e testa cada um contra o WhatsApp (`wbot.onWhatsApp(jid)`) até
+achar um que exista, gravando esse como o número final do contato. Pra
+um número brasileiro de 12 dígitos (sem o 9), a ordem antiga testava
+**primeiro a forma incompleta** e só depois a completa (com o 9). Como
+o WhatsApp às vezes retorna `exists=true` pra essa forma incompleta por
+tolerância do próprio servidor (sem necessariamente resolver pro mesmo
+número real do destinatário), o contato ficava salvo com o número
+errado — "válido" pro sistema, mas sem entrega real garantida.
+
+### Correção
+
+`CheckNumber.ts`: a forma **completa** (13 dígitos, com o 9) agora é
+sempre testada **antes** da incompleta — nunca o contrário:
+
+```ts
+if (digits.startsWith("55") && digits.length === 12) {
+  push(addBrVariant(digits)); // -> 13 dígitos (com o 9) — tenta primeiro
+  push(digits);                // -> 12 dígitos original — só de reserva
+} else if (digits.startsWith("55") && digits.length === 13) {
+  push(digits);                 // -> já está certo, tenta como veio
+  push(addBrVariant(digits));  // -> 12 dígitos — só de reserva
+}
+```
+
+**Importante**: essa correção vale só pra contatos criados/importados
+**depois** dela — os dois contatos já salvos com o número errado
+(`557188789015`) continuam errados no banco e precisam ser corrigidos
+manualmente (editar o número certo, ou apagar e reimportar).
+
+### Melhorado no mesmo pacote: reconhecimento de números de outros países
+
+Pedido do cliente: "tem que ter reconhecimento de DDD do país de
+origem pois 100% dos contatos são de whatsApp mesmo fora do país."
+
+`backend/src/utils/normalizeCampaignContactNumber.ts` passou a usar a
+biblioteca **`libphonenumber-js`** (dados oficiais de numeração de
+qualquer país), em vez de só contar dígitos (12-14):
+
+- Número com `+` na frente (ex.: `+595986283937`, Paraguai) é validado
+  pelas regras reais daquele país.
+- Número sem `+` continua assumindo Brasil por padrão (comportamento
+  já existente, mantido — é a imensa maioria dos contatos).
+- **Limite conhecido**: a biblioteca sozinha **não resolve** a
+  ambiguidade do 9º dígito brasileiro (um número de 12 dígitos é uma
+  forma válida de **telefone fixo**, então a lib não pode "adivinhar"
+  que era celular incompleto). Quem resolve isso de verdade é a ordem
+  de checagem no `CheckNumber.ts` acima — os dois fixes se
+  complementam: a lib melhora o reconhecimento internacional, o
+  `CheckNumber.ts` resolve a ambiguidade nacional continuando a
+  validar direto no WhatsApp.
+
+### Testado
+
+```
+557188789015   (BR sem o 9)  -> ainda "válido" pra lib (parece fixo),
+                                  mas CheckNumber agora tenta o 9 primeiro
+5571988789015  (BR com o 9)  -> válido, sem alteração
++595986283937  (Paraguai)    -> válido, reconhecido como Paraguai
+595986283937   (sem +)       -> mantido como veio (fallback seguro,
+                                  não tenta virar Brasil por engano)
++14155552671   (EUA)         -> válido, reconhecido como EUA
+```
+
+`tsc --noEmit` limpo. Ainda não testado em produção — pendente rebuild
+do backend (nova dependência `libphonenumber-js`).

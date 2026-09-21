@@ -3,6 +3,36 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.63] — Corrigido bug real de campanha não entregue (número sem o 9º dígito) — 2026-09-21
+
+### Corrigido
+- Campanha "entregue" no sistema, mas a mensagem não chegava de verdade
+  no aparelho do cliente — cliente relatou "teve alguns que chegaram [e
+  outros não]". Causa: ao checar se um número tem WhatsApp, o sistema
+  tentava primeiro a forma **sem o 9º dígito** do celular (ex.:
+  `557188789015`), e o WhatsApp às vezes "aceita" essa forma incompleta
+  por tolerância do próprio servidor — mas a entrega real depende do
+  formato certo. Corrigido testando **sempre a forma completa (com o
+  9) primeiro**, só caindo pra incompleta como último recurso.
+
+### Melhorado
+- Reconhecimento de números de **outros países** (`libphonenumber-js`,
+  dados oficiais de numeração de qualquer DDI) — antes o sistema só
+  validava por quantidade de dígitos (12-14), o que podia aceitar
+  número mal formado ou tratar errado um número estrangeiro digitado
+  sem o "+". Números com `+` na frente agora são validados
+  corretamente pelo país real; sem "+", continua assumindo Brasil por
+  padrão (comportamento já existente, mantido).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 46.
+
+## [2.3.62] — Bolinha de status na coluna Confirmação da listagem de campanhas — 2026-09-20
+
+### Adicionado
+- Troca o texto "Habilitada/Desabilitada" por uma bolinha colorida
+  (verde/vermelha) com tooltip na coluna "Confirmação" da listagem de
+  campanhas — mais rápido de bater o olho numa lista grande.
+
 ## [2.3.61] — Corrigido fuso horário do container do backend — 2026-09-20
 
 ### Corrigido
