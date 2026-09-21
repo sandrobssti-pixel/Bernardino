@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.84] — Falso alarme no aviso de número de outro país — 2026-09-21
+
+### Corrigido
+- O aviso de "número de fora do Brasil" (v2.3.83) disparava pra número
+  BR legítimo no formato antigo (12 dígitos, sem o 9º dígito do
+  celular) — o sistema já trata esse formato como BR válido em outro
+  lugar (`CheckNumber.ts`), mas o filtro do aviso só reconhecia o
+  formato completo de 13 dígitos.
+- Corrigido nos dois pontos (`FindService.ts` no backend,
+  `isBrazilNumber` no `CampaignModal`): agora aceita 12 OU 13 dígitos
+  como BR.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 67.
+
 ## [2.3.83] — Tag de campanha desacoplada do Kanban + aviso de país — 2026-09-21
 
 ### Corrigido / Adicionado

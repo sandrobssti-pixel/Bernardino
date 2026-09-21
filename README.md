@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.83 (Etapa 6.48 — tag do módulo Campanhas desacoplada do Kanban (a pedido do cliente) e confirmação de campanha ganhou aviso de número de fora do Brasil na lista/tag escolhida — ver `docs/MANUAL_TECNICO.md`, seção 66)**
+**Versão atual: 2.3.84 (Etapa 6.49 — corrigido falso alarme: aviso de "número de fora do Brasil" disparava pra número BR legítimo no formato antigo, sem o 9º dígito — ver `docs/MANUAL_TECNICO.md`, seção 67)**
 
 ## Documentação
 

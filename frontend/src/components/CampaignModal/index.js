@@ -43,10 +43,13 @@ import UserStatusIcon from "../UserModal/statusIcon";
 import Autocomplete, { createFilterOptions } from "@material-ui/lab/Autocomplete";
 import useQueues from "../../hooks/useQueues";
 
-// Número BR tem 13 dígitos no total: "55" + DDD (2) + número (9) — usado
-// só pra avisar quando a lista/tag escolhida mistura número de outro
-// país, sinal forte de contato sem relação (ver docs/MANUAL_TECNICO.md).
-const isBrazilNumber = (number) => /^55\d{11}$/.test(String(number || ""));
+// Número BR pode ter 12 dígitos (sem o 9º dígito do celular, formato
+// antigo ainda aceito pelo sistema, ver CheckNumber.ts) ou 13 (com o 9º
+// dígito): "55" + DDD (2) + 8 ou 9 dígitos. Usado só pra avisar quando a
+// lista/tag escolhida mistura número de outro país — contar só o
+// formato de 13 dígitos dava falso alarme pra número BR legítimo no
+// formato antigo (bug real, ver docs/MANUAL_TECNICO.md).
+const isBrazilNumber = (number) => /^55\d{10,11}$/.test(String(number || ""));
 
 const useStyles = makeStyles((theme) => ({
   root: {

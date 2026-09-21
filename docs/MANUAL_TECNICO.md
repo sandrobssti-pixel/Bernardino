@@ -5021,3 +5021,40 @@ Brasil (formato BR: `"55"` + 11 dígitos = 13 no total):
 - Pendente: reteste do cliente — confirmar que a tag do Kanban não
   aparece mais no campo Tag da Nova Campanha, e que uma lista/tag com
   número de fora do Brasil mostra o aviso na confirmação.
+
+## 67. Falso alarme: aviso de "número de outro país" disparava pra número BR legítimo (v2.3.84)
+
+### Relato do cliente
+
+Testou o disparo real de uma campanha com a lista de 96 números (todos
+`+55 (71/73/75)...`, confirmado na seção 66 que não tem nenhum número
+do Paraguai) e a tela de confirmação (v2.3.83) mostrou o aviso de
+"número de fora do Brasil" mesmo assim — falso alarme.
+
+### Causa raiz
+
+`isBrazilNumber` (frontend) e a regex SQL de `otherCountryCount`
+(`FindService.ts`) só reconheciam o formato **completo** de número BR
+(13 dígitos: `"55"` + DDD + 9 dígitos, com o 9º dígito do celular).
+Mas o próprio sistema já trata como BR válido também o formato
+**antigo**, de 12 dígitos (sem o 9º dígito) — ver `CheckNumber.ts`,
+seção "BR: DDI(2)+DDD(2)+local(8)". Boa parte da lista do cliente
+tinha número nesse formato antigo (ex.: `+55 (71) 96989744`, local de
+8 dígitos), e cada um desses batia como "não-BR" no meu filtro simples
+demais.
+
+### Correção
+
+- `backend/src/services/ContactListService/FindService.ts`: regex
+  `^55[0-9]{10,11}$` (aceita 12 OU 13 dígitos), em vez de só
+  `^55[0-9]{11}$`.
+- `frontend/src/components/CampaignModal/index.js`: `isBrazilNumber`
+  ajustado pra `/^55\d{10,11}$/` (mesma lógica).
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- `eslint` limpo em `CampaignModal/index.js` (só os mesmos avisos
+  pré-existentes de sempre).
+- Pendente: reteste do cliente confirmando que a lista de 96 números
+  não dispara mais o aviso de país diferente.
