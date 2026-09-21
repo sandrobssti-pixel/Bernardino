@@ -8,6 +8,12 @@ import * as GroupController from "../controllers/GroupController";
 const groupRoutes = express.Router();
 
 groupRoutes.get(
+  "/whatsapp/:whatsappId/groups",
+  isAuth,
+  GroupController.listAll
+);
+
+groupRoutes.get(
   "/contacts/:contactId/group",
   isAuth,
   GroupController.show

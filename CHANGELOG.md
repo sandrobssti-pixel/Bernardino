@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.66] — Ajuste visual da edição total + grupos do WhatsApp direto da conexão — 2026-09-21
+
+### Corrigido
+- Banner "Habilitar edição total" (dentro da campanha): o texto de aviso
+  estava sobrepondo/cortando o botão em telas menores. Layout agora
+  quebra linha (texto acima, botão abaixo) em vez de se sobrepor.
+- Backend (`CampaignService/UpdateService.ts`) bloqueava salvar edições
+  em campanha `EM_ANDAMENTO` ou `FINALIZADA` mesmo com "edição total"
+  habilitada no formulário (erro "Só é permitido alterar campanha
+  Inativa e Programada") — o botão liberava os campos na tela, mas o
+  salvar falhava. Agora aceita salvar em qualquer status (Inativa,
+  Programada, Em andamento, Finalizada, Cancelada).
+- Seletor de grupo na campanha ("Grupo ou contato avulso"): só listava
+  grupos que já tinham trocado alguma mensagem com a conexão (via
+  tabela de Contacts). Agora busca a lista completa de grupos direto do
+  WhatsApp conectado (Baileys `groupFetchAllParticipating`), então todo
+  grupo que o número já participa aparece pra escolha, mesmo sem
+  histórico de mensagem por aqui.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 49.
+
 ## [2.3.65] — Após importar arquivo, abre direto a tela de contatos da lista — 2026-09-21
 
 ### Adicionado

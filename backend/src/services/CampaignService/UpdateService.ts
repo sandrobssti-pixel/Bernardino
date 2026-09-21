@@ -39,9 +39,13 @@ const UpdateService = async (data: Data): Promise<Campaign> => {
     throw new AppError("ERR_NO_CAMPAIGN_FOUND", 404);
   }
 
-  if (["INATIVA", "PROGRAMADA", "CANCELADA"].indexOf(data.status) === -1) {
+  if (
+    ["INATIVA", "PROGRAMADA", "EM_ANDAMENTO", "FINALIZADA", "CANCELADA"].indexOf(
+      data.status
+    ) === -1
+  ) {
     throw new AppError(
-      "Só é permitido alterar campanha Inativa e Programada",
+      "Status de campanha inválido",
       400
     );
   }

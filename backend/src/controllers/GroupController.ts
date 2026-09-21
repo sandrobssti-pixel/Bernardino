@@ -6,6 +6,19 @@ import UpdateGroupInfoService from "../services/ContactServices/UpdateGroupInfoS
 import UpdateGroupParticipantsService from "../services/ContactServices/UpdateGroupParticipantsService";
 import GetGroupInviteLinkService from "../services/ContactServices/GetGroupInviteLinkService";
 import GetGroupPhotoService from "../services/ContactServices/GetGroupPhotoService";
+import ListWhatsappGroupsService from "../services/WbotServices/ListWhatsappGroupsService";
+
+export const listAll = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { whatsappId } = req.params;
+  const { companyId } = req.user;
+
+  const groups = await ListWhatsappGroupsService({ whatsappId, companyId });
+
+  return res.status(200).json(groups);
+};
 
 export const show = async (req: Request, res: Response): Promise<Response> => {
   const { contactId } = req.params;

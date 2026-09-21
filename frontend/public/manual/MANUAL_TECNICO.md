@@ -3736,3 +3736,95 @@ listagem atualizada.
 - Lint (`eslint`) limpo no arquivo alterado.
 - Não há mudança de backend nesta etapa.
 - Não testado ainda em produção — pendente rebuild do frontend.
+
+## 49. Edição total em qualquer status de campanha + grupos do WhatsApp direto da conexão (v2.3.66)
+
+### Pedido do cliente (3 itens)
+
+1. "Na opção editar campanha, ajustar o nome 'habilitar edição total',
+   está comendo a frase — campo pequeno para o texto."
+2. "Quando edita, serve para todas as campanhas: inativas, programadas,
+   em andamento ou campanhas finalizadas."
+3. "No sistema adicionei a opção grupos e não habilitou os grupos que o
+   número tem, consequentemente não tem a opção do envio da campanha
+   para escolha de grupos."
+
+### 1. Texto do banner sobrepondo o botão
+
+O `Box` do aviso (`CampaignModal`) usava `display="flex"` sem
+`flexWrap`, com o texto (`Typography`) sem `flex`/`minWidth` definidos
+— em telas menores (ou com o aviso mais longo), o texto não quebrava
+linha e empurrava/sobrepunha o botão "Habilitar edição total".
+
+Corrigido com `flexWrap="wrap"` no `Box` e `flex: "1 1 260px"` +
+`minWidth: 0` no `Typography` do aviso — agora o texto ocupa a largura
+disponível e quebra pra própria linha, o botão desce pra debaixo dele
+quando não cabe mais na mesma linha, sem cortar nem sobrepor nada.
+
+### 2. Edição total não funcionava para campanha em andamento/finalizada
+
+O botão "Habilitar edição total" (adicionado na v2.3.64, ver seção 47)
+já liberava os campos do formulário na tela, pra qualquer status. O
+problema estava um passo depois, no **salvar**: o backend
+(`CampaignService/UpdateService.ts`) tinha essa checagem:
+
+```ts
+if (["INATIVA", "PROGRAMADA", "CANCELADA"].indexOf(data.status) === -1) {
+  throw new AppError("Só é permitido alterar campanha Inativa e Programada", 400);
+}
+```
+
+Como o formulário sempre reenvia o `status` atual da campanha junto
+(`dataValues.status`), tentar salvar uma campanha `EM_ANDAMENTO` ou
+`FINALIZADA` — mesmo com "edição total" habilitada — caía nesse erro e
+o PUT `/campaigns/:id` falhava. Corrigido ampliando a lista de status
+aceitos:
+
+```ts
+if (
+  ["INATIVA", "PROGRAMADA", "EM_ANDAMENTO", "FINALIZADA", "CANCELADA"].indexOf(
+    data.status
+  ) === -1
+) {
+  throw new AppError("Status de campanha inválido", 400);
+}
+```
+
+Agora a edição total funciona de ponta a ponta pra qualquer status.
+
+### 3. Grupos do WhatsApp não apareciam pra escolha na campanha
+
+O seletor "Grupo ou contato avulso" (`CampaignRecipientPicker`, ver
+seção 44) buscava grupos em `GET /contacts?isGroup=true` — e um grupo
+só vira registro na tabela `Contacts` (`isGroup: true`) depois de
+trocar pelo menos uma mensagem com aquela conexão (`verifyContact` em
+`wbotMessageListener.ts`). Resultado: grupos que a conexão participa
+mas nunca mandaram/receberam mensagem por ali simplesmente não
+apareciam na lista — exatamente o problema relatado.
+
+Corrigido buscando os grupos **direto do WhatsApp**, via Baileys
+(`groupFetchAllParticipating()`), que traz TODOS os grupos que aquela
+conexão participa, sem depender de histórico de mensagem:
+
+- **Backend** (novo `WbotServices/ListWhatsappGroupsService.ts`): pega
+  a sessão ativa da conexão (`tryGetWbot`), chama
+  `wbot.groupFetchAllParticipating()` e devolve `{ number, name,
+  participantsCount }` por grupo (`number` = ID numérico do grupo, sem
+  `@g.us`, no formato que `ContactListItemService/AddGroupService` já
+  espera).
+- Nova rota `GET /whatsapp/:whatsappId/groups` (`GroupController.listAll`
+  + `groupRoutes.ts`).
+- **Frontend** (`CampaignRecipientPicker`): troca a chamada de
+  `/contacts?isGroup=true` pra `/whatsapp/${whatsappId}/groups` — exige
+  que a campanha já tenha uma conexão (WhatsApp) selecionada antes de
+  abrir a aba de grupos (mostra aviso pedindo pra selecionar a conexão
+  primeiro, se ainda não tiver).
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`UpdateService.ts`,
+  `ListWhatsappGroupsService.ts`, `GroupController.ts`).
+- Lint (`eslint`) limpo em `CampaignModal` e `CampaignRecipientPicker`
+  (sem novos erros/avisos).
+- Não testado ainda em produção com uma conexão real — pendente rebuild
+  do frontend e do backend.

@@ -37,17 +37,18 @@ const CampaignRecipientPicker = ({ whatsappId, onPicked, disabled }) => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open || tab !== 0) return;
+    if (!open || tab !== 0 || !whatsappId) {
+      setGroups([]);
+      return;
+    }
     const loadGroups = async () => {
       setLoadingGroups(true);
       try {
-        const { data } = await api.get("/contacts", {
-          params: { pageNumber: 1, searchParam: "", isGroup: "true" }
-        });
-        const list = Array.isArray(data?.contacts) ? data.contacts : [];
-        setGroups(
-          whatsappId ? list.filter((g) => g.whatsappId === whatsappId) : list
-        );
+        // Busca direto da conexão do WhatsApp (Baileys), trazendo TODOS os
+        // grupos que a conexão participa — não depende de já ter trocado
+        // mensagem com o grupo antes (ver docs/MANUAL_TECNICO.md).
+        const { data } = await api.get(`/whatsapp/${whatsappId}/groups`);
+        setGroups(Array.isArray(data) ? data : []);
       } catch (err) {
         toastError(err);
       } finally {
@@ -71,7 +72,7 @@ const CampaignRecipientPicker = ({ whatsappId, onPicked, disabled }) => {
 
       if (tab === 0) {
         if (!selectedGroupId) return;
-        const group = groups.find((g) => g.id === selectedGroupId);
+        const group = groups.find((g) => g.number === selectedGroupId);
         if (!group) return;
         await api.post("/contact-list-items/group", {
           name: group.name,
@@ -139,15 +140,24 @@ const CampaignRecipientPicker = ({ whatsappId, onPicked, disabled }) => {
                 disabled={loadingGroups}
               >
                 {groups.map((group) => (
-                  <MenuItem key={group.id} value={group.id}>
+                  <MenuItem key={group.number} value={group.number}>
                     {group.name}
+                    {group.participantsCount
+                      ? ` (${group.participantsCount})`
+                      : ""}
                   </MenuItem>
                 ))}
               </Select>
-              {!loadingGroups && groups.length === 0 && (
+              {!whatsappId && (
                 <Typography variant="caption" color="textSecondary" style={{ marginTop: 8 }}>
-                  Nenhum grupo encontrado ainda — o grupo precisa ter trocado
-                  pelo menos uma mensagem com essa conexão pra aparecer aqui.
+                  Selecione a conexão (WhatsApp) da campanha antes, pra
+                  carregar os grupos dela.
+                </Typography>
+              )}
+              {whatsappId && !loadingGroups && groups.length === 0 && (
+                <Typography variant="caption" color="textSecondary" style={{ marginTop: 8 }}>
+                  Nenhum grupo encontrado nessa conexão. Confira se o número
+                  está mesmo participando de algum grupo do WhatsApp.
                 </Typography>
               )}
             </FormControl>

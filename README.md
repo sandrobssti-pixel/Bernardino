@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.65 (Etapa 6.30 — ao importar arquivo em "Adicionar nova lista" na tela de Lista de Contatos, abre automaticamente a tela de contatos da lista para conferir/adicionar/excluir números — ver `docs/MANUAL_TECNICO.md`, seção 48)**
+**Versão atual: 2.3.66 (Etapa 6.31 — ajuste visual do botão "Habilitar edição total" (funciona pra campanha inativa, programada, em andamento e finalizada) e seleção de grupos do WhatsApp na campanha buscando direto da conexão (não depende de troca de mensagem prévia) — ver `docs/MANUAL_TECNICO.md`, seção 49)**
 
 ## Documentação
 

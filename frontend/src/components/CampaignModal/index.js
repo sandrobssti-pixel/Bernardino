@@ -744,6 +744,7 @@ useEffect(() => {
                 {!naturalEditable && (
                   <Box
                     display="flex"
+                    flexWrap="wrap"
                     alignItems="center"
                     justifyContent="space-between"
                     p={1.5}
@@ -754,17 +755,25 @@ useEffect(() => {
                       borderRadius: 8
                     }}
                   >
-                    <Typography variant="body2">
+                    <Typography
+                      variant="body2"
+                      style={{
+                        flex: "1 1 260px",
+                        minWidth: 0,
+                        marginRight: 16,
+                        marginBottom: 8
+                      }}
+                    >
                       {forceEditAll
-                        ? "Edição total habilitada — todos os campos podem ser alterados, mesmo a campanha já tendo sido enviada/agendada. Use com cuidado."
-                        : "Essa campanha normalmente não pode mais ser editada (já foi enviada, está em andamento, ou está agendada pra menos de 1h). Se precisar corrigir algum erro, habilite a edição total abaixo."}
+                        ? "Edição total habilitada — todos os campos podem ser alterados, mesmo a campanha já tendo sido enviada, estando em andamento ou já finalizada. Use com cuidado."
+                        : "Essa campanha normalmente não pode mais ser editada (já foi enviada, está em andamento, já foi finalizada, ou está agendada pra menos de 1h). Se precisar corrigir algum erro, habilite a edição total abaixo — funciona pra campanha inativa, programada, em andamento ou finalizada."}
                     </Typography>
                     <Button
                       size="small"
                       variant={forceEditAll ? "outlined" : "contained"}
                       color={forceEditAll ? "default" : "primary"}
                       onClick={() => setForceEditAll((prev) => !prev)}
-                      style={{ marginLeft: 16, whiteSpace: "nowrap" }}
+                      style={{ flexShrink: 0, whiteSpace: "nowrap", marginBottom: 8 }}
                     >
                       {forceEditAll ? "Voltar ao normal" : "Habilitar edição total"}
                     </Button>
