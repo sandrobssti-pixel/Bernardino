@@ -1002,6 +1002,7 @@ const messages = {
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",
+          groups: "Grupos",
           prompts: "Assistente IA",
           allConnections: "Gerenciar conexões",
           reports: "Relatórios",

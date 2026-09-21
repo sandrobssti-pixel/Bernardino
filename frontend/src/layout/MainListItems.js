@@ -27,6 +27,7 @@ import AssignmentTurnedInIcon from "@material-ui/icons/AssignmentTurnedIn";
 import HelpOutlineIcon from "@material-ui/icons/HelpOutline";
 import CodeRoundedIcon from "@material-ui/icons/CodeRounded";
 import ViewKanban from "@mui/icons-material/ViewKanban";
+import GroupIcon from "@material-ui/icons/Group";
 import Schedule from "@material-ui/icons/Schedule";
 import LocalOfferIcon from "@material-ui/icons/LocalOffer";
 import EventAvailableIcon from "@material-ui/icons/EventAvailable";
@@ -52,6 +53,7 @@ import SignalCellularConnectedNoInternet4BarIcon from "@material-ui/icons/Signal
 
 import { WhatsAppsContext } from "../context/WhatsApp/WhatsAppsContext";
 import { AuthContext } from "../context/Auth/AuthContext";
+import { TicketsContext } from "../context/Tickets/TicketsContext";
 import { useActiveMenu } from "../context/ActiveMenuContext";
 
 import { Can } from "../components/Can";
@@ -71,6 +73,7 @@ const iconColors = {
   messages: "#f79009",
   tasks: "#7a5af8",
   kanban: "#0ba5ec",
+  groups: "#7c3aed",
   contacts: "#12b76a",
   schedules: "#f63d68",
   tags: "#f67021",
@@ -252,7 +255,8 @@ function ListItemLink(props) {
     badgeContent,
     badgeDot,
     iconKey,
-    small
+    small,
+    onClick
   } = props;
   const classes = useStyles();
   const { activeMenu } = useActiveMenu();
@@ -301,6 +305,7 @@ function ListItemLink(props) {
         <ListItem
           button
           component={renderLink}
+          onClick={onClick}
           className={`${classes.listItem} ${
             isActive ? classes.listItemActive : ""
           } ${small ? classes.listItemCompact : ""} ${
@@ -415,8 +420,19 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   const classes = useStyles();
   const { whatsApps } = useContext(WhatsAppsContext);
   const { user, socket, isAuth } = useContext(AuthContext);
+  const { setTabOpen } = useContext(TicketsContext);
   const { setActiveMenu } = useActiveMenu();
   const location = useLocation();
+
+  // Permissão "Permitir grupos" (UserModal) — mesma flag que já libera a
+  // aba "Grupos" dentro do módulo de Atendimento (ver TicketsManagerTabs).
+  // Quando habilitada, mostra também um atalho na barra lateral que já
+  // abre direto nessa aba (ver docs/MANUAL_TECNICO.md).
+  const allowGroup = Boolean(user?.allowGroup);
+
+  const handleGroupsClick = useCallback(() => {
+    setTabOpen("group");
+  }, [setTabOpen]);
 
   const [connectionWarning, setConnectionWarning] = useState(false);
   const [openCampaignSubmenu, setOpenCampaignSubmenu] = useState(false);
@@ -981,6 +997,17 @@ const MainListItems = ({ collapsed, drawerClose }) => {
             tooltip={collapsed}
           />
         </>
+      )}
+
+      {allowGroup && (
+        <ListItemLink
+          to="/tickets"
+          primary={i18n.t("mainDrawer.listItems.groups")}
+          icon={<GroupIcon />}
+          iconKey="groups"
+          tooltip={collapsed}
+          onClick={handleGroupsClick}
+        />
       )}
 
       <ListItemLink

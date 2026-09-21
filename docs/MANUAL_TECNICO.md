@@ -3889,3 +3889,64 @@ esse fix cobre o caso (mais comum) em que essa opção está desabilitada.
 
 - `tsc --noEmit` limpo no backend (`ListTicketsServiceKanban.ts`).
 - Não testado ainda em produção — pendente rebuild do backend.
+
+## 51. Item "Grupos" na barra lateral (v2.3.68)
+
+### Pedido do cliente
+
+"Barra de opções lateral do sistema: quando habilita a opção grupos nas
+permissões, ficava grupos do lado para clicar e ver todos os grupos
+atrelados ao módulo atendimento — e dentro do kanban, para arrastar os
+grupos para um quadro kanban." (o segundo ponto, grupo aparecer no
+Kanban, foi resolvido na seção 50; esta seção cobre o item da barra
+lateral.)
+
+### Investigação no código-fonte antigo
+
+A pedido do cliente, consultado o repositório `zappro-legado` (base
+original de onde o AtendeFlow evoluiu, ver
+`docs/AVALIACAO_ZAPPRO_LEGADO.md`) — especificamente
+`frontend/src/layout/MainListItems.js` (o menu lateral) e
+`frontend/src/pages/*` (lista de páginas). **Não existe lá** um item de
+menu "Grupos" nem uma página dedicada de grupos — a única coisa
+relacionada a grupos no legado (igual ao AtendeFlow atual) é a
+permissão `allowGroup` do usuário, que já libera uma **aba** "Grupos"
+dentro do módulo de Atendimento (`TicketsManagerTabs`, aba ao lado de
+"Abertos"/"Pendentes").
+
+Ou seja: o pedido é uma melhoria nova (atalho direto na barra lateral
+pra essa aba que já existe), não a restauração de algo que existia
+antes e quebrou.
+
+### Implementação
+
+Reaproveitando 100% a aba "Grupos" que já existe dentro do Atendimento
+(sem duplicar lista/backend):
+
+- **`frontend/src/layout/MainListItems.js`**: novo item "Grupos" (ícone
+  `Group`, cor roxa `#7c3aed`), posicionado logo abaixo de "CRM /
+  Kanban" — visível só quando `user.allowGroup` é verdadeiro (mesma
+  permissão "Permitir grupos" do formulário de usuário, seção
+  Permissões do `UserModal`). O componente interno `ListItemLink` ganhou
+  suporte a um `onClick` opcional (repassado pro `ListItem` do
+  Material UI, que já navega via `RouterLink` — os dois convivem sem
+  conflito).
+- Ao clicar, o item chama `setTabOpen("group")` (contexto
+  `TicketsContext`, já usado pela aba de Grupos internamente) e navega
+  pra `/tickets` — chegando lá com a aba de Grupos pré-selecionada.
+- **`frontend/src/components/TicketsManagerTabs/index.js`**: pequeno
+  ajuste — como a subaba "Grupos" vive dentro da aba principal
+  "Abertos" (`tab === "open"`), um `useEffect` novo garante que, sempre
+  que `tabOpen` vier como `"group"` (inclusive vindo de fora, do clique
+  na barra lateral), a aba principal volte pra "Abertos" automaticamente
+  — assim o atalho funciona mesmo se o usuário estivesse antes na aba
+  "Fechados" ou "Busca".
+- **i18n**: chave `mainDrawer.listItems.groups` adicionada em
+  `pt.js` ("Grupos"), `en.js` ("Groups"), `es.js`/`esES.js` ("Grupos"),
+  `tr.js` ("Gruplar").
+
+### Testado
+
+- Lint (`eslint`) limpo nos arquivos alterados (só avisos
+  pré-existentes, nenhum novo).
+- Não testado ainda em produção — pendente rebuild do frontend.

@@ -669,6 +669,17 @@ const TicketsManagerTabs = () => {
     setForceSearch((prevState) => !prevState);
   }, [tab]);
 
+  // Atalho "Grupos" da barra lateral (MainListItems) faz
+  // setTabOpen("group") antes de navegar pra cá — garante que a aba
+  // principal volte pra "open" (onde a subaba de Grupos vive), mesmo se
+  // o usuário estivesse em "Fechados"/"Busca" (ver docs/MANUAL_TECNICO.md).
+  useEffect(() => {
+    if (tabOpen === "group") {
+      setTab("open");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabOpen]);
+
   const toggleChannelFilter = (channel) => {
     setSelectedChannels((prevState) =>
       prevState.includes(channel)

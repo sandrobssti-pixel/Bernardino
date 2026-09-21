@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.68] — Item "Grupos" na barra lateral — 2026-09-21
+
+### Adicionado
+- Novo item "Grupos" na barra lateral do sistema, logo abaixo de
+  "CRM / Kanban" — visível só pra quem tem a permissão "Permitir
+  grupos" habilitada (mesma flag `allowGroup` já usada na aba "Grupos"
+  dentro do Atendimento). Clicar nele abre a tela de Atendimento já na
+  aba de Grupos, sem precisar entrar em Atendimento e trocar de aba
+  manualmente.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 51.
+
 ## [2.3.67] — Grupos do WhatsApp agora aparecem no Kanban — 2026-09-21
 
 ### Corrigido

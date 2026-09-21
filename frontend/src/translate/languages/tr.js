@@ -947,6 +947,7 @@ const messages = {
           queueIntegration: "Entegrasyonlar",
           version: "Sürüm",
           kanban: "CRM / Kanban",
+          groups: "Gruplar",
           prompts: "Assistente IA",
           allConnections: "Bağlantıları yönet",
           reports: "Raporlar",
