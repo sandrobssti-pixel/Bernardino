@@ -43,6 +43,11 @@ import UserStatusIcon from "../UserModal/statusIcon";
 import Autocomplete, { createFilterOptions } from "@material-ui/lab/Autocomplete";
 import useQueues from "../../hooks/useQueues";
 
+// Número BR tem 13 dígitos no total: "55" + DDD (2) + número (9) — usado
+// só pra avisar quando a lista/tag escolhida mistura número de outro
+// país, sinal forte de contato sem relação (ver docs/MANUAL_TECNICO.md).
+const isBrazilNumber = (number) => /^55\d{11}$/.test(String(number || ""));
+
 const useStyles = makeStyles((theme) => ({
   root: {
     display: "flex",
@@ -441,26 +446,23 @@ useEffect(() => {
           setWhatsapps(mappedWhatsapps);
         });
 
-      // Busca tags normais (kanban=0) E tags usadas como coluna do Kanban
-      // (kanban=1) — uma campanha pode segmentar por qualquer uma das duas,
-      // já que o próprio Kanban é usado pra triagem/segmentação de clientes
-      // (ex.: disparo só pra quem está na coluna "Inadimplentes"). Antes só
-      // buscava kanban=0, então uma tag-coluna do Kanban nunca aparecia
-      // aqui pra escolha (ver docs/MANUAL_TECNICO.md).
-      Promise.all([
-        api.get(`/tags/list`, { params: { companyId, kanban: 0 } }),
-        api.get(`/tags/list`, { params: { companyId, kanban: 1 } })
-      ])
-        .then(([normalTagsRes, kanbanTagsRes]) => {
-          const fetchedTags = [
-            ...(normalTagsRes.data || []),
-            ...(kanbanTagsRes.data || [])
-          ];
-          const formattedTagLists = fetchedTags
+      // Campanha só segmenta por tag NORMAL (kanban=0) — tag usada como
+      // coluna do Kanban não entra aqui de propósito: são dois usos
+      // diferentes (triagem de atendimento x segmentação de campanha), e
+      // misturar os dois trouxe contato sem relação nenhuma pra campanha
+      // (kanban tem gente marcada por engano/teste, ver
+      // docs/MANUAL_TECNICO.md).
+      api
+        .get(`/tags/list`, { params: { companyId, kanban: 0 } })
+        .then(({ data }) => {
+          const formattedTagLists = (data || [])
             .filter(tag => tag.contacts.length > 0)  // Filtra as tags com contacts.length > 0
             .map((tag) => ({
               id: tag.id,
               name: `${tag.name} (${tag.contacts.length})`,
+              otherCountryCount: tag.contacts.filter(
+                (c) => !isBrazilNumber(c.number)
+              ).length,
             }));
 
           setTagLists(formattedTagLists);
@@ -579,12 +581,24 @@ useEffect(() => {
       );
       if (list) {
         const count = list.contactsCount ?? list.contacts?.length ?? "?";
-        return `Lista de Contato "${list.name}" (${count} contato${count === 1 ? "" : "s"})`;
+        const otherCountry = Number(list.otherCountryCount || 0);
+        const warning =
+          otherCountry > 0
+            ? ` ⚠️ Atenção: ${otherCountry} contato${otherCountry === 1 ? "" : "s"} dessa lista ${otherCountry === 1 ? "tem" : "têm"} número de fora do Brasil — confira se é mesmo esperado antes de confirmar.`
+            : "";
+        return `Lista de Contato "${list.name}" (${count} contato${count === 1 ? "" : "s"}).${warning}`;
       }
     }
     if (values?.tagListId) {
       const tag = tagLists.find((t) => String(t.id) === String(values.tagListId));
-      if (tag) return `Tag "${tag.name}"`;
+      if (tag) {
+        const otherCountry = Number(tag.otherCountryCount || 0);
+        const warning =
+          otherCountry > 0
+            ? ` ⚠️ Atenção: ${otherCountry} contato${otherCountry === 1 ? "" : "s"} dessa tag ${otherCountry === 1 ? "tem" : "têm"} número de fora do Brasil — confira se é mesmo esperado antes de confirmar.`
+            : "";
+        return `Tag "${tag.name}".${warning}`;
+      }
     }
     return "nenhum destinatário selecionado";
   };

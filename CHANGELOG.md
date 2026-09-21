@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.83] — Tag de campanha desacoplada do Kanban + aviso de país — 2026-09-21
+
+### Corrigido / Adicionado
+- Segunda campanha errada seguida ("Renovação Filiação 2026"), dessa
+  vez pra um contato do Paraguai marcado por engano/teste na tag-coluna
+  do Kanban "Filiados Inadimplentes". A pedido do cliente, revertida a
+  ligação entre tag do Kanban e o módulo Campanhas (feita nas seções
+  54/55): Nova Campanha volta a mostrar só tag normal (`kanban=0`);
+  backend rejeita `tagListId` de coluna do Kanban mesmo fora do
+  formulário padrão (`ERR_CAMPAIGN_TAG_IS_KANBAN_COLUMN`).
+- Tela de confirmação de campanha (v2.3.82) ganhou um aviso quando a
+  lista/tag escolhida mistura número de fora do Brasil (formato BR:
+  "55" + 11 dígitos), pra pegar justamente esse tipo de contaminação
+  antes de confirmar o envio.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 66.
+
 ## [2.3.82] — Confirmação obrigatória antes de enviar campanha — 2026-09-21
 
 ### Corrigido / Adicionado

@@ -4957,3 +4957,67 @@ a ficar com 0 contatos em `ContactTags` (mesmo bug da seção 61, dessa
 vez porque a v2.3.78 ainda não tinha sido implantada quando o problema
 aconteceu de novo). Rodado o mesmo backfill retroativo da seção 55 a
 partir de `TicketTags`, recuperando as associações.
+
+## 66. Tag de campanha desacoplada do Kanban + aviso de país diferente na confirmação (v2.3.83)
+
+### Relato do cliente
+
+Uma segunda campanha ("Renovação Filiação 2026") foi criada com a tag
+"Filiados Inadimplentes" (a mesma tag-coluna do Kanban da seção 65) —
+dessa vez a tela de confirmação mostrou corretamente "Tag: Filiados
+Inadimplentes", então não foi engano de campo. O problema real: essa
+tag tinha um contato do Paraguai ("Punto a Punto",
+`595976323537`, email de teste `SASASA@JJJJJJ.COM`) marcado nela no
+Kanban — provavelmente por engano/teste — e meu backfill retroativo da
+seção 65 replicou essa marcação errada pra `ContactTags`, fazendo a
+campanha mandar mensagem pra ele.
+
+O cliente então decidiu: **tag do módulo Campanhas não deve ter
+nenhuma relação com o Kanban** — são usos diferentes (triagem de
+atendimento x segmentação de campanha) e misturar os dois é a raiz
+recorrente desses bugs.
+
+### Correção 1: desacoplar Tag de campanha do Kanban
+
+Revertida a mudança das seções 54/55 que fazia a Nova Campanha
+enxergar tag-coluna do Kanban (`kanban=1`):
+
+- `frontend/src/components/CampaignModal/index.js`: volta a buscar só
+  `kanban: 0` em `/tags/list` (removido o `Promise.all` com
+  `kanban: 1`).
+- `backend/src/controllers/CampaignController.ts`: `store` agora
+  valida a tag antes de criar a lista — se `Tag.kanban === 1`, rejeita
+  com `ERR_CAMPAIGN_TAG_IS_KANBAN_COLUMN` (proteção mesmo se a
+  requisição não vier do formulário padrão).
+
+O sync `ContactTag` do drag-and-drop do Kanban (seção 55) e o widget de
+tag do ticket (seção 61) continuam funcionando normalmente — só o elo
+"campanha pode usar tag do Kanban" foi cortado.
+
+### Correção 2: aviso de número de outro país na confirmação
+
+A pedido do cliente, a tela de confirmação de campanha (seção 65)
+ganhou um aviso quando a lista/tag escolhida mistura número de fora do
+Brasil (formato BR: `"55"` + 11 dígitos = 13 no total):
+
+- `backend/src/services/ContactListService/FindService.ts`: além de
+  `contactsCount`, agora também devolve `otherCountryCount` (contagem
+  via subquery de `ContactListItems` cujo número não bate o formato
+  BR, ignorando grupos).
+- `frontend/src/components/CampaignModal/index.js`: pro combo de Tags,
+  a contagem "fora do Brasil" é calculada no próprio front a partir da
+  lista de contatos que `/tags/list` já devolve (`tag.contacts`), via
+  o helper `isBrazilNumber`.
+- `getRecipientSummary` (usado pela tela de confirmação) agora anexa
+  um aviso — "⚠️ Atenção: N contato(s) dessa lista/tag tem/têm número
+  de fora do Brasil — confira se é mesmo esperado antes de confirmar."
+  — sempre que `otherCountryCount > 0`, na lista e na tag.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- `eslint` limpo em `CampaignModal/index.js` (só os mesmos avisos
+  pré-existentes de sempre).
+- Pendente: reteste do cliente — confirmar que a tag do Kanban não
+  aparece mais no campo Tag da Nova Campanha, e que uma lista/tag com
+  número de fora do Brasil mostra o aviso na confirmação.

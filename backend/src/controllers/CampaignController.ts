@@ -22,6 +22,7 @@ import Ticket from "../models/Ticket";
 import { CancelService } from "../services/CampaignService/CancelService";
 import { RestartService } from "../services/CampaignService/RestartService";
 import ContactTag from "../models/ContactTag";
+import Tag from "../models/Tag";
 import CheckContactNumber from "../services/WbotServices/CheckNumber";
 
 
@@ -104,6 +105,16 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
     const tagId = data.tagListId;
     const campanhaNome = data.name;
+
+    // Campanha só segmenta por tag NORMAL — tag usada como coluna do
+    // Kanban é outra finalidade (triagem de atendimento) e não deve
+    // virar destinatário de campanha, mesmo se vier via API direta:
+    // o Kanban pode ter contato marcado só por engano/teste, sem
+    // relação nenhuma com a campanha (ver docs/MANUAL_TECNICO.md).
+    const selectedTag = await Tag.findOne({ where: { id: tagId, companyId } });
+    if (selectedTag?.kanban === 1) {
+      throw new AppError("ERR_CAMPAIGN_TAG_IS_KANBAN_COLUMN", 400);
+    }
 
     async function createContactListFromTag(tagId: number) {
 
