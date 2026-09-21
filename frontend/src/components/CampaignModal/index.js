@@ -440,10 +440,21 @@ useEffect(() => {
           setWhatsapps(mappedWhatsapps);
         });
 
-      api.get(`/tags/list`, { params: { companyId, kanban: 0 } })
-        .then(({ data }) => {
-          const fetchedTags = data;
-          // Perform any necessary data transformation here
+      // Busca tags normais (kanban=0) E tags usadas como coluna do Kanban
+      // (kanban=1) — uma campanha pode segmentar por qualquer uma das duas,
+      // já que o próprio Kanban é usado pra triagem/segmentação de clientes
+      // (ex.: disparo só pra quem está na coluna "Inadimplentes"). Antes só
+      // buscava kanban=0, então uma tag-coluna do Kanban nunca aparecia
+      // aqui pra escolha (ver docs/MANUAL_TECNICO.md).
+      Promise.all([
+        api.get(`/tags/list`, { params: { companyId, kanban: 0 } }),
+        api.get(`/tags/list`, { params: { companyId, kanban: 1 } })
+      ])
+        .then(([normalTagsRes, kanbanTagsRes]) => {
+          const fetchedTags = [
+            ...(normalTagsRes.data || []),
+            ...(kanbanTagsRes.data || [])
+          ];
           const formattedTagLists = fetchedTags
             .filter(tag => tag.contacts.length > 0)  // Filtra as tags com contacts.length > 0
             .map((tag) => ({

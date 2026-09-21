@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.71] — Tags do Kanban agora aparecem na campanha — 2026-09-21
+
+### Corrigido
+- Campanha "por tag": a busca de tags disponíveis só trazia tags
+  "normais" (`kanban=0`), então uma tag usada como coluna do Kanban
+  (ex.: "Filiados inadimplentes") nunca aparecia na lista, mesmo já
+  tendo contatos — indo contra o próprio propósito do Kanban (usar as
+  colunas pra segmentar disparo de campanha). Corrigido: agora busca
+  as duas categorias (`kanban=0` e `kanban=1`) e junta o resultado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 54.
+
 ## [2.3.70] — Bug grave: número BR de 12 dígitos era aceito antes do certo — 2026-09-21
 
 ### Corrigido

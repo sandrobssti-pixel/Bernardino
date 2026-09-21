@@ -4127,3 +4127,56 @@ relato, e qualquer outra importada antes da v2.3.70).
   avisos pré-existentes.
 - Não testado ainda em produção — pendente rebuild do backend e do
   frontend, e rodar "Revalidar números" na lista já importada.
+
+## 54. Tags usadas como coluna do Kanban não apareciam na campanha (v2.3.71)
+
+### Relato do cliente
+
+"Filiados inadimplentes tenho essa tag adicionada e no kanban, quando
+vai fazer nova campanha e vai adicionar a tag, não aparece Filiados
+inadimplentes."
+
+### Causa raiz
+
+O campo `Tag.kanban` marca se uma tag é usada como **coluna do
+quadro Kanban** (`kanban: 1`) ou é uma tag "normal" (`kanban: 0`),
+usada em outros lugares do sistema (etiqueta de contato, filtro de
+ticket, etc.). `CampaignModal` buscava as tags disponíveis pra
+segmentar a campanha assim:
+
+```js
+api.get(`/tags/list`, { params: { companyId, kanban: 0 } })
+```
+
+Ou seja, só trazia tags **não**-Kanban. Uma tag criada como coluna do
+board (como "Filiados inadimplentes") nunca aparecia na lista, mesmo
+já tendo contatos — o que contraria o próprio propósito documentado do
+Kanban (seção 50): "o board é usado pra segmentação/triagem de
+clientes (ex.: disparo de campanha só pra quem está na coluna
+'Inadimplentes')".
+
+### Correção
+
+`CampaignModal` agora busca as duas categorias em paralelo e junta o
+resultado:
+
+```js
+Promise.all([
+  api.get(`/tags/list`, { params: { companyId, kanban: 0 } }),
+  api.get(`/tags/list`, { params: { companyId, kanban: 1 } })
+]).then(([normalTagsRes, kanbanTagsRes]) => {
+  const fetchedTags = [...normalTagsRes.data, ...kanbanTagsRes.data];
+  // ...
+});
+```
+
+Não foi alterado o comportamento padrão da API `/tags/list`
+(`TagServices/SimpleListService.ts`), porque outros componentes (ex.:
+`TagsFilter`) dependem de chamar essa rota sem o parâmetro `kanban` —
+mudar o default ali afetaria esses outros lugares sem necessidade.
+
+### Testado
+
+- Lint (`eslint`) limpo em `CampaignModal/index.js` (só avisos
+  pré-existentes).
+- Não testado ainda em produção — pendente rebuild do frontend.

@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.70 (Etapa 6.35 — corrigido bug real e grave: número BR de celular sem o 9º dígito era testado (e aceito) no WhatsApp antes da forma correta, fazendo campanhas "entregarem" pra números incompletos; adicionado botão "Revalidar números" pra corrigir listas já importadas sem precisar reimportar — ver `docs/MANUAL_TECNICO.md`, seção 53)**
+**Versão atual: 2.3.71 (Etapa 6.36 — tags usadas como coluna do Kanban agora aparecem na seleção de tag da campanha (antes só as tags "normais" apareciam) — ver `docs/MANUAL_TECNICO.md`, seção 54)**
 
 ## Documentação
 
