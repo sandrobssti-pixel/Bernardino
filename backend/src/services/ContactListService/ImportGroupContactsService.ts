@@ -6,6 +6,7 @@ import ContactList from "../../models/ContactList";
 import ContactListItem from "../../models/ContactListItem";
 import Contact from "../../models/Contact";
 import { digitsOf } from "../../helpers/CheckGroupAdmin";
+import logger from "../../utils/logger";
 
 interface Request {
   whatsappId: string | number;
@@ -132,12 +133,28 @@ const ImportGroupContactsService = async ({
     if (!groupId) continue;
 
     let participants: any[] = [];
+    let subjectForLog = groupId;
     try {
       const metadata = await wbot.groupMetadata(`${groupId}@g.us`);
       participants = metadata?.participants || [];
-    } catch {
+      subjectForLog = metadata?.subject || groupId;
+    } catch (err: any) {
+      logger.warn(
+        `[ImportGroupContactsService] falha ao ler groupMetadata de "${groupId}@g.us": ${err?.message}`
+      );
       continue;
     }
+
+    logger.warn(
+      `[ImportGroupContactsService] grupo "${subjectForLog}" (${groupId}@g.us) retornou ${participants.length} participante(s): ${JSON.stringify(
+        participants.map((p: any) => ({
+          id: p?.id,
+          jid: p?.jid,
+          lid: p?.lid,
+          admin: p?.admin
+        }))
+      )}`
+    );
 
     for (const participant of participants) {
       const rawId = String(participant?.id || participant?.jid || "");
@@ -157,6 +174,10 @@ const ImportGroupContactsService = async ({
           numberDigits = digitsOf(matchedContact.number);
         }
       }
+
+      logger.warn(
+        `[ImportGroupContactsService] participante rawId="${rawId}" isLid=${isLid} -> numberDigits="${numberDigits || "(vazio)"}"`
+      );
 
       if (!numberDigits) {
         unresolved += 1;

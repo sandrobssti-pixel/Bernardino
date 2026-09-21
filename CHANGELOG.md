@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.76] — Investigação: "Importar de grupos → Participantes" trouxe contato errado — 2026-09-21
+
+### Investigando
+- Cliente testou "Importar de grupos" → "Participantes dos grupos" no
+  "Grupo Administração" (7 membros reais) e a lista criada ficou com 1
+  único contato ("Joao Paulo", um fornecedor sem nenhuma relação com o
+  grupo). A hipótese inicial (mismatch na resolução de participantes
+  endereçados por `@lid` contra `Contact.lid`) foi descartada por SQL —
+  a coluna `lid` do contato errado está vazia, então esse caminho de
+  código não poderia ter casado com ele.
+- Sem uma segunda hipótese confiável, em vez de tentar mais uma
+  correção especulativa (arriscado demais num bug que manda mensagem
+  pro destinatário errado), `ImportGroupContactsService.ts` ganhou
+  logs de diagnóstico (participantes crus devolvidos pelo
+  `groupMetadata()` de cada grupo + como cada um foi resolvido) pra
+  identificar a causa raiz real no próximo teste, sem mudar nenhum
+  comportamento.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 59.
+
 ## [2.3.75] — Bug grave: campanha ignorava a lista/grupo e mandava pra tag — 2026-09-21
 
 ### Corrigido

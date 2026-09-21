@@ -4512,3 +4512,65 @@ contatos daquela tag — sem nenhum aviso na tela de que isso aconteceria.
   avisos pré-existentes de sempre).
 - Não testado ainda em produção — pendente rebuild do backend e do
   frontend.
+
+## 59. Investigação em andamento: "Importar de grupos → Participantes" trouxe contato errado (v2.3.76)
+
+### Relato do cliente
+
+Testou "Importar de grupos" → "Participantes dos grupos" selecionando
+o "Grupo Administração" (7 membros reais). A lista criada
+(`ContactList` id=14) ficou com **1 único contato**: "Joao Paulo"
+(`5511934976190`) — um fornecedor de móveis de escritório, sem
+nenhuma relação com o grupo.
+
+### Hipótese descartada
+
+A primeira hipótese foi que a resolução de participantes endereçados
+por `@lid` (`ImportGroupContactsService.ts`, bloco que tenta casar o
+`@lid` do participante contra `Contact.lid` já salvo na empresa)
+estava batendo no `Contact` errado. Uma consulta SQL na própria
+`Contacts` do "Joao Paulo" mostrou a coluna `lid` **vazia**:
+
+```
+id    | name        | number         | lid | jid
+11374 | Joao Paulo  | 5511934976190  |     | 5511934976190@s.whatsapp.net
+```
+
+Como o `WHERE lid = '<algo>@lid'` não bate contra uma coluna vazia,
+essa hipótese foi descartada — o mecanismo real ainda não estava
+identificado.
+
+### Diagnóstico adicionado (sem mudar comportamento)
+
+`ImportGroupContactsService.ts` ganhou logs (`logger.warn`) para o
+próximo teste revelar o mecanismo real, sem alterar nenhuma regra de
+negócio:
+
+- Por grupo selecionado: nome do grupo, id completo (`...@g.us`) e a
+  lista crua de participantes que o `wbot.groupMetadata()` devolveu
+  (`id`, `jid`, `lid`, `admin` de cada um).
+- Por participante: o `rawId` usado, se foi tratado como `@lid`, e o
+  `numberDigits` final resolvido (ou vazio, se ficou "sem número
+  identificável").
+
+Esses logs vão para o log do container do backend (mesmo destino dos
+demais `logger.warn`/`logger.error` já usados no projeto) e permitem
+ver, no próximo teste, se:
+
+- o `groupMetadata()` realmente devolveu os 7 membros certos (e o bug
+  está em como um deles foi resolvido), ou
+- devolveu poucos participantes / participantes de outro grupo (bug
+  de id de grupo trocado — ver a seção 52, sobre hífen no id de grupo,
+  como precedente de bug nesse mesmo formato de id), ou
+- o "Joao Paulo" realmente veio como participante direto (não `@lid`)
+  nos dados crus do WhatsApp para esse grupo — o que empurraria a
+  investigação pro lado do próprio Baileys/conta do WhatsApp, e não
+  pro código deste projeto.
+
+### Status
+
+**Aberto.** Ainda não há correção — só instrumentação para o próximo
+teste do cliente revelar a causa raiz antes de qualquer mudança de
+comportamento (repetir uma correção especulativa, como a hipótese do
+`@lid` que já foi descartada, é arriscado demais num bug que manda
+mensagem pro destinatário errado).
