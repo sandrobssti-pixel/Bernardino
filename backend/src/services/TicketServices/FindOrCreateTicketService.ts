@@ -250,8 +250,12 @@ const FindOrCreateTicketService = async (
     }
 
     if (ticket && ticket.status !== "nps") {
+      // Reabrir um ticket de grupo recente/fechado nunca pode virar
+      // "pending" (aba Aguardando) — grupo sempre volta pra aba Grupos,
+      // mesmo que qualquer participante tenha mandado a mensagem (ver
+      // docs/MANUAL_TECNICO.md).
       await ticket.update({
-        status: "pending",
+        status: ticket.isGroup ? "group" : "pending",
         unreadMessages,
         companyId: resolvedCompanyId,
         queueId: null,

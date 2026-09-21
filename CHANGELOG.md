@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.79] — Bug real: ticket de grupo voltava pra "Aguardando" ao responder — 2026-09-21
+
+### Corrigido
+- Ticket de grupo fechado, ao receber uma mensagem nova de qualquer
+  participante, virava status `"pending"` (aba Aguardando) em vez de
+  voltar pra aba Grupos — misturando grupos com o atendimento normal.
+  Causa: 4 pontos no backend (3 no `wbotMessageListener.ts` + 1 no
+  `FindOrCreateTicketService.ts`) forçavam `status: "pending"` ao
+  reabrir um ticket fechado/recente, sem checar `ticket.isGroup`.
+- Corrigido: nos 4 pontos, o status de reabertura agora respeita
+  `ticket.isGroup` — grupo sempre volta como `"group"`, nunca como
+  `"pending"`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 62.
+
 ## [2.3.78] — Bug real: editar tag no ticket apagava a tag-coluna do Kanban — 2026-09-21
 
 ### Corrigido

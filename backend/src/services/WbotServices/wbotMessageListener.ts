@@ -1709,7 +1709,11 @@ export const verifyMediaMessage = async (
     });
 
     if (!msg.key.fromMe && ticket.status === "closed") {
-      await ticket.update({ status: "pending" });
+      // Ticket de grupo fechado nunca reabre como "pending" (aba
+      // Aguardando) -- qualquer participante que fale no grupo deve
+      // manter/reabrir o ticket na aba Grupos, mesmo depois de fechado
+      // (ver docs/MANUAL_TECNICO.md).
+      await ticket.update({ status: ticket.isGroup ? "group" : "pending" });
       await ticket.reload({
         attributes: [
           "id",
@@ -1814,7 +1818,11 @@ export const verifyMessage = async (
 
   if (!msg.key.fromMe && ticket.status === "closed") {
     console.log("===== CHANGE =====");
-    await ticket.update({ status: "pending" });
+    // Ticket de grupo fechado nunca reabre como "pending" (aba
+    // Aguardando) -- qualquer participante que fale no grupo deve
+    // manter/reabrir o ticket na aba Grupos, mesmo depois de fechado
+    // (ver docs/MANUAL_TECNICO.md).
+    await ticket.update({ status: ticket.isGroup ? "group" : "pending" });
     await ticket.reload({
       include: [
         { model: Queue, as: "queue" },
@@ -4293,7 +4301,11 @@ const flowbuilderIntegration = async (
 
   if (!msg.key.fromMe && ticket.status === "closed") {
     console.log("===== CHANGE =====");
-    await ticket.update({ status: "pending" });
+    // Ticket de grupo fechado nunca reabre como "pending" (aba
+    // Aguardando) -- qualquer participante que fale no grupo deve
+    // manter/reabrir o ticket na aba Grupos, mesmo depois de fechado
+    // (ver docs/MANUAL_TECNICO.md).
+    await ticket.update({ status: ticket.isGroup ? "group" : "pending" });
     await ticket.reload({
       include: [
         { model: Queue, as: "queue" },
@@ -4302,7 +4314,10 @@ const flowbuilderIntegration = async (
       ]
     });
     await UpdateTicketService({
-      ticketData: { status: "pending", integrationId: ticket.integrationId },
+      ticketData: {
+        status: ticket.isGroup ? "group" : "pending",
+        integrationId: ticket.integrationId
+      },
       ticketId: ticket.id,
       companyId
     });

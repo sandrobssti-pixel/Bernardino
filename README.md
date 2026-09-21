@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.78 (Etapa 6.43 — confirmado em produção o fim do bug de importar grupos [seção 60], e corrigido outro bug real: editar qualquer tag no cabeçalho do ticket apagava a tag-coluna do Kanban do contato, sumindo de novo da Nova Campanha — ver `docs/MANUAL_TECNICO.md`, seção 61)**
+**Versão atual: 2.3.79 (Etapa 6.44 — corrigido bug real: ticket de grupo fechado reabria como "Aguardando" quando qualquer participante respondia, em vez de voltar pra aba Grupos — 4 pontos corrigidos no backend — ver `docs/MANUAL_TECNICO.md`, seção 62)**
 
 ## Documentação
 

@@ -4711,3 +4711,62 @@ pelo Kanban.
 - Pendente: reteste do cliente — editar uma tag normal num ticket cujo
   contato também tem tag-coluna do Kanban, e confirmar que ela
   continua aparecendo em Nova Campanha depois.
+
+## 62. Bug real: ticket de grupo voltava pra "Aguardando" quando alguém respondia (v2.3.79)
+
+### Relato do cliente
+
+"Quando qualquer usuário falar em algum grupo não é pra ficar no
+status aguardando atendimento, é pra deixar só na aba Grupos mesmo —
+mesmo que qualquer um responda não é pra mudar pro status aguardando."
+
+### Causa raiz
+
+Um ticket de grupo usa o status `"group"` pra ficar só na aba Grupos
+(ver seção 50). Só que existiam **4 lugares** no backend que, ao
+reabrir um ticket **fechado** por causa de uma nova mensagem chegando,
+forçavam o status pra `"pending"` (aba Aguardando) sem checar se o
+ticket era de grupo:
+
+- `wbotMessageListener.ts`, três ocorrências do padrão
+  `if (!msg.key.fromMe && ticket.status === "closed") { ... status:
+  "pending" ... }` — usadas em pontos diferentes do fluxo de
+  recebimento de mensagem (mídia, texto, flowbuilder).
+- Uma dessas três ainda tinha uma segunda escrita logo depois, via
+  `UpdateTicketService({ ticketData: { status: "pending", ... } })`,
+  que reforçava o "pending" mesmo se a primeira escrita tivesse sido
+  corrigida.
+- `FindOrCreateTicketService.ts`: o bloco que reaproveita um ticket
+  **recente** (dentro da janela de "tempo pra criar novo ticket" da
+  conexão) também forçava `status: "pending"` incondicionalmente.
+
+Ou seja: bastava um grupo ter o ticket fechado (ex.: atendente
+encerrou) e qualquer participante mandar uma mensagem nova pra ele
+"vazar" pra aba Aguardando, misturando com o atendimento normal — só
+não acontecia enquanto o ticket já estivesse aberto/pendente/em
+"group" (o fluxo principal de match de ticket existente, que não mexe
+no status, já preservava isso corretamente).
+
+### Correção
+
+Nos 4 pontos, o status de reabertura passou a depender de
+`ticket.isGroup`:
+
+```ts
+// ANTES (bug)
+await ticket.update({ status: "pending" });
+
+// DEPOIS (correto)
+await ticket.update({ status: ticket.isGroup ? "group" : "pending" });
+```
+
+Com isso, um ticket de grupo fechado sempre reabre como `"group"`
+(aba Grupos), nunca como `"pending"`, não importa quem do grupo
+mandou a mensagem.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- Pendente: reteste do cliente — fechar um ticket de grupo, mandar uma
+  mensagem nova nele (de qualquer participante) e confirmar que ele
+  volta pra aba Grupos, não pra Aguardando.
