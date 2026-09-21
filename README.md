@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.76 (Etapa 6.41 — investigando bug: "Importar de grupos → Participantes" trouxe 1 contato sem relação com o grupo selecionado; hipótese do `@lid` descartada por SQL, logs de diagnóstico adicionados pro próximo teste — ver `docs/MANUAL_TECNICO.md`, seção 59)**
+**Versão atual: 2.3.77 (Etapa 6.42 — corrigida causa raiz do bug "Importar de grupos → Participantes" trazendo contato errado: participante `@lid` agora usa o `phoneNumber` real que o Baileys já expõe, em vez de adivinhar batendo o LID contra o banco — ver `docs/MANUAL_TECNICO.md`, seção 60)**
 
 ## Documentação
 

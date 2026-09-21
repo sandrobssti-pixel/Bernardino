@@ -4,7 +4,6 @@ import { tryGetWbot } from "../../libs/wbot";
 import Whatsapp from "../../models/Whatsapp";
 import ContactList from "../../models/ContactList";
 import ContactListItem from "../../models/ContactListItem";
-import Contact from "../../models/Contact";
 import { digitsOf } from "../../helpers/CheckGroupAdmin";
 import logger from "../../utils/logger";
 
@@ -151,6 +150,7 @@ const ImportGroupContactsService = async ({
           id: p?.id,
           jid: p?.jid,
           lid: p?.lid,
+          phoneNumber: p?.phoneNumber,
           admin: p?.admin
         }))
       )}`
@@ -159,24 +159,21 @@ const ImportGroupContactsService = async ({
     for (const participant of participants) {
       const rawId = String(participant?.id || participant?.jid || "");
       const isLid = rawId.toLowerCase().endsWith("@lid");
-      let numberDigits = isLid ? "" : digitsOf(rawId);
 
-      // Participante endereçado por @lid (sem número exposto no próprio
-      // grupo) — tenta resolver pelo Contact já salvo na empresa (lid ->
-      // number), já que outro fluxo (mensagem trocada antes) pode ter
-      // gravado esse vínculo.
-      if (!numberDigits && isLid) {
-        const lidKey = rawId.toLowerCase();
-        const matchedContact = await Contact.findOne({
-          where: { companyId: Number(companyId), lid: lidKey }
-        });
-        if (matchedContact?.number) {
-          numberDigits = digitsOf(matchedContact.number);
-        }
-      }
+      // O próprio Baileys expõe o número de telefone real em
+      // `phoneNumber` quando o participante é endereçado por `@lid`
+      // (grupo com "addressingMode: lid", modo de privacidade do
+      // WhatsApp) — nunca adivinhar o número batendo o LID contra
+      // contatos já salvos no banco: LID não tem relação numérica com o
+      // telefone, e esse "match" pode pegar um Contact errado (bug real:
+      // trouxe números sem nenhuma relação com o grupo, ver
+      // docs/MANUAL_TECNICO.md).
+      const numberDigits = isLid
+        ? digitsOf(String(participant?.phoneNumber || ""))
+        : digitsOf(rawId);
 
       logger.warn(
-        `[ImportGroupContactsService] participante rawId="${rawId}" isLid=${isLid} -> numberDigits="${numberDigits || "(vazio)"}"`
+        `[ImportGroupContactsService] participante rawId="${rawId}" isLid=${isLid} phoneNumber="${participant?.phoneNumber || ""}" -> numberDigits="${numberDigits || "(vazio)"}"`
       );
 
       if (!numberDigits) {

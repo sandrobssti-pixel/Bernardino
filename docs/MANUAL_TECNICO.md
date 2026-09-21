@@ -4513,7 +4513,7 @@ contatos daquela tag — sem nenhum aviso na tela de que isso aconteceria.
 - Não testado ainda em produção — pendente rebuild do backend e do
   frontend.
 
-## 59. Investigação em andamento: "Importar de grupos → Participantes" trouxe contato errado (v2.3.76)
+## 59. Investigação: "Importar de grupos → Participantes" trouxe contato errado (v2.3.76)
 
 ### Relato do cliente
 
@@ -4569,8 +4569,92 @@ ver, no próximo teste, se:
 
 ### Status
 
-**Aberto.** Ainda não há correção — só instrumentação para o próximo
-teste do cliente revelar a causa raiz antes de qualquer mudança de
-comportamento (repetir uma correção especulativa, como a hipótese do
-`@lid` que já foi descartada, é arriscado demais num bug que manda
-mensagem pro destinatário errado).
+**Resolvido — ver seção 60.**
+
+## 60. Causa raiz e correção: número errado ao importar participantes de grupo por `@lid` (v2.3.77)
+
+### O que o reteste mostrou
+
+Reproduzindo pelo caminho certo (Lista de Contatos → Adicionar nova
+lista → Importar de grupos → Participantes → Grupo Administração, um
+grupo com 7 membros reais), a lista criada trouxe **4 contatos, com
+números diferentes dos 7 membros reais do grupo**. Isso descartou de
+vez a suspeita de "grupo errado" ou "dado stale de uma lista
+duplicada" (seção 59) — o código realmente rodava e realmente
+resolvia número errado.
+
+### Causa raiz
+
+O tipo `GroupParticipant` do Baileys (`node_modules/baileys/lib/Types/Contact.d.ts`)
+tem **três campos de identidade separados** por participante:
+
+```ts
+export interface Contact {
+  /** ID either in lid or jid format (preferred) **/
+  id: string;
+  /** ID in LID format (@lid) **/
+  lid?: string;
+  /** ID in PN format (@s.whatsapp.net)  **/
+  phoneNumber?: string;
+  ...
+}
+```
+
+Em grupos que usam `addressingMode: "lid"` (modo de privacidade do
+WhatsApp, que evita expor o número de telefone real dos membros pros
+outros participantes), o campo `id`/`jid` do participante vem como
+`...@lid` — um identificador que **não tem nenhuma relação numérica
+com o telefone real** da pessoa. O Baileys já expõe o número de
+telefone verdadeiro, pronto pra uso, no campo `phoneNumber` do próprio
+participante.
+
+O código de `ImportGroupContactsService.ts` (v2.3.74/v2.3.76) nunca
+olhava pra `phoneNumber`. Para participantes `@lid`, ele tentava
+"adivinhar" o número batendo o LID contra a coluna `lid` já salva nos
+`Contacts` da empresa (`Contact.findOne({ where: { lid: lidKey } })`)
+— um match que pode perfeitamente cair num contato completamente sem
+relação com o grupo, porque LID não é derivado do número de telefone,
+é só um identificador opaco. Foi exatamente isso que aconteceu nos
+dois testes do cliente: primeiro trouxe 1 contato errado ("Joao
+Paulo", um fornecedor), depois 4 contatos com números diferentes dos
+membros reais do grupo.
+
+### Correção
+
+`ImportGroupContactsService.ts`: removida por completo a tentativa de
+resolver `@lid` via banco de dados (`Contact.findOne`). Agora, quando
+o participante é `@lid`, o número vem direto do campo `phoneNumber`
+que o próprio `wbot.groupMetadata()` já devolve:
+
+```ts
+// ANTES (bug) — adivinhava batendo o LID contra o banco
+if (!numberDigits && isLid) {
+  const matchedContact = await Contact.findOne({
+    where: { companyId, lid: rawId.toLowerCase() }
+  });
+  if (matchedContact?.number) numberDigits = digitsOf(matchedContact.number);
+}
+
+// DEPOIS (correto) — usa o número que o Baileys já expõe
+const numberDigits = isLid
+  ? digitsOf(String(participant?.phoneNumber || ""))
+  : digitsOf(rawId);
+```
+
+Quando o WhatsApp não expõe o `phoneNumber` de um participante `@lid`
+pra essa conexão (pode acontecer — é o próprio ponto do modo de
+privacidade), o participante fica em "sem número identificável"
+(contado em `unresolved`) em vez de ser adivinhado errado — mais
+seguro entregar menos contatos do que entregar um número errado numa
+campanha.
+
+Os logs de diagnóstico da seção 59 foram mantidos (agora também
+mostrando o `phoneNumber` cru de cada participante), úteis pra
+confirmar em produção que a resolução está batendo certo.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend.
+- Pendente: reteste do cliente no Grupo Administração confirmando que
+  os 7 membros (ou os que o WhatsApp expuser o número) aparecem
+  corretos na lista.

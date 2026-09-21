@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.77] — Corrigida causa raiz: número errado ao importar participantes de grupo por @lid — 2026-09-21
+
+### Corrigido
+- Causa raiz do bug da v2.3.76 identificada: em grupos com modo de
+  privacidade do WhatsApp (`addressingMode: "lid"`), o participante
+  vem endereçado por `@lid` — um identificador sem nenhuma relação
+  numérica com o telefone real. `ImportGroupContactsService.ts`
+  tentava "adivinhar" o número batendo esse LID contra a coluna `lid`
+  já salva nos `Contacts` do banco, o que podia casar com um contato
+  completamente sem relação com o grupo (confirmado em produção: 1
+  contato errado numa tentativa, 4 números diferentes dos membros
+  reais numa segunda).
+- Corrigido usando o campo `phoneNumber` que o próprio Baileys já
+  expõe no objeto do participante (`GroupParticipant`/`Contact` do
+  Baileys) quando disponível, em vez de qualquer tentativa de
+  adivinhação via banco de dados. Quando o WhatsApp não expõe esse
+  número pra essa conexão, o participante fica "sem número
+  identificável" em vez de ser resolvido errado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 60.
+
 ## [2.3.76] — Investigação: "Importar de grupos → Participantes" trouxe contato errado — 2026-09-21
 
 ### Investigando
