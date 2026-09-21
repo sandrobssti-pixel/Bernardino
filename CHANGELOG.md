@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.73] — Botão "Sincronizar grupos" na tela de Conexões — 2026-09-21
+
+### Adicionado
+- Novo botão "Sincronizar grupos" em cada conexão da tela de Conexões
+  (visível só pra conexão Baileys/wuzAPI com "Permitir grupos"
+  habilitado e status CONNECTED) — busca todos os grupos que a conexão
+  participa direto do WhatsApp (`groupFetchAllParticipating`) e garante
+  o contato + atendimento de cada um. Antes, a aba "Grupos" dentro de
+  Atendimento só mostrava grupo depois de trocar mensagem por ali —
+  agora não precisa esperar isso.
+
+### Corrigido
+- Também identificado (não corrigido automaticamente, precisa ação do
+  usuário): a conexão do cliente estava com **"Permitir grupos"
+  desabilitado**, fazendo o sistema descartar toda mensagem de grupo
+  recebida antes mesmo de gerar contato/atendimento — causa raiz de a
+  aba Grupos aparecer sempre vazia. Habilitar esse campo na edição da
+  conexão é pré-requisito pra qualquer coisa relacionada a grupo
+  funcionar (atendimento e sincronização).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 56.
+
 ## [2.3.72] — Tag do Kanban agora marca o contato (não só o ticket) — 2026-09-21
 
 ### Corrigido

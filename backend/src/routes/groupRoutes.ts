@@ -13,6 +13,12 @@ groupRoutes.get(
   GroupController.listAll
 );
 
+groupRoutes.post(
+  "/whatsapp/:whatsappId/groups/sync",
+  isAuth,
+  GroupController.sync
+);
+
 groupRoutes.get(
   "/contacts/:contactId/group",
   isAuth,

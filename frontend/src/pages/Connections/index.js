@@ -46,6 +46,7 @@ import {
   DevicesOther,
   Chat,
   FileCopy,
+  Group,
 } from "@material-ui/icons";
 
 import TableRowSkeleton from "../../components/TableRowSkeleton";
@@ -661,6 +662,7 @@ const Connections = () => {
   const [migrationTargetConnectionId, setMigrationTargetConnectionId] = useState("");
   const [migrationLoading, setMigrationLoading] = useState(false);
   const [syncingTemplateConnectionId, setSyncingTemplateConnectionId] = useState(null);
+  const [syncingGroupsConnectionId, setSyncingGroupsConnectionId] = useState(null);
 
   const { user, socket } = useContext(AuthContext);
   const companyId = user.companyId;
@@ -962,6 +964,23 @@ const Connections = () => {
       toast.success(`Templates sincronizados com sucesso (${Number(data?.synced || 0)} processados).`);
     } catch (err) { toastError(err); }
     finally { setSyncingTemplateConnectionId(null); }
+  };
+
+  // A aba "Grupos" (dentro de Atendimento) e o seletor de grupo da campanha
+  // só reconhecem grupo que já trocou mensagem por aqui — essa ação busca
+  // todos os grupos que a conexão participa direto do WhatsApp e garante o
+  // contato/atendimento de cada um, sem precisar esperar mensagem trocada
+  // (ver docs/MANUAL_TECNICO.md).
+  const handleSyncGroups = async (whatsApp) => {
+    if (!whatsApp?.id) return;
+    try {
+      setSyncingGroupsConnectionId(whatsApp.id);
+      const { data } = await api.post(`/whatsapp/${whatsApp.id}/groups/sync`);
+      toast.success(
+        `Grupos sincronizados: ${data.totalGroups} encontrados (${data.created} novos, ${data.alreadyExisted} já existiam).`
+      );
+    } catch (err) { toastError(err); }
+    finally { setSyncingGroupsConnectionId(null); }
   };
 
   const restartWhatsapps = async () => {
@@ -1538,6 +1557,34 @@ const Connections = () => {
                                       >
                                         <SwapHoriz style={{ fontSize: 15 }} />
                                       </IconButton>
+                                    </Tooltip>
+                                  )}
+
+                                  {!isMetaConnection && !isOfficial && whatsApp.allowGroup && (
+                                    <Tooltip
+                                      title={
+                                        getEffectiveConnectionStatus(whatsApp) === "CONNECTED"
+                                          ? "Sincronizar grupos: busca os grupos que essa conexão participa direto do WhatsApp, sem precisar esperar mensagem trocada"
+                                          : "A conexão precisa estar conectada pra sincronizar os grupos"
+                                      }
+                                      arrow
+                                    >
+                                      <span>
+                                        <IconButton
+                                          className={classes.actionIconBtn}
+                                          size="small"
+                                          onClick={() => handleSyncGroups(whatsApp)}
+                                          disabled={
+                                            syncingGroupsConnectionId === whatsApp.id ||
+                                            getEffectiveConnectionStatus(whatsApp) !== "CONNECTED"
+                                          }
+                                        >
+                                          {syncingGroupsConnectionId === whatsApp.id
+                                            ? <CircularProgress size={13} />
+                                            : <Group style={{ fontSize: 15 }} />
+                                          }
+                                        </IconButton>
+                                      </span>
                                     </Tooltip>
                                   )}
 

@@ -4263,3 +4263,82 @@ WHERE NOT EXISTS (
 - `tsc --noEmit` limpo no backend (`TicketTagController.ts`).
 - Não testado ainda em produção — pendente rebuild do backend e rodar
   a query de correção retroativa.
+
+## 56. Aba "Grupos" vazia mesmo com a conexão participando de grupos (v2.3.73)
+
+### Relato do cliente + investigação
+
+"A tela grupos, quando loga via WhatsApp, tem que mostrar os grupos
+vinculados nela e não mostra; por isso quando faz uma campanha pra
+grupos não vai poder fazer, pois não reconhece grupos na conexão."
+
+Print da aba "Grupos" (dentro de Atendimento) mostrando "Nada aqui!
+Nenhum atendimento encontrado". Consulta direto no banco:
+
+```
+ id |      name       | allowGroup | groupAsTicket |  status
+----+------------------+------------+---------------+-----------
+  4 | faderacaobaiana  | f          | disabled      | CONNECTED
+```
+
+### Causa raiz nº 1 — `Whatsapp.allowGroup` desabilitado
+
+Existe um campo de configuração **por conexão** chamado "Permitir
+grupos" (`Whatsapp.allowGroup`, editável no formulário de edição da
+conexão) — diferente da permissão "Permitir grupos" do **usuário**
+(`User.allowGroup`, seção 51) que só controla a aba dentro do
+Atendimento. Em `wbotMessageListener.ts`:
+
+```ts
+if (!whatsapp.allowGroup && isGroup) {
+  logger.info(`[GROUP] Mensagem de grupo ignorada (allowGroup=false)...`);
+  return; // descarta a mensagem inteira, nem chega a criar Contact/Ticket
+}
+```
+
+Com `allowGroup=false` na conexão, **toda mensagem de grupo recebida é
+descartada antes mesmo de gerar Contact/Ticket** — por isso a aba
+Grupos nunca teve nada pra mostrar, mesmo o grupo mandando mensagem de
+verdade. **Ação necessária do cliente**: em Conexões → editar a
+conexão → habilitar "Permitir grupos".
+
+### Causa raiz nº 2 — sem descoberta proativa de grupos
+
+Mesmo com `allowGroup=true`, a aba Grupos só preenche **depois** que
+alguém manda uma mensagem no grupo (reativo) — não existia nenhuma
+forma de "descobrir" de uma vez todos os grupos que a conexão já
+participa (como o seletor de campanha já faz desde a seção 49, via
+Baileys `groupFetchAllParticipating`).
+
+### Correção: botão "Sincronizar grupos"
+
+- **Backend**: novo `WbotServices/SyncWhatsappGroupsService.ts` —
+  busca todos os grupos da conexão (`groupFetchAllParticipating`) e,
+  pra cada um, chama `CreateOrUpdateContactService` (garante o
+  Contact, `isGroup: true`) e `FindOrCreateTicketService` (garante o
+  Ticket, seguindo a mesma regra de status já documentada — `"group"`
+  quando `groupAsTicket` está desabilitado, `"pending"` quando
+  habilitado). Recusa rodar se `whatsapp.allowGroup` estiver
+  desabilitado (mensagem orientando a habilitar primeiro). Rota
+  `POST /whatsapp/:whatsappId/groups/sync`
+  (`GroupController.sync`).
+- **Frontend**: botão "Sincronizar grupos" (ícone de grupo) na tela de
+  Conexões, ao lado de "Migrar mensagens" — só aparece pra conexão
+  Baileys/wuzAPI (não Meta/API Oficial) com "Permitir grupos" ativo, e
+  fica desabilitado se a conexão não estiver `CONNECTED`.
+
+Depois de rodar essa sincronização (com `allowGroup` já habilitado), os
+grupos passam a aparecer na aba Grupos do Atendimento, no Kanban (seção
+50) e no seletor de destinatário da campanha (seção 44/49) — os três
+lugares passam a enxergar os mesmos grupos, resolvendo a relação entre
+eles que o cliente apontou.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`SyncWhatsappGroupsService.ts`,
+  `GroupController.ts`).
+- Lint (`eslint`) limpo no frontend (`Connections/index.js`), sem
+  nenhum aviso novo.
+- Não testado ainda em produção — pendente rebuild do backend e do
+  frontend, habilitar "Permitir grupos" na conexão e rodar a
+  sincronização.
