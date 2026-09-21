@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.68 (Etapa 6.33 — item "Grupos" na barra lateral, visível quando a permissão "Permitir grupos" do usuário está ativa, abrindo direto na aba de grupos do Atendimento — ver `docs/MANUAL_TECNICO.md`, seção 51)**
+**Versão atual: 2.3.69 (Etapa 6.34 — corrigido bug real: id de grupo do WhatsApp com hífen ficava corrompido ao escolher "Grupo ou contato avulso" na campanha, e a mensagem nunca chegava — ver `docs/MANUAL_TECNICO.md`, seção 52)**
 
 ## Documentação
 

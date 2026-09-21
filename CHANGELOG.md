@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.69] — Corrigido id de grupo com hífen (campanha não entregava) — 2026-09-21
+
+### Corrigido
+- Bug real relatado pelo cliente: grupo aparecia certinho no seletor
+  "Grupo ou contato avulso" da campanha, mas a mensagem de teste nunca
+  chegava. Causa: grupos do WhatsApp criados há mais tempo usam id no
+  formato `NNNNNNNNNN-NNNNNNNNNN@g.us` (dois números separados por
+  hífen) — o código novo (`ListWhatsappGroupsService`,
+  `AddGroupService`) reaproveitava uma função pensada pra número de
+  telefone de pessoa, que removia **todo** caractere não numérico,
+  inclusive o hífen, juntando os dois números num id de grupo
+  inexistente. Corrigido pra preservar o hífen (só remove o sufixo
+  `@g.us`), igual o fluxo antigo que já funcionava
+  (`wbotMessageListener.ts`, `verifyContact`).
+- **Atenção**: grupos já adicionados numa lista antes desse fix ficaram
+  com o id errado salvo — é preciso excluir e adicionar o grupo de novo
+  pelo seletor da campanha depois de atualizar o sistema.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 52.
+
 ## [2.3.68] — Item "Grupos" na barra lateral — 2026-09-21
 
 ### Adicionado

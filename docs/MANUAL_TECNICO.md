@@ -3950,3 +3950,72 @@ Reaproveitando 100% a aba "Grupos" que já existe dentro do Atendimento
 - Lint (`eslint`) limpo nos arquivos alterados (só avisos
   pré-existentes, nenhum novo).
 - Não testado ainda em produção — pendente rebuild do frontend.
+
+## 52. Bug real: id de grupo com hífen ficava corrompido (campanha não entregava) (v2.3.69)
+
+### Relato do cliente
+
+"Apareceu o grupo, porém mandei um teste e não chegou — os grupos que
+estão nessa conexão."
+
+### Causa raiz
+
+O id de um grupo do WhatsApp **não é um número de telefone**. Grupos
+criados há mais tempo usam o formato:
+
+```
+NNNNNNNNNN-NNNNNNNNNN@g.us
+```
+
+(dois números separados por hífen — o primeiro é um timestamp de
+criação, o segundo o número de quem criou o grupo). Grupos mais novos
+usam só um id longo sem hífen.
+
+O seletor "Grupo ou contato avulso" da campanha, implementado na seção
+44/49 desta sessão, tinha dois pontos que tratavam esse id como se
+fosse um número de telefone comum, usando (direta ou indiretamente) a
+função `digitsOf` de `CheckGroupAdmin.ts` — que existe pra extrair só
+os dígitos de um número de PARTICIPANTE (ex.: `"5511999999999:12@s.whatsapp.net"`)
+e por isso remove **qualquer** caractere não numérico, hífen incluso:
+
+- `ListWhatsappGroupsService.ts` (lista os grupos direto do WhatsApp):
+  usava `digitsOf(group.id)` pra montar o `number` de cada grupo.
+- `AddGroupService.ts` (salva o grupo escolhido na lista de contatos):
+  usava `String(data.number).replace(/\D/g, "")`.
+
+Resultado: um grupo com id `"1234567890-1622547890@g.us"` virava
+`"12345678901622547890"` — um id que **não corresponde a nenhum grupo
+real**. A campanha aceitava o envio numa boa (não tem como validar um
+id de grupo antes de mandar, diferente de número de pessoa), mas a
+mensagem nunca chegava a lugar nenhum, porque o JID final
+(`"<id>@g.us"`) montado pela fila de disparo (`queues.ts`, linha
+~1518) apontava pra um grupo inexistente.
+
+O fluxo antigo que já funcionava — grupo virar `Contact` automaticamente
+ao trocar mensagem (`wbotMessageListener.ts`, função `verifyContact`) —
+sempre fez isso certo, só removendo o sufixo `"@g.us"`
+(`msgContact.id.replace("@g.us", "")`), sem tocar no resto do id. O bug
+era exclusivo do código novo desta sessão.
+
+### Correção
+
+- **`ListWhatsappGroupsService.ts`**: troca `digitsOf(group.id)` por
+  uma função local `groupIdFrom` que só corta o sufixo `"@g.us"`
+  (`String(rawId).split("@")[0].trim()`), preservando hífen.
+- **`AddGroupService.ts`**: troca `.replace(/\D/g, "")` por
+  `.split("@")[0].trim().replace(/[^0-9-]/g, "")` — sanitiza (tira
+  espaço, corta `@g.us` se vier por engano) sem remover o hífen.
+
+### Atenção — dado já salvo errado não se corrige sozinho
+
+Um grupo adicionado numa lista de contatos (via seletor da campanha)
+**antes** desse fix ficou com o id errado gravado no banco
+(`ContactListItems.number`). É preciso excluir esse item e adicionar o
+grupo de novo pelo seletor "Grupo ou contato avulso" depois do rebuild,
+pra pegar o id certo.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`ListWhatsappGroupsService.ts`,
+  `AddGroupService.ts`).
+- Não testado ainda em produção — pendente rebuild do backend.

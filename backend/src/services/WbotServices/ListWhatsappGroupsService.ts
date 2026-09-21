@@ -1,7 +1,15 @@
 import AppError from "../../errors/AppError";
 import { tryGetWbot } from "../../libs/wbot";
 import Whatsapp from "../../models/Whatsapp";
-import { digitsOf } from "../../helpers/CheckGroupAdmin";
+
+// ATENÇÃO: o id de um grupo NÃO é um número de telefone — grupos criados há
+// mais tempo usam o formato "NNNNNNNNNN-NNNNNNNNNN@g.us" (dois números
+// separados por hífen). Por isso aqui só se tira o sufixo "@g.us", nunca se
+// usa `digitsOf` (que remove hífen e juntaria os dois números num id
+// inexistente — bug real: grupo aparecia na lista mas a campanha não
+// entregava, ver docs/MANUAL_TECNICO.md).
+const groupIdFrom = (rawId: string): string =>
+  String(rawId || "").split("@")[0].trim();
 
 interface Request {
   whatsappId: string | number;
@@ -41,13 +49,16 @@ const ListWhatsappGroupsService = async ({
   const groups = await wbot.groupFetchAllParticipating();
 
   return Object.values(groups || {})
-    .map((group: any) => ({
-      number: digitsOf(String(group?.id || "")),
-      name: group?.subject || digitsOf(String(group?.id || "")),
-      participantsCount: Array.isArray(group?.participants)
-        ? group.participants.length
-        : 0
-    }))
+    .map((group: any) => {
+      const groupId = groupIdFrom(group?.id);
+      return {
+        number: groupId,
+        name: group?.subject || groupId,
+        participantsCount: Array.isArray(group?.participants)
+          ? group.participants.length
+          : 0
+      };
+    })
     .filter(group => group.number)
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 };
