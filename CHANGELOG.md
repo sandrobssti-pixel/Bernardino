@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.65] — Após importar arquivo, abre direto a tela de contatos da lista — 2026-09-21
+
+### Adicionado
+- Em "Lista de Contatos" → "Adicionar nova lista" → "Anexar arquivo": ao
+  terminar a importação da planilha, o sistema agora navega
+  automaticamente para a tela de contatos daquela lista (mesma tela do
+  botão "Ver Contatos"), já mostrando todos os números importados, para
+  o usuário conferir, adicionar manualmente ou excluir algum contato sem
+  precisar procurar a lista de novo na tela anterior.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 48.
+
 ## [2.3.64] — Bolinha de envio real, edição total da campanha, relatório em Excel — 2026-09-21
 
 ### Adicionado

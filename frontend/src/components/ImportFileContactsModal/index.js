@@ -10,6 +10,7 @@ import {
 } from "@material-ui/core";
 import PublishIcon from "@material-ui/icons/Publish";
 import { toast } from "react-toastify";
+import { useHistory } from "react-router-dom";
 
 import api from "../../services/api";
 import toastError from "../../errors/toastError";
@@ -23,6 +24,7 @@ import { AuthContext } from "../../context/Auth/AuthContext";
 // da lista (ver docs/MANUAL_TECNICO.md).
 const ImportFileContactsModal = ({ open, onClose, contactList }) => {
   const { user, socket } = useContext(AuthContext);
+  const history = useHistory();
   const fileInputRef = useRef();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -46,6 +48,10 @@ const ImportFileContactsModal = ({ open, onClose, contactList }) => {
         setUploading(false);
         toast.success("Arquivo importado com sucesso.");
         onClose(true);
+        // Leva direto para a tela de contatos da lista, já com os números
+        // importados, para conferir, adicionar ou excluir algum contato
+        // (ver docs/MANUAL_TECNICO.md).
+        history.push(`/contact-lists/${contactList.id}/contacts`);
       }
     };
 

@@ -3674,3 +3674,65 @@ concluído mostrou os números corretos.
 - `tsc --noEmit` limpo no backend (mudança em `ListService.ts`).
 - Não testado ainda em produção — pendente rebuild do frontend e do
   backend.
+
+## 48. Após importar arquivo em "Adicionar nova lista", abre a tela de contatos da lista (v2.3.65)
+
+### Pedido do cliente
+
+"Em Lista de Contatos, manda 'Adicionar nova lista', aí vai em 'Anexar
+arquivo'; quando clicar nessa função tem que abrir um formulário
+contendo todos os dados da lista de contatos — os números que vão ser
+enviados — para conferir, adicionar ou até mesmo excluir um contato da
+lista."
+
+### Situação antes
+
+O fluxo "Importar Arquivo" (botão na tela `ContactLists`, componente
+`ImportFileContactsModal`) fazia o upload da planilha, acompanhava o
+progresso via socket (`company-${companyId}-ContactListImport-${id}`)
+e, ao terminar (`payload.status === "done"`), só fechava o modal
+(`onClose(true)`) e mostrava um toast — o usuário continuava na tela de
+"lista de listas", precisando clicar manualmente em "Ver Contatos" pra
+conferir o que foi importado.
+
+Já existia, no sistema, uma tela pronta pra isso: `ContactListItems`
+(rota `/contact-lists/:id/contacts`), que lista todos os contatos da
+lista com busca, edição, exclusão e até um botão de importação própria
+— só faltava chegar nela automaticamente depois do import feito pela
+tela de listas.
+
+### Correção
+
+Em `frontend/src/components/ImportFileContactsModal/index.js`:
+
+```js
+import { useHistory } from "react-router-dom";
+// ...
+const history = useHistory();
+// ...
+if (payload?.status === "done") {
+  setUploading(false);
+  toast.success("Arquivo importado com sucesso.");
+  onClose(true);
+  history.push(`/contact-lists/${contactList.id}/contacts`);
+}
+```
+
+Assim que o socket confirma que o processamento da planilha terminou,
+o usuário é levado direto pra tela de contatos daquela lista — já
+populada com todos os números importados — onde pode conferir, editar,
+adicionar manualmente (botão "+") ou excluir qualquer contato, sem
+precisar procurar a lista de novo.
+
+O fluxo de importação que já existia **dentro** da própria tela
+`ContactListItems` (usado quando o usuário já está vendo os contatos de
+uma lista e importa uma planilha por lá) não precisou de nenhuma
+mudança — ele já mantém o usuário na mesma tela durante e depois da
+importação, mostrando o card de progresso (`importProgress`) e a
+listagem atualizada.
+
+### Testado
+
+- Lint (`eslint`) limpo no arquivo alterado.
+- Não há mudança de backend nesta etapa.
+- Não testado ainda em produção — pendente rebuild do frontend.
