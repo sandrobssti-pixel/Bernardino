@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.67] — Grupos do WhatsApp agora aparecem no Kanban — 2026-09-21
+
+### Corrigido
+- Atendimentos de grupo do WhatsApp (status interno `group`, usado
+  quando a conexão não trata grupo como atendimento comum) não
+  apareciam no quadro Kanban — só apareciam na aba "Grupos" da tela de
+  Atendimento. Causa: a consulta do Kanban só trazia tickets com status
+  `pending`/`open` (ou já classificados numa coluna antes). Corrigido
+  incluindo `group` nessa mesma condição — agora o grupo aparece na
+  lane padrão do Kanban e pode ser arrastado pra qualquer coluna/tag,
+  igual um atendimento normal.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 50.
+
 ## [2.3.66] — Ajuste visual da edição total + grupos do WhatsApp direto da conexão — 2026-09-21
 
 ### Corrigido

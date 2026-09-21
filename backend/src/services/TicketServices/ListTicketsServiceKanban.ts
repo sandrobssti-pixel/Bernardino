@@ -110,10 +110,15 @@ const ListTicketsServiceKanban = async ({
     })
   ).map(ticketTag => ticketTag.ticketId);
 
+  // "group" entra junto de "pending"/"open" pra que os atendimentos de
+  // grupo do WhatsApp também apareçam no board (lane padrão) e possam ser
+  // arrastados pra uma coluna/tag, igual qualquer outro atendimento — antes
+  // só apareciam aqui se já tivessem sido marcados manualmente com uma tag
+  // de kanban (ver docs/MANUAL_TECNICO.md).
   whereCondition = {
     ...whereCondition,
     [Op.or]: [
-      { status: { [Op.or]: ["pending", "open"] } },
+      { status: { [Op.or]: ["pending", "open", "group"] } },
       { id: { [Op.in]: kanbanTaggedTicketIds.length ? kanbanTaggedTicketIds : [-1] } }
     ]
   };

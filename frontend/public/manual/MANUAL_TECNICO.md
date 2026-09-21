@@ -3828,3 +3828,64 @@ conexão participa, sem depender de histórico de mensagem:
   (sem novos erros/avisos).
 - Não testado ainda em produção com uma conexão real — pendente rebuild
   do frontend e do backend.
+
+## 50. Atendimentos de grupo do WhatsApp não apareciam no Kanban (v2.3.67)
+
+### Pedido do cliente
+
+"Só aparece grupos dentro da aba atendimento e não grupos no quadro do
+lado [Kanban] — em baixo de CRM/Kanban dentro do kanban fica a opção
+também para arrastar o grupo caso necessite."
+
+### Causa raiz
+
+Quando um grupo do WhatsApp vira atendimento, o `status` do `Ticket`
+não é `pending`/`open` como um atendimento normal — é um status
+próprio, `"group"` (ver `FindOrCreateTicketService.ts`), usado sempre
+que a conexão **não** está configurada para tratar grupo como
+atendimento comum (`whatsapp.groupAsTicket !== "enabled"`, que é o
+padrão). Esse status tem seu próprio filtro/aba só na tela de
+Atendimento (`ListTicketsService.ts`, filtro `status === "group"`).
+
+O Kanban (`ListTicketsServiceKanban.ts`), porém, só busca tickets com:
+
+```ts
+[Op.or]: [
+  { status: { [Op.or]: ["pending", "open"] } },
+  { id: { [Op.in]: kanbanTaggedTicketIds } } // já classificado antes
+]
+```
+
+Como o ticket do grupo nasce com `status: "group"` e nunca tinha sido
+classificado numa coluna do Kanban antes (porque nem aparecia lá pra
+poder ser arrastado — problema do ovo e da galinha), ele nunca entrava
+nem na lane padrão ("sem lane").
+
+### Correção
+
+Adicionado `"group"` na mesma condição de `pending`/`open`:
+
+```ts
+[Op.or]: [
+  { status: { [Op.or]: ["pending", "open", "group"] } },
+  { id: { [Op.in]: kanbanTaggedTicketIds } }
+]
+```
+
+Agora o atendimento de grupo aparece na lane padrão do Kanban (igual
+qualquer outro atendimento sem tag ainda) e pode ser arrastado pra
+qualquer coluna — a partir daí, mesmo que o status volte a mudar, ele
+continua aparecendo no board por já estar marcado com a tag do kanban
+(regra que já existia antes pra atendimentos fechados).
+
+### Nota
+
+Se a conexão do WhatsApp estiver configurada com "tratar grupo como
+atendimento" habilitado (`groupAsTicket: "enabled"`), o ticket do grupo
+já nasce com status `pending` e já aparecia no Kanban normalmente —
+esse fix cobre o caso (mais comum) em que essa opção está desabilitada.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`ListTicketsServiceKanban.ts`).
+- Não testado ainda em produção — pendente rebuild do backend.
