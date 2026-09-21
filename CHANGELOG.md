@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.70] — Bug grave: número BR de 12 dígitos era aceito antes do certo — 2026-09-21
+
+### Corrigido
+- Bug real e grave, confirmado direto no banco: numa lista importada com
+  96 contatos, 89 ficaram marcados como "válidos" com número de celular
+  **sem o 9º dígito** (12 dígitos) — a campanha "entregava" pra esses
+  números, mas a mensagem não chegava de verdade. Causa: em
+  `CheckNumber.ts`, a checagem contra o WhatsApp sempre testava primeiro
+  o resultado da `libphonenumber-js`, que — passada sem o `+` — não
+  reconhece esse formato e devolve o **mesmo número de 12 dígitos sem
+  corrigir**, fazendo esse candidato errado ser aceito pelo WhatsApp
+  (que tolera a forma incompleta) antes mesmo de tentar a forma certa
+  (13 dígitos). Corrigido: agora só usa a `libphonenumber-js` pra
+  números de fora do Brasil; para BR, a forma completa (com o 9) é
+  sempre testada primeiro, sem exceção.
+- Novo botão **"Revalidar números"** na tela de contatos de uma lista —
+  reconfere no WhatsApp o número de todos os contatos já importados,
+  corrigindo quem ficou salvo errado, sem precisar reimportar a
+  planilha do zero.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 53.
+
 ## [2.3.69] — Corrigido id de grupo com hífen (campanha não entregava) — 2026-09-21
 
 ### Corrigido

@@ -81,16 +81,19 @@ const buildCandidates = (raw: string, isGroup: boolean): string[] => {
     return [];
   }
 
-  // Primeira tentativa: resultado da libphonenumber-js (dados oficiais de
-  // numeração de qualquer país) — já corrige sozinha, por exemplo, o 9º
-  // dígito do celular brasileiro. As variantes manuais abaixo continuam
-  // como reserva, pra número que a lib não reconheceu.
-  push(normalizeCampaignContactNumber(digits) || null);
-
   if (digits.startsWith("55") && digits.length === 12) {
     // 12 dígitos com DDI 55 = forma incompleta (sem o 9º dígito do
     // celular). Tenta primeiro a forma completa/correta (13 dígitos);
     // a incompleta só entra depois, como último recurso.
+    //
+    // ATENÇÃO: `normalizeCampaignContactNumber` (libphonenumber-js) NUNCA
+    // pode ser chamada como primeiro candidato aqui — passada sem "+", a
+    // lib não reconhece esse formato e cai no fallback que devolve o
+    // MESMO número de 12 dígitos (sem adicionar o 9º dígito). Isso fazia
+    // o candidato errado ser testado (e aceito, por tolerância do
+    // próprio WhatsApp) antes do certo — bug real: 89 de 96 contatos de
+    // uma lista importada ficaram marcados como válidos com número
+    // incompleto. Ver docs/MANUAL_TECNICO.md.
     push(addBrVariant(digits)); // -> 13 dígitos (com o 9)
     push(digits);
   } else if (digits.startsWith("55") && digits.length === 13) {
@@ -106,8 +109,11 @@ const buildCandidates = (raw: string, isGroup: boolean): string[] => {
     push(addBrVariant(withDdi));
     push(withDdi);
   } else {
-    // DDI de outro país (ou formato não reconhecido): testa como veio,
-    // sem nenhuma tentativa de "converter" pra Brasil.
+    // DDI de outro país (ou formato não reconhecido): usa a
+    // libphonenumber-js (sabe as regras de numeração de qualquer país),
+    // com o valor cru como fallback — sem nenhuma tentativa de
+    // "converter" pra Brasil.
+    push(normalizeCampaignContactNumber(digits) || null);
     push(digits);
   }
 

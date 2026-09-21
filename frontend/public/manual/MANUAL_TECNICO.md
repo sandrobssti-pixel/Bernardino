@@ -4019,3 +4019,111 @@ pra pegar o id certo.
 - `tsc --noEmit` limpo no backend (`ListWhatsappGroupsService.ts`,
   `AddGroupService.ts`).
 - Não testado ainda em produção — pendente rebuild do backend.
+
+## 53. Bug grave: número BR de 12 dígitos era testado (e aceito) antes do certo (v2.3.70)
+
+### Como foi descoberto
+
+Cliente relatou que campanhas simplesmente pararam de entregar — nem
+pra contato individual, nem pra lista, nem pra grupo. Investigação
+direta no banco de uma lista real importada (96 contatos, "Clientes
+Inadimplentes"):
+
+```
+ tam | isWhatsappValid | count
+-----+-----------------+-------
+  12 | f               |     2
+  12 | t               |    89   <- BUG: 12 dígitos = sem o 9º dígito
+  13 | f               |     5
+```
+
+**89 de 96 contatos** (quase todos) tinham número de **12 dígitos**
+(DDI+DDD+8 dígitos, sem o 9º dígito do celular) e estavam marcados
+como `isWhatsappValid = true`. Ou seja: o sistema aceitava como válido
+exatamente o formato que a correção da v2.3.63 deveria ter impedido.
+
+### Causa raiz
+
+Em `CheckNumber.ts`, a função `buildCandidates` montava a lista de
+candidatos a testar contra o WhatsApp assim:
+
+```ts
+// ANTES (bug)
+push(normalizeCampaignContactNumber(digits) || null); // <- SEMPRE primeiro
+if (digits.startsWith("55") && digits.length === 12) {
+  push(addBrVariant(digits)); // 13 dígitos, só depois
+  push(digits);
+}
+```
+
+O comentário do código dizia "a forma completa (com 9) SEMPRE é
+testada antes da incompleta" — mas isso só valia pros candidatos
+adicionados a partir da segunda linha. O **primeiro** candidato,
+`normalizeCampaignContactNumber(digits)`, é chamado com o número
+**sem o `+`** — e olhando `normalizeCampaignContactNumber.ts`:
+
+```ts
+const parsed = parsePhoneNumberFromString(forParsing, hasExplicitCountry ? undefined : "BR");
+if (parsed && parsed.isValid()) {
+  return parsed.number.replace(/^\+/, "");
+}
+// ...
+// Fallback: número que a lib não conseguiu validar
+let digits = trimmed.replace(/\D/g, "");
+if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
+return digits; // <- devolve o MESMO número de 12 dígitos, sem tocar
+```
+
+Passado sem `+`, a `libphonenumber-js` trata o número como um número
+**nacional** dentro do Brasil (não reconhece os 2 primeiros dígitos
+como DDI) e não consegue validar — cai no fallback, que só sabe tratar
+os casos de 10/11 dígitos (sem DDI); um número de **12 dígitos** volta
+exatamente como entrou, **sem adicionar o 9º dígito**.
+
+Resultado: o candidato de 12 dígitos (errado) virava sempre o
+**primeiro** a ser testado contra o WhatsApp — e o WhatsApp, por
+tolerância do próprio servidor, às vezes responde `exists: true` pra
+essa forma incompleta (comportamento já documentado na seção 46). O
+sistema aceitava esse primeiro resultado e nunca chegava a testar a
+forma de 13 dígitos (correta), que ficava depois na lista.
+
+### Correção
+
+Removida a chamada solta a `normalizeCampaignContactNumber` do topo da
+função. Ela só é usada agora dentro do `else` final (números que **não**
+são BR de 10-13 dígitos — ou seja, DDI de outro país), onde já fazia
+sentido e não atrapalhava a ordem. Pros três casos brasileiros (12
+dígitos, 13 dígitos, sem DDI) a ordem de candidatos agora é exatamente
+a que os comentários sempre descreveram: forma completa (com o 9)
+**sempre** testada primeiro.
+
+### Ferramenta nova: "Revalidar números" (corrige listas já importadas)
+
+Esse bug não se corrige sozinho pra quem já foi importado antes do
+fix — o `number`/`isWhatsappValid` já estão errados, gravados. Em vez
+de pedir pra reimportar a planilha inteira (perdendo `extraData` e
+duplicando o trabalho), foi criada uma ação nova:
+
+- **Backend**: `ContactListItemService/RevalidateNumbersService.ts` —
+  percorre todos os itens (não-grupo) de uma lista e chama de novo
+  `CheckContactNumber` (agora com a ordem corrigida) pra cada um,
+  atualizando `number`/`isWhatsappValid` conforme o resultado real.
+  Rota `POST /contact-lists/:id/revalidate-numbers`
+  (`ContactListController.revalidateNumbers`).
+- **Frontend**: botão "Revalidar números" na tela de contatos de uma
+  lista (`ContactListItems`), ao lado de "Importar Arquivo" — mostra
+  um resumo ao final (quantos foram corrigidos, quantos já estavam
+  certos, quantos inválidos).
+
+Esse botão precisa ser usado manualmente em qualquer lista que já
+existia antes dessa correção (ex.: a lista "Clientes Inadimplentes" do
+relato, e qualquer outra importada antes da v2.3.70).
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`CheckNumber.ts`,
+  `RevalidateNumbersService.ts`, `ContactListController.ts`).
+- Lint (`eslint`) limpo no frontend (`ContactListItems/index.js`), só
+  avisos pré-existentes.
+- Não testado ainda em produção — pendente rebuild do backend e do
+  frontend, e rodar "Revalidar números" na lista já importada.

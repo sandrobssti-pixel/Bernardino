@@ -38,6 +38,7 @@ import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 import BlockIcon from "@material-ui/icons/Block";
 import AddIcon from "@material-ui/icons/Add";
 import PublishIcon from "@material-ui/icons/Publish";
+import RefreshIcon from "@material-ui/icons/Refresh";
 import ArrowBackIcon from "@material-ui/icons/ArrowBack";
 import PeopleOutlineIcon from "@material-ui/icons/PeopleOutline";
 import VisibilityIcon from "@material-ui/icons/Visibility";
@@ -435,6 +436,7 @@ const ContactListItems = () => {
   const [detailsContact, setDetailsContact] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [contactList, setContactList] = useState({});
+  const [revalidating, setRevalidating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [importProgress, setImportProgress] = useState({
     visible: false,
@@ -636,6 +638,29 @@ const ContactListItems = () => {
     history.push("/contact-lists");
   };
 
+  // Reprocessa a checagem de WhatsApp de todos os números da lista, sem
+  // precisar reimportar a planilha — corrige contatos que ficaram com o
+  // número errado (ex.: celular sem o 9º dígito) numa importação anterior a
+  // algum fix de validação de número (ver docs/MANUAL_TECNICO.md).
+  const handleRevalidateNumbers = async () => {
+    setRevalidating(true);
+    try {
+      const { data } = await api.post(
+        `/contact-lists/${contactListId}/revalidate-numbers`
+      );
+      toast.success(
+        `Revalidação concluída: ${data.corrected} corrigidos, ${data.unchanged} já estavam certos, ${data.invalid} inválidos (de ${data.total}).`
+      );
+      setPageNumber(1);
+      dispatch({ type: "RESET" });
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setRevalidating(false);
+    }
+  };
+
   if (user.profile === "user") {
     return <ForbiddenPage />;
   }
@@ -748,6 +773,19 @@ const ContactListItems = () => {
           >
             {i18n.t("contactListItems.buttons.import")}
           </Button>
+          <Tooltip title="Reconfere no WhatsApp o número de todos os contatos desta lista, sem precisar reimportar a planilha — corrige quem ficou salvo sem o 9º dígito.">
+            <span>
+              <Button
+                className={classes.btnGhost}
+                size="small"
+                startIcon={<RefreshIcon style={{ fontSize: 15 }} />}
+                onClick={handleRevalidateNumbers}
+                disabled={revalidating}
+              >
+                {revalidating ? "Revalidando..." : "Revalidar números"}
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             className={classes.btnPrimary}
             size="small"

@@ -16,6 +16,7 @@ import AppError from "../errors/AppError";
 import { ImportContacts } from "../services/ContactListService/ImportContacts";
 import ImportSystemContactsService from "../services/ContactListService/ImportSystemContactsService";
 import GetOrCreateQuickListService from "../services/ContactListService/GetOrCreateQuickListService";
+import RevalidateNumbersService from "../services/ContactListItemService/RevalidateNumbersService";
 
 type IndexQuery = {
   searchParam: string;
@@ -183,6 +184,27 @@ export const upload = async (req: Request, res: Response) => {
     });
 
   return res.status(200).json(response);
+};
+
+export const revalidateNumbers = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { id } = req.params;
+  const { companyId } = req.user;
+
+  const result = await RevalidateNumbersService({
+    contactListId: +id,
+    companyId
+  });
+
+  const io = getIO();
+  io.of(String(companyId))
+    .emit(`company-${companyId}-ContactListItem-${+id}`, {
+      action: "reload"
+    });
+
+  return res.status(200).json(result);
 };
 
 export const importSystemContacts = async (
