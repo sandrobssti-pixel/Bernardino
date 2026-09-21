@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.75] — Bug grave: campanha ignorava a lista/grupo e mandava pra tag — 2026-09-21
+
+### Corrigido
+- Bug real e grave relatado pelo cliente: criou uma campanha de teste
+  pra um grupo, e a mensagem foi entregue a um contato de uma tag
+  ("Fornecedor") sem nenhuma relação com o grupo. Causa:
+  `CampaignController.store` sempre dava prioridade ao campo Tag
+  quando ele vinha preenchido (`if (typeof data.tagListId ===
+  'number')`), ignorando por completo a Lista de Contato/grupo
+  escolhida — e o formulário não limpava um campo ao escolher o outro,
+  então um valor de tag esquecido de uma tentativa anterior bastava
+  pra desviar a campanha inteira pro destinatário errado.
+- Corrigido nos dois lados: no formulário (`CampaignModal`), escolher
+  Lista de Contato agora limpa a Tag e vice-versa (mutuamente
+  exclusivos); no backend, a Lista de Contato passa a ter prioridade
+  sempre que os dois vierem preenchidos, em vez da Tag.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 58.
+
 ## [2.3.74] — Lista de Contatos vira o único lugar de onde toda lista nasce — 2026-09-21
 
 ### Adicionado

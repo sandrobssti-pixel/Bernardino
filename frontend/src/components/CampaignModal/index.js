@@ -833,6 +833,14 @@ useEffect(() => {
                           Boolean(distributionErrors.contactListId)
                         }
                         disabled={!campaignEditable}
+                        onChange={(e) => {
+                          // Lista de Contato e Tag são exclusivas — escolher uma
+                          // limpa a outra, senão um valor de tag esquecido de um
+                          // teste anterior faz o backend enviar pra tag em vez da
+                          // lista/grupo escolhido (bug real, ver docs/MANUAL_TECNICO.md).
+                          setFieldValue("contactListId", e.target.value);
+                          if (e.target.value) setFieldValue("tagListId", "");
+                        }}
                       >
                         <MenuItem value="">Nenhuma</MenuItem>
                         {contactLists &&
@@ -869,6 +877,10 @@ useEffect(() => {
                           Boolean(distributionErrors.tagListId)
                         }
                         disabled={!campaignEditable}
+                        onChange={(e) => {
+                          setFieldValue("tagListId", e.target.value);
+                          if (e.target.value) setFieldValue("contactListId", "");
+                        }}
                       >
                         <MenuItem value="">Nenhuma</MenuItem>
                         {Array.isArray(tagLists) &&

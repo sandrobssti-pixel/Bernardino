@@ -4459,3 +4459,56 @@ Rota: `POST /contact-lists/import-groups`
   só os mesmos avisos pré-existentes de sempre, nenhum novo.
 - Não testado ainda em produção — pendente rebuild do backend e do
   frontend.
+
+## 58. Bug grave: campanha ignorava a lista/grupo e mandava pra uma tag (v2.3.75)
+
+### Relato do cliente
+
+"Fiz um teste, criei um envio teste para um grupo interno — foi pra um
+contato que não tem nada a ver com o grupo. Coloquei a tag como
+fornecedor e direcionou a mensagem para o fornecedor e não para o
+grupo. Estou no Paraguai e o grupo é do Brasil."
+
+### Causa raiz
+
+`CampaignController.ts`, na criação da campanha (`store`):
+
+```ts
+// ANTES (bug)
+if (typeof data.tagListId === 'number') {
+  // ... sempre cria uma ContactList nova a partir da TAG e a usa,
+  // mesmo que data.contactListId já tivesse um valor (o grupo/lista
+  // escolhida pelo usuário) — o contactListId enviado no body é
+  // completamente ignorado nesse caso.
+}
+```
+
+O formulário (`CampaignModal`) tem dois campos independentes — "Lista
+de Contato" e "Tag" — e **nenhum dos dois limpava o outro** ao ser
+selecionado. Bastava o campo Tag ter ficado com um valor de uma
+tentativa anterior (ex.: o cliente testou por tag antes de decidir
+usar o grupo) pra que, na hora de salvar, o backend ignorasse
+silenciosamente a lista/grupo escolhida e mandasse a campanha pros
+contatos daquela tag — sem nenhum aviso na tela de que isso aconteceria.
+
+### Correção
+
+- **Frontend** (`CampaignModal/index.js`): os dois `Select` (Lista de
+  Contato e Tag) ganharam `onChange` customizado — escolher um limpa o
+  outro (`setFieldValue` do campo oposto pra `""`), tornando os dois
+  campos mutuamente exclusivos na prática, não só na intenção.
+- **Backend** (`CampaignController.ts`): a condição passou a exigir
+  também que `contactListId` esteja vazio —
+  `if (typeof data.tagListId === 'number' && !data.contactListId)` —
+  então mesmo que um valor de tag chegue por engano (ex.: uma
+  requisição feita fora do formulário padrão), a Lista de
+  Contato/grupo já escolhida tem prioridade e nunca é substituída
+  silenciosamente.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend (`CampaignController.ts`).
+- Lint (`eslint`) limpo em `CampaignModal/index.js` (só os mesmos
+  avisos pré-existentes de sempre).
+- Não testado ainda em produção — pendente rebuild do backend e do
+  frontend.

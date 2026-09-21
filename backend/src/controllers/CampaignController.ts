@@ -93,7 +93,14 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     throw new AppError(err.message);
   }
 
-  if (typeof data.tagListId === 'number') {
+  // "Lista de Contato" e "Tag" são exclusivas na tela — se as duas vierem
+  // preenchidas (ex.: valor de tag esquecido de uma tentativa anterior no
+  // formulário), a Lista de Contato SEMPRE tem prioridade: é o campo que o
+  // usuário mais provavelmente escolheu por último, e ignorar silenciosamente
+  // a lista/grupo escolhido pra usar a tag enviava a campanha pro destinatário
+  // errado (bug real relatado pelo cliente — mandou pra um grupo e foi pra
+  // uma tag de fornecedores). Ver docs/MANUAL_TECNICO.md.
+  if (typeof data.tagListId === 'number' && !data.contactListId) {
 
     const tagId = data.tagListId;
     const campanhaNome = data.name;
