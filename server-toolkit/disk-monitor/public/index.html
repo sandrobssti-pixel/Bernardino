@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Disk Monitor — Confiança Technologies</title>
+<link rel="icon" type="image/png" href="/favicon.png" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --panel: #1a2234;
+    --panel-border: rgba(148,163,184,0.15);
+    --text: #e2e8f0;
+    --text-muted: #94a3b8;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+    --crit: #ef4444;
+    /* Roxo -> ciano da marca Confiança Technologies (mesmo gradiente do
+       logo) — accent principal roxo, accent2 ciano pro gráfico/detalhes. */
+    --accent: #7c5cf5;
+    --accent2: #22d3ee;
+  }
+  :root[data-theme="light"] {
+    --bg: #f1f5f9;
+    --panel: #ffffff;
+    --panel-border: rgba(15,23,42,0.08);
+    --text: #0f172a;
+    --text-muted: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  h1 { font-size: 1.25rem; margin: 0 0 16px; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .topbar .brand { display: flex; align-items: center; gap: 16px; }
+  .topbar img { height: 36px; }
+  .topbar .title { display: flex; flex-direction: column; }
+  .topbar .title strong { font-size: 1rem; }
+  .topbar .title span { font-size: 0.8rem; color: var(--text-muted); }
+  .topbar .controls { display: flex; align-items: center; gap: 8px; }
+  .icon-btn {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .lang-select {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  .version-badge {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-left: 8px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .panel h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+  }
+  .big-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .sub { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
+  .bar-track {
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(148,163,184,0.15);
+    margin-top: 12px;
+    overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+  button {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.secondary { background: rgba(148,163,184,0.15); color: var(--text); }
+  label { display: block; font-size: 0.8rem; color: var(--text-muted); margin: 10px 0 4px; }
+  input[type="number"] {
+    width: 100%;
+    background: rgba(148,163,184,0.08);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    padding: 8px;
+    color: var(--text);
+  }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--panel-border); }
+  th { color: var(--text-muted); font-weight: 600; }
+  .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; }
+  .chip.auto { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .chip.manual { background: rgba(124,92,245,0.15); color: var(--accent); }
+  .steps { color: var(--text-muted); font-size: 0.78rem; }
+  .steps .fail { color: var(--crit); }
+  canvas { max-height: 260px; }
+  #toast {
+    position: fixed; bottom: 16px; right: 16px;
+    background: var(--panel); border: 1px solid var(--panel-border);
+    padding: 10px 16px; border-radius: 8px; display: none;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <img id="brandLogo" src="/logo.png" alt="Confiança Technologies" />
+      <div class="title">
+        <strong data-i18n="appTitle">Disk Monitor</strong>
+        <span data-i18n="appSubtitle">Confiança Technologies — server-toolkit</span>
+      </div>
+      <span class="version-badge" id="versionBadge">v1.0.0</span>
+    </div>
+    <div class="controls">
+      <select class="lang-select" id="langSelect">
+        <option value="pt">🇧🇷 Português</option>
+        <option value="es">🇵🇾 Español</option>
+        <option value="en">🇺🇸 English</option>
+      </select>
+      <button class="icon-btn" id="themeToggle" type="button">🌙</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2 data-i18n="diskUsageNow">Uso de disco agora</h2>
+      <div class="big-number" id="currentPercent">--%</div>
+      <div class="sub" id="currentDetail" data-i18n="loading">carregando...</div>
+      <div class="bar-track"><div class="bar-fill" id="currentBar" style="width:0%"></div></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="cleanup">Limpeza</h2>
+      <div class="sub" style="margin-bottom:12px" data-i18n="cleanupDesc">
+        Remove container/imagem não usada, cache de build, log gigante do
+        Docker e arquivo velho de /tmp. Nunca mexe em volume (banco de
+        dados e arquivos enviados ficam intocados).
+      </div>
+      <button id="cleanupBtn" data-i18n="cleanupNow">Limpar agora</button>
+      <div class="sub" id="cleanupStatus" style="margin-top:8px"></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-i18n="configuration">Configuração</h2>
+      <label data-i18n="thresholdLabel">Limite pra limpeza automática (%)</label>
+      <input type="number" id="thresholdPercent" min="50" max="99" />
+      <label data-i18n="intervalLabel">Intervalo de checagem (minutos)</label>
+      <input type="number" id="checkIntervalMinutes" min="1" />
+      <label data-i18n="dockerLogLabel">Truncar log do Docker maior que (MB)</label>
+      <input type="number" id="dockerLogMaxSizeMB" min="10" />
+      <label data-i18n="tmpLabel">Limpar /tmp com mais de (dias)</label>
+      <input type="number" id="tmpFilesOlderThanDays" min="1" />
+      <div class="toggle-row">
+        <input type="checkbox" id="autoCleanupEnabled" />
+        <span data-i18n="autoCleanupLabel">Limpeza automática habilitada</span>
+      </div>
+      <div style="margin-top:12px">
+        <button id="saveConfigBtn" class="secondary" data-i18n="saveConfig">Salvar configuração</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="historyTitle">Histórico de uso de disco</h2>
+    <canvas id="historyChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2 data-i18n="recentCleanups">Últimas limpezas</h2>
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="thWhen">Quando</th>
+          <th data-i18n="thType">Tipo</th>
+          <th data-i18n="thBefore">Antes</th>
+          <th data-i18n="thAfter">Depois</th>
+          <th data-i18n="thFreed">Liberado</th>
+          <th data-i18n="thDetails">Detalhes</th>
+        </tr>
+      </thead>
+      <tbody id="actionsBody"></tbody>
+    </table>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+// ---------- i18n ----------
+const LOCALE_MAP = { pt: "pt-BR", es: "es-PY", en: "en-US" };
+
+const translations = {
+  pt: {
+    appTitle: "Disk Monitor",
+    appSubtitle: "Confiança Technologies — server-toolkit",
+    loading: "carregando...",
+    diskUsageNow: "Uso de disco agora",
+    cleanup: "Limpeza",
+    cleanupDesc: "Remove container/imagem não usada, cache de build, log gigante do Docker e arquivo velho de /tmp. Nunca mexe em volume (banco de dados e arquivos enviados ficam intocados).",
+    cleanupNow: "Limpar agora",
+    configuration: "Configuração",
+    thresholdLabel: "Limite pra limpeza automática (%)",
+    intervalLabel: "Intervalo de checagem (minutos)",
+    dockerLogLabel: "Truncar log do Docker maior que (MB)",
+    tmpLabel: "Limpar /tmp com mais de (dias)",
+    autoCleanupLabel: "Limpeza automática habilitada",
+    saveConfig: "Salvar configuração",
+    historyTitle: "Histórico de uso de disco",
+    recentCleanups: "Últimas limpezas",
+    thWhen: "Quando", thType: "Tipo", thBefore: "Antes", thAfter: "Depois", thFreed: "Liberado", thDetails: "Detalhes",
+    noCleanups: "Nenhuma limpeza registrada ainda.",
+    auto: "Automática", manual: "Manual",
+    cleanupRunningLabel: "Limpeza em andamento...",
+    toastAlreadyRunning: "Já tem uma limpeza em andamento.",
+    toastDone: mb => `Limpeza concluída — ${mb} MB liberados.`,
+    toastError: msg => `Erro ao rodar limpeza: ${msg}`,
+    toastConfigSaved: "Configuração salva.",
+    chartLabel: "Uso de disco (%)",
+    chartLoadError: "Não foi possível carregar a biblioteca do gráfico (Chart.js via CDN) — verifique o acesso à internet deste servidor."
+  },
+  es: {
+    appTitle: "Disk Monitor",
+    appSubtitle: "Confiança Technologies — server-toolkit",
+    loading: "cargando...",
+    diskUsageNow: "Uso de disco ahora",
+    cleanup: "Limpieza",
+    cleanupDesc: "Elimina contenedor/imagen sin uso, cache de build, log enorme de Docker y archivo viejo de /tmp. Nunca toca volumen (base de datos y archivos subidos quedan intactos).",
+    cleanupNow: "Limpiar ahora",
+    configuration: "Configuración",
+    thresholdLabel: "Límite para limpieza automática (%)",
+    intervalLabel: "Intervalo de verificación (minutos)",
+    dockerLogLabel: "Truncar log de Docker mayor que (MB)",
+    tmpLabel: "Limpiar /tmp con más de (días)",
+    autoCleanupLabel: "Limpieza automática habilitada",
+    saveConfig: "Guardar configuración",
+    historyTitle: "Histórico de uso de disco",
+    recentCleanups: "Últimas limpiezas",
+    thWhen: "Cuándo", thType: "Tipo", thBefore: "Antes", thAfter: "Después", thFreed: "Liberado", thDetails: "Detalles",
+    noCleanups: "Ninguna limpieza registrada todavía.",
+    auto: "Automática", manual: "Manual",
+    cleanupRunningLabel: "Limpieza en curso...",
+    toastAlreadyRunning: "Ya hay una limpieza en curso.",
+    toastDone: mb => `Limpieza concluida — ${mb} MB liberados.`,
+    toastError: msg => `Error al ejecutar limpieza: ${msg}`,
+    toastConfigSaved: "Configuración guardada.",
+    chartLabel: "Uso de disco (%)",
+    chartLoadError: "No se pudo cargar la biblioteca del gráfico (Chart.js vía CDN) — verifique el acceso a internet de este servidor."
+  },
+  en: {
+    appTitle: "Disk Monitor",
+    appSubtitle: "Confiança Technologies — server-toolkit",
+    loading: "loading...",
+    diskUsageNow: "Disk usage now",
+    cleanup: "Cleanup",
+    cleanupDesc: "Removes unused containers/images, build cache, oversized Docker logs, and old /tmp files. Never touches a volume (database and uploaded files stay untouched).",
+    cleanupNow: "Clean up now",
+    configuration: "Configuration",
+    thresholdLabel: "Threshold for automatic cleanup (%)",
+    intervalLabel: "Check interval (minutes)",
+    dockerLogLabel: "Truncate Docker logs larger than (MB)",
+    tmpLabel: "Clean /tmp files older than (days)",
+    autoCleanupLabel: "Automatic cleanup enabled",
+    saveConfig: "Save configuration",
+    historyTitle: "Disk usage history",
+    recentCleanups: "Recent cleanups",
+    thWhen: "When", thType: "Type", thBefore: "Before", thAfter: "After", thFreed: "Freed", thDetails: "Details",
+    noCleanups: "No cleanup recorded yet.",
+    auto: "Automatic", manual: "Manual",
+    cleanupRunningLabel: "Cleanup running...",
+    toastAlreadyRunning: "A cleanup is already running.",
+    toastDone: mb => `Cleanup finished — ${mb} MB freed.`,
+    toastError: msg => `Error running cleanup: ${msg}`,
+    toastConfigSaved: "Configuration saved.",
+    chartLabel: "Disk usage (%)",
+    chartLoadError: "Could not load the chart library (Chart.js via CDN) — check this server's internet access."
+  }
+};
+
+let currentLang = localStorage.getItem("dm-lang") || "pt";
+function t(key, ...args) {
+  const entry = (translations[currentLang] || translations.pt)[key];
+  return typeof entry === "function" ? entry(...args) : entry;
+}
+
+function applyTranslations() {
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    const value = t(key);
+    if (typeof value === "string") el.textContent = value;
+  });
+  document.documentElement.lang = LOCALE_MAP[currentLang] || "pt-BR";
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem("dm-lang", lang);
+  document.getElementById("langSelect").value = lang;
+  applyTranslations();
+  loadStatus();
+}
+
+// ---------- tema claro/escuro ----------
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("themeToggle").textContent = theme === "light" ? "☀️" : "🌙";
+  document.getElementById("brandLogo").src = theme === "light" ? "/logo-light.png" : "/logo.png";
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute("data-theme") || "dark";
+  const next = current === "light" ? "dark" : "light";
+  localStorage.setItem("dm-theme", next);
+  applyTheme(next);
+}
+
+// ---------- painel ----------
+let chart;
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 3500);
+}
+
+function barColor(percent) {
+  if (percent >= 90) return "var(--crit)";
+  if (percent >= 75) return "var(--warn)";
+  return "var(--ok)";
+}
+
+function formatGB(bytes) {
+  return (bytes / 1024 / 1024 / 1024).toFixed(1) + " GB";
+}
+
+function renderCurrent(current) {
+  document.getElementById("currentPercent").textContent = current.percent + "%";
+  document.getElementById("currentPercent").style.color = barColor(current.percent);
+  document.getElementById("currentDetail").textContent =
+    formatGB(current.usedBytes) + " / " + formatGB(current.totalBytes) +
+    " (" + current.mountPath + ")";
+  const bar = document.getElementById("currentBar");
+  bar.style.width = current.percent + "%";
+  bar.style.background = barColor(current.percent);
+}
+
+function renderChart(history) {
+  if (typeof Chart === "undefined") {
+    document.getElementById("historyChart").replaceWith(
+      Object.assign(document.createElement("div"), {
+        className: "sub",
+        id: "historyChart",
+        textContent: t("chartLoadError")
+      })
+    );
+    return;
+  }
+  const locale = LOCALE_MAP[currentLang] || "pt-BR";
+  const labels = history.map(h => new Date(h.checkedAt).toLocaleString(locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }));
+  const data = history.map(h => h.percent);
+
+  if (chart) {
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = data;
+    chart.data.datasets[0].label = t("chartLabel");
+    chart.update();
+    return;
+  }
+
+  const ctx = document.getElementById("historyChart").getContext("2d");
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: t("chartLabel"),
+        data,
+        borderColor: "#7c5cf5",
+        backgroundColor: "rgba(124,92,245,0.15)",
+        fill: true,
+        tension: 0.25,
+        pointRadius: 0,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { min: 0, max: 100, grid: { color: "rgba(148,163,184,0.1)" }, ticks: { color: "#94a3b8" } },
+        x: { grid: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 8 } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+function renderConfig(config) {
+  document.getElementById("thresholdPercent").value = config.thresholdPercent;
+  document.getElementById("checkIntervalMinutes").value = config.checkIntervalMinutes;
+  document.getElementById("dockerLogMaxSizeMB").value = config.dockerLogMaxSizeMB;
+  document.getElementById("tmpFilesOlderThanDays").value = config.tmpFilesOlderThanDays;
+  document.getElementById("autoCleanupEnabled").checked = !!config.autoCleanupEnabled;
+}
+
+function renderActions(actions) {
+  const locale = LOCALE_MAP[currentLang] || "pt-BR";
+  const body = document.getElementById("actionsBody");
+  if (!actions.length) {
+    body.innerHTML = `<tr><td colspan="6" class="sub">${t("noCleanups")}</td></tr>`;
+    return;
+  }
+  body.innerHTML = actions.map(a => `
+    <tr>
+      <td>${new Date(a.timestamp).toLocaleString(locale)}</td>
+      <td><span class="chip ${a.trigger}">${a.trigger === "auto" ? t("auto") : t("manual")}</span></td>
+      <td>${a.percentBefore}%</td>
+      <td>${a.percentAfter}%</td>
+      <td>${a.freedMB} MB</td>
+      <td class="steps">${(a.steps || []).map(s => `<div class="${s.ok ? "" : "fail"}">${s.label}: ${s.detail}</div>`).join("")}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadStatus() {
+  const res = await fetch("/api/status");
+  const data = await res.json();
+  renderCurrent(data.current);
+  renderConfig(data.config);
+  renderActions(data.actions);
+  document.getElementById("cleanupBtn").disabled = data.cleanupRunning;
+  document.getElementById("cleanupStatus").textContent = data.cleanupRunning ? t("cleanupRunningLabel") : "";
+  if (data.version) {
+    document.getElementById("versionBadge").textContent = "v" + data.version;
+  }
+  // O gráfico depende do Chart.js vindo de CDN — se a internet do
+  // servidor falhar ou o CDN estiver fora do ar, só o gráfico fica sem
+  // dado, o resto do painel (config, versão, limpeza) continua
+  // funcionando normalmente.
+  try {
+    renderChart(data.history);
+  } catch (err) {
+    console.error("Falha ao renderizar o gráfico:", err);
+  }
+}
+
+document.getElementById("cleanupBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("cleanupBtn");
+  btn.disabled = true;
+  document.getElementById("cleanupStatus").textContent = t("cleanupRunningLabel");
+  try {
+    const res = await fetch("/api/cleanup", { method: "POST" });
+    const result = await res.json();
+    if (result.skipped) {
+      toast(t("toastAlreadyRunning"));
+    } else {
+      toast(t("toastDone", result.freedMB));
+    }
+  } catch (err) {
+    toast(t("toastError", err.message));
+  } finally {
+    await loadStatus();
+  }
+});
+
+document.getElementById("saveConfigBtn").addEventListener("click", async () => {
+  const payload = {
+    thresholdPercent: Number(document.getElementById("thresholdPercent").value),
+    checkIntervalMinutes: Number(document.getElementById("checkIntervalMinutes").value),
+    dockerLogMaxSizeMB: Number(document.getElementById("dockerLogMaxSizeMB").value),
+    tmpFilesOlderThanDays: Number(document.getElementById("tmpFilesOlderThanDays").value),
+    autoCleanupEnabled: document.getElementById("autoCleanupEnabled").checked
+  };
+  await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  toast(t("toastConfigSaved"));
+  await loadStatus();
+});
+
+document.getElementById("langSelect").addEventListener("change", e => setLang(e.target.value));
+document.getElementById("themeToggle").addEventListener("click", toggleTheme);
+
+// ---------- boot ----------
+applyTheme(localStorage.getItem("dm-theme") || "dark");
+document.getElementById("langSelect").value = currentLang;
+applyTranslations();
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

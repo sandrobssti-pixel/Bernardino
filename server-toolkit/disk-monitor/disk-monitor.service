@@ -1,0 +1,19 @@
+[Unit]
+Description=disk-monitor - monitor de disco e limpeza automatica (server-toolkit)
+After=network.target docker.service
+
+[Service]
+# Roda como root: precisa acessar /var/lib/docker/containers (truncar log)
+# e rodar `docker system prune`. Se preferir um usuario sem root, adicione
+# esse usuario ao grupo "docker" e troque User/Group abaixo - so perde a
+# capacidade de truncar log grande do Docker (o resto continua funcionando).
+User=root
+Group=root
+WorkingDirectory=/root/atendeflow/server-toolkit/disk-monitor
+EnvironmentFile=/root/atendeflow/server-toolkit/disk-monitor/.env
+ExecStart=/usr/bin/node /root/atendeflow/server-toolkit/disk-monitor/server.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

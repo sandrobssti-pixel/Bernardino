@@ -1,0 +1,19 @@
+[Unit]
+Description=disk-monitor - monitor de disco e limpeza automatica (executavel standalone)
+After=network.target docker.service
+
+[Service]
+# Versao pra servidor NOVO que so recebeu o executavel (sem Node.js
+# instalado, sem git clone do repositorio) - ver "Instalação num servidor
+# NOVO (só o executável)" no README.md deste módulo. Ajuste o caminho em
+# /opt/disk-monitor se você copiou pra outro lugar.
+User=root
+Group=root
+WorkingDirectory=/opt/disk-monitor
+EnvironmentFile=/opt/disk-monitor/.env
+ExecStart=/opt/disk-monitor/disk-monitor-linux
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
