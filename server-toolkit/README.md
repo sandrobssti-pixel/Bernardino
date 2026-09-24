@@ -16,6 +16,18 @@ a passo de instalação.
   configurável (remove imagem/container Docker não usado, trunca log
   gigante, limpa `/tmp` — nunca mexe em volume nem em dado de cliente).
 
+## Bibliotecas compartilhadas
+
+- **[`shared/auth/`](shared/auth/index.js)** (pacote local `toolkit-auth`)
+  — login com dois papéis (administrador / visualizador), reaproveitável
+  por qualquer módulo novo. Cada módulo que quiser login/permissões
+  adiciona `"toolkit-auth": "file:../shared/auth"` no seu
+  `package.json` (junto com `bcryptjs` e `cookie-session` como
+  dependências diretas, e um `.npmrc` com `install-links=true` — ver
+  o de `disk-monitor/` como referência) e monta as rotas de
+  `/api/login`, `/api/logout`, `/api/me` e `/api/users` que o pacote já
+  expõe prontas.
+
 ## Planejado (ainda não implementado)
 
 Conversado com o cliente que o `server-toolkit` vai crescer aos poucos.
@@ -39,9 +51,10 @@ Próximos módulos previstos:
 
 - Cada módulo é independente: seu próprio `package.json`, suas próprias
   dependências, seu próprio `.env`. Um módulo nunca depende de outro.
-- Todo módulo com painel web usa autenticação básica HTTP e documenta,
-  no seu README, que a porta nunca deve ficar aberta direto pra
-  internet (só via túnel SSH ou Nginx com allowlist).
+- Todo módulo com painel web usa o login do `toolkit-auth` (administrador
+  / visualizador) e documenta, no seu README, que a porta nunca deve
+  ficar aberta direto pra internet (só via túnel SSH ou Nginx com
+  allowlist).
 - Todo módulo que mexe em disco/processo do servidor documenta bem
   claro, no seu README, o que a ação faz e — mais importante — o que ela
   **nunca** faz (nunca apagar volume Docker, nunca mexer em dado de

@@ -19,24 +19,38 @@ const {
   appendAction,
   getActions
 } = require("./lib/historyStore");
-const { basicAuth } = require("./lib/auth");
 const { version } = require("./lib/version");
+const { createAuthSystem } = require("toolkit-auth");
+const { dataDir } = require("./lib/paths");
 
 const PORT = process.env.PORT || 8091;
 const MOUNT_PATH = process.env.MOUNT_PATH || "/";
-const DASHBOARD_USER = process.env.DASHBOARD_USER || "admin";
-const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+const SESSION_SECRET = process.env.SESSION_SECRET;
 
-if (!DASHBOARD_PASSWORD) {
+if (!SESSION_SECRET) {
   console.error(
-    "DASHBOARD_PASSWORD não definido no .env — configure antes de rodar (ver .env.example)."
+    "SESSION_SECRET não definido no .env — configure antes de rodar (ver .env.example)."
   );
   process.exit(1);
 }
 
+// Compatibilidade com quem já rodava a versão antiga (usuário/senha fixos
+// no .env, sem tela de login): se ainda não existe nenhum usuário
+// cadastrado, DASHBOARD_USER/DASHBOARD_PASSWORD viram o admin inicial —
+// depois disso o gerenciamento passa a ser todo pela tela de Usuários.
+const auth = createAuthSystem({
+  dataDir,
+  sessionSecret: SESSION_SECRET,
+  envBootstrap: {
+    username: process.env.DASHBOARD_USER,
+    password: process.env.DASHBOARD_PASSWORD
+  }
+});
+
 const app = express();
 app.use(express.json());
-app.use(basicAuth(DASHBOARD_USER, DASHBOARD_PASSWORD));
+app.use(auth.sessionMiddleware);
+app.use("/api", auth.router);
 app.use(express.static(publicDir));
 
 let cleanupRunning = false;
@@ -82,7 +96,7 @@ async function checkDiskAndMaybeClean() {
   }
 }
 
-app.get("/api/status", (req, res) => {
+app.get("/api/status", auth.requireAuth, (req, res) => {
   const config = getConfig();
   const history = getHistory();
   const current = history[history.length - 1] || readDiskUsage(MOUNT_PATH);
@@ -96,7 +110,9 @@ app.get("/api/status", (req, res) => {
   });
 });
 
-app.post("/api/config", (req, res) => {
+// Usuário "viewer" só acompanha o painel — mudar configuração e disparar
+// limpeza manual é exclusivo de "admin" (decisão do cliente).
+app.post("/api/config", auth.requireRole("admin"), (req, res) => {
   const allowedKeys = [
     "thresholdPercent",
     "checkIntervalMinutes",
@@ -112,7 +128,7 @@ app.post("/api/config", (req, res) => {
   res.json(config);
 });
 
-app.post("/api/cleanup", async (req, res) => {
+app.post("/api/cleanup", auth.requireRole("admin"), async (req, res) => {
   const result = await triggerCleanup("manual");
   res.json(result);
 });

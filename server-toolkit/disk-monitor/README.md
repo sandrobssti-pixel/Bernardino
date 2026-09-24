@@ -9,7 +9,9 @@ Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
 - Permitir rodar a limpeza manualmente pelo painel, com um clique.
 - Registrar o histórico de todas as limpezas (o que rodou, quanto liberou).
 
-Painel web simples (gráfico + botões), protegido por usuário/senha.
+Painel web simples (gráfico + botões), com login e dois papéis de
+usuário: **administrador** (acesso completo) e **visualizador** (só
+acompanha o painel, não limpa nem muda configuração).
 
 Pensado pra reaproveitar em qualquer servidor novo que a Confiança
 Technologies montar (mesmo modelo do VPS atual) — dá pra rodar direto do
@@ -42,7 +44,7 @@ Use esse caminho no VPS atual, onde o repositório já está clonado.
 cd ~/atendeflow/server-toolkit/disk-monitor
 npm install
 cp .env.example .env
-nano .env   # troque DASHBOARD_USER e DASHBOARD_PASSWORD
+nano .env   # troque SESSION_SECRET, DASHBOARD_USER e DASHBOARD_PASSWORD
 ```
 
 Testar manualmente primeiro (sem systemd), pra confirmar que sobe:
@@ -99,7 +101,7 @@ scp -r ../dist usuario@servidor-novo:/opt/disk-monitor
 cd /opt/disk-monitor
 chmod +x disk-monitor-linux
 cp .env.example .env
-nano .env   # troque DASHBOARD_USER e DASHBOARD_PASSWORD
+nano .env   # troque SESSION_SECRET, DASHBOARD_USER e DASHBOARD_PASSWORD
 
 sudo cp disk-monitor-standalone.service /etc/systemd/system/disk-monitor.service
 sudo systemctl daemon-reload
@@ -122,7 +124,30 @@ Esse painel roda `docker system prune` e mexe em arquivo do sistema.
 2. **Nginx com autenticação/IP allowlist**, se quiser acesso direto de
    um IP fixo (escritório).
 
-O usuário/senha do `.env` é uma segunda camada, não substitui isso.
+O login (usuário/senha reais, não mais fixo no `.env`) é uma segunda
+camada, não substitui isso.
+
+## Login e usuários
+
+Na primeira vez que o painel sobe (sem nenhum usuário cadastrado ainda),
+`DASHBOARD_USER`/`DASHBOARD_PASSWORD` do `.env` viram o **administrador
+inicial**, salvo em `data/users.json` (senha guardada com hash, nunca em
+texto puro). A partir daí, todo o gerenciamento de usuários é feito pela
+própria tela **Usuários** do painel (só visível pra quem é admin) —
+pode inclusive apagar essas duas linhas do `.env` depois, elas só
+importam nesse primeiro boot.
+
+Dois papéis:
+- **Administrador**: acesso completo — vê o painel, roda limpeza manual,
+  muda configuração, cria/remove outros usuários.
+- **Visualizador**: só acompanha o painel (uso de disco, histórico,
+  limpezas já feitas) — os botões de limpeza e o formulário de
+  configuração ficam desabilitados, e a tela Usuários nem aparece.
+
+Duas travas de segurança embutidas: ninguém consegue remover o próprio
+usuário logado no momento, nem remover o último administrador
+existente — sem isso seria possível trancar todo mundo pra fora do
+painel sem nenhum jeito de voltar.
 
 ## Configuração pelo painel
 

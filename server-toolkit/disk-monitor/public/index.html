@@ -159,12 +159,14 @@
       <span class="version-badge" id="versionBadge">v1.0.0</span>
     </div>
     <div class="controls">
+      <span class="sub" id="userInfo"></span>
       <select class="lang-select" id="langSelect">
         <option value="pt">🇧🇷 Português</option>
         <option value="es">🇵🇾 Español</option>
         <option value="en">🇺🇸 English</option>
       </select>
       <button class="icon-btn" id="themeToggle" type="button">🌙</button>
+      <button class="icon-btn" id="logoutBtn" type="button" data-i18n="logout">Sair</button>
     </div>
   </div>
 
@@ -229,6 +231,40 @@
     </table>
   </div>
 
+  <div class="panel" id="usersPanel" style="margin-top:16px; display:none">
+    <h2 data-i18n="usersTitle">Usuários</h2>
+    <table style="margin-bottom:16px">
+      <thead>
+        <tr>
+          <th data-i18n="usersUsername">Usuário</th>
+          <th data-i18n="usersRole">Papel</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="usersBody"></tbody>
+    </table>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-bottom: 0">
+      <div>
+        <label data-i18n="usersUsername">Usuário</label>
+        <input type="text" id="newUsername" />
+      </div>
+      <div>
+        <label data-i18n="usersPassword">Senha</label>
+        <input type="password" id="newPassword" />
+      </div>
+      <div>
+        <label data-i18n="usersRole">Papel</label>
+        <select id="newRole" class="lang-select" style="width:100%">
+          <option value="admin" data-i18n="roleAdmin">Administrador</option>
+          <option value="viewer" data-i18n="roleViewer">Visualizador</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <button id="createUserBtn" data-i18n="usersCreate">Criar usuário</button>
+    </div>
+  </div>
+
   <div id="toast"></div>
 
 <script>
@@ -262,7 +298,22 @@ const translations = {
     toastError: msg => `Erro ao rodar limpeza: ${msg}`,
     toastConfigSaved: "Configuração salva.",
     chartLabel: "Uso de disco (%)",
-    chartLoadError: "Não foi possível carregar a biblioteca do gráfico (Chart.js via CDN) — verifique o acesso à internet deste servidor."
+    chartLoadError: "Não foi possível carregar a biblioteca do gráfico (Chart.js via CDN) — verifique o acesso à internet deste servidor.",
+    logout: "Sair",
+    loggedInAs: (user, role) => `${user} (${role === "admin" ? "admin" : "visualizador"})`,
+    viewerNotice: "Seu acesso é só de visualização — só um administrador pode limpar ou mudar a configuração.",
+    usersTitle: "Usuários",
+    usersUsername: "Usuário",
+    usersPassword: "Senha",
+    usersRole: "Papel",
+    usersCreate: "Criar usuário",
+    roleAdmin: "Administrador",
+    roleViewer: "Visualizador",
+    usersDelete: "Excluir",
+    usersCreated: "Usuário criado.",
+    usersDeleted: "Usuário removido.",
+    usersConfirmDelete: user => `Remover o usuário "${user}"?`,
+    usersErrorGeneric: msg => `Erro: ${msg}`
   },
   es: {
     appTitle: "Disk Monitor",
@@ -290,7 +341,22 @@ const translations = {
     toastError: msg => `Error al ejecutar limpieza: ${msg}`,
     toastConfigSaved: "Configuración guardada.",
     chartLabel: "Uso de disco (%)",
-    chartLoadError: "No se pudo cargar la biblioteca del gráfico (Chart.js vía CDN) — verifique el acceso a internet de este servidor."
+    chartLoadError: "No se pudo cargar la biblioteca del gráfico (Chart.js vía CDN) — verifique el acceso a internet de este servidor.",
+    logout: "Salir",
+    loggedInAs: (user, role) => `${user} (${role === "admin" ? "admin" : "visualizador"})`,
+    viewerNotice: "Su acceso es solo de visualización — solo un administrador puede limpiar o cambiar la configuración.",
+    usersTitle: "Usuarios",
+    usersUsername: "Usuario",
+    usersPassword: "Contraseña",
+    usersRole: "Rol",
+    usersCreate: "Crear usuario",
+    roleAdmin: "Administrador",
+    roleViewer: "Visualizador",
+    usersDelete: "Eliminar",
+    usersCreated: "Usuario creado.",
+    usersDeleted: "Usuario eliminado.",
+    usersConfirmDelete: user => `¿Eliminar el usuario "${user}"?`,
+    usersErrorGeneric: msg => `Error: ${msg}`
   },
   en: {
     appTitle: "Disk Monitor",
@@ -318,7 +384,22 @@ const translations = {
     toastError: msg => `Error running cleanup: ${msg}`,
     toastConfigSaved: "Configuration saved.",
     chartLabel: "Disk usage (%)",
-    chartLoadError: "Could not load the chart library (Chart.js via CDN) — check this server's internet access."
+    chartLoadError: "Could not load the chart library (Chart.js via CDN) — check this server's internet access.",
+    logout: "Log out",
+    loggedInAs: (user, role) => `${user} (${role === "admin" ? "admin" : "viewer"})`,
+    viewerNotice: "Your access is view-only — only an administrator can clean up or change the configuration.",
+    usersTitle: "Users",
+    usersUsername: "Username",
+    usersPassword: "Password",
+    usersRole: "Role",
+    usersCreate: "Create user",
+    roleAdmin: "Administrator",
+    roleViewer: "Viewer",
+    usersDelete: "Delete",
+    usersCreated: "User created.",
+    usersDeleted: "User removed.",
+    usersConfirmDelete: user => `Remove user "${user}"?`,
+    usersErrorGeneric: msg => `Error: ${msg}`
   }
 };
 
@@ -342,6 +423,10 @@ function setLang(lang) {
   localStorage.setItem("dm-lang", lang);
   document.getElementById("langSelect").value = lang;
   applyTranslations();
+  if (currentUserInfo) {
+    applyRoleUI();
+    loadUsers();
+  }
   loadStatus();
 }
 
@@ -467,14 +552,124 @@ function renderActions(actions) {
   `).join("");
 }
 
+// ---------- login / usuários ----------
+let currentUserInfo = null;
+
+// Sessão expirada (ou nunca logado) em qualquer chamada de API — manda
+// pro login em vez de deixar o painel quebrado com dado em branco.
+async function apiFetch(url, options) {
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    window.location.href = "/login.html";
+    throw new Error("not authenticated");
+  }
+  return res;
+}
+
+function applyRoleUI() {
+  const isAdmin = currentUserInfo?.role === "admin";
+  document.getElementById("userInfo").textContent = t(
+    "loggedInAs",
+    currentUserInfo.username,
+    currentUserInfo.role
+  );
+  document.getElementById("usersPanel").style.display = isAdmin ? "block" : "none";
+
+  // Visualizador acompanha tudo, mas não dispara limpeza nem muda
+  // configuração — só admin.
+  document.getElementById("cleanupBtn").disabled = !isAdmin;
+  document.getElementById("saveConfigBtn").disabled = !isAdmin;
+  document.getElementById("cleanupStatus").textContent = isAdmin ? "" : t("viewerNotice");
+  ["thresholdPercent", "checkIntervalMinutes", "dockerLogMaxSizeMB", "tmpFilesOlderThanDays", "autoCleanupEnabled"]
+    .forEach(id => { document.getElementById(id).disabled = !isAdmin; });
+}
+
+async function checkAuth() {
+  const res = await fetch("/api/me");
+  if (!res.ok) {
+    window.location.href = "/login.html";
+    return false;
+  }
+  currentUserInfo = await res.json();
+  applyRoleUI();
+  return true;
+}
+
+function renderUsers(users) {
+  const body = document.getElementById("usersBody");
+  body.innerHTML = users.map(u => `
+    <tr>
+      <td>${u.username}</td>
+      <td>${u.role === "admin" ? t("roleAdmin") : t("roleViewer")}</td>
+      <td>
+        ${u.username === currentUserInfo.username
+          ? ""
+          : `<button class="secondary" data-delete-user="${u.username}">${t("usersDelete")}</button>`}
+      </td>
+    </tr>
+  `).join("");
+
+  body.querySelectorAll("[data-delete-user]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const username = btn.getAttribute("data-delete-user");
+      if (!window.confirm(t("usersConfirmDelete", username))) return;
+      const res = await apiFetch(`/api/users/${encodeURIComponent(username)}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!res.ok) {
+        toast(t("usersErrorGeneric", result.error));
+        return;
+      }
+      toast(t("usersDeleted"));
+      await loadUsers();
+    });
+  });
+}
+
+async function loadUsers() {
+  if (currentUserInfo?.role !== "admin") return;
+  const res = await apiFetch("/api/users");
+  const users = await res.json();
+  renderUsers(users);
+}
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await fetch("/api/logout", { method: "POST" });
+  window.location.href = "/login.html";
+});
+
+document.getElementById("createUserBtn").addEventListener("click", async () => {
+  const payload = {
+    username: document.getElementById("newUsername").value.trim(),
+    password: document.getElementById("newPassword").value,
+    role: document.getElementById("newRole").value
+  };
+  const res = await apiFetch("/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const result = await res.json();
+  if (!res.ok) {
+    toast(t("usersErrorGeneric", result.error));
+    return;
+  }
+  document.getElementById("newUsername").value = "";
+  document.getElementById("newPassword").value = "";
+  toast(t("usersCreated"));
+  await loadUsers();
+});
+
 async function loadStatus() {
-  const res = await fetch("/api/status");
+  const res = await apiFetch("/api/status");
   const data = await res.json();
   renderCurrent(data.current);
   renderConfig(data.config);
   renderActions(data.actions);
-  document.getElementById("cleanupBtn").disabled = data.cleanupRunning;
-  document.getElementById("cleanupStatus").textContent = data.cleanupRunning ? t("cleanupRunningLabel") : "";
+  const isAdmin = currentUserInfo?.role === "admin";
+  document.getElementById("cleanupBtn").disabled = data.cleanupRunning || !isAdmin;
+  document.getElementById("cleanupStatus").textContent = data.cleanupRunning
+    ? t("cleanupRunningLabel")
+    : (isAdmin ? "" : t("viewerNotice"));
   if (data.version) {
     document.getElementById("versionBadge").textContent = "v" + data.version;
   }
@@ -494,9 +689,11 @@ document.getElementById("cleanupBtn").addEventListener("click", async () => {
   btn.disabled = true;
   document.getElementById("cleanupStatus").textContent = t("cleanupRunningLabel");
   try {
-    const res = await fetch("/api/cleanup", { method: "POST" });
+    const res = await apiFetch("/api/cleanup", { method: "POST" });
     const result = await res.json();
-    if (result.skipped) {
+    if (!res.ok) {
+      toast(t("usersErrorGeneric", result.error));
+    } else if (result.skipped) {
       toast(t("toastAlreadyRunning"));
     } else {
       toast(t("toastDone", result.freedMB));
@@ -516,12 +713,17 @@ document.getElementById("saveConfigBtn").addEventListener("click", async () => {
     tmpFilesOlderThanDays: Number(document.getElementById("tmpFilesOlderThanDays").value),
     autoCleanupEnabled: document.getElementById("autoCleanupEnabled").checked
   };
-  await fetch("/api/config", {
+  const res = await apiFetch("/api/config", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
-  toast(t("toastConfigSaved"));
+  if (!res.ok) {
+    const result = await res.json();
+    toast(t("usersErrorGeneric", result.error));
+  } else {
+    toast(t("toastConfigSaved"));
+  }
   await loadStatus();
 });
 
@@ -532,8 +734,13 @@ document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 applyTheme(localStorage.getItem("dm-theme") || "dark");
 document.getElementById("langSelect").value = currentLang;
 applyTranslations();
-loadStatus();
-setInterval(loadStatus, 30000);
+(async () => {
+  const authenticated = await checkAuth();
+  if (!authenticated) return;
+  await loadUsers();
+  await loadStatus();
+  setInterval(loadStatus, 30000);
+})();
 </script>
 </body>
 </html>

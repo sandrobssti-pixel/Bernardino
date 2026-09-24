@@ -1,0 +1,11 @@
+{
+  "name": "toolkit-auth",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Login com admin/usuário limitado, reaproveitável por qualquer módulo do server-toolkit",
+  "main": "index.js",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.0"
+  }
+}
