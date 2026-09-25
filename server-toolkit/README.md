@@ -18,9 +18,11 @@ seu próprio README com o passo a passo.
   quando passar de um limite configurável (remove imagem/container
   Docker não usado, trunca log gigante, compacta log do sistema, limpa
   pasta temporária — nunca mexe em volume nem em dado de cliente).
-  Instala no Linux (`installers/linux/install.sh` ou `install-gui.sh`) e
-  no Windows (`installers/windows/install.ps1` ou o assistente
-  `DiskMonitorSetup.exe`).
+  Faz uma varredura de hardware/SO na instalação (perfil da máquina, fixo
+  no painel). Instala no Linux (`installers/linux/install.sh` ou
+  `install-gui.sh`) e no Windows (`installers/windows/install.ps1` ou o
+  assistente `DiskMonitorSetup.exe`) — e atualiza (`update.sh`/
+  `update.ps1`) sem repetir o passo a passo de instalação inteiro.
 
 ## Bibliotecas compartilhadas
 

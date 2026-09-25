@@ -219,6 +219,22 @@ painel sem nenhum jeito de voltar.
 - **Limpeza automática habilitada**: liga/desliga o gatilho automático
   sem precisar reiniciar o serviço.
 
+## Perfil da máquina
+
+Na primeira vez que o serviço sobe depois de instalado, ele faz uma
+varredura única de hardware e sistema operacional (CPU, memória RAM
+total, discos, SO/versão, hostname — via `systeminformation`, a mesma
+lib usada nas métricas ao vivo) e guarda em
+`data/machine-profile.json`. O painel mostra isso num card no topo,
+fixo (não é uma métrica que fica atualizando sozinha — hardware não
+muda sozinho). Serve tanto pra identificar de relance o que tem no
+servidor quanto, principalmente, pra replicar as mesmas características
+ao montar um servidor novo de outro cliente.
+
+Pra forçar uma nova varredura (ex.: trocou o disco ou a RAM da
+máquina), apague `data/machine-profile.json` e reinicie o serviço — ele
+varre de novo sozinho, sem precisar reinstalar nada.
+
 ## Discos, CPU, RAM e processos
 
 Além do disco monitorado (o que aciona a limpeza automática), o painel

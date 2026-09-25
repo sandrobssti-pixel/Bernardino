@@ -31,6 +31,7 @@ const {
   appendDisksReading,
   getDisksHistory
 } = require("./lib/historyStore");
+const { ensureMachineProfile, getMachineProfile } = require("./lib/machineProfile");
 const { version } = require("./lib/version");
 const { createAuthSystem } = require("toolkit-auth");
 const { dataDir } = require("./lib/paths");
@@ -200,6 +201,12 @@ app.get("/api/live", auth.requireAuth, async (req, res) => {
   });
 });
 
+// Perfil da máquina (hardware/SO) — varrido uma vez só, na instalação (ver
+// ensureMachineProfile mais abaixo), não muda a cada request.
+app.get("/api/machine-profile", auth.requireAuth, (req, res) => {
+  res.json({ profile: getMachineProfile() });
+});
+
 // Lista de processos é sempre lida na hora (nunca fica em cache/histórico)
 // — é o que dá o efeito de "tempo real" pedido pelo cliente.
 app.get("/api/processes", auth.requireAuth, async (req, res) => {
@@ -239,6 +246,12 @@ app.listen(PORT, () => {
 // cron) pra o painel não abrir vazio.
 checkDiskAndMaybeClean().catch(err =>
   console.error("Falha na checagem inicial de disco:", err)
+);
+
+// Varredura de hardware/SO — só roda de verdade na primeira vez (ver
+// ensureMachineProfile), então é barato chamar sempre na subida.
+ensureMachineProfile().catch(err =>
+  console.error("Falha na varredura de hardware/SO:", err)
 );
 
 // Reagenda a cada minuto e decide, olhando o config atual, se já passou o

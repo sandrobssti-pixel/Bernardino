@@ -147,6 +147,17 @@
     animation: livePulse 1.6s ease-in-out infinite;
   }
   @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .machine-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+  }
+  .machine-profile-grid .mp-label {
+    font-size: 0.7rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 3px;
+  }
+  .machine-profile-grid .mp-value { font-size: 0.95rem; font-weight: 600; }
   .disks-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -211,6 +222,11 @@
       <button class="icon-btn" id="themeToggle" type="button">🌙</button>
       <button class="icon-btn" id="logoutBtn" type="button" data-i18n="logout">Sair</button>
     </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="machineProfileTitle">Perfil da máquina</h2>
+    <div id="machineProfileGrid" class="machine-profile-grid sub" data-i18n="loading">carregando...</div>
   </div>
 
   <div class="grid">
@@ -360,6 +376,12 @@ const translations = {
     appTitle: "Disk Monitor",
     appSubtitle: "Confiança Technologies — server-toolkit",
     loading: "carregando...",
+    machineProfileTitle: "Perfil da máquina",
+    machineProfileUnavailable: "Perfil ainda não disponível — aguarde a primeira varredura ou reinicie o serviço.",
+    mpHostname: "Hostname", mpOs: "Sistema operacional", mpCpu: "Processador",
+    mpRam: "Memória RAM total", mpDisks: "Discos",
+    mpDisksCount: (count, total) => `${count} (${total} no total)`,
+    mpScannedAt: "Varredura feita em",
     diskUsageNow: "Uso de disco agora",
     cleanup: "Limpeza",
     cleanupDesc: "Remove container/imagem não usada, cache de build, log gigante do Docker e arquivo velho de /tmp. Nunca mexe em volume (banco de dados e arquivos enviados ficam intocados).",
@@ -417,6 +439,12 @@ const translations = {
     appTitle: "Disk Monitor",
     appSubtitle: "Confiança Technologies — server-toolkit",
     loading: "cargando...",
+    machineProfileTitle: "Perfil de la máquina",
+    machineProfileUnavailable: "Perfil aún no disponible — espere el primer escaneo o reinicie el servicio.",
+    mpHostname: "Hostname", mpOs: "Sistema operativo", mpCpu: "Procesador",
+    mpRam: "Memoria RAM total", mpDisks: "Discos",
+    mpDisksCount: (count, total) => `${count} (${total} en total)`,
+    mpScannedAt: "Escaneo hecho en",
     diskUsageNow: "Uso de disco ahora",
     cleanup: "Limpieza",
     cleanupDesc: "Elimina contenedor/imagen sin uso, cache de build, log enorme de Docker y archivo viejo de /tmp. Nunca toca volumen (base de datos y archivos subidos quedan intactos).",
@@ -474,6 +502,12 @@ const translations = {
     appTitle: "Disk Monitor",
     appSubtitle: "Confiança Technologies — server-toolkit",
     loading: "loading...",
+    machineProfileTitle: "Machine profile",
+    machineProfileUnavailable: "Profile not available yet — wait for the first scan or restart the service.",
+    mpHostname: "Hostname", mpOs: "Operating system", mpCpu: "Processor",
+    mpRam: "Total RAM", mpDisks: "Disks",
+    mpDisksCount: (count, total) => `${count} (${total} total)`,
+    mpScannedAt: "Scanned at",
     diskUsageNow: "Disk usage now",
     cleanup: "Cleanup",
     cleanupDesc: "Removes unused containers/images, build cache, oversized Docker logs, and old /tmp files. Never touches a volume (database and uploaded files stay untouched).",
@@ -556,6 +590,7 @@ function setLang(lang) {
   loadStatus();
   loadProcesses();
   loadLive();
+  loadMachineProfile();
 }
 
 // ---------- tema claro/escuro ----------
@@ -688,6 +723,41 @@ const diskCharts = {};
 
 function diskCardId(mount) {
   return "disk-card-" + mount.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+// Perfil da máquina é identidade, não métrica — uma foto tirada na
+// instalação (lib/machineProfile.js), não algo que precise ficar
+// atualizando sozinho a cada poucos segundos como CPU/RAM/processos.
+function renderMachineProfile(profile) {
+  const grid = document.getElementById("machineProfileGrid");
+  if (!profile) {
+    grid.textContent = t("machineProfileUnavailable");
+    return;
+  }
+  grid.classList.remove("sub");
+  const totalDiskBytes = (profile.disks || []).reduce((sum, d) => sum + d.totalBytes, 0);
+  const locale = LOCALE_MAP[currentLang] || "pt-BR";
+  const items = [
+    [t("mpHostname"), profile.hostname || "—"],
+    [t("mpOs"), `${profile.os.distro || profile.os.platform} ${profile.os.release || ""}`.trim()],
+    [t("mpCpu"), `${profile.cpu.brand} (${profile.cpu.physicalCores}c/${profile.cpu.cores}t)`],
+    [t("mpRam"), formatBytes(profile.totalMemBytes)],
+    [t("mpDisks"), t("mpDisksCount", profile.disks.length, formatBytes(totalDiskBytes))],
+    [t("mpScannedAt"), new Date(profile.scannedAt).toLocaleString(locale)]
+  ];
+  grid.innerHTML = items.map(([label, value]) => `
+    <div><div class="mp-label">${label}</div><div class="mp-value">${value}</div></div>
+  `).join("");
+}
+
+async function loadMachineProfile() {
+  try {
+    const res = await apiFetch("/api/machine-profile");
+    const data = await res.json();
+    renderMachineProfile(data.profile);
+  } catch (err) {
+    console.error("Falha ao carregar o perfil da máquina:", err);
+  }
 }
 
 function renderDisksGrid(disks) {
@@ -1081,6 +1151,7 @@ applyTranslations();
   const authenticated = await checkAuth();
   if (!authenticated) return;
   await loadUsers();
+  await loadMachineProfile();
   await loadStatus();
   await loadProcesses();
   await loadLive();
