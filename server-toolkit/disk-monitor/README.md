@@ -63,6 +63,38 @@ As seções abaixo detalham o caminho manual/passo a passo no Linux — útil
 pra entender o que o `install.sh` faz por trás, ou pra quem prefere
 instalar na mão.
 
+## Atualizando uma instalação já existente
+
+Pra trazer uma versão nova de código pra um servidor que **já tem** o
+disk-monitor instalado, sem repetir o passo a passo de instalação inteiro
+(nem pedir usuário/senha do admin de novo): use o `update.sh` (Linux) ou
+`update.ps1` (Windows) em vez do `install.sh`/`install.ps1`. Os dois só
+trocam o código — nunca mexem em `.env`, usuários cadastrados ou
+histórico já registrado.
+
+**Linux**, de dentro do checkout do repositório já atualizado (`git
+pull`/`git checkout` da branch nova):
+```bash
+cd ~/atendeflow/server-toolkit/disk-monitor
+sudo installers/linux/update.sh
+sudo systemctl status disk-monitor   # confirma a versão nova no log
+```
+
+**Windows**, de dentro da pasta com o `disk-monitor.exe` novo (gerado por
+`npm run build:win` ou baixado atualizado):
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\update.ps1
+```
+
+Testado nesta sessão (Linux): simulei uma instalação antiga (versão
+`0.9.0` de propósito, com `.env`/histórico com dado próprio) e confirmei
+que o `update.sh` troca o código, reinstala as dependências, reinicia o
+serviço, mostra `v0.9.0 -> v1.5.0` no final — e o `.env`/histórico
+continuaram exatamente iguais depois. **Não testado** no Windows real
+(mesma limitação já documentada pro `install.ps1`/`uninstall.ps1` — sem
+máquina Windows disponível nesta sessão).
+
 ## Instalação nesta máquina (a partir do código-fonte)
 
 Use esse caminho no VPS atual, onde o repositório já está clonado.
