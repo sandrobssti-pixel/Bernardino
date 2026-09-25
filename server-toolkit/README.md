@@ -11,14 +11,16 @@ seu próprio README com o passo a passo.
 
 ## Módulos
 
-- **[`disk-monitor/`](disk-monitor/README.md)** — monitor de uso de
-  disco com painel visual (gráfico, tema claro/escuro, português/
+- **[`disk-monitor/`](disk-monitor/README.md)** — monitor de disco (todos
+  os discos detectados automaticamente), CPU, memória RAM e processos em
+  tempo real, com painel visual (gráficos, tema claro/escuro, português/
   espanhol/inglês, com login admin/visualizador) e limpeza automática
   quando passar de um limite configurável (remove imagem/container
-  Docker não usado, trunca log gigante, limpa pasta temporária — nunca
-  mexe em volume nem em dado de cliente). Instala no Linux
-  (`installers/linux/install.sh` ou `install-gui.sh`) e no Windows
-  (`installers/windows/install.ps1` ou o assistente `DiskMonitorSetup.exe`).
+  Docker não usado, trunca log gigante, compacta log do sistema, limpa
+  pasta temporária — nunca mexe em volume nem em dado de cliente).
+  Instala no Linux (`installers/linux/install.sh` ou `install-gui.sh`) e
+  no Windows (`installers/windows/install.ps1` ou o assistente
+  `DiskMonitorSetup.exe`).
 
 ## Bibliotecas compartilhadas
 

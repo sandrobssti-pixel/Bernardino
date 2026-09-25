@@ -4,7 +4,11 @@ Módulo do `server-toolkit`: ferramenta **separada** do AtendeFlow (não faz
 parte do app web nem do banco de dados dele) que roda em qualquer servidor
 Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
 
-- Acompanhar o uso de disco do servidor ao longo do tempo (gráfico).
+- Acompanhar o uso de disco do servidor ao longo do tempo (gráfico) —
+  detecta sozinho **todos os discos/partições montados**, não só um.
+- Acompanhar o uso de CPU e de memória RAM ao longo do tempo (gráficos).
+- Mostrar os processos rodando **em tempo real** (atualiza a cada poucos
+  segundos), com um gráfico de consumo (CPU e RAM) dos que mais pesam.
 - Disparar limpeza automática quando o uso passar de um limite configurável.
 - Permitir rodar a limpeza manualmente pelo painel, com um clique.
 - Registrar o histórico de todas as limpezas (o que rodou, quanto liberou).
@@ -31,6 +35,10 @@ Faz (Linux e Windows, mesmo motor):
   host — esse passo aparece "pulado" no histórico de limpezas).
 - Remove arquivo mais velho que N dias da pasta temporária do sistema
   (`/tmp` no Linux, `%TEMP%` no Windows).
+- Compacta os logs do sistema mais velhos que N dias (`journalctl
+  --vacuum-time`). **Só no Linux** (log de eventos do Windows é gerido de
+  outro jeito, fora do escopo desta limpeza — esse passo aparece
+  "pulado" no histórico).
 
 **Nunca**:
 - Não remove volume Docker (onde ficam o banco Postgres e os arquivos
@@ -174,8 +182,23 @@ painel sem nenhum jeito de voltar.
   de container é zerado (padrão: 200MB).
 - **Limpar /tmp com mais de**: idade mínima pra um arquivo de `/tmp` ser
   removido (padrão: 7 dias).
+- **Limpar logs do sistema com mais de**: idade mínima pro `journalctl`
+  descartar logs arquivados (padrão: 14 dias; só no Linux).
 - **Limpeza automática habilitada**: liga/desliga o gatilho automático
   sem precisar reiniciar o serviço.
+
+## Discos, CPU, RAM e processos
+
+Além do disco monitorado (o que aciona a limpeza automática), o painel
+também mostra, sem nenhuma configuração extra:
+
+- **Todos os discos/partições detectados** automaticamente no servidor,
+  com o uso atual de cada um.
+- **Histórico de uso de CPU e de memória RAM**, na mesma amostragem do
+  disco (intervalo configurável acima).
+- **Processos em tempo real**: os 15 que mais consomem CPU no momento
+  (PID, nome, % de CPU, % de RAM), atualizado a cada poucos segundos —
+  e um gráfico comparando o consumo dos que mais pesam.
 
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 

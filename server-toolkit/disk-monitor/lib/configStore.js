@@ -10,7 +10,8 @@ const DEFAULT_CONFIG = {
   checkIntervalMinutes: 15,
   autoCleanupEnabled: true,
   dockerLogMaxSizeMB: 200,
-  tmpFilesOlderThanDays: 7
+  tmpFilesOlderThanDays: 7,
+  systemLogsOlderThanDays: 14
 };
 
 function ensureDataDir() {

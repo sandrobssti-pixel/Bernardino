@@ -14,10 +14,22 @@ const { readDiskUsage } = require("./lib/diskUsage");
 const { runCleanup } = require("./lib/cleanup");
 const { getConfig, updateConfig } = require("./lib/configStore");
 const {
+  readAllDisks,
+  readCpuLoad,
+  readMemory,
+  readTopProcesses
+} = require("./lib/systemStats");
+const {
   appendReading,
   getHistory,
   appendAction,
-  getActions
+  getActions,
+  appendCpuReading,
+  getCpuHistory,
+  appendMemReading,
+  getMemHistory,
+  appendDisksReading,
+  getDisksHistory
 } = require("./lib/historyStore");
 const { version } = require("./lib/version");
 const { createAuthSystem } = require("toolkit-auth");
@@ -90,9 +102,29 @@ async function triggerCleanup(trigger) {
   }
 }
 
+// Roda na mesma amostragem periódica do disco monitorado (mesmo cron,
+// mesmo intervalo configurável) — CPU, RAM e a lista de todos os discos
+// detectados não entram na decisão de limpeza automática (só o disco
+// monitorado por MOUNT_PATH aciona isso), são só pra alimentar os
+// gráficos de histórico do painel.
+async function sampleSystemStats() {
+  const [cpu, mem, disks] = await Promise.all([
+    readCpuLoad(),
+    readMemory(),
+    readAllDisks()
+  ]);
+  appendCpuReading(cpu);
+  appendMemReading(mem);
+  appendDisksReading(disks);
+}
+
 async function checkDiskAndMaybeClean() {
   const reading = await readDiskUsage(MOUNT_PATH);
   appendReading(reading);
+
+  await sampleSystemStats().catch(err =>
+    console.error("Falha ao amostrar CPU/RAM/discos:", err)
+  );
 
   const config = getConfig();
   if (config.autoCleanupEnabled && reading.percent >= config.thresholdPercent) {
@@ -104,14 +136,40 @@ app.get("/api/status", auth.requireAuth, async (req, res) => {
   const config = getConfig();
   const history = getHistory();
   const current = history[history.length - 1] || (await readDiskUsage(MOUNT_PATH));
+
+  const cpuHistory = getCpuHistory();
+  const memHistory = getMemHistory();
+  const disksHistory = getDisksHistory();
+
+  // Discos e CPU/RAM "agora": se ainda não rodou nenhuma amostragem (painel
+  // recém-instalado), lê na hora em vez de esperar o próximo tick do cron.
+  const disks = disksHistory.length
+    ? disksHistory[disksHistory.length - 1].disks
+    : (await readAllDisks()).map(d => ({ mount: d.mount, percent: d.percent }));
+  const cpuCurrent = cpuHistory[cpuHistory.length - 1] || (await readCpuLoad());
+  const memCurrent = memHistory[memHistory.length - 1] || (await readMemory());
+
   res.json({
     current,
     history,
+    disks,
+    disksHistory,
+    cpuCurrent,
+    cpuHistory,
+    memCurrent,
+    memHistory,
     actions: getActions(),
     config,
     cleanupRunning,
     version
   });
+});
+
+// Lista de processos é sempre lida na hora (nunca fica em cache/histórico)
+// — é o que dá o efeito de "tempo real" pedido pelo cliente.
+app.get("/api/processes", auth.requireAuth, async (req, res) => {
+  const processes = await readTopProcesses(15);
+  res.json({ processes });
 });
 
 // Usuário "viewer" só acompanha o painel — mudar configuração e disparar
@@ -122,7 +180,8 @@ app.post("/api/config", auth.requireRole("admin"), (req, res) => {
     "checkIntervalMinutes",
     "autoCleanupEnabled",
     "dockerLogMaxSizeMB",
-    "tmpFilesOlderThanDays"
+    "tmpFilesOlderThanDays",
+    "systemLogsOlderThanDays"
   ];
   const partial = {};
   for (const key of allowedKeys) {

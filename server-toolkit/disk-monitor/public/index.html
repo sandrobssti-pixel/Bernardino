@@ -199,6 +199,8 @@
       <input type="number" id="dockerLogMaxSizeMB" min="10" />
       <label data-i18n="tmpLabel">Limpar /tmp com mais de (dias)</label>
       <input type="number" id="tmpFilesOlderThanDays" min="1" />
+      <label data-i18n="systemLogsLabel">Limpar logs do sistema com mais de (dias)</label>
+      <input type="number" id="systemLogsOlderThanDays" min="1" />
       <div class="toggle-row">
         <input type="checkbox" id="autoCleanupEnabled" />
         <span data-i18n="autoCleanupLabel">Limpeza automática habilitada</span>
@@ -212,6 +214,45 @@
   <div class="panel" style="margin-bottom:16px">
     <h2 data-i18n="historyTitle">Histórico de uso de disco</h2>
     <canvas id="historyChart"></canvas>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="disksDetected">Discos detectados automaticamente</h2>
+    <div id="disksList" class="sub" data-i18n="loading">carregando...</div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2 data-i18n="cpuHistoryTitle">Histórico de uso de CPU</h2>
+      <canvas id="cpuHistoryChart"></canvas>
+    </div>
+    <div class="panel">
+      <h2 data-i18n="memHistoryTitle">Histórico de uso de memória RAM</h2>
+      <canvas id="memHistoryChart"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="processesTitle">Processos em tempo real</h2>
+    <div class="sub" style="margin-bottom:12px" data-i18n="processesDesc">
+      Top 15 processos por uso de CPU, atualizado a cada poucos segundos.
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="thPid">PID</th>
+          <th data-i18n="thProcessName">Processo</th>
+          <th data-i18n="thCpuPercent">CPU %</th>
+          <th data-i18n="thMemPercent">RAM %</th>
+        </tr>
+      </thead>
+      <tbody id="processesBody"></tbody>
+    </table>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="processConsumptionTitle">Consumo por processo</h2>
+    <canvas id="processChart"></canvas>
   </div>
 
   <div class="panel">
@@ -285,9 +326,21 @@ const translations = {
     intervalLabel: "Intervalo de checagem (minutos)",
     dockerLogLabel: "Truncar log do Docker maior que (MB)",
     tmpLabel: "Limpar /tmp com mais de (dias)",
+    systemLogsLabel: "Limpar logs do sistema com mais de (dias)",
     autoCleanupLabel: "Limpeza automática habilitada",
     saveConfig: "Salvar configuração",
     historyTitle: "Histórico de uso de disco",
+    disksDetected: "Discos detectados automaticamente",
+    cpuHistoryTitle: "Histórico de uso de CPU",
+    memHistoryTitle: "Histórico de uso de memória RAM",
+    chartCpuLabel: "Uso de CPU (%)",
+    chartMemLabel: "Uso de RAM (%)",
+    processesTitle: "Processos em tempo real",
+    processesDesc: "Top 15 processos por uso de CPU, atualizado a cada poucos segundos.",
+    thPid: "PID", thProcessName: "Processo", thCpuPercent: "CPU %", thMemPercent: "RAM %",
+    processConsumptionTitle: "Consumo por processo",
+    chartProcessCpuLabel: "CPU (%)",
+    chartProcessMemLabel: "RAM (%)",
     recentCleanups: "Últimas limpezas",
     thWhen: "Quando", thType: "Tipo", thBefore: "Antes", thAfter: "Depois", thFreed: "Liberado", thDetails: "Detalhes",
     noCleanups: "Nenhuma limpeza registrada ainda.",
@@ -328,9 +381,21 @@ const translations = {
     intervalLabel: "Intervalo de verificación (minutos)",
     dockerLogLabel: "Truncar log de Docker mayor que (MB)",
     tmpLabel: "Limpiar /tmp con más de (días)",
+    systemLogsLabel: "Limpiar logs del sistema con más de (días)",
     autoCleanupLabel: "Limpieza automática habilitada",
     saveConfig: "Guardar configuración",
     historyTitle: "Histórico de uso de disco",
+    disksDetected: "Discos detectados automáticamente",
+    cpuHistoryTitle: "Histórico de uso de CPU",
+    memHistoryTitle: "Histórico de uso de memoria RAM",
+    chartCpuLabel: "Uso de CPU (%)",
+    chartMemLabel: "Uso de RAM (%)",
+    processesTitle: "Procesos en tiempo real",
+    processesDesc: "Top 15 procesos por uso de CPU, actualizado cada pocos segundos.",
+    thPid: "PID", thProcessName: "Proceso", thCpuPercent: "CPU %", thMemPercent: "RAM %",
+    processConsumptionTitle: "Consumo por proceso",
+    chartProcessCpuLabel: "CPU (%)",
+    chartProcessMemLabel: "RAM (%)",
     recentCleanups: "Últimas limpiezas",
     thWhen: "Cuándo", thType: "Tipo", thBefore: "Antes", thAfter: "Después", thFreed: "Liberado", thDetails: "Detalles",
     noCleanups: "Ninguna limpieza registrada todavía.",
@@ -371,9 +436,21 @@ const translations = {
     intervalLabel: "Check interval (minutes)",
     dockerLogLabel: "Truncate Docker logs larger than (MB)",
     tmpLabel: "Clean /tmp files older than (days)",
+    systemLogsLabel: "Clean system logs older than (days)",
     autoCleanupLabel: "Automatic cleanup enabled",
     saveConfig: "Save configuration",
     historyTitle: "Disk usage history",
+    disksDetected: "Automatically detected disks",
+    cpuHistoryTitle: "CPU usage history",
+    memHistoryTitle: "RAM usage history",
+    chartCpuLabel: "CPU usage (%)",
+    chartMemLabel: "RAM usage (%)",
+    processesTitle: "Real-time processes",
+    processesDesc: "Top 15 processes by CPU usage, refreshed every few seconds.",
+    thPid: "PID", thProcessName: "Process", thCpuPercent: "CPU %", thMemPercent: "RAM %",
+    processConsumptionTitle: "Consumption by process",
+    chartProcessCpuLabel: "CPU (%)",
+    chartProcessMemLabel: "RAM (%)",
     recentCleanups: "Recent cleanups",
     thWhen: "When", thType: "Type", thBefore: "Before", thAfter: "After", thFreed: "Freed", thDetails: "Details",
     noCleanups: "No cleanup recorded yet.",
@@ -428,6 +505,7 @@ function setLang(lang) {
     loadUsers();
   }
   loadStatus();
+  loadProcesses();
 }
 
 // ---------- tema claro/escuro ----------
@@ -445,7 +523,10 @@ function toggleTheme() {
 }
 
 // ---------- painel ----------
-let chart;
+const diskChartState = { chart: null };
+const cpuChartState = { chart: null };
+const memChartState = { chart: null };
+let procChart = null;
 
 function toast(msg) {
   const el = document.getElementById("toast");
@@ -475,12 +556,18 @@ function renderCurrent(current) {
   bar.style.background = barColor(current.percent);
 }
 
-function renderChart(history) {
+// Reaproveitado pelos três gráficos de linha (disco/CPU/RAM) — cada um
+// guarda sua própria instância em `state.chart` (objeto por referência,
+// pra essa função poder criar/atualizar sem precisar de uma variável
+// global por gráfico).
+function renderLineChart(state, canvasId, history, label, color) {
+  const canvasEl = document.getElementById(canvasId);
+  if (!canvasEl) return; // já virou div de aviso (Chart.js não carregou)
   if (typeof Chart === "undefined") {
-    document.getElementById("historyChart").replaceWith(
+    canvasEl.replaceWith(
       Object.assign(document.createElement("div"), {
         className: "sub",
-        id: "historyChart",
+        id: canvasId,
         textContent: t("chartLoadError")
       })
     );
@@ -490,24 +577,24 @@ function renderChart(history) {
   const labels = history.map(h => new Date(h.checkedAt).toLocaleString(locale, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }));
   const data = history.map(h => h.percent);
 
-  if (chart) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data;
-    chart.data.datasets[0].label = t("chartLabel");
-    chart.update();
+  if (state.chart) {
+    state.chart.data.labels = labels;
+    state.chart.data.datasets[0].data = data;
+    state.chart.data.datasets[0].label = label;
+    state.chart.update();
     return;
   }
 
-  const ctx = document.getElementById("historyChart").getContext("2d");
-  chart = new Chart(ctx, {
+  const ctx = canvasEl.getContext("2d");
+  state.chart = new Chart(ctx, {
     type: "line",
     data: {
       labels,
       datasets: [{
-        label: t("chartLabel"),
+        label,
         data,
-        borderColor: "#7c5cf5",
-        backgroundColor: "rgba(124,92,245,0.15)",
+        borderColor: color,
+        backgroundColor: color + "26",
         fill: true,
         tension: 0.25,
         pointRadius: 0,
@@ -525,11 +612,100 @@ function renderChart(history) {
   });
 }
 
+function renderDisksList(disks) {
+  const container = document.getElementById("disksList");
+  if (!disks || !disks.length) {
+    container.textContent = t("loading");
+    return;
+  }
+  container.innerHTML = disks.map(d => `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:0.85rem">
+        <span>${d.mount}</span><span>${d.percent}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${d.percent}%;background:${barColor(d.percent)}"></div></div>
+    </div>
+  `).join("");
+}
+
+function renderProcessesTable(processes) {
+  const body = document.getElementById("processesBody");
+  body.innerHTML = processes.map(p => `
+    <tr>
+      <td>${p.pid}</td>
+      <td>${p.name}</td>
+      <td>${p.cpuPercent}%</td>
+      <td>${p.memPercent}%</td>
+    </tr>
+  `).join("");
+}
+
+function renderProcessChart(processes) {
+  const canvasEl = document.getElementById("processChart");
+  if (!canvasEl) return;
+  if (typeof Chart === "undefined") {
+    canvasEl.replaceWith(
+      Object.assign(document.createElement("div"), {
+        className: "sub",
+        id: "processChart",
+        textContent: t("chartLoadError")
+      })
+    );
+    return;
+  }
+  const top = processes.slice(0, 8);
+  const labels = top.map(p => p.name);
+  const cpuData = top.map(p => p.cpuPercent);
+  const memData = top.map(p => p.memPercent);
+
+  if (procChart) {
+    procChart.data.labels = labels;
+    procChart.data.datasets[0].data = cpuData;
+    procChart.data.datasets[0].label = t("chartProcessCpuLabel");
+    procChart.data.datasets[1].data = memData;
+    procChart.data.datasets[1].label = t("chartProcessMemLabel");
+    procChart.update();
+    return;
+  }
+
+  const ctx = canvasEl.getContext("2d");
+  procChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: t("chartProcessCpuLabel"), data: cpuData, backgroundColor: "#7c5cf5" },
+        { label: t("chartProcessMemLabel"), data: memData, backgroundColor: "#22d3ee" }
+      ]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, grid: { color: "rgba(148,163,184,0.1)" }, ticks: { color: "#94a3b8" } },
+        x: { grid: { display: false }, ticks: { color: "#94a3b8" } }
+      },
+      plugins: { legend: { display: true, labels: { color: "#94a3b8" } } }
+    }
+  });
+}
+
+async function loadProcesses() {
+  try {
+    const res = await apiFetch("/api/processes");
+    const data = await res.json();
+    renderProcessesTable(data.processes);
+    renderProcessChart(data.processes);
+  } catch (err) {
+    console.error("Falha ao carregar processos:", err);
+  }
+}
+
 function renderConfig(config) {
   document.getElementById("thresholdPercent").value = config.thresholdPercent;
   document.getElementById("checkIntervalMinutes").value = config.checkIntervalMinutes;
   document.getElementById("dockerLogMaxSizeMB").value = config.dockerLogMaxSizeMB;
   document.getElementById("tmpFilesOlderThanDays").value = config.tmpFilesOlderThanDays;
+  document.getElementById("systemLogsOlderThanDays").value = config.systemLogsOlderThanDays;
   document.getElementById("autoCleanupEnabled").checked = !!config.autoCleanupEnabled;
 }
 
@@ -580,7 +756,7 @@ function applyRoleUI() {
   document.getElementById("cleanupBtn").disabled = !isAdmin;
   document.getElementById("saveConfigBtn").disabled = !isAdmin;
   document.getElementById("cleanupStatus").textContent = isAdmin ? "" : t("viewerNotice");
-  ["thresholdPercent", "checkIntervalMinutes", "dockerLogMaxSizeMB", "tmpFilesOlderThanDays", "autoCleanupEnabled"]
+  ["thresholdPercent", "checkIntervalMinutes", "dockerLogMaxSizeMB", "tmpFilesOlderThanDays", "systemLogsOlderThanDays", "autoCleanupEnabled"]
     .forEach(id => { document.getElementById(id).disabled = !isAdmin; });
 }
 
@@ -673,14 +849,18 @@ async function loadStatus() {
   if (data.version) {
     document.getElementById("versionBadge").textContent = "v" + data.version;
   }
-  // O gráfico depende do Chart.js vindo de CDN — se a internet do
-  // servidor falhar ou o CDN estiver fora do ar, só o gráfico fica sem
+  renderDisksList(data.disks);
+
+  // Os gráficos dependem do Chart.js vindo de CDN — se a internet do
+  // servidor falhar ou o CDN estiver fora do ar, só os gráficos ficam sem
   // dado, o resto do painel (config, versão, limpeza) continua
   // funcionando normalmente.
   try {
-    renderChart(data.history);
+    renderLineChart(diskChartState, "historyChart", data.history, t("chartLabel"), "#7c5cf5");
+    renderLineChart(cpuChartState, "cpuHistoryChart", data.cpuHistory, t("chartCpuLabel"), "#22d3ee");
+    renderLineChart(memChartState, "memHistoryChart", data.memHistory, t("chartMemLabel"), "#f59e0b");
   } catch (err) {
-    console.error("Falha ao renderizar o gráfico:", err);
+    console.error("Falha ao renderizar os gráficos:", err);
   }
 }
 
@@ -711,6 +891,7 @@ document.getElementById("saveConfigBtn").addEventListener("click", async () => {
     checkIntervalMinutes: Number(document.getElementById("checkIntervalMinutes").value),
     dockerLogMaxSizeMB: Number(document.getElementById("dockerLogMaxSizeMB").value),
     tmpFilesOlderThanDays: Number(document.getElementById("tmpFilesOlderThanDays").value),
+    systemLogsOlderThanDays: Number(document.getElementById("systemLogsOlderThanDays").value),
     autoCleanupEnabled: document.getElementById("autoCleanupEnabled").checked
   };
   const res = await apiFetch("/api/config", {
@@ -739,7 +920,11 @@ applyTranslations();
   if (!authenticated) return;
   await loadUsers();
   await loadStatus();
+  await loadProcesses();
   setInterval(loadStatus, 30000);
+  // Processos mudam rápido — intervalo mais curto pra dar sensação de
+  // "tempo real" de verdade, sem sobrecarregar o servidor.
+  setInterval(loadProcesses, 5000);
 })();
 </script>
 </body>

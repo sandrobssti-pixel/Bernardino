@@ -100,6 +100,24 @@ function deleteOldFilesRecursive(dir, olderThanMs) {
   return removed;
 }
 
+// Compacta os logs do systemd/journald, descartando os mais antigos que
+// `olderThanDays` — só marca como "vazio" o espaço, quem decide o que
+// journald apaga de fato é o próprio `journalctl` (nunca mexemos direto
+// em arquivo de log do sistema). Só existe em distros com systemd; no
+// Windows (Visualizador de Eventos é outra coisa, gerido de outro jeito)
+// esse passo aparece "pulado", igual ao truncamento de log do Docker.
+function cleanSystemLogs(olderThanDays) {
+  return runSafe(`limpar logs do sistema (> ${olderThanDays} dias)`, () => {
+    if (isWindows) {
+      return "pulado no Windows (log de eventos do Windows é gerido de outro jeito, fora do escopo desta limpeza)";
+    }
+    const output = execSync(`journalctl --vacuum-time=${olderThanDays}d 2>&1`, {
+      encoding: "utf8"
+    });
+    return output.trim().split("\n").slice(-2).join(" | ");
+  });
+}
+
 // Pasta temporária do sistema é espaço descartável por definição — remove
 // só arquivo mais velho que N dias, nunca a pasta inteira de uma vez.
 // `os.tmpdir()` já resolve certo em cada sistema (`/tmp` no Linux,
@@ -114,10 +132,14 @@ function cleanTmp(olderThanDays) {
 
 // Roda a limpeza completa e mede o espaço realmente liberado (antes/depois),
 // que é mais confiável do que somar estimativa de cada etapa.
-function runCleanup({ dockerLogMaxSizeMB, tmpFilesOlderThanDays }, diskUsageBefore) {
+function runCleanup(
+  { dockerLogMaxSizeMB, tmpFilesOlderThanDays, systemLogsOlderThanDays },
+  diskUsageBefore
+) {
   const steps = [
     dockerPrune(),
     truncateLargeDockerLogs(dockerLogMaxSizeMB),
+    cleanSystemLogs(systemLogsOlderThanDays),
     cleanTmp(tmpFilesOlderThanDays)
   ];
 
