@@ -141,6 +141,49 @@
   .steps { color: var(--text-muted); font-size: 0.78rem; }
   .steps .fail { color: var(--crit); }
   canvas { max-height: 260px; }
+  .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); margin-right: 6px;
+    animation: livePulse 1.6s ease-in-out infinite;
+  }
+  @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .disks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .disk-card {
+    background: rgba(148,163,184,0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+  }
+  .disk-card .disk-icon { color: var(--accent2); margin-bottom: 4px; }
+  .disk-card .disk-mount {
+    font-weight: 600; font-size: 0.85rem;
+    word-break: break-all; margin-bottom: 2px;
+  }
+  .disk-card .disk-fstype {
+    font-size: 0.7rem; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 10px;
+  }
+  .disk-donut-wrap {
+    position: relative;
+    width: 130px; height: 130px;
+    margin: 0 auto;
+  }
+  .disk-donut-wrap canvas { max-height: none; width: 100% !important; height: 100% !important; }
+  .disk-percent {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.4rem; font-weight: 700;
+  }
+  .disk-detail {
+    font-size: 0.75rem; color: var(--text-muted);
+    margin-top: 12px; line-height: 1.5;
+  }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -218,16 +261,16 @@
 
   <div class="panel" style="margin-bottom:16px">
     <h2 data-i18n="disksDetected">Discos detectados automaticamente</h2>
-    <div id="disksList" class="sub" data-i18n="loading">carregando...</div>
+    <div id="disksGrid" class="disks-grid sub" data-i18n="loading">carregando...</div>
   </div>
 
   <div class="grid">
     <div class="panel">
-      <h2 data-i18n="cpuHistoryTitle">Histórico de uso de CPU</h2>
+      <h2><span class="live-dot"></span><span data-i18n="cpuHistoryTitle">Histórico de uso de CPU</span></h2>
       <canvas id="cpuHistoryChart"></canvas>
     </div>
     <div class="panel">
-      <h2 data-i18n="memHistoryTitle">Histórico de uso de memória RAM</h2>
+      <h2><span class="live-dot"></span><span data-i18n="memHistoryTitle">Histórico de uso de memória RAM</span></h2>
       <canvas id="memHistoryChart"></canvas>
     </div>
   </div>
@@ -331,10 +374,12 @@ const translations = {
     saveConfig: "Salvar configuração",
     historyTitle: "Histórico de uso de disco",
     disksDetected: "Discos detectados automaticamente",
-    cpuHistoryTitle: "Histórico de uso de CPU",
-    memHistoryTitle: "Histórico de uso de memória RAM",
+    cpuHistoryTitle: "CPU em tempo real",
+    memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
+    diskUsedLabel: "Usado", diskFreeLabel: "Livre",
+    diskDetail: (used, total, free) => `${used} de ${total} usados (${free} livres)`,
     processesTitle: "Processos em tempo real",
     processesDesc: "Top 15 processos por uso de CPU, atualizado a cada poucos segundos.",
     thPid: "PID", thProcessName: "Processo", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -386,10 +431,12 @@ const translations = {
     saveConfig: "Guardar configuración",
     historyTitle: "Histórico de uso de disco",
     disksDetected: "Discos detectados automáticamente",
-    cpuHistoryTitle: "Histórico de uso de CPU",
-    memHistoryTitle: "Histórico de uso de memoria RAM",
+    cpuHistoryTitle: "CPU en tiempo real",
+    memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
+    diskUsedLabel: "Usado", diskFreeLabel: "Libre",
+    diskDetail: (used, total, free) => `${used} de ${total} usados (${free} libres)`,
     processesTitle: "Procesos en tiempo real",
     processesDesc: "Top 15 procesos por uso de CPU, actualizado cada pocos segundos.",
     thPid: "PID", thProcessName: "Proceso", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -441,10 +488,12 @@ const translations = {
     saveConfig: "Save configuration",
     historyTitle: "Disk usage history",
     disksDetected: "Automatically detected disks",
-    cpuHistoryTitle: "CPU usage history",
-    memHistoryTitle: "RAM usage history",
+    cpuHistoryTitle: "CPU — real time",
+    memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
     chartMemLabel: "RAM usage (%)",
+    diskUsedLabel: "Used", diskFreeLabel: "Free",
+    diskDetail: (used, total, free) => `${used} of ${total} used (${free} free)`,
     processesTitle: "Real-time processes",
     processesDesc: "Top 15 processes by CPU usage, refreshed every few seconds.",
     thPid: "PID", thProcessName: "Process", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -506,6 +555,7 @@ function setLang(lang) {
   }
   loadStatus();
   loadProcesses();
+  loadLive();
 }
 
 // ---------- tema claro/escuro ----------
@@ -612,20 +662,121 @@ function renderLineChart(state, canvasId, history, label, color) {
   });
 }
 
-function renderDisksList(disks) {
-  const container = document.getElementById("disksList");
+// Formata bytes com precisão (GB até 1000GB, TB acima disso) — usado nos
+// cards de disco, onde o pedido foi mostrar valor exato, não só percentual.
+function formatBytes(bytes) {
+  const gb = bytes / 1024 / 1024 / 1024;
+  if (gb >= 1000) return (gb / 1024).toFixed(2) + " TB";
+  return gb.toFixed(1) + " GB";
+}
+
+// Ícone de disco em SVG (não emoji) pra manter a mesma linguagem visual
+// dos outros ícones do painel.
+const DISK_ICON_SVG = `
+  <svg class="disk-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6">
+    <rect x="3" y="4" width="18" height="16" rx="2.5"></rect>
+    <line x1="3" y1="10.5" x2="21" y2="10.5"></line>
+    <circle cx="7.5" cy="15" r="1.1" fill="currentColor" stroke="none"></circle>
+    <circle cx="11.5" cy="15" r="1.1" fill="currentColor" stroke="none"></circle>
+  </svg>
+`;
+
+// Um Chart.js "doughnut" por disco (id sanitizado a partir do mount) —
+// mapa em vez de variável única porque o número de discos varia por
+// servidor e pode até mudar em tempo real (unidade removível, etc.).
+const diskCharts = {};
+
+function diskCardId(mount) {
+  return "disk-card-" + mount.replace(/[^a-zA-Z0-9]/g, "_");
+}
+
+function renderDisksGrid(disks) {
+  const grid = document.getElementById("disksGrid");
   if (!disks || !disks.length) {
-    container.textContent = t("loading");
+    grid.textContent = t("loading");
     return;
   }
-  container.innerHTML = disks.map(d => `
-    <div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:0.85rem">
-        <span>${d.mount}</span><span>${d.percent}%</span>
-      </div>
-      <div class="bar-track"><div class="bar-fill" style="width:${d.percent}%;background:${barColor(d.percent)}"></div></div>
-    </div>
-  `).join("");
+  grid.classList.remove("sub");
+  // Tira o texto "carregando..." do estado inicial (ainda fica como nó de
+  // texto solto no container na primeira resposta da API).
+  Array.from(grid.childNodes).forEach(node => {
+    if (!(node.nodeType === 1 && node.classList?.contains("disk-card"))) {
+      node.remove();
+    }
+  });
+
+  // Remove card de disco que sumiu (ex.: pendrive desmontado) — evita
+  // acumular gráfico "fantasma" de um disco que não existe mais.
+  const currentMounts = new Set(disks.map(d => d.mount));
+  Object.keys(diskCharts).forEach(mount => {
+    if (currentMounts.has(mount)) return;
+    diskCharts[mount].destroy();
+    delete diskCharts[mount];
+    document.getElementById(diskCardId(mount))?.remove();
+  });
+
+  disks.forEach(d => {
+    const cardId = diskCardId(d.mount);
+    let card = document.getElementById(cardId);
+    if (!card) {
+      card = document.createElement("div");
+      card.className = "disk-card";
+      card.id = cardId;
+      card.innerHTML = `
+        ${DISK_ICON_SVG}
+        <div class="disk-mount">${d.mount}</div>
+        <div class="disk-fstype"></div>
+        <div class="disk-donut-wrap"><canvas></canvas><div class="disk-percent"></div></div>
+        <div class="disk-detail"></div>
+      `;
+      grid.appendChild(card);
+    }
+
+    card.querySelector(".disk-fstype").textContent = d.fsType || "";
+    const percentEl = card.querySelector(".disk-percent");
+    percentEl.textContent = d.percent + "%";
+    percentEl.style.color = barColor(d.percent);
+    card.querySelector(".disk-detail").textContent =
+      t("diskDetail", formatBytes(d.usedBytes), formatBytes(d.totalBytes), formatBytes(d.availBytes));
+
+    const canvasEl = card.querySelector("canvas");
+    if (typeof Chart === "undefined") {
+      canvasEl.replaceWith(Object.assign(document.createElement("div"), {
+        className: "sub", textContent: t("chartLoadError")
+      }));
+      return;
+    }
+
+    const usedColor = d.percent >= 90 ? "#ef4444" : d.percent >= 75 ? "#f59e0b" : "#22c55e";
+    const freeColor = "rgba(148,163,184,0.18)";
+    if (diskCharts[d.mount]) {
+      const c = diskCharts[d.mount];
+      c.data.datasets[0].data = [d.usedBytes, d.availBytes];
+      c.data.datasets[0].backgroundColor = [usedColor, freeColor];
+      c.update();
+    } else {
+      diskCharts[d.mount] = new Chart(canvasEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels: [t("diskUsedLabel"), t("diskFreeLabel")],
+          datasets: [{
+            data: [d.usedBytes, d.availBytes],
+            backgroundColor: [usedColor, freeColor],
+            borderColor: "var(--panel)",
+            borderWidth: 2
+          }]
+        },
+        options: {
+          cutout: "72%",
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatBytes(ctx.raw)}` } }
+          }
+        }
+      });
+    }
+  });
 }
 
 function renderProcessesTable(processes) {
@@ -849,18 +1000,29 @@ async function loadStatus() {
   if (data.version) {
     document.getElementById("versionBadge").textContent = "v" + data.version;
   }
-  renderDisksList(data.disks);
-
-  // Os gráficos dependem do Chart.js vindo de CDN — se a internet do
-  // servidor falhar ou o CDN estiver fora do ar, só os gráficos ficam sem
-  // dado, o resto do painel (config, versão, limpeza) continua
-  // funcionando normalmente.
+  // O gráfico depende do Chart.js vindo de CDN — se a internet do servidor
+  // falhar ou o CDN estiver fora do ar, só o gráfico fica sem dado, o
+  // resto do painel (config, versão, limpeza) continua funcionando.
   try {
     renderLineChart(diskChartState, "historyChart", data.history, t("chartLabel"), "#7c5cf5");
+  } catch (err) {
+    console.error("Falha ao renderizar o gráfico de disco:", err);
+  }
+}
+
+// CPU, RAM e os cards de disco são "ao vivo" de verdade: janela em memória
+// amostrada a cada 5s no servidor (lib/systemStats.js), não o histórico
+// mais espaçado usado pelo gráfico de disco acima (esse aciona a limpeza
+// automática e por isso segue o intervalo configurável).
+async function loadLive() {
+  try {
+    const res = await apiFetch("/api/live");
+    const data = await res.json();
+    renderDisksGrid(data.disks);
     renderLineChart(cpuChartState, "cpuHistoryChart", data.cpuHistory, t("chartCpuLabel"), "#22d3ee");
     renderLineChart(memChartState, "memHistoryChart", data.memHistory, t("chartMemLabel"), "#f59e0b");
   } catch (err) {
-    console.error("Falha ao renderizar os gráficos:", err);
+    console.error("Falha ao carregar métricas ao vivo:", err);
   }
 }
 
@@ -921,10 +1083,12 @@ applyTranslations();
   await loadUsers();
   await loadStatus();
   await loadProcesses();
+  await loadLive();
   setInterval(loadStatus, 30000);
-  // Processos mudam rápido — intervalo mais curto pra dar sensação de
-  // "tempo real" de verdade, sem sobrecarregar o servidor.
+  // Processos e CPU/RAM/discos mudam rápido — intervalo mais curto pra dar
+  // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.
   setInterval(loadProcesses, 5000);
+  setInterval(loadLive, 5000);
 })();
 </script>
 </body>

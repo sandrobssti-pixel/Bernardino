@@ -118,6 +118,29 @@ async function sampleSystemStats() {
   appendDisksReading(disks);
 }
 
+// Janela "ao vivo" de CPU/RAM pro painel — em memória, nunca em disco:
+// amostra a cada 5s (independente do intervalo de checagem do disco, que é
+// configurável e normalmente bem mais espaçado). Guarda só os últimos ~10
+// minutos, o suficiente pra um gráfico de tempo real de verdade sem virar
+// um banco de série histórica.
+const LIVE_SAMPLE_INTERVAL_MS = 5000;
+const LIVE_MAX_POINTS = 120;
+const liveCpuHistory = [];
+const liveMemHistory = [];
+
+async function sampleLiveStats() {
+  const [cpu, mem] = await Promise.all([readCpuLoad(), readMemory()]);
+  liveCpuHistory.push(cpu);
+  liveMemHistory.push(mem);
+  if (liveCpuHistory.length > LIVE_MAX_POINTS) liveCpuHistory.shift();
+  if (liveMemHistory.length > LIVE_MAX_POINTS) liveMemHistory.shift();
+}
+
+sampleLiveStats().catch(err => console.error("Falha na amostragem inicial ao vivo:", err));
+setInterval(() => {
+  sampleLiveStats().catch(err => console.error("Falha ao amostrar CPU/RAM ao vivo:", err));
+}, LIVE_SAMPLE_INTERVAL_MS);
+
 async function checkDiskAndMaybeClean() {
   const reading = await readDiskUsage(MOUNT_PATH);
   appendReading(reading);
@@ -162,6 +185,18 @@ app.get("/api/status", auth.requireAuth, async (req, res) => {
     config,
     cleanupRunning,
     version
+  });
+});
+
+// CPU/RAM em tempo real (janela ao vivo em memória, amostrada a cada 5s —
+// ver sampleLiveStats acima) + discos sempre lidos na hora, com bytes
+// completos (precisão total pro card de cada disco, não só o percentual).
+app.get("/api/live", auth.requireAuth, async (req, res) => {
+  const disks = await readAllDisks();
+  res.json({
+    cpuHistory: liveCpuHistory,
+    memHistory: liveMemHistory,
+    disks
   });
 });
 

@@ -193,9 +193,13 @@ Além do disco monitorado (o que aciona a limpeza automática), o painel
 também mostra, sem nenhuma configuração extra:
 
 - **Todos os discos/partições detectados** automaticamente no servidor,
-  com o uso atual de cada um.
-- **Histórico de uso de CPU e de memória RAM**, na mesma amostragem do
-  disco (intervalo configurável acima).
+  cada um com um card próprio: ícone, sistema de arquivos, gráfico de
+  rosca (usado/livre) e o valor exato em GB/TB usado, total e livre.
+- **CPU e memória RAM em tempo real de verdade**: janela ao vivo em
+  memória, amostrada a cada 5 segundos no servidor (não depende do
+  intervalo de checagem do disco, que é bem mais espaçado) — o mesmo
+  princípio dos processos abaixo, com o indicativo visual "●" piscando
+  ao lado do título.
 - **Processos em tempo real**: os 15 que mais consomem CPU no momento
   (PID, nome, % de CPU, % de RAM), atualizado a cada poucos segundos —
   e um gráfico comparando o consumo dos que mais pesam.
