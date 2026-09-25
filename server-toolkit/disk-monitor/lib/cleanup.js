@@ -1,11 +1,16 @@
 const { execSync } = require("child_process");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 
 // Regra de ouro deste arquivo: NUNCA apagar volume Docker nem dado de
 // cliente. Toda ação aqui só reclama espaço de coisa descartável
-// (imagem/container/cache não usado, log gigante, /tmp velho). Se um dia
-// alguém for adicionar uma ação nova aqui, ela tem que respeitar essa regra.
+// (imagem/container/cache não usado, log gigante, pasta temporária
+// velha). Se um dia alguém for adicionar uma ação nova aqui, ela tem que
+// respeitar essa regra. Escrito pra funcionar igual no Linux e no
+// Windows (o disk-monitor roda nos dois, ver README.md).
+
+const isWindows = process.platform === "win32";
 
 function runSafe(label, fn) {
   try {
@@ -18,7 +23,8 @@ function runSafe(label, fn) {
 
 // Remove container parado, imagem não usada, rede órfã e cache de build —
 // nunca remove volume (não passamos `--volumes`), então banco e arquivos
-// enviados pelo sistema nunca são tocados por aqui.
+// enviados pelo sistema nunca são tocados por aqui. Mesmo comando nos dois
+// sistemas (Docker Desktop no Windows expõe o mesmo `docker` na PATH).
 function dockerPrune() {
   return runSafe("docker system prune", () => {
     const output = execSync("docker system prune -af 2>&1", {
@@ -32,8 +38,15 @@ function dockerPrune() {
 // docker-compose não configurar rotação — trunca (não apaga o arquivo,
 // só zera o conteúdo) os que passarem do limite, o que é seguro: o Docker
 // continua escrevendo no mesmo arquivo aberto sem quebrar o container.
+// Só existe nesse caminho previsível no Linux — no Windows o Docker
+// Desktop guarda isso dentro da VM (WSL2/Hyper-V), sem um caminho de
+// arquivo comum pra acessar direto do host, então esse passo é pulado.
 function truncateLargeDockerLogs(maxSizeMB) {
   return runSafe(`truncar logs docker > ${maxSizeMB}MB`, () => {
+    if (isWindows) {
+      return "pulado no Windows (Docker Desktop guarda o log dentro da VM, sem caminho de arquivo direto pelo host)";
+    }
+
     const maxBytes = maxSizeMB * 1024 * 1024;
     const base = "/var/lib/docker/containers";
     if (!fs.existsSync(base)) return "diretório de containers não encontrado (Docker não usa esse caminho aqui?)";
@@ -54,16 +67,48 @@ function truncateLargeDockerLogs(maxSizeMB) {
   });
 }
 
-// /tmp é espaço descartável por definição — remove só arquivo mais velho
-// que N dias, nunca diretório em uso (find já ignora arquivo aberto por
-// processo vivo na prática, mas o critério de idade já é conservador).
+// Percorre recursivamente `dir` e apaga arquivo mais velho que
+// `olderThanMs`, contando quantos removeu — implementação em JS puro (sem
+// `find`/shell) pra funcionar igual no Linux e no Windows.
+function deleteOldFilesRecursive(dir, olderThanMs) {
+  let removed = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return removed; // pasta sumiu/sem permissão no meio do caminho — segue a vida
+  }
+
+  const cutoff = Date.now() - olderThanMs;
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    try {
+      if (entry.isDirectory()) {
+        removed += deleteOldFilesRecursive(fullPath, olderThanMs);
+        continue;
+      }
+      const { mtimeMs } = fs.statSync(fullPath);
+      if (mtimeMs < cutoff) {
+        fs.unlinkSync(fullPath);
+        removed += 1;
+      }
+    } catch {
+      // arquivo em uso por outro processo, sem permissão, etc. — pula e
+      // continua limpando o resto em vez de abortar tudo.
+    }
+  }
+  return removed;
+}
+
+// Pasta temporária do sistema é espaço descartável por definição — remove
+// só arquivo mais velho que N dias, nunca a pasta inteira de uma vez.
+// `os.tmpdir()` já resolve certo em cada sistema (`/tmp` no Linux,
+// `C:\Users\<usuário>\AppData\Local\Temp` no Windows).
 function cleanTmp(olderThanDays) {
-  return runSafe(`limpar /tmp (> ${olderThanDays} dias)`, () => {
-    const output = execSync(
-      `find /tmp -type f -mtime +${olderThanDays} -delete -print 2>/dev/null | wc -l`,
-      { encoding: "utf8" }
-    );
-    return `${output.trim()} arquivo(s) removido(s) de /tmp`;
+  const tmpDir = os.tmpdir();
+  return runSafe(`limpar pasta temporária (> ${olderThanDays} dias) [${tmpDir}]`, () => {
+    const removed = deleteOldFilesRecursive(tmpDir, olderThanDays * 24 * 60 * 60 * 1000);
+    return `${removed} arquivo(s) removido(s)`;
   });
 }
 

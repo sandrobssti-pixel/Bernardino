@@ -1,0 +1,13 @@
+<service>
+  <id>disk-monitor</id>
+  <name>Disk Monitor (Confiança Technologies)</name>
+  <description>Monitor de disco e limpeza automática — server-toolkit</description>
+  <executable>%BASE%\disk-monitor.exe</executable>
+  <workingdirectory>%BASE%</workingdirectory>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+  <onfailure action="restart" delay="5 sec"/>
+  <startmode>Automatic</startmode>
+</service>

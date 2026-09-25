@@ -1,20 +1,23 @@
 {
   "name": "disk-monitor",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Monitor de disco e limpeza automática — módulo do server-toolkit, reaproveitável em qualquer servidor novo de cliente",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "pkg . --targets node18-linux-x64 --output ../dist/disk-monitor-linux"
+    "build": "npm run build:linux && npm run build:win",
+    "build:linux": "pkg . --targets node18-linux-x64 --output ../dist/linux/disk-monitor-linux",
+    "build:win": "pkg . --targets node18-win-x64 --output ../dist/windows/disk-monitor.exe"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "check-disk-space": "^3.4.0",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.0.0",
     "express": "^4.22.2",
     "node-cron": "^3.0.3",
-    "dotenv": "^16.0.0",
-    "bcryptjs": "^2.4.3",
-    "cookie-session": "^2.1.0",
     "toolkit-auth": "file:../shared/auth"
   },
   "devDependencies": {
@@ -23,7 +26,8 @@
   "pkg": {
     "assets": [],
     "targets": [
-      "node18-linux-x64"
+      "node18-linux-x64",
+      "node18-win-x64"
     ]
   }
 }

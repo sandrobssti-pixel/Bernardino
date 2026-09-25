@@ -24,7 +24,11 @@ const { createAuthSystem } = require("toolkit-auth");
 const { dataDir } = require("./lib/paths");
 
 const PORT = process.env.PORT || 8091;
-const MOUNT_PATH = process.env.MOUNT_PATH || "/";
+// Sem MOUNT_PATH configurado, usa a raiz de cada sistema: "/" no
+// Linux, unidade do sistema (normalmente "C:") no Windows.
+const MOUNT_PATH =
+  process.env.MOUNT_PATH ||
+  (process.platform === "win32" ? `${process.env.SystemDrive || "C:"}\\` : "/");
 const SESSION_SECRET = process.env.SESSION_SECRET;
 
 if (!SESSION_SECRET) {
@@ -64,10 +68,10 @@ async function triggerCleanup(trigger) {
   }
   cleanupRunning = true;
   try {
-    const before = readDiskUsage(MOUNT_PATH);
+    const before = await readDiskUsage(MOUNT_PATH);
     const config = getConfig();
     const result = runCleanup(config, before);
-    const after = readDiskUsage(MOUNT_PATH);
+    const after = await readDiskUsage(MOUNT_PATH);
 
     const freedBytes = Math.max(0, before.usedBytes - after.usedBytes);
 
@@ -87,7 +91,7 @@ async function triggerCleanup(trigger) {
 }
 
 async function checkDiskAndMaybeClean() {
-  const reading = readDiskUsage(MOUNT_PATH);
+  const reading = await readDiskUsage(MOUNT_PATH);
   appendReading(reading);
 
   const config = getConfig();
@@ -96,10 +100,10 @@ async function checkDiskAndMaybeClean() {
   }
 }
 
-app.get("/api/status", auth.requireAuth, (req, res) => {
+app.get("/api/status", auth.requireAuth, async (req, res) => {
   const config = getConfig();
   const history = getHistory();
-  const current = history[history.length - 1] || readDiskUsage(MOUNT_PATH);
+  const current = history[history.length - 1] || (await readDiskUsage(MOUNT_PATH));
   res.json({
     current,
     history,

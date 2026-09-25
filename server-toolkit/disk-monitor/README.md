@@ -14,19 +14,23 @@ usuário: **administrador** (acesso completo) e **visualizador** (só
 acompanha o painel, não limpa nem muda configuração).
 
 Pensado pra reaproveitar em qualquer servidor novo que a Confiança
-Technologies montar (mesmo modelo do VPS atual) — dá pra rodar direto do
-código-fonte (como está instalado aqui) OU como um **executável único**,
-sem precisar instalar Node.js no servidor novo.
+Technologies montar — **Linux ou Windows** —, instalando por terminal
+ou por um instalador gráfico, nos dois sistemas. Dá pra rodar direto do
+código-fonte (como está instalado aqui) OU como um **executável único**
+por sistema, sem precisar instalar Node.js no servidor novo.
 
 ## O que a limpeza faz (e o que ela NUNCA faz)
 
-Faz:
+Faz (Linux e Windows, mesmo motor):
 - `docker system prune -af` — remove container parado, imagem não usada,
   rede órfã e cache de build.
 - Trunca (zera o conteúdo, sem apagar o arquivo) log de container Docker
   que passar do tamanho configurado — o Docker continua escrevendo nele
-  normalmente depois.
-- Remove arquivo de `/tmp` mais velho que N dias.
+  normalmente depois. **Só no Linux** (no Windows, o Docker Desktop
+  guarda isso dentro de uma VM sem caminho de arquivo acessível pelo
+  host — esse passo aparece "pulado" no histórico de limpezas).
+- Remove arquivo mais velho que N dias da pasta temporária do sistema
+  (`/tmp` no Linux, `%TEMP%` no Windows).
 
 **Nunca**:
 - Não remove volume Docker (onde ficam o banco Postgres e os arquivos
@@ -35,6 +39,21 @@ Faz:
   gerido pelo `backup-atendeflow.sh` (retenção de 30 dias já configurada
   lá, na raiz do repositório).
 - Não apaga nada de dentro do próprio AtendeFlow (banco, uploads).
+
+## Instalação — visão geral
+
+| Sistema | Terminal | Gráfico |
+|---|---|---|
+| Linux   | `sudo installers/linux/install.sh` | `installers/linux/install-gui.sh` (usa zenity) |
+| Windows | `installers\windows\install.ps1` (PowerShell, como Admin) | `DiskMonitorSetup.exe` — assistente compilado do `installers/windows/disk-monitor.iss` |
+
+Detalhes completos do lado Windows (inclusive o pré-requisito do WinSW e
+como compilar o instalador gráfico) em
+[`installers/windows/README.md`](installers/windows/README.md).
+
+As seções abaixo detalham o caminho manual/passo a passo no Linux — útil
+pra entender o que o `install.sh` faz por trás, ou pra quem prefere
+instalar na mão.
 
 ## Instalação nesta máquina (a partir do código-fonte)
 
@@ -74,40 +93,36 @@ journalctl -u disk-monitor -f
 
 ## Instalação num servidor NOVO (só o executável, sem Node.js)
 
-Pra levar essa ferramenta pra um servidor de outro cliente sem precisar
-clonar o repositório inteiro nem instalar Node.js lá:
+Pra levar essa ferramenta pra um servidor de outro cliente (Linux ou
+Windows) sem precisar clonar o repositório inteiro nem instalar Node.js
+lá:
 
-**1. Gere o pacote** (numa máquina com internet — pode ser aqui no VPS
-atual, ou no seu computador; só precisa rodar uma vez por atualização):
+**1. Gere os pacotes** (numa máquina com internet — pode ser aqui no
+VPS atual, ou no seu computador; o `pkg` cross-compila os dois sistemas
+a partir de qualquer um deles, não precisa ter Windows pra gerar o
+`.exe`):
 
 ```bash
 cd ~/atendeflow/server-toolkit/disk-monitor
 ./package-for-new-server.sh
 ```
 
-Isso cria `server-toolkit/dist/` com: o executável
-`disk-monitor-linux` (Node.js já embutido, ~40-80MB), a pasta `public/`,
-`.env.example` e o systemd unit pronto.
+Isso cria `server-toolkit/dist/linux/` (executável `disk-monitor-linux`,
+`public/`, `.env.example`, `installers/`) e
+`server-toolkit/dist/windows/` (executável `disk-monitor.exe`, `public/`,
+`.env.example`, `installers/`) — cada um já com Node.js embutido
+(~40-80MB), pronto pra copiar.
 
-**2. Copie pro servidor novo:**
-
-```bash
-scp -r ../dist usuario@servidor-novo:/opt/disk-monitor
-```
-
-**3. No servidor novo:**
+**2. Linux — copie e instale:**
 
 ```bash
-cd /opt/disk-monitor
-chmod +x disk-monitor-linux
-cp .env.example .env
-nano .env   # troque SESSION_SECRET, DASHBOARD_USER e DASHBOARD_PASSWORD
-
-sudo cp disk-monitor-standalone.service /etc/systemd/system/disk-monitor.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now disk-monitor
-sudo systemctl status disk-monitor
+scp -r dist/linux usuario@servidor-novo:/tmp/disk-monitor-pkg
+ssh usuario@servidor-novo 'sudo /tmp/disk-monitor-pkg/installers/install.sh'
 ```
+
+**3. Windows** — ver
+[`installers/windows/README.md`](installers/windows/README.md) (precisa
+baixar o `winsw.exe` uma vez antes, é o único pré-requisito externo).
 
 Pronto — o servidor novo já fica com o mesmo monitor de disco/limpeza do
 VPS atual, sem precisar instalar Node.js nem clonar o repositório do

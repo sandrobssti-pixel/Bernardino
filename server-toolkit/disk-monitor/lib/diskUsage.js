@@ -1,24 +1,20 @@
-const { execFileSync } = require("child_process");
+const checkDiskSpace = require("check-disk-space").default;
 
-// Lê o uso de disco via `df` (POSIX, existe em qualquer Linux) — evita
-// depender de nenhuma lib externa só pra isso.
-function readDiskUsage(mountPath = "/") {
-  const output = execFileSync(
-    "df",
-    ["-B1", "--output=size,used,avail,pcent", mountPath],
-    { encoding: "utf8" }
-  );
-
-  const lines = output.trim().split("\n");
-  const dataLine = lines[lines.length - 1].trim().split(/\s+/);
-  const [sizeBytes, usedBytes, availBytes, pcent] = dataLine;
+// `check-disk-space` sabe ler o espaço em disco tanto no Linux (via
+// statvfs) quanto no Windows (via GetDiskFreeSpaceEx) — evita ter que
+// escrever e manter duas implementações (`df` num lado, `wmic`/PowerShell
+// no outro).
+async function readDiskUsage(mountPath = "/") {
+  const { free, size } = await checkDiskSpace(mountPath);
+  const used = size - free;
+  const percent = size > 0 ? Math.round((used / size) * 100) : 0;
 
   return {
     mountPath,
-    totalBytes: Number(sizeBytes),
-    usedBytes: Number(usedBytes),
-    availBytes: Number(availBytes),
-    percent: Number(String(pcent).replace("%", "")),
+    totalBytes: size,
+    usedBytes: used,
+    availBytes: free,
+    percent,
     checkedAt: new Date().toISOString()
   };
 }

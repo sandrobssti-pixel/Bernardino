@@ -3,18 +3,22 @@
 Conjunto de ferramentas de operação de servidor da **Confiança
 Technologies**, separado do AtendeFlow (não depende do app web nem do
 banco dele). Pensado desde o início pra ser reaproveitado em qualquer
-servidor novo que a empresa montar com o mesmo modelo do VPS atual —
-cada módulo roda sozinho, pode virar um executável único (sem precisar
-instalar Node.js no servidor novo) e tem seu próprio README com o passo
-a passo de instalação.
+servidor novo que a empresa montar — **Linux ou Windows** — com o mesmo
+modelo do VPS atual: cada módulo roda sozinho, pode virar um executável
+único por sistema (sem precisar instalar Node.js no servidor novo),
+instala por terminal ou por instalador gráfico nos dois sistemas, e tem
+seu próprio README com o passo a passo.
 
 ## Módulos
 
 - **[`disk-monitor/`](disk-monitor/README.md)** — monitor de uso de
   disco com painel visual (gráfico, tema claro/escuro, português/
-  espanhol/inglês) e limpeza automática quando passar de um limite
-  configurável (remove imagem/container Docker não usado, trunca log
-  gigante, limpa `/tmp` — nunca mexe em volume nem em dado de cliente).
+  espanhol/inglês, com login admin/visualizador) e limpeza automática
+  quando passar de um limite configurável (remove imagem/container
+  Docker não usado, trunca log gigante, limpa pasta temporária — nunca
+  mexe em volume nem em dado de cliente). Instala no Linux
+  (`installers/linux/install.sh` ou `install-gui.sh`) e no Windows
+  (`installers/windows/install.ps1` ou o assistente `DiskMonitorSetup.exe`).
 
 ## Bibliotecas compartilhadas
 
