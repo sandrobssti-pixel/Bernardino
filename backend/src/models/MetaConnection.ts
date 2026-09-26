@@ -13,6 +13,7 @@ import {
   BelongsTo
 } from "sequelize-typescript";
 import Company from "./Company";
+import Prompt from "./Prompt";
 
 @Table
 class MetaConnection extends Model<MetaConnection> {
@@ -69,6 +70,13 @@ class MetaConnection extends Model<MetaConnection> {
   @Default(true)
   @Column
   isActive: boolean;
+
+  @ForeignKey(() => Prompt)
+  @Column
+  promptId: number;
+
+  @BelongsTo(() => Prompt)
+  prompt: Prompt;
 
   @Column(DataType.JSONB)
   metadata: Record<string, unknown>;

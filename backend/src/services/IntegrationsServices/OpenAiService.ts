@@ -1143,12 +1143,27 @@ const processResponse = async (
         fileCaptionUsed = rawMessages[0] || promptFile.name;
 
         await sleep(randomInt(DEFAULT_AI_DELAY_MIN_SECONDS, DEFAULT_AI_DELAY_MAX_SECONDS) * 1000);
-        await SendWhatsAppMedia({
-          media: mediaSrc,
-          ticket,
-          body: fileCaptionUsed,
-          isForwarded: false
-        });
+        if (typeof (wbot as any).sendMetaAttachment === "function") {
+          // Instagram/Messenger (metaAiAgent): a Meta baixa o arquivo pela URL
+          // pública e a legenda vai como mensagem de texto logo em seguida.
+          const sentFile = await (wbot as any).sendMetaAttachment(
+            msg.key.remoteJid!,
+            `company${ticket.companyId}/promptFiles/${promptFile.path}`,
+            promptFile.mediaType,
+            promptFile.name
+          );
+          try {
+            await verifyMessage(sentFile, ticket, contact);
+          } catch (_) { }
+          fileCaptionUsed = "";
+        } else {
+          await SendWhatsAppMedia({
+            media: mediaSrc,
+            ticket,
+            body: fileCaptionUsed,
+            isForwarded: false
+          });
+        }
         fileSentSuccessfully = true;
       } else {
         console.warn("AI tentou enviar um fileId inexistente no catálogo.", {

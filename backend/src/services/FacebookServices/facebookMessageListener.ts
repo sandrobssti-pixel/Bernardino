@@ -39,6 +39,7 @@ import { get } from "http";
 import { WebhookModel } from "../../models/Webhook";
 import { is } from "bluebird";
 import ShowTicketService from "../TicketServices/ShowTicketService";
+import { handleMetaAiAgent } from "./metaAiAgent";
 
 interface IMe {
   name: string;
@@ -147,7 +148,7 @@ export const verifyMessageMedia = async (
   ticket: Ticket,
   contact: Contact,
   fromMe: boolean = false
-): Promise<void> => {
+): Promise<Message | void> => {
   if (msg.mid) {
     const messageExists = await Message.count({
       where: { wid: msg.mid, companyId: ticket.companyId }
@@ -193,11 +194,13 @@ export const verifyMessageMedia = async (
     channel: ticket.channel
   };
 
-  await CreateMessageService({ messageData, companyId: ticket.companyId });
+  const message = await CreateMessageService({ messageData, companyId: ticket.companyId });
 
   // await ticket.update({
   //   lastMessage: msg.text
   // });
+
+  return message;
 };
 
 export const verifyQuotedMessage = async (msg: any): Promise<Message | null> => {
@@ -840,8 +843,9 @@ export const handleMessage = async (
         console.log(e);
       }
 
+      let mediaSent: Message | void;
       if (message.attachments) {
-        await verifyMessageMedia(message, ticket, contact);
+        mediaSent = await verifyMessageMedia(message, ticket, contact);
       } else {
         await verifyMessageFace(message, message.text, ticket, contact);
       }
@@ -860,6 +864,23 @@ export const handleMessage = async (
 
 
       console.log({ ticket })
+
+      // Agente de IA da conexão Meta (Instagram/Messenger). Quando assume a
+      // mensagem, não segue para fluxo/filas/chatbot (mesma regra do WhatsApp:
+      // só atua em ticket sem fila e sem atendente).
+      if (
+        !fromMe &&
+        (await handleMetaAiAgent({
+          whatsapp: getSession,
+          ticket,
+          contact,
+          message,
+          mediaSent,
+          isMenu
+        }))
+      ) {
+        return;
+      }
 
       if (
         !ticket.fromMe &&

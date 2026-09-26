@@ -45,7 +45,9 @@ const buildShadowPayload = (
     facebookUserId: connection.appId || null,
     facebookUserToken: connection.pageAccessToken || null,
     facebookPageUserId: remoteId,
-    tokenMeta: connection.appId || null
+    tokenMeta: connection.appId || null,
+    // Agente de IA da conexão Meta (ver facebookMessageListener/metaAiAgent).
+    promptId: connection.promptId || null
   };
 };
 

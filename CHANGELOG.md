@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.85] — Agente de IA no Instagram Direct — 2026-09-26
+
+### Adicionado
+- **Agente de IA no Instagram** (e no Facebook Messenger): as Conexões
+  Meta ganharam o campo "Agente de IA", que escolhe um prompt da tela
+  Prompts para responder automaticamente as mensagens do Direct — com
+  o mesmo motor de IA do WhatsApp (histórico, rajada de mensagens,
+  leitura de imagem, transcrição de áudio, catálogo de arquivos e
+  transferência para atendente humano).
+- A IA só responde em ticket sem fila e sem atendente, como no WhatsApp.
+  No Instagram/Messenger a resposta é sempre em texto.
+- Migração nova: `MetaConnections.promptId`. Conexões Meta existentes
+  precisam ser editadas e salvas com o prompt escolhido.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 68.
+
 ## [2.3.84] — Falso alarme no aviso de número de outro país — 2026-09-21
 
 ### Corrigido

@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import * as Yup from "yup";
 import AppError from "../errors/AppError";
 import MetaConnection from "../models/MetaConnection";
+import Prompt from "../models/Prompt";
 import SyncMetaConnectionRuntimeService, {
   RemoveMetaConnectionRuntimeService
 } from "../services/MetaConnectionServices/SyncMetaConnectionRuntimeService";
@@ -30,6 +31,27 @@ const serializeConnection = (connection: MetaConnection) => {
     ...raw,
     callbackUrl: buildCallbackUrl(connection.id)
   };
+};
+
+// Agente de IA da conexão: aceita vazio/null (desliga a IA) ou o id de um
+// prompt da própria empresa.
+const resolvePromptId = async (
+  value: unknown,
+  companyId: number
+): Promise<number | null> => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const promptId = Number(value);
+  if (!Number.isInteger(promptId) || promptId <= 0) {
+    throw new AppError("ERR_META_CONNECTION_INVALID_PROMPT", 400);
+  }
+
+  const prompt = await Prompt.findOne({ where: { id: promptId, companyId } });
+  if (!prompt) {
+    throw new AppError("ERR_META_CONNECTION_INVALID_PROMPT", 400);
+  }
+
+  return promptId;
 };
 
 const upsertSchema = Yup.object().shape({
@@ -67,6 +89,7 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   const payload = {
     ...req.body,
     verifyToken: req.body?.verifyToken || generateVerifyToken(),
+    promptId: await resolvePromptId(req.body?.promptId, companyId),
     companyId
   };
 
@@ -123,7 +146,11 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
 
   const payload = {
     ...req.body,
-    verifyToken: req.body?.verifyToken || connection.verifyToken || generateVerifyToken()
+    verifyToken: req.body?.verifyToken || connection.verifyToken || generateVerifyToken(),
+    promptId:
+      req.body?.promptId === undefined
+        ? connection.promptId ?? null
+        : await resolvePromptId(req.body.promptId, companyId)
   };
 
   try {

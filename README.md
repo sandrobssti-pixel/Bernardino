@@ -3,7 +3,7 @@
 CRM de multi atendimento multi-empresa, com WhatsApp (Baileys), API Oficial da Meta,
 builder de fluxo/chatbot, campanhas e cobrança de clientes (SaaS).
 
-**Versão atual: 2.3.84 (Etapa 6.49 — corrigido falso alarme: aviso de "número de fora do Brasil" disparava pra número BR legítimo no formato antigo, sem o 9º dígito — ver `docs/MANUAL_TECNICO.md`, seção 67)**
+**Versão atual: 2.3.85 (Etapa 6.50 — agente de IA no Instagram Direct e Facebook Messenger: as Conexões Meta ganharam o campo "Agente de IA", que responde automaticamente com um prompt da tela Prompts — ver `docs/MANUAL_TECNICO.md`, seção 68)**
 
 ## Documentação
 

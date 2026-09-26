@@ -138,6 +138,7 @@ const initialState = (channelPreset = "facebook") => ({
   businessId: "",
   status: "DISCONNECTED",
   isActive: true,
+  promptId: "",
   metadata: ""
 });
 
@@ -152,6 +153,19 @@ const MetaConnectionModal = ({
   const [form, setForm] = useState(initialState(channelPreset));
   const [loading, setLoading] = useState(false);
   const [callbackUrl, setCallbackUrl] = useState("");
+  const [prompts, setPrompts] = useState([]);
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const { data } = await api.get("/prompt");
+        setPrompts(data.prompts || []);
+      } catch (err) {
+        toastError(err);
+      }
+    })();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -181,6 +195,7 @@ const MetaConnectionModal = ({
           businessId: data.businessId || "",
           status: data.status || "DISCONNECTED",
           isActive: data.isActive !== false,
+          promptId: data.promptId || "",
           metadata: data.metadata ? JSON.stringify(data.metadata, null, 2) : ""
         });
         setCallbackUrl(data.callbackUrl || "");
@@ -228,6 +243,7 @@ const MetaConnectionModal = ({
 
     const payload = {
       ...form,
+      promptId: form.promptId || null,
       metadata: parsedMetadata
     };
 
@@ -419,6 +435,29 @@ const MetaConnectionModal = ({
               />
             </Grid>
           </Grid>
+        </div>
+
+        <div className={classes.section}>
+          <div className={classes.sectionTitle}>Agente de IA</div>
+          <TextField
+            select
+            fullWidth
+            label="Prompt (Agente de IA)"
+            variant="outlined"
+            margin="dense"
+            value={form.promptId}
+            onChange={handleChange("promptId")}
+            helperText="A IA responde automaticamente as mensagens do Instagram/Messenger desta conexão enquanto o atendimento não estiver com um atendente ou fila. O cliente pode pedir para falar com um humano a qualquer momento."
+          >
+            <MenuItem value="">
+              <em>Desativado</em>
+            </MenuItem>
+            {prompts.map((prompt) => (
+              <MenuItem key={prompt.id} value={prompt.id}>
+                {prompt.name}
+              </MenuItem>
+            ))}
+          </TextField>
         </div>
 
         <div className={classes.section}>

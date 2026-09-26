@@ -5058,3 +5058,74 @@ demais.
   pré-existentes de sempre).
 - Pendente: reteste do cliente confirmando que a lista de 96 números
   não dispara mais o aviso de país diferente.
+
+## 68. Agente de IA no Instagram Direct (e Facebook Messenger) (v2.3.85)
+
+### O que é
+
+O mesmo agente de IA que já atendia no WhatsApp (tela **Prompts**,
+motor `handleOpenAi` em `OpenAiService.ts`, com OpenAI/Gemini/DeepSeek/
+Groq etc.) agora responde automaticamente as mensagens recebidas pelas
+**Conexões Meta** — Instagram Direct e Facebook Messenger.
+
+### Como ativar
+
+1. Crie (ou use) um prompt na tela **Prompts**.
+2. Em **Conexões → Conexões Meta**, edite a conexão e escolha o prompt
+   no novo campo **"Agente de IA"**. "Desativado" desliga a IA.
+3. Salve. O `promptId` é copiado para as conexões "sombra"
+   (`Whatsapps` com `channel = instagram/facebook`) pelo
+   `SyncMetaConnectionRuntimeService` — conexões Meta já existentes só
+   passam a usar a IA depois de salvas de novo com o prompt escolhido.
+
+### Quando a IA responde
+
+Mesma regra do WhatsApp (conexão com prompt): só em ticket **sem fila e
+sem atendente**, contato sem "desativar bot", fora de menu/fluxo do
+FlowBuilder em andamento. Quando a IA assume a mensagem, o listener não
+segue para fluxo/filas/chatbot.
+
+- Texto: respondido normalmente (inclui agrupamento de mensagens em
+  rajada, histórico da conversa e catálogo de arquivos).
+- Imagem: lida pela visão do provedor (se ele suportar).
+- Áudio: transcrito (se o provedor suportar).
+- Pedido de atendente humano: `transfer_to_human` transfere para a fila
+  configurada no prompt, como no WhatsApp (o cliente volta para a IA
+  enviando `#`).
+- A resposta é **sempre em texto** no Instagram/Messenger (a opção de
+  voz do prompt é ignorada ali — o áudio PTT do WhatsApp não é aceito
+  pela Graph API nesse formato).
+- Arquivos do catálogo da IA (`send_file`) são enviados como anexo pela
+  URL pública `BACKEND_URL/public/company{id}/promptFiles/...`, então o
+  `BACKEND_URL` precisa estar acessível pela Meta.
+
+### Como funciona por dentro
+
+- `backend/src/services/FacebookServices/metaAiAgent.ts`:
+  - `createMetaSessionAdapter`: "sessão" no formato que o `handleOpenAi`
+    espera (`sendMessage`, `sendPresenceUpdate` → `typing_on/off`),
+    enviando pela Graph API (`sendText`/`sendAttachmentFromUrl`). Mesmo
+    truque do `createWuzapiSessionAdapter`.
+  - `handleMetaAiAgent`: checa as regras acima, monta a mensagem no
+    formato proto (texto/imagem/áudio) e chama o `handleOpenAi` **sem
+    `await`** — o motor espera alguns segundos para agrupar mensagens
+    seguidas, e o webhook bloqueado impediria de gravar as próximas.
+  - As respostas vão com o marcador invisível `‎` no início; o
+    listener já ignora o *echo* da Meta com esse marcador, então a
+    resposta não é gravada duas vezes (ela é gravada pelo próprio
+    `handleOpenAi`, com o `message_id` devolvido pela Graph API).
+- `facebookMessageListener.ts`: chama `handleMetaAiAgent` depois de
+  gravar a mensagem recebida; `verifyMessageMedia` agora devolve a
+  `Message` criada (usada para imagem/áudio).
+- `OpenAiService.ts`: no `send_file`, se a sessão tem
+  `sendMetaAttachment` (Meta), usa ela em vez do `SendWhatsAppMedia`.
+- Migração `20260926120000-add-promptId-to-meta-connections.ts`: coluna
+  `MetaConnections.promptId` (FK `Prompts`, `ON DELETE SET NULL`). O
+  `MetaConnectionController` valida que o prompt é da mesma empresa
+  (`ERR_META_CONNECTION_INVALID_PROMPT`).
+- Frontend: campo "Agente de IA" em `MetaConnectionModal`.
+
+### Deploy
+
+Rodar as migrações (`npm run db:migrate`) e, depois, editar/salvar cada
+conexão Meta que deve usar a IA.
