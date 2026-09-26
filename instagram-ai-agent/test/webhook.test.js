@@ -376,3 +376,22 @@ test("auditoria: testa as peças e corrige token e campos do webhook", async () 
   delete process.env.EVOLUTION_API_KEY;
   delete process.env.IG_USER_ID;
 });
+
+test("botão Testar da Meta (formato changes): aparece na movimentação, sem lead e sem resposta", async () => {
+  const body = JSON.stringify({ object: "instagram", entry: [{ id: "0", time: 1, changes: [{ field: "messages", value: { sender: { id: "12334" }, recipient: { id: "23245" }, timestamp: "1527459824", message: { mid: "random_mid", text: "random_text" } } }] }] });
+  const res = await POST(new Request("https://x/api/webhook", { method: "POST", body }));
+  assert.equal(res.status, 200);
+  await new Promise(r => setTimeout(r, 50));
+  const feed = (db.get("feed") || []).map(JSON.parse);
+  assert.equal(feed[0].kind, "test");
+  assert.equal(db.get("lead:12334"), undefined);
+  assert.equal(calls.length, 0);
+});
+
+test("DM real no formato changes também é processada", async () => {
+  const body = JSON.stringify({ object: "instagram", entry: [{ id: "loja", time: 1, changes: [{ field: "messages", value: { sender: { id: "cliente" }, recipient: { id: "loja" }, timestamp: "1", message: { mid: "ch1", text: "oi" } } }] }] });
+  await POST(new Request("https://x/api/webhook", { method: "POST", body }));
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(aiCalls().length, 1);
+  assert.ok(db.get("lead:cliente"));
+});

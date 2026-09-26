@@ -64,6 +64,10 @@ export async function POST(request) {
       for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
         if (change?.field === "comments" || change?.field === "live_comments") {
           jobs.push(handleCommentChange(change.value, ownId));
+        } else if (change?.field === "messages" && change.value?.message) {
+          // Mesmo evento de DM no formato "changes" (é assim que chega o botão
+          // "Testar" do painel da Meta).
+          jobs.push(handleMessagingEvent({ ...change.value, ownId: ownId || String(change.value?.recipient?.id || "") }));
         }
       }
     }

@@ -309,8 +309,8 @@ const renderFeed = feed => {
   $("#feed").innerHTML = feed
     .map(item => {
       const isComment = item.kind === "comment";
-      const [label, cls] = isComment ? ["Comentário", "warn"] : item.kind === "escalation" ? ["Pediu humano", "bad"] : BY[item.by] || [item.by, ""];
-      const who = item.leadLabel || (item.username ? `@${item.username}` : "cliente");
+      const [label, cls] = isComment ? ["Comentário", "warn"] : item.kind === "escalation" ? ["Pediu humano", "bad"] : item.kind === "test" ? ["Teste da Meta", "team"] : BY[item.by] || [item.by, ""];
+      const who = item.kind === "test" ? "Meta" : item.leadLabel || (item.username ? `@${item.username}` : "cliente");
       const arrow = item.direction === "in" ? "" : "→ ";
       return `<li>
         <span class="tag ${cls}">${esc(label)}</span>

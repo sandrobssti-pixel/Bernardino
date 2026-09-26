@@ -73,6 +73,10 @@ export const sendAndLog = async ({ leadId, text, by }) => {
 
 // ---------------- DMs ----------------
 
+export const isMetaSampleEvent = event =>
+  event?.message?.mid === "random_mid" ||
+  (String(event?.sender?.id) === "12334" && String(event?.recipient?.id) === "23245");
+
 export const handleMessagingEvent = async event => {
   const { envEnabled } = settings();
   const token = await accessToken();
@@ -82,6 +86,21 @@ export const handleMessagingEvent = async event => {
   const ownId = String(event?.ownId || "");
 
   if (!token || !message || message.is_deleted) return;
+
+  // Evento de exemplo do botão "Testar" da Meta: só confirma que o webhook
+  // chega, sem criar lead nem tentar responder a um id que não existe.
+  if (isMetaSampleEvent(event)) {
+    console.log("[WEBHOOK] evento de teste da Meta recebido");
+    if (hasStore()) {
+      await logFeed({
+        kind: "test",
+        direction: "in",
+        by: "meta",
+        text: `Teste da Meta recebido — o webhook está funcionando (${String(message.text || "").slice(0, 60)})`
+      });
+    }
+    return;
+  }
 
   if (!hasStore()) {
     // Sem banco: modo simples (só IA, histórico pela API do Instagram).
