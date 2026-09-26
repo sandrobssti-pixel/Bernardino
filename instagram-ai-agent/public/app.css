@@ -230,3 +230,17 @@ textarea{resize:vertical}
   .feed li > div{grid-column:1 / -1}
   h1{font-size:21px}
 }
+
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 14px}
+.grid3{display:grid; grid-template-columns:1fr 1.4fr 1fr; gap:0 14px}
+.product{border:1px solid var(--line); border-radius:var(--r-md); padding:12px 14px; margin:10px 0}
+.sim-chat{min-height:120px; max-height:360px; border:1px solid var(--line); border-radius:var(--r-md); margin-top:10px}
+.sim-result{margin-top:12px; display:grid; gap:8px}
+.audit{list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px}
+.audit li{display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline}
+.audit .detail{grid-column:2; color:var(--ink-soft); font-size:14px}
+.kpi.alert{border-color:var(--bad)}
+.kpi.alert .value{color:var(--bad)}
+.kpi.caution .value{color:var(--warn)}
+.dry-post{border-top:1px solid var(--line); padding-top:10px; margin-top:10px}
+@media (max-width: 900px){ .grid2,.grid3{grid-template-columns:1fr} }

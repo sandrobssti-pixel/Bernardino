@@ -1,7 +1,8 @@
 // Regras do agente: DMs (leads, boas-vindas, IA, pausa quando a equipe
 // responde) e comentários (resposta pública + resposta privada no Direct).
 
-import { generateReply } from "./ai.js";
+import { ESCALATION_MARKER, generateReply } from "./ai.js";
+import { evolutionConfigured, sendWhatsApp } from "./whatsapp.js";
 import {
   getConversationHistory,
   getProfile,
@@ -18,7 +19,9 @@ import {
   getLead,
   getMessages,
   hasStore,
+  incrStat,
   logComment,
+  logFeed,
   logMessage,
   markSeen,
   markSent,
@@ -41,8 +44,9 @@ const firstName = lead => {
   return lead?.username ? `@${lead.username}` : "";
 };
 
-export const fillTemplate = (text, lead) =>
+export const fillTemplate = (text, lead, vars = {}) =>
   String(text || "")
+    .replace(/\{link\}/gi, vars.link || "")
     .replace(/\{nome\}/gi, firstName(lead))
     .replace(/\{usuario\}/gi, lead?.username ? `@${lead.username}` : "")
     .replace(/\s+([,!?.])/g, "$1")
@@ -192,36 +196,145 @@ const replyWithAI = async ({ leadId, message, useStoreHistory, config }) => {
   if (last && last.role === "user" && last.text === currentText && !imageUrl) turns.pop();
   turns.push({ role: "user", text: currentText, imageUrl });
 
-  await sendTyping(token, leadId, true);
-  const reply = await generateReply(turns, process.env, {
-    name: config?.agent?.name,
-    prompt: config?.agent?.prompt
-  });
-  if (!reply) {
-    await sendTyping(token, leadId, false);
+  const escalationOn = Boolean(config?.escalation?.enabled);
+
+  // Pedido explícito de humano (palavra-chave): nem chama a IA.
+  if (escalationOn && matchesKeywords(config.escalation.keywords, text) && config.escalation.message.trim()) {
+    const lead = await getLead(leadId);
+    await sendAndLog({ leadId, text: fillTemplate(config.escalation.message, lead), by: "escalacao" });
+    await escalate({ leadId, config, reason: `palavra-chave: "${text.slice(0, 80)}"` });
     return;
   }
 
-  await sendAndLog({ leadId, text: reply, by: "ia" });
-  console.log(`[AGENT] respondeu ${leadId} (${reply.length} caracteres)`);
+  await sendTyping(token, leadId, true);
+  const raw = await generateReply(turns, process.env, aiOverrides(config));
+  const wantsHuman = escalationOn && raw.includes(ESCALATION_MARKER);
+  const reply = raw.split(ESCALATION_MARKER).join("").trim();
+  if (!reply) {
+    await sendTyping(token, leadId, false);
+    if (wantsHuman) await escalate({ leadId, config, reason: "pedido identificado pela IA" });
+    return;
+  }
+
+  await sendAndLog({ leadId, text: reply, by: wantsHuman ? "escalacao" : "ia" });
+  if (wantsHuman) await escalate({ leadId, config, reason: "pedido identificado pela IA" });
+  console.log(`[AGENT] respondeu ${leadId} (${reply.length} caracteres)${wantsHuman ? " + escalação" : ""}`);
+};
+
+export const aiOverrides = config => ({
+  name: config?.agent?.name,
+  prompt: config?.agent?.prompt,
+  model: config?.agent?.model,
+  fallbackModel: config?.agent?.fallbackModel,
+  products: config?.products,
+  escalation: Boolean(config?.escalation?.enabled)
+});
+
+export const matchesKeywords = (keywords, text) => {
+  const normalized = normalize(text);
+  return String(keywords || "")
+    .split(",")
+    .map(keyword => normalize(keyword).trim())
+    .filter(Boolean)
+    .some(keyword => normalized.includes(keyword));
+};
+
+// ---------------- Escalação para humano ----------------
+
+const panelUrl = () => {
+  const host = process.env.PANEL_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || "";
+  return host ? (host.startsWith("http") ? host : `https://${host}`) : "";
+};
+
+export const escalate = async ({ leadId, config, reason }) => {
+  const lead = (await updateLead(leadId, { aiPaused: true, escalatedAt: Date.now() })) || { id: leadId };
+  await incrStat("escalations");
+
+  let notified = false;
+  let error = "";
+  if (evolutionConfigured(config.escalation)) {
+    const recent = (await getMessages(leadId, 8))
+      .map(item => `${item.direction === "in" ? "👤" : "🤖"} ${String(item.text).slice(0, 200)}`)
+      .join("\n");
+    const who = lead.username ? `@${lead.username}` : lead.name || leadId;
+    const text = [
+      "🔔 *Instagram: cliente pediu atendimento humano*",
+      `Cliente: ${who}${lead.name && lead.username ? ` (${lead.name})` : ""}`,
+      lead.phone ? `Telefone: ${lead.phone}` : "",
+      lead.username ? `Responder: https://ig.me/m/${lead.username}` : "",
+      panelUrl() ? `Painel: ${panelUrl()}` : "",
+      "",
+      "Últimas mensagens:",
+      recent
+    ]
+      .filter(line => line !== null && line !== undefined)
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n");
+    try {
+      await sendWhatsApp(config.escalation, text);
+      notified = true;
+    } catch (err) {
+      error = err.message;
+      console.error("[ESCALAÇÃO] WhatsApp falhou:", err.message);
+    }
+  } else {
+    error = "Evolution API não configurada (aviso no WhatsApp não enviado)";
+  }
+
+  await logFeed({
+    kind: "escalation",
+    leadId,
+    direction: "out",
+    by: "escalacao",
+    text: `Pediu atendimento humano (${reason}). ${notified ? "Aviso enviado no WhatsApp." : error}`
+  });
+  return { notified, error };
 };
 
 // ---------------- Comentários ----------------
 
 export const pickCommentReplies = (config, commentText) => {
-  const normalized = normalize(commentText);
-  const rule = (config.comments.rules || []).find(item =>
-    String(item?.keywords || "")
-      .split(",")
-      .map(keyword => normalize(keyword).trim())
-      .filter(Boolean)
-      .some(keyword => normalized.includes(keyword))
-  );
+  const rule = (config.comments.rules || []).find(item => matchesKeywords(item?.keywords, commentText));
   return {
     rule: rule || null,
     publicReply: rule?.publicReply || config.comments.publicReply,
     privateReply: rule?.privateReply || config.comments.privateReply
   };
+};
+
+// Decide o que responder a um comentário, sem enviar nada.
+export const planCommentReplies = async (config, text, lead) => {
+  const { rule, publicReply, privateReply } = pickCommentReplies(config, text);
+  const plan = { rule: rule?.keywords || "", publicText: "", privateText: "", skipped: "", errors: [] };
+
+  if (!config.comments.enabled) {
+    plan.skipped = "respostas a comentários desligadas";
+    return plan;
+  }
+  if (config.comments.onlyKeywords && !rule) {
+    plan.skipped = "nenhuma palavra-chave encontrada";
+    return plan;
+  }
+
+  const vars = { link: rule?.link || "" };
+  if (config.comments.publicReplyEnabled) {
+    plan.publicText = fillTemplate(publicReply, lead, vars);
+    if (config.comments.useAI && !rule) {
+      try {
+        plan.publicText =
+          (await generateReply([{ role: "user", text: `Comentário público no nosso post: "${text}"` }], process.env, {
+            ...aiOverrides(config),
+            escalation: false,
+            extra:
+              "Você está respondendo um COMENTÁRIO PÚBLICO em um post. Responda em 1 frase curta e simpática, sem passar preços nem dados pessoais; convide a pessoa para continuar no Direct."
+          })) || plan.publicText;
+      } catch (error) {
+        plan.errors.push(`IA: ${error.message}`);
+      }
+    }
+  }
+  if (config.comments.privateReplyEnabled) plan.privateText = fillTemplate(privateReply, lead, vars);
+  return plan;
 };
 
 export const handleCommentChange = async (value, ownId) => {
@@ -255,42 +368,27 @@ export const handleCommentChange = async (value, ownId) => {
   };
 
   const config = await getConfig();
-  if (envEnabled && config.comments.enabled) {
-    const { rule, publicReply, privateReply } = pickCommentReplies(config, text);
-    record.rule = rule?.keywords || "";
+  if (envEnabled) {
+    const plan = await planCommentReplies(config, text, lead);
+    record.rule = plan.rule;
+    record.skipped = plan.skipped;
+    record.errors.push(...plan.errors);
 
-    if (config.comments.publicReplyEnabled) {
-      let publicText = fillTemplate(publicReply, lead);
-      if (config.comments.useAI && !rule) {
-        try {
-          publicText =
-            (await generateReply([{ role: "user", text: `Comentário público no nosso post: "${text}"` }], process.env, {
-              name: config.agent.name,
-              prompt: config.agent.prompt,
-              extra:
-                "Você está respondendo um COMENTÁRIO PÚBLICO em um post. Responda em 1 frase curta e simpática, sem passar preços nem dados pessoais; convide a pessoa para continuar no Direct."
-            })) || publicText;
-        } catch (error) {
-          record.errors.push(`IA: ${error.message}`);
-        }
-      }
-      if (publicText) {
-        try {
-          await replyToComment(token, commentId, publicText);
-          record.publicReply = publicText;
-        } catch (error) {
-          record.errors.push(`Resposta pública: ${error.message}`);
-        }
+    if (plan.publicText) {
+      try {
+        await replyToComment(token, commentId, plan.publicText);
+        record.publicReply = plan.publicText;
+      } catch (error) {
+        record.errors.push(`Resposta pública: ${error.message}`);
       }
     }
 
-    if (config.comments.privateReplyEnabled && privateReply) {
-      const privateText = fillTemplate(privateReply, lead);
+    if (plan.privateText) {
       try {
-        const result = await sendPrivateReply(token, commentId, privateText);
+        const result = await sendPrivateReply(token, commentId, plan.privateText);
         await markSent(result?.message_id);
-        await logMessage({ leadId: fromId, direction: "out", by: "comentario", text: privateText, mid: result?.message_id });
-        record.privateReply = privateText;
+        await logMessage({ leadId: fromId, direction: "out", by: "comentario", text: plan.privateText, mid: result?.message_id });
+        record.privateReply = plan.privateText;
       } catch (error) {
         record.errors.push(`Direct: ${error.message}`);
       }

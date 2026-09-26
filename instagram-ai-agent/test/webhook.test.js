@@ -27,6 +27,7 @@ const redis = cmd => {
     case "SET":
       if (a.includes("NX") && db.has(key)) return null;
       db.set(key, String(a[0])); return "OK";
+    case "PING": return "PONG";
     case "EXISTS": return db.has(key) ? 1 : 0;
     case "EXPIRE": return 1;
     case "MGET": return [key, ...a].map(k => db.get(k) ?? null);
@@ -44,10 +45,14 @@ const redis = cmd => {
 
 let calls;
 let aiText;
+let aiFailModel;
+let subscribed;
 beforeEach(() => {
   db = new Map();
   calls = [];
   aiText = "Olá! Como posso ajudar?";
+  aiFailModel = null;
+  subscribed = ["messages"];
   delete process.env.IG_APP_SECRET;
   let seq = 0;
   globalThis.fetch = async (url, init = {}) => {
@@ -55,8 +60,19 @@ beforeEach(() => {
     const body = init.body ? JSON.parse(init.body) : undefined;
     if (u.startsWith("https://redis.test/pipeline")) return Response.json(body.map(cmd => ({ result: redis(cmd) })));
     calls.push({ url: u, method: init.method || "GET", body, headers: init.headers });
+    if (u.startsWith("https://evo.test/")) { calls.push({ url: u, method: init.method || "GET", body, headers: init.headers }); return u.includes("connectionState") ? Response.json({ instance: { state: "open" } }) : Response.json({ key: { id: "wa1" } }); }
+    if (u.includes("/me/subscribed_apps")) {
+      if ((init.method || "GET") === "POST") { subscribed = new URL(u).searchParams.get("subscribed_fields").split(","); return Response.json({ success: true }); }
+      return Response.json({ data: [{ subscribed_fields: subscribed }] });
+    }
+    if (/v21\.0\/me\?fields=user_id/.test(u)) return Response.json({ user_id: "17841", username: "confianza", account_type: "BUSINESS" });
+    if (u.includes("me/media?")) return Response.json({ data: [{ id: "post1", caption: "Lançamento", permalink: "https://instagram.com/p/1" }] });
+    if (u.includes("post1/comments")) return Response.json({ data: [{ id: "k1", text: "quero o link", username: "ana" }, { id: "k2", text: "lindo", username: "bia" }] });
     if (u.includes("refresh_access_token")) return Response.json({ access_token: "IGAA_RENOVADO", expires_in: 5184000 });
-    if (u.includes("api.anthropic.com")) return Response.json({ content: [{ type: "text", text: aiText }] });
+    if (u.includes("api.anthropic.com")) {
+      if (aiFailModel && body.model === aiFailModel) return Response.json({ error: { message: "overloaded" } }, { status: 529 });
+      return Response.json({ content: [{ type: "text", text: aiText }] });
+    }
     if (u.includes("/replies")) return Response.json({ id: "reply1" });
     if (u.includes("me/messages")) {
       // "digitando" não gera mensagem (como na API real)
@@ -242,4 +258,121 @@ test("renovação do token: cron com CRON_SECRET, token novo passa a valer, vari
   assert.equal(await accessToken(), "IGAA_NOVO_NA_VERCEL");
   process.env.IG_ACCESS_TOKEN = "IGAA_TEST";
   delete process.env.CRON_SECRET;
+});
+
+const login = async () => {
+  const res = await admin.POST(new Request("https://x/api/admin?r=login", { method: "POST", body: JSON.stringify({ password: "senha-forte" }) }));
+  return res.headers.get("set-cookie").split(";")[0];
+};
+const escalationConfig = extra => ({
+  ...DEFAULT_CONFIG,
+  escalation: { enabled: true, keywords: "humano, atendente", message: "Certo, {nome}! Vou chamar a equipe.", whatsappNumber: "+55 45 99999-0000", evolutionUrl: "https://evo.test", evolutionInstance: "confianza" },
+  ...extra
+});
+
+test("escalação por palavra-chave: transição, IA pausada, aviso no WhatsApp com resumo", async () => {
+  process.env.EVOLUTION_API_KEY = "evo-key";
+  saveConfig(escalationConfig());
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "e1", text: "quero falar com um HUMANO" } });
+  assert.equal(aiCalls().length, 0);
+  assert.deepEqual(sentTexts(), ["Certo, Maria! Vou chamar a equipe."]);
+  const lead = JSON.parse(db.get("lead:cliente"));
+  assert.equal(lead.aiPaused, true);
+  assert.ok(lead.escalatedAt);
+  const wa = calls.find(c => c.url.includes("evo.test/message/sendText/confianza"));
+  assert.equal(wa.headers.apikey, "evo-key");
+  assert.equal(wa.body.number, "5545999990000");
+  assert.match(wa.body.text, /@maria\.silva/);
+  assert.match(wa.body.text, /HUMANO/);
+  const feed = db.get("feed").map(JSON.parse);
+  assert.ok(feed.some(item => item.kind === "escalation" && /WhatsApp/.test(item.text)));
+  const stats = [...db.entries()].find(([k]) => k.startsWith("stats:"))[1];
+  assert.equal(stats.escalations, 1);
+  delete process.env.EVOLUTION_API_KEY;
+});
+
+test("escalação pedida pela IA: marcador removido da resposta e escalação disparada", async () => {
+  saveConfig(escalationConfig({ escalation: { ...escalationConfig().escalation, keywords: "" } }));
+  aiText = "Claro! Já vou chamar alguém da equipe. [[HUMANO]]";
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "e2", text: "prefiro conversar com uma pessoa" } });
+  assert.deepEqual(sentTexts(), ["Claro! Já vou chamar alguém da equipe."]);
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, true);
+  assert.match(aiCalls()[0].body.system, /\[\[HUMANO\]\]/);
+});
+
+test("base de produtos vai para a IA; sem produtos a IA é proibida de citar", async () => {
+  saveConfig({ ...DEFAULT_CONFIG, products: [{ name: "Kit Câmeras 4K", url: "https://loja/kit", price: "R$ 1.990", description: "4 câmeras", bonus: "instalação grátis" }] });
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "p1", text: "tem kit de câmeras?" } });
+  const system = aiCalls()[0].body.system;
+  assert.match(system, /Kit Câmeras 4K/);
+  assert.match(system, /https:\/\/loja\/kit/);
+  assert.match(system, /instalação grátis/);
+  calls = [];
+  saveConfig({ ...DEFAULT_CONFIG });
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "p2", text: "e preço?" } });
+  assert.match(aiCalls()[0].body.system, /Não há produtos cadastrados/);
+});
+
+test("modelo reserva entra quando o principal falha", async () => {
+  saveConfig({ ...DEFAULT_CONFIG, agent: { ...DEFAULT_CONFIG.agent, model: "modelo-principal", fallbackModel: "modelo-reserva" } });
+  aiFailModel = "modelo-principal";
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "f1", text: "oi" } });
+  assert.deepEqual(aiCalls().map(c => c.body.model), ["modelo-principal", "modelo-reserva"]);
+  assert.deepEqual(sentTexts(), ["Olá! Como posso ajudar?"]);
+});
+
+test("comentário: só palavra-chave (padrão) e {link} da regra", async () => {
+  saveConfig({
+    ...DEFAULT_CONFIG,
+    comments: { ...DEFAULT_CONFIG.comments, enabled: true, rules: [{ keywords: "quero, link", link: "https://loja/oferta", publicReply: "Enviei no Direct!", privateReply: "Aqui está: {link}" }] }
+  });
+  await handleCommentChange({ id: "c10", text: "que lindo", from: { id: "x1", username: "x1" } }, "loja");
+  assert.equal(calls.filter(c => c.method === "POST").length, 0);
+  assert.equal(JSON.parse(db.get("comments")[0]).skipped, "nenhuma palavra-chave encontrada");
+  await handleCommentChange({ id: "c11", text: "QUERO", from: { id: "x2", username: "x2" } }, "loja");
+  assert.equal(calls.find(c => c.body?.recipient?.comment_id === "c11").body.message.text, "Aqui está: https://loja/oferta");
+});
+
+test("painel: simular comentário, dry-run nos posts, simulador do Direct — nada é enviado", async () => {
+  const cookie = await login();
+  saveConfig({
+    ...escalationConfig(),
+    comments: { ...DEFAULT_CONFIG.comments, enabled: true, rules: [{ keywords: "link", link: "https://l", publicReply: "Te chamei, {nome}!", privateReply: "Link: {link}" }] }
+  });
+  const post = (r, body) => admin.POST(new Request(`https://x/api/admin?r=${r}`, { method: "POST", headers: { cookie }, body: JSON.stringify(body) }));
+
+  const sim = await (await post("simulate-comment", { text: "manda o link", username: "joana" })).json();
+  assert.deepEqual([sim.rule, sim.publicText, sim.privateText], ["link", "Te chamei, @joana!", "Link: https://l"]);
+
+  const dry = await (await admin.GET(new Request("https://x/api/admin?r=dry-run", { headers: { cookie } }))).json();
+  assert.equal(dry.posts[0].comments.length, 2);
+  assert.equal(dry.posts[0].comments.find(c => c.id === "k1").privateText, "Link: https://l");
+  assert.equal(dry.posts[0].comments.find(c => c.id === "k2").skipped, "nenhuma palavra-chave encontrada");
+
+  aiText = "Vou chamar a equipe! [[HUMANO]]";
+  const dm = await (await post("simulate-dm", { messages: [{ role: "user", text: "quero um humano" }] })).json();
+  assert.deepEqual(dm, { reply: "Vou chamar a equipe!", escalation: true });
+
+  assert.equal(calls.filter(c => c.url.includes("me/messages") || c.url.includes("/replies")).length, 0);
+});
+
+test("auditoria: testa as peças e corrige token e campos do webhook", async () => {
+  process.env.EVOLUTION_API_KEY = "evo-key";
+  process.env.IG_USER_ID = "17841";
+  saveConfig(escalationConfig({ products: [{ name: "Kit" }] }));
+  const cookie = await login();
+  const res = await (await admin.GET(new Request("https://x/api/admin?r=audit", { headers: { cookie } }))).json();
+  const byName = Object.fromEntries(res.checks.map(c => [c.name, c]));
+  assert.equal(byName["Banco de dados"].status, "ok");
+  assert.equal(byName["Token do Instagram"].status, "ok");
+  assert.equal(byName["ID da conta (IG_USER_ID)"].status, "ok");
+  assert.equal(byName["Validade do token"].fixed, "Token renovado agora");
+  assert.equal(byName["Webhook: campos assinados"].status, "ok");
+  assert.equal(byName["Webhook: campos assinados"].fixed, "Campos assinados agora");
+  assert.equal(byName["IA respondendo"].status, "ok");
+  assert.equal(byName["Base de produtos"].status, "ok");
+  assert.equal(byName["Escalação (WhatsApp)"].status, "ok");
+  assert.ok(!JSON.stringify(res).includes("evo-key") && !JSON.stringify(res).includes("IGAA_TEST"));
+  delete process.env.EVOLUTION_API_KEY;
+  delete process.env.IG_USER_ID;
 });

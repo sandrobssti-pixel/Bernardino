@@ -158,3 +158,28 @@ export const refreshAccessToken = async token => {
   }
   return data; // { access_token, token_type, expires_in }
 };
+
+// Conta dona do token (auditoria: token válido e ID certo).
+export const getMe = async token =>
+  graphRequest(token, "me", { params: { fields: "user_id,username,account_type" } });
+
+// Últimos posts e seus comentários (dry-run das regras de comentário).
+export const getRecentMedia = async (token, limit = 5) =>
+  (await graphRequest(token, "me/media", {
+    params: { fields: "id,caption,permalink,timestamp,comments_count", limit: String(limit) }
+  }))?.data || [];
+
+export const getMediaComments = async (token, mediaId, limit = 50) =>
+  (await graphRequest(token, `${mediaId}/comments`, {
+    params: { fields: "id,text,username,timestamp,from", limit: String(limit) }
+  }))?.data || [];
+
+// Campos do webhook assinados para a conta (auditoria).
+export const getSubscribedFields = async token => {
+  const data = await graphRequest(token, "me/subscribed_apps");
+  return [...new Set((data?.data || []).flatMap(app => app.subscribed_fields || []))];
+};
+
+// Assina os campos do webhook para a conta (correção automática da auditoria).
+export const subscribeFields = async (token, fields) =>
+  graphRequest(token, "me/subscribed_apps", { method: "POST", params: { subscribed_fields: fields.join(",") } });

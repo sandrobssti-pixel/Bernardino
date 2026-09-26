@@ -41,7 +41,8 @@ servidor `sandro@ConfianzaThechnologies`, **um bloco por vez**.
  Vercel — projeto instagram-ai-agent  ◄────────────────┘
    ├─ grava lead, mensagem e contadores ──► Upstash Redis (banco)
    ├─ boas-vindas (1ª mensagem do lead)
-   ├─ IA (Claude) gera a resposta ──► api.anthropic.com
+   ├─ IA (Claude) gera a resposta com a base de produtos ──► api.anthropic.com
+   ├─ cliente pede humano: pausa a IA e avisa ──► WhatsApp (Evolution API)
    ├─ responde comentário (público + Direct)
    └─ envia pelo Instagram ──► graph.instagram.com (token IGAA)
 ```
@@ -178,6 +179,8 @@ A saída **tem** que mostrar `Linked ... /instagram-ai-agent`.
 | `DASHBOARD_PASSWORD` | Secret | sim | Senha do painel (mínimo 6 caracteres; use uma forte) |
 | `IG_APP_SECRET` | Secret | recomendada | Chave secreta do app do Instagram (A.2) — valida que o evento veio da Meta |
 | `CRON_SECRET` | Secret | recomendada | Texto aleatório longo — protege a renovação automática do token |
+| `EVOLUTION_API_KEY` | Secret | se usar escalação | Chave (apikey) da sua Evolution API — o aviso de "cliente pediu humano" chega no seu WhatsApp |
+| `IG_USER_ID` | Config | não | ID da conta do Instagram (a auditoria mostra). Trava o agente nessa conta: se o token for de outra, a auditoria acusa |
 | `TIMEZONE` | Config | não | Fuso dos gráficos. Padrão `America/Asuncion`; no Brasil use `America/Sao_Paulo` |
 | `AGENT_ENABLED` | Config | não | `false` desliga tudo sem desinstalar |
 
@@ -307,12 +310,84 @@ login do Instagram → Configurar webhooks**:
 - *Regras por palavra-chave*: ex. palavras `preço, valor, quanto` → respostas
   próprias. Não diferencia maiúsculas nem acentos.
 
+- *Responder só comentários com palavra-chave* (padrão ligado): comentários
+  sem palavra-chave ficam registrados, mas não recebem resposta.
+- Cada regra tem **Palavras-chave**, **Link de destino**, **Resposta pública**
+  e **Mensagem no Direct**. Use `{link}` nas mensagens para inserir o link da
+  regra. Não há texto pronto: tudo é preenchido por você.
+
+**Base de conhecimento · Produtos**
+
+- Cadastre quantos produtos quiser: nome, link de compra, descrição/diferenciais
+  (várias linhas), preço e bônus.
+- **Extrair do link**: cole o link e o painel lê o título, a descrição e o
+  preço da página (quando a página informa). Revise e salve.
+- A IA **só** fala dos produtos cadastrados e passa o link exatamente como
+  está. Sem produtos, ela não cita produtos, preços nem links.
+
+**Escalação para humano · WhatsApp**
+
+- *Palavras que pedem humano*: ex. `humano, atendente, falar com alguém`.
+  Além delas, a IA também reconhece o pedido quando é dito de outro jeito.
+- *Mensagem de transição*: o que o cliente recebe (ex.: *"Certo, {nome}! Vou
+  chamar alguém da equipe."*).
+- Ao escalar: a IA **pausa** naquela conversa, o lead fica marcado e você
+  recebe no WhatsApp o @ do cliente, o telefone (se capturado), o link para
+  responder e as últimas mensagens.
+- Preencha seu número com DDI (ex.: `5545999990000`), a URL da sua Evolution
+  API e o nome da instância; cadastre `EVOLUTION_API_KEY` na Vercel (C.4) e
+  rode `vercel --prod`. Use **Enviar teste no WhatsApp** para conferir.
+- Para voltar a IA nessa conversa depois do atendimento: aba **Conversas →**
+  chave **IA ativa**.
+
+**Modelos**
+
+- *Modelo principal* (vazio = padrão `claude-sonnet-5`) e *Modelo reserva*
+  (ex.: `claude-haiku-4-5-20251001`), usado automaticamente se o principal
+  falhar ou estiver fora do ar.
+
 3. Clique em **Salvar**. Vale na hora, sem deploy.
-4. O quadro **Status da instalação** (fim da página) mostra o que falta.
+4. Teste sem enviar nada (seção 8.1) e rode a **Auditoria técnica** (seção 8.2).
 
 ---
 
 ## 8. Parte G — Teste de ponta a ponta
+
+### 8.1 Testes no painel (não enviam nada)
+
+Em **Configurações**:
+
+- **Testar comentário**: digite um comentário de exemplo (ex.: `quero o link`)
+  e veja qual regra bate e o que seria respondido em público e no Direct.
+- **Simular nos últimos 5 posts** (dry-run): lê os comentários reais dos seus
+  últimos 5 posts e mostra, para cada um, o que o agente responderia — sem
+  enviar nada.
+- **Simulador do Direct**: converse com a IA como se fosse um cliente, com as
+  instruções e os produtos salvos. Mostra também quando a conversa seria
+  escalada para humano.
+
+### 8.2 Auditoria técnica
+
+**Configurações → Auditoria técnica → Rodar auditoria.** Testa de verdade:
+
+| # | Verificação | Correção automática |
+|---|---|---|
+| 1 | Variáveis obrigatórias cadastradas | — |
+| 2 | Banco de dados respondendo | — |
+| 3 | Token do Instagram válido (consulta a conta) | — |
+| 4 | ID da conta confere com `IG_USER_ID` | — |
+| 5 | Validade do token | Renova se faltar menos de 15 dias |
+| 6 | Campos do webhook assinados (`messages`, `comments`) | Assina os que faltarem |
+| 7 | IA respondendo (chamada curta de teste) | — |
+| 8 | Modelo reserva configurado | — |
+| 9 | Base de produtos | — |
+| 10 | Escalação: instância da Evolution conectada | — |
+| 11 | Segurança: `IG_APP_SECRET` e `CRON_SECRET` | — |
+
+Resultado: **ok**, **atenção** (funciona, mas falta algo recomendado) ou
+**falha** (resolver antes de usar).
+
+### 8.3 Ciclo real
 
 Com um perfil **testador** (A.4):
 
@@ -324,8 +399,12 @@ Com um perfil **testador** (A.4):
 2. Mande duas mensagens seguidas rápido → a IA responde **uma vez** para as duas.
 3. Responda você mesmo pelo app do Instagram → no painel a conversa mostra
    *Equipe* e a chave **IA ativa** desliga.
-4. Comente num post da conta com *"qual o preço?"* → resposta pública + DM.
-   Aparece em **Comentários**.
+4. Comente num post da conta usando uma palavra-chave de regra (ex.: *"quero"*)
+   → resposta pública + DM com o link. Aparece em **Comentários**.
+5. Pergunte no Direct por um produto cadastrado → a IA responde com preço e link
+   da base.
+6. Escreva *"quero falar com humano"* → chega a mensagem de transição, a IA
+   pausa e você recebe o aviso no WhatsApp.
 
 Logs em tempo real no servidor:
 
@@ -359,11 +438,11 @@ O prazo da análise é da Meta (normalmente alguns dias).
 
 | Aba | Para que serve |
 |---|---|
-| **Visão geral** | Leads hoje/7 dias/total, mensagens recebidas, respostas da IA, comentários; gráfico dos últimos 14 dias (botão *Ver tabela*); movimentação em tempo real (atualiza a cada 30 s) |
+| **Visão geral** | Leads hoje/7 dias/total, DMs recebidas, respostas da IA, **escalações para humano**, comentários (respondidos e falhas), **dias até o token vencer** (fica vermelho com menos de 5); gráfico dos últimos 14 dias (botão *Ver tabela*); movimentação em tempo real (atualiza a cada 30 s) |
 | **Conversas** | Histórico de cada cliente; responder como equipe (a IA pausa); ligar/desligar a IA por conversa; atalho *Abrir no Instagram* |
 | **Leads** | Lista com origem (Direct/Comentário), status (Novo → Em contato → Qualificado → Convertido/Perdido), telefone/e-mail capturados; filtros; **Exportar CSV** (abre no Excel) |
 | **Comentários** | Cada comentário, a regra usada e as respostas enviadas (ou o erro) |
-| **Configurações** | Agente, boas-vindas, comentários, regras, status da instalação e token |
+| **Configurações** | Agente e modelos, produtos, escalação, boas-vindas, comentários e regras, testes sem envio, simulador, auditoria, status e token |
 
 Tema claro/escuro: botão da lua no canto da barra lateral.
 
@@ -432,6 +511,10 @@ ser exportados a qualquer momento em **Leads → Exportar CSV**.
 | Erro `Direct:` num comentário | Resposta privada já usada para esse comentário, ou comentário com mais de 7 dias | Limite da Meta; responder pela aba Conversas quando a pessoa mandar DM |
 | Painel mostra "Falta configurar: banco de dados" | Upstash não conectado ao projeto | C.3 e `vercel --prod` |
 | Login do painel: "Cadastre DASHBOARD_PASSWORD" | Variável ausente | C.4 e `vercel --prod` |
+| Cliente pediu humano mas o WhatsApp não chegou | Evolution incompleta, chave errada ou instância desconectada | Auditoria (item 10); **Enviar teste no WhatsApp**; conferir `EVOLUTION_API_KEY` + `vercel --prod`. O motivo aparece na Movimentação |
+| IA não cita um produto | Produto não cadastrado ou não salvo | Configurações → Produtos → Salvar; testar no Simulador do Direct |
+| "Extrair do link" não preencheu | A página não informa título/descrição/preço nas tags | Preencher à mão |
+| Comentário registrado, mas sem resposta | *Responder só com palavra-chave* ligado e nenhuma palavra bateu | Ver o motivo na aba Comentários; ajustar regras; testar com **Testar comentário** |
 | `Instagram API ... 190` / token inválido nos logs | Token vencido ou revogado | Gerar novo token (A.3), trocar variável, `vercel --prod` |
 
 ---
@@ -444,12 +527,17 @@ ser exportados a qualquer momento em **Leads → Exportar CSV**.
 instagram-ai-agent/
 ├── api/webhook.js     Webhook da Meta (GET verificação/status, POST eventos)
 ├── api/admin.js       API do painel (?r=session|login|logout|overview|leads|
-│                      conversation|comments|config|lead|send|export|refresh-token)
+│                      conversation|comments|config|lead|send|export|refresh-token|
+│                      audit|dry-run|simulate-comment|simulate-dm|extract-url|
+│                      test-whatsapp)
 ├── lib/agent.js       Regras: leads, boas-vindas, IA, pausa, comentários
 ├── lib/ai.js          Chamada à IA (Anthropic ou OpenAI), prompt do sistema
 ├── lib/instagram.js   Graph API do Instagram (enviar, perfil, comentários, token)
 ├── lib/store.js       Banco Upstash Redis (leads, mensagens, estatísticas, config)
 ├── lib/auth.js        Login do painel (cookie assinado, 7 dias)
+├── lib/audit.js       Auditoria técnica com correção automática
+├── lib/whatsapp.js    Aviso de escalação via Evolution API
+├── lib/extract.js     Leitura de título/descrição/preço de um link de produto
 ├── public/            Painel (index.html, app.css, app.js)
 ├── test/              Testes (npm test)
 └── vercel.json        Funções, pasta pública, cabeçalhos de segurança, cron
@@ -459,12 +547,12 @@ instagram-ai-agent/
 
 | Chave | Conteúdo |
 |---|---|
-| `config` | Configurações do painel |
+| `config` | Configurações do painel (agente, modelos, produtos, escalação, boas-vindas, comentários e regras) |
 | `lead:<id>` / `leads` | Lead (perfil, status, contatos, pausa) / índice por última atividade |
 | `msgs:<id>` | Conversa do lead (últimas 300 mensagens) |
 | `feed` | Movimentação geral (últimos 1000 eventos) |
 | `comments` | Comentários (últimos 1000) |
-| `stats:<AAAA-MM-DD>` | Contadores do dia (in, out, ai, leads, comments), guardados ~13 meses |
+| `stats:<AAAA-MM-DD>` | Contadores do dia (in, out, ai, leads, comments, commentsReplied, commentErrors, escalations), guardados ~13 meses |
 | `ig_token` | Token renovado automaticamente |
 | `seen:*` / `sent:*` | Controle de reenvio da Meta e de eco (24 h) |
 

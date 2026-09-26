@@ -149,6 +149,31 @@
           <label class="field"><span>Instruções do negócio</span>
             <textarea name="agent.prompt" rows="9" placeholder="O que a empresa faz, serviços, preços, horários, endereço, como falar com o cliente, o que NÃO responder..."></textarea></label>
           <label class="switch"><input type="checkbox" name="agent.pauseWhenTeamReplies"><span></span>Pausar a IA na conversa quando a equipe responder (pelo app ou por este painel)</label>
+          <div class="grid2">
+            <label class="field"><span>Modelo principal <em class="muted">(vazio = padrão)</em></span><input name="agent.model" placeholder="claude-sonnet-5"></label>
+            <label class="field"><span>Modelo reserva <em class="muted">(usado se o principal falhar)</em></span><input name="agent.fallbackModel" placeholder="claude-haiku-4-5-20251001"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Base de conhecimento · Produtos</h2>
+          <p class="muted">A IA só fala dos produtos cadastrados aqui — nome, link, preço, descrição e bônus. Sem produto cadastrado, ela não cita produtos, preços nem links. Cole o link e use <strong>Extrair do link</strong> para preencher título e descrição (revise antes de salvar).</p>
+          <div id="products"></div>
+          <button id="addProduct" class="btn btn-ghost btn-sm" type="button">+ Adicionar produto</button>
+        </div>
+
+        <div class="card">
+          <h2>Escalação para humano · WhatsApp</h2>
+          <p class="muted">Quando o cliente pedir um atendente (palavra-chave abaixo ou pedido identificado pela IA): o agente responde a mensagem de transição, <strong>pausa a IA</strong> na conversa e te avisa no WhatsApp com o resumo, via Evolution API. A chave da Evolution fica na variável <code>EVOLUTION_API_KEY</code> da Vercel.</p>
+          <label class="switch"><input type="checkbox" name="escalation.enabled"><span></span>Ativar escalação</label>
+          <label class="field"><span>Palavras que pedem humano</span><input name="escalation.keywords" placeholder="humano, atendente, falar com alguém, pessoa real"></label>
+          <label class="field"><span>Mensagem de transição para o cliente</span><textarea name="escalation.message" rows="2" maxlength="1000" placeholder="Certo, {nome}! Vou chamar alguém da equipe para continuar com você por aqui."></textarea></label>
+          <div class="grid3">
+            <label class="field"><span>Seu WhatsApp (com DDI)</span><input name="escalation.whatsappNumber" inputmode="tel" placeholder="5545999999999"></label>
+            <label class="field"><span>URL da Evolution API</span><input name="escalation.evolutionUrl" placeholder="https://evolution.seudominio.com"></label>
+            <label class="field"><span>Instância</span><input name="escalation.evolutionInstance" placeholder="confianza"></label>
+          </div>
+          <button id="testWhatsapp" class="btn btn-ghost btn-sm" type="button">Enviar teste no WhatsApp</button>
         </div>
 
         <div class="card">
@@ -160,8 +185,9 @@
 
         <div class="card">
           <h2>Comentários nas postagens</h2>
-          <p class="muted">Quando alguém comenta num post: resposta pública embaixo do comentário e/ou mensagem privada no Direct (a Meta permite 1 por comentário, até 7 dias). Use <code>{nome}</code>.</p>
+          <p class="muted">Quando alguém comenta num post: resposta pública embaixo do comentário e/ou mensagem privada no Direct (a Meta permite 1 por comentário, até 7 dias). Use <code>{nome}</code> e, nas regras, <code>{link}</code>.</p>
           <label class="switch"><input type="checkbox" name="comments.enabled"><span></span>Responder comentários automaticamente</label>
+          <label class="switch"><input type="checkbox" name="comments.onlyKeywords"><span></span>Responder só comentários com palavra-chave das regras</label>
           <label class="switch"><input type="checkbox" name="comments.publicReplyEnabled"><span></span>Responder em público</label>
           <label class="field"><span>Resposta pública padrão</span><textarea name="comments.publicReply" rows="2" maxlength="2200"></textarea></label>
           <label class="switch"><input type="checkbox" name="comments.useAI"><span></span>Usar a IA para escrever a resposta pública (quando nenhuma regra bater)</label>
@@ -172,8 +198,34 @@
           <p class="muted">Se o comentário tiver uma das palavras (separe por vírgula), usa as respostas da regra. Ex.: <code>preço, valor, quanto</code>.</p>
           <div id="rules"></div>
           <button id="addRule" class="btn btn-ghost btn-sm" type="button">+ Adicionar regra</button>
+
+          <h3>Testar sem enviar</h3>
+          <p class="muted">Salve antes de testar. Nada é enviado ao Instagram.</p>
+          <div class="row">
+            <input id="simCommentText" placeholder="Digite um comentário de exemplo, ex.: quero o link" style="flex:1; min-width:200px">
+            <button id="simComment" class="btn btn-ghost btn-sm" type="button">Testar comentário</button>
+            <button id="dryRun" class="btn btn-ghost btn-sm" type="button">Simular nos últimos 5 posts</button>
+          </div>
+          <div id="simCommentResult"></div>
+        </div>
+
+        <div class="card">
+          <h2>Simulador do Direct</h2>
+          <p class="muted">Converse com a IA como se fosse um cliente, usando as instruções e os produtos salvos. Nada é enviado.</p>
+          <div id="simChat" class="bubbles sim-chat"></div>
+          <div class="composer" style="padding:12px 0 0; border:0">
+            <textarea id="simDmText" rows="2" placeholder="Mensagem do cliente"></textarea>
+            <button id="simDmSend" class="btn btn-primary" type="button">Enviar</button>
+            <button id="simDmReset" class="btn btn-ghost btn-sm" type="button">Limpar</button>
+          </div>
         </div>
       </form>
+
+      <div class="card">
+        <div class="card-head"><h2>Auditoria técnica</h2><button id="runAudit" class="btn btn-primary btn-sm" type="button">Rodar auditoria</button></div>
+        <p class="muted">Testa de verdade cada peça (token, conta, webhook, banco, IA, produtos, WhatsApp) e corrige sozinho o que der: renova o token perto de vencer e assina os campos do webhook que faltarem.</p>
+        <div id="auditResult"></div>
+      </div>
       <div id="setupList" class="card"></div>
     </section>
   </main>

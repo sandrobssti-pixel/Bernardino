@@ -74,25 +74,42 @@ export const dayKey = (date = new Date()) =>
 
 // ---------- configuração ----------
 
+// Nada de texto pronto: tudo é preenchido no painel.
 export const DEFAULT_CONFIG = {
   agent: {
     enabled: true,
     name: "",
     prompt: "",
+    model: "",
+    fallbackModel: "",
     pauseWhenTeamReplies: true
   },
   welcome: {
     enabled: false,
-    text: "Olá, {nome}! 👋 Obrigado por falar com a Confianza. Em que podemos ajudar?"
+    text: ""
   },
   comments: {
     enabled: false,
+    // true: só responde comentários que tenham uma palavra-chave das regras
+    onlyKeywords: true,
     publicReplyEnabled: true,
-    publicReply: "Obrigado pelo comentário, {nome}! Te chamamos no Direct 😉",
+    publicReply: "",
     privateReplyEnabled: true,
-    privateReply: "Olá, {nome}! Vimos seu comentário no nosso post. Como podemos ajudar?",
+    privateReply: "",
     useAI: false,
+    // [{ keywords, link, publicReply, privateReply }]
     rules: []
+  },
+  // Base de conhecimento: a IA só fala dos produtos cadastrados aqui.
+  // [{ name, url, description, price, bonus }]
+  products: [],
+  escalation: {
+    enabled: false,
+    keywords: "",
+    message: "",
+    whatsappNumber: "",
+    evolutionUrl: "",
+    evolutionInstance: ""
   }
 };
 
@@ -226,7 +243,7 @@ export const upsertLead = async (id, patch = {}) => {
 export const updateLead = async (id, patch) => {
   const current = await getLead(id);
   if (!current) return null;
-  const allowed = ["status", "notes", "phone", "email", "aiPaused", "name"];
+  const allowed = ["status", "notes", "phone", "email", "aiPaused", "name", "escalatedAt"];
   const lead = { ...current };
   for (const key of allowed) if (patch[key] !== undefined) lead[key] = patch[key];
   await one(["SET", `lead:${id}`, JSON.stringify(lead)]);
@@ -306,7 +323,25 @@ export const logComment = async comment => {
     ["LPUSH", "feed", JSON.stringify({ ...comment, kind: "comment", direction: "in", by: "cliente" })],
     ["LTRIM", "feed", 0, MAX_FEED - 1],
     ["HINCRBY", day, "comments", 1],
+    ["HINCRBY", day, "commentsReplied", comment.publicReply || comment.privateReply ? 1 : 0],
+    ["HINCRBY", day, "commentErrors", comment.errors?.length ? 1 : 0],
     ["EXPIRE", day, STATS_TTL_SECONDS]
+  ]);
+};
+
+export const incrStat = async (field, amount = 1) => {
+  const day = `stats:${dayKey()}`;
+  await pipeline([
+    ["HINCRBY", day, field, amount],
+    ["EXPIRE", day, STATS_TTL_SECONDS]
+  ]);
+};
+
+// Registra um evento só na movimentação (sem conversa), ex.: escalação.
+export const logFeed = async item => {
+  await pipeline([
+    ["LPUSH", "feed", JSON.stringify({ at: Date.now(), ...item })],
+    ["LTRIM", "feed", 0, MAX_FEED - 1]
   ]);
 };
 
@@ -320,7 +355,7 @@ export const getStats = async (days = 14) => {
   const results = await pipeline(keys.map(key => ["HGETALL", `stats:${key}`]));
   return keys.map((day, index) => {
     const flat = results[index] || [];
-    const row = { day, in: 0, out: 0, leads: 0, comments: 0, ai: 0 };
+    const row = { day, in: 0, out: 0, leads: 0, comments: 0, ai: 0, commentsReplied: 0, commentErrors: 0, escalations: 0 };
     for (let i = 0; i < flat.length; i += 2) row[flat[i]] = Number(flat[i + 1]) || 0;
     return row;
   });

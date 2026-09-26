@@ -19,7 +19,8 @@ const BY = {
   ia: ["IA", "ia"],
   "boas-vindas": ["Boas-vindas", "ia"],
   comentario: ["Direct do comentário", "ia"],
-  equipe: ["Equipe", "team"]
+  equipe: ["Equipe", "team"],
+  escalacao: ["Escalação", "bad"]
 };
 
 const state = { tab: "overview", leads: [], currentLead: null, config: null, overviewTimer: null };
@@ -192,15 +193,29 @@ const loadOverview = async () => {
     renderSetupBanner(data.setup);
     const today = data.stats[data.stats.length - 1] || {};
     const week = data.stats.slice(-7);
+    const days = data.token?.daysLeft;
     const kpis = [
-      ["Leads hoje", today.leads, `${fmtNum(sum(week, "leads"))} em 7 dias`],
-      ["Total de leads", data.totalLeads, "desde o início"],
-      ["Mensagens recebidas", sum(week, "in"), `${fmtNum(today.in)} hoje`],
-      ["Respostas da IA", sum(week, "ai"), `${fmtNum(today.ai)} hoje`],
-      ["Comentários", sum(week, "comments"), `${fmtNum(today.comments)} hoje`]
+      { label: "Leads hoje", value: today.leads, sub: `${fmtNum(sum(week, "leads"))} em 7 dias` },
+      { label: "Total de leads", value: data.totalLeads, sub: "desde o início" },
+      { label: "DMs recebidas", week: true, value: sum(week, "in"), sub: `${fmtNum(today.in)} hoje` },
+      { label: "Respostas da IA", week: true, value: sum(week, "ai"), sub: `${fmtNum(today.ai)} hoje` },
+      { label: "Escalações p/ humano", week: true, value: sum(week, "escalations"), sub: `${fmtNum(today.escalations)} hoje` },
+      {
+        label: "Comentários",
+        week: true,
+        value: sum(week, "comments"),
+        sub: `${fmtNum(sum(week, "commentsReplied"))} respondidos · ${fmtNum(sum(week, "commentErrors"))} falhas`,
+        tone: sum(week, "commentErrors") ? "caution" : ""
+      },
+      {
+        label: "Token do Instagram",
+        value: days === null || days === undefined ? "—" : days,
+        sub: days === null || days === undefined ? "renove em Configurações" : "dias até vencer",
+        tone: days !== null && days !== undefined && days < 5 ? "alert" : ""
+      }
     ];
     $("#kpis").innerHTML = kpis
-      .map(([label, value, sub], i) => `<div class="kpi"><div class="label">${label}${i > 1 ? " <span class='muted'>· 7 dias</span>" : ""}</div><div class="value">${fmtNum(value)}</div><div class="sub">${esc(sub)}</div></div>`)
+      .map(k => `<div class="kpi ${k.tone || ""}"><div class="label">${esc(k.label)}${k.week ? " <span class='muted'>· 7 dias</span>" : ""}</div><div class="value">${typeof k.value === "number" ? fmtNum(k.value) : esc(k.value)}</div><div class="sub">${esc(k.sub)}</div></div>`)
       .join("");
     renderChart(data.stats);
     renderChartTable(data.stats);
@@ -294,7 +309,7 @@ const renderFeed = feed => {
   $("#feed").innerHTML = feed
     .map(item => {
       const isComment = item.kind === "comment";
-      const [label, cls] = isComment ? ["Comentário", "warn"] : BY[item.by] || [item.by, ""];
+      const [label, cls] = isComment ? ["Comentário", "warn"] : item.kind === "escalation" ? ["Pediu humano", "bad"] : BY[item.by] || [item.by, ""];
       const who = item.leadLabel || (item.username ? `@${item.username}` : "cliente");
       const arrow = item.direction === "in" ? "" : "→ ";
       return `<li>
@@ -503,6 +518,7 @@ const setPath = (obj, path, value) => {
 const ruleTemplate = (rule = {}) => `<div class="rule">
   <div class="rule-head"><strong>Regra</strong><button type="button" class="btn btn-ghost btn-sm" data-remove>Remover</button></div>
   <label class="field"><span>Palavras-chave</span><input data-k="keywords" value="${esc(rule.keywords || "")}" placeholder="preço, valor, quanto custa"></label>
+  <label class="field"><span>Link de destino <em class="muted">(entra no lugar de {link})</em></span><input data-k="link" type="url" value="${esc(rule.link || "")}" placeholder="https://..."></label>
   <label class="field"><span>Resposta pública</span><textarea data-k="publicReply" rows="2">${esc(rule.publicReply || "")}</textarea></label>
   <label class="field"><span>Mensagem no Direct</span><textarea data-k="privateReply" rows="2">${esc(rule.privateReply || "")}</textarea></label>
 </div>`;
@@ -514,6 +530,55 @@ $("#addRule").addEventListener("click", () => {
   $("#rules").insertAdjacentHTML("beforeend", ruleTemplate());
   bindRuleButtons();
 });
+
+const productTemplate = (product = {}) => `<div class="product">
+  <div class="rule-head"><strong>${esc(product.name || "Novo produto")}</strong>
+    <span class="row"><button type="button" class="btn btn-ghost btn-sm" data-extract>Extrair do link</button><button type="button" class="btn btn-ghost btn-sm" data-remove>Remover</button></span></div>
+  <div class="grid2">
+    <label class="field"><span>Nome</span><input data-k="name" value="${esc(product.name || "")}" required></label>
+    <label class="field"><span>Link de compra</span><input data-k="url" type="url" value="${esc(product.url || "")}" placeholder="https://..."></label>
+  </div>
+  <label class="field"><span>Descrição / diferenciais</span><textarea data-k="description" rows="3">${esc(product.description || "")}</textarea></label>
+  <div class="grid2">
+    <label class="field"><span>Preço</span><input data-k="price" value="${esc(product.price || "")}" placeholder="R$ 297 ou sob orçamento"></label>
+    <label class="field"><span>Bônus <em class="muted">(opcional)</em></span><input data-k="bonus" value="${esc(product.bonus || "")}"></label>
+  </div>
+</div>`;
+
+const bindProductButtons = () => {
+  $$("#products [data-remove]").forEach(button => (button.onclick = () => button.closest(".product").remove()));
+  $$("#products [data-extract]").forEach(
+    button =>
+      (button.onclick = async () => {
+        const box = button.closest(".product");
+        const url = box.querySelector('[data-k="url"]').value.trim();
+        if (!url) return toast("Cole o link do produto primeiro");
+        button.disabled = true;
+        try {
+          const { product } = await api("extract-url", { method: "POST", body: { url } });
+          const fill = (key, value) => {
+            const el = box.querySelector(`[data-k="${key}"]`);
+            if (value && !el.value.trim()) el.value = value;
+          };
+          fill("name", product.name);
+          fill("description", product.description);
+          fill("price", product.price);
+          toast("Dados extraídos — revise e clique em Salvar");
+        } catch (error) {
+          toast(`Não consegui ler o link: ${error.message}`);
+        } finally {
+          button.disabled = false;
+        }
+      })
+  );
+};
+
+$("#addProduct").addEventListener("click", () => {
+  $("#products").insertAdjacentHTML("beforeend", productTemplate());
+  bindProductButtons();
+});
+
+$("#configForm").addEventListener("submit", event => event.preventDefault());
 
 const loadSettings = async () => {
   try {
@@ -527,6 +592,8 @@ const loadSettings = async () => {
     });
     $("#rules").innerHTML = (config.comments.rules || []).map(ruleTemplate).join("");
     bindRuleButtons();
+    $("#products").innerHTML = (config.products || []).map(productTemplate).join("");
+    bindProductButtons();
     const item = (ok, text) => `<li><span class="tag ${ok ? "team" : "bad"}">${ok ? "ok" : "falta"}</span> ${text}</li>`;
     $("#setupList").innerHTML = `<h2>Status da instalação</h2><ul class="checklist">
       ${item(setup.hasDatabase, "Banco de dados (Upstash Redis) conectado")}
@@ -559,12 +626,120 @@ $("#saveConfig").addEventListener("click", async () => {
   config.comments.rules = $$("#rules .rule")
     .map(rule => Object.fromEntries([...rule.querySelectorAll("[data-k]")].map(el => [el.dataset.k, el.value.trim()])))
     .filter(rule => rule.keywords);
+  config.products = $$("#products .product")
+    .map(box => Object.fromEntries([...box.querySelectorAll("[data-k]")].map(el => [el.dataset.k, el.value.trim()])))
+    .filter(product => product.name);
   try {
     const saved = await api("config", { method: "POST", body: { config } });
     state.config = saved.config;
     toast("Configurações salvas");
   } catch (error) {
     toast(error.message);
+  }
+});
+
+// ---------------- testes, simuladores e auditoria ----------------
+
+const planHtml = plan =>
+  plan.skipped
+    ? `<div class="muted">Não responderia: ${esc(plan.skipped)}.</div>`
+    : `${plan.rule ? `<div><span class="tag">regra: ${esc(plan.rule)}</span></div>` : ""}
+       ${plan.publicText ? `<div class="reply"><span class="muted">Público:</span> ${esc(plan.publicText)}</div>` : ""}
+       ${plan.privateText ? `<div class="reply dm"><span class="muted">Direct:</span> ${esc(plan.privateText)}</div>` : ""}
+       ${!plan.publicText && !plan.privateText ? `<div class="muted">Nenhuma mensagem configurada para enviar.</div>` : ""}
+       ${(plan.errors || []).map(e => `<div><span class="tag bad">erro</span> ${esc(e)}</div>`).join("")}`;
+
+$("#simComment").addEventListener("click", async () => {
+  const text = $("#simCommentText").value.trim();
+  if (!text) return toast("Digite um comentário de exemplo");
+  try {
+    const plan = await api("simulate-comment", { method: "POST", body: { text } });
+    $("#simCommentResult").innerHTML = `<div class="sim-result comment-list"><li>${planHtml(plan)}</li></div>`;
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+$("#dryRun").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  $("#simCommentResult").innerHTML = `<p class="muted">Lendo os últimos 5 posts…</p>`;
+  try {
+    const { posts } = await api("dry-run");
+    $("#simCommentResult").innerHTML = posts.length
+      ? posts
+          .map(
+            post => `<div class="dry-post"><div class="row"><strong>${esc(post.caption || "(sem legenda)")}</strong>
+              ${post.permalink ? `<a class="muted" href="${esc(post.permalink)}" target="_blank" rel="noopener">abrir post</a>` : ""}</div>
+              ${post.comments.length ? `<ul class="comment-list" style="margin-top:8px">${post.comments.map(c => `<li><div><strong>${esc(c.username ? `@${c.username}` : "alguém")}</strong> ${esc(c.text)}</div>${planHtml(c)}</li>`).join("")}</ul>` : `<p class="muted">Sem comentários.</p>`}</div>`
+          )
+          .join("")
+      : `<p class="muted">Nenhum post encontrado.</p>`;
+  } catch (error) {
+    $("#simCommentResult").innerHTML = `<p class="form-error">${esc(error.message)}</p>`;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+const simState = [];
+const renderSim = () => {
+  $("#simChat").innerHTML = simState.length
+    ? simState
+        .map(m => `<div class="bubble ${m.role === "user" ? "in" : "out"}">${esc(m.text)}${m.escalation ? `<span class="meta">→ escalaria para humano</span>` : ""}</div>`)
+        .join("")
+    : `<p class="empty">Escreva como se fosse um cliente.</p>`;
+  $("#simChat").scrollTop = $("#simChat").scrollHeight;
+};
+renderSim();
+
+$("#simDmSend").addEventListener("click", async event => {
+  const text = $("#simDmText").value.trim();
+  if (!text) return;
+  const button = event.currentTarget;
+  simState.push({ role: "user", text });
+  $("#simDmText").value = "";
+  renderSim();
+  button.disabled = true;
+  try {
+    const { reply, escalation } = await api("simulate-dm", { method: "POST", body: { messages: simState } });
+    simState.push({ role: "assistant", text: reply || "(sem resposta)", escalation });
+  } catch (error) {
+    simState.push({ role: "assistant", text: `Erro: ${error.message}` });
+  } finally {
+    button.disabled = false;
+    renderSim();
+  }
+});
+$("#simDmReset").addEventListener("click", () => {
+  simState.length = 0;
+  renderSim();
+});
+
+$("#testWhatsapp").addEventListener("click", async () => {
+  try {
+    await api("test-whatsapp", { method: "POST" });
+    toast("Teste enviado — confira seu WhatsApp");
+  } catch (error) {
+    toast(`Falhou: ${error.message} (salve as configurações antes)`);
+  }
+});
+
+$("#runAudit").addEventListener("click", async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  $("#auditResult").innerHTML = `<p class="muted">Rodando os testes…</p>`;
+  try {
+    const { checks, summary } = await api("audit");
+    const tag = { ok: ["ok", "team"], warn: ["atenção", "warn"], fail: ["falha", "bad"] };
+    $("#auditResult").innerHTML = `<p style="margin-top:12px"><span class="tag team">${summary.ok} ok</span> <span class="tag warn">${summary.warn} atenção</span> <span class="tag bad">${summary.fail} falha(s)</span></p>
+      <ul class="audit">${checks
+        .map(c => `<li><span class="tag ${tag[c.status][1]}">${tag[c.status][0]}</span><strong>${esc(c.name)}</strong><span class="detail">${esc(c.detail)}${c.fixed ? ` · <em>${esc(c.fixed)}</em>` : ""}</span></li>`)
+        .join("")}</ul>`;
+  } catch (error) {
+    $("#auditResult").innerHTML = `<p class="form-error">${esc(error.message)}</p>`;
+  } finally {
+    button.disabled = false;
   }
 });
 

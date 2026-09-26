@@ -16,19 +16,46 @@ export const resolveProvider = (env = process.env) => {
   return "";
 };
 
-// overrides: { name, prompt, extra } vindos do painel (têm prioridade sobre
-// AGENT_NAME/AGENT_PROMPT das variáveis de ambiente).
+// Marcador que a IA acrescenta quando o cliente pede um humano. O agente
+// remove o marcador antes de enviar e dispara a escalação.
+export const ESCALATION_MARKER = "[[HUMANO]]";
+
+const formatProducts = products =>
+  (products || [])
+    .filter(product => String(product?.name || "").trim())
+    .map((product, index) =>
+      [
+        `${index + 1}. ${product.name.trim()}`,
+        product.price ? `   Preço: ${String(product.price).trim()}` : "",
+        product.url ? `   Link: ${String(product.url).trim()}` : "",
+        product.description ? `   Descrição: ${String(product.description).trim().replace(/\n+/g, "\n   ")}` : "",
+        product.bonus ? `   Bônus: ${String(product.bonus).trim()}` : ""
+      ]
+        .filter(Boolean)
+        .join("\n")
+    )
+    .join("\n");
+
+// overrides (do painel, têm prioridade sobre AGENT_NAME/AGENT_PROMPT):
+// { name, prompt, extra, products, escalation: boolean }
 export const buildSystemPrompt = (env = process.env, overrides = {}) => {
   const agentName = String(overrides.name || env.AGENT_NAME || "Assistente").trim();
   const instructions = String(overrides.prompt || env.AGENT_PROMPT || "").trim();
+  const catalog = formatProducts(overrides.products);
 
   return [
     `Você é ${agentName}, o atendente virtual desta conta no Instagram Direct.`,
     "Responda sempre em português do Brasil, de forma curta, simpática e direta, como numa conversa de DM.",
     "Use texto simples: sem markdown, sem listas longas, sem títulos. No máximo 2 ou 3 frases curtas por resposta, a não ser que o cliente peça detalhes.",
-    "Nunca invente preços, prazos, endereços ou informações que não estejam nas instruções abaixo. Se não souber, diga que vai verificar com a equipe.",
-    "Se o cliente pedir para falar com uma pessoa, diga que a equipe vai responder por aqui assim que possível.",
+    "Nunca invente produtos, preços, prazos, links, endereços ou informações que não estejam nas instruções ou na base de produtos abaixo. Se não souber, diga que vai verificar com a equipe.",
+    catalog
+      ? "Quando o cliente se interessar por um produto, passe o link dele exatamente como está na base."
+      : "Não há produtos cadastrados: não cite produtos, preços nem links.",
+    overrides.escalation
+      ? `Se o cliente pedir para falar com uma pessoa/atendente/humano, responda com uma frase curta avisando que vai chamar alguém da equipe e termine a resposta com ${ESCALATION_MARKER} (exatamente assim).`
+      : "Se o cliente pedir para falar com uma pessoa, diga que a equipe vai responder por aqui assim que possível.",
     instructions ? `\nInstruções do negócio:\n${instructions}` : "",
+    catalog ? `\nBase de produtos (a única fonte de produtos, preços e links):\n${catalog}` : "",
     overrides.extra ? `\n${overrides.extra}` : ""
   ]
     .filter(Boolean)
@@ -93,8 +120,8 @@ const postJson = async (url, headers, body) => {
   return data;
 };
 
-const callModel = async ({ provider, env, system, turns, withImages }) => {
-  const model = String(env.AI_MODEL || DEFAULT_MODELS[provider] || "").trim();
+const callModel = async ({ provider, env, system, turns, withImages, model: requested }) => {
+  const model = String(requested || env.AI_MODEL || DEFAULT_MODELS[provider] || "").trim();
   const maxTokens = Number(env.AI_MAX_TOKENS) || 500;
 
   if (provider === "anthropic") {
@@ -135,19 +162,34 @@ const callModel = async ({ provider, env, system, turns, withImages }) => {
   throw new Error(`AI_PROVIDER inválido: "${provider}" (use anthropic ou openai)`);
 };
 
+// Tenta o modelo principal; se falhar (fora do ar, limite, modelo inválido),
+// tenta o modelo reserva (overrides.fallbackModel ou AI_MODEL_FALLBACK).
 export const generateReply = async (turns, env = process.env, overrides = {}) => {
   const provider = resolveProvider(env);
   const system = buildSystemPrompt(env, overrides);
   const normalized = normalizeTurns(turns);
   if (!normalized.length) return "";
 
-  const hasImages = normalized.some(turn => turn.imageUrl);
+  const primary = String(overrides.model || "").trim() || undefined;
+  const fallback = String(overrides.fallbackModel || env.AI_MODEL_FALLBACK || "").trim();
+
+  const attempt = async model => {
+    const hasImages = normalized.some(turn => turn.imageUrl);
+    try {
+      return await callModel({ provider, env, system, turns: normalized, withImages: hasImages, model });
+    } catch (error) {
+      if (!hasImages) throw error;
+      // Link da imagem expirado/inacessível ou modelo sem visão: tenta só com texto.
+      console.warn("[AI] falhou com imagem, tentando só texto:", error.message);
+      return callModel({ provider, env, system, turns: normalized, withImages: false, model });
+    }
+  };
+
   try {
-    return await callModel({ provider, env, system, turns: normalized, withImages: hasImages });
+    return await attempt(primary);
   } catch (error) {
-    if (!hasImages) throw error;
-    // Link da imagem expirado/inacessível ou modelo sem visão: tenta só com texto.
-    console.warn("[AI] falhou com imagem, tentando só texto:", error.message);
-    return callModel({ provider, env, system, turns: normalized, withImages: false });
+    if (!fallback || fallback === primary) throw error;
+    console.warn(`[AI] modelo principal falhou (${error.message}); usando reserva ${fallback}`);
+    return attempt(fallback);
   }
 };

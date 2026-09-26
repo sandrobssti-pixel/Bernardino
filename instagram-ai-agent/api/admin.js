@@ -1,10 +1,13 @@
 // API do painel. Uma função só (limite de funções do plano gratuito):
 // a rota vem em ?r=...  Tudo exige login, menos r=login/r=session.
 
-import { fillTemplate, sendAndLog } from "../lib/agent.js";
+import { aiOverrides, fillTemplate, planCommentReplies, sendAndLog } from "../lib/agent.js";
+import { runAudit, tokenDaysLeft } from "../lib/audit.js";
+import { extractProductFromUrl } from "../lib/extract.js";
+import { sendWhatsApp } from "../lib/whatsapp.js";
 import { checkPassword, clearCookie, isAuthenticated, passwordConfigured, sessionCookie } from "../lib/auth.js";
-import { resolveProvider } from "../lib/ai.js";
-import { refreshAccessToken } from "../lib/instagram.js";
+import { ESCALATION_MARKER, generateReply, resolveProvider } from "../lib/ai.js";
+import { getMediaComments, getRecentMedia, refreshAccessToken } from "../lib/instagram.js";
 import {
   accessToken,
   countLeads,
@@ -40,7 +43,7 @@ const refreshToken = async () => {
 };
 
 const tokenStatus = info =>
-  info ? { refreshedAt: info.refreshedAt, expiresAt: info.expiresAt } : null;
+  info ? { refreshedAt: info.refreshedAt, expiresAt: info.expiresAt, daysLeft: tokenDaysLeft(info) } : null;
 
 const csvCell = value => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
@@ -79,7 +82,7 @@ export async function GET(request) {
           const lead = leads[item.leadId];
           item.leadLabel = lead?.username ? `@${lead.username}` : lead?.name || item.username || "";
         }
-        return json({ stats, feed, totalLeads, setup: setup() });
+        return json({ stats, feed, totalLeads, setup: setup(), token: tokenStatus(await getTokenInfo()) });
       }
       case "leads":
         return json({ leads: await listLeads(500) });
@@ -93,6 +96,25 @@ export async function GET(request) {
         return json({ comments: await getComments(200) });
       case "config":
         return json({ config: await getConfig(), setup: { ...setup(), token: tokenStatus(await getTokenInfo()) } });
+      case "audit":
+        return json(await runAudit({ autoFix: url.searchParams.get("fix") !== "0" }));
+      case "dry-run": {
+        // Aplica as regras aos comentários dos últimos 5 posts, sem enviar nada.
+        const config = await getConfig();
+        const token = await accessToken();
+        const posts = await getRecentMedia(token, 5);
+        const result = [];
+        for (const post of posts) {
+          const comments = await getMediaComments(token, post.id, 30);
+          const items = [];
+          for (const comment of comments) {
+            const lead = { username: comment.username || comment.from?.username || "" };
+            items.push({ id: comment.id, username: lead.username, text: comment.text, ...(await planCommentReplies({ ...config, comments: { ...config.comments, useAI: false } }, comment.text, lead)) });
+          }
+          result.push({ id: post.id, caption: String(post.caption || "").slice(0, 120), permalink: post.permalink, timestamp: post.timestamp, comments: items });
+        }
+        return json({ posts: result });
+      }
       case "export": {
         const leads = await listLeads(5000);
         const header = ["usuario", "nome", "origem", "status", "telefone", "email", "primeiro_contato", "ultimo_contato", "mensagens_recebidas", "comentarios", "observacoes"];
@@ -156,6 +178,29 @@ export async function POST(request) {
         return json({ config: await saveConfig(body.config || {}) });
       case "refresh-token":
         return json({ ok: true, token: tokenStatus(await refreshToken()) });
+      case "simulate-comment": {
+        // Mostra o que o agente responderia a um comentário, sem enviar.
+        const config = await getConfig();
+        const lead = { username: String(body.username || "cliente.teste"), name: String(body.name || "") };
+        return json(await planCommentReplies(config, String(body.text || ""), lead));
+      }
+      case "simulate-dm": {
+        // Conversa de teste com a IA (usa produtos e instruções), sem enviar.
+        const config = await getConfig();
+        const turns = (Array.isArray(body.messages) ? body.messages : [])
+          .slice(-20)
+          .map(item => ({ role: item.role === "assistant" ? "assistant" : "user", text: String(item.text || "").slice(0, 2000) }));
+        const raw = await generateReply(turns, process.env, aiOverrides(config));
+        const escalation = Boolean(config.escalation.enabled) && raw.includes(ESCALATION_MARKER);
+        return json({ reply: raw.split(ESCALATION_MARKER).join("").trim(), escalation });
+      }
+      case "extract-url":
+        return json({ product: await extractProductFromUrl(body.url) });
+      case "test-whatsapp": {
+        const config = await getConfig();
+        await sendWhatsApp(config.escalation, "✅ Teste do painel Confianza: o aviso de escalação do Instagram está funcionando.");
+        return json({ ok: true });
+      }
       case "lead": {
         const lead = await updateLead(String(body.id || ""), body.patch || {});
         return lead ? json({ lead }) : json({ error: "Lead não encontrado" }, 404);
