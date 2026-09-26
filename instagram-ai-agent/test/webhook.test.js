@@ -476,3 +476,13 @@ test("conexão com o Instagram: sincroniza conta, troca token pelo painel com va
   assert.equal(synced.updated, 0); // id "cliente" não é numérico (IGSID real é numérico)
   assert.equal(JSON.parse(db.get("lead:cliente")).lastAt, before);
 });
+
+test("reativar a IA em todas as conversas pausadas", async () => {
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "r1", text: "oi" } });
+  await handleMessagingEvent({ sender: { id: "loja" }, recipient: { id: "cliente" }, ownId: "loja", message: { mid: "hx", text: "equipe aqui", is_echo: true } });
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, true);
+  const cookie = await login();
+  const out = await (await admin.POST(new Request("https://x/api/admin?r=resume-all", { method: "POST", headers: { cookie } }))).json();
+  assert.equal(out.resumed, 1);
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, false);
+});

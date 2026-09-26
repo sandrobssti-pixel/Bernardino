@@ -263,6 +263,16 @@ export async function POST(request) {
         }
         return json({ ok: true, checked: leads.length, updated });
       }
+      case "resume-all": {
+        // Reativa a IA em todas as conversas pausadas.
+        const leads = await listLeads(5000);
+        let resumed = 0;
+        for (const lead of leads.filter(item => item.aiPaused)) {
+          await updateLead(lead.id, { aiPaused: false });
+          resumed += 1;
+        }
+        return json({ ok: true, resumed });
+      }
       case "delete-lead":
         return json({ ok: true, ...(await deleteLeadData(String(body.id || ""))) });
       case "simulate-comment": {

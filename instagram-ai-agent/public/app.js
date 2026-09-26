@@ -671,6 +671,13 @@ $("#igSaveToken").addEventListener("click", event =>
   })
 );
 
+$("#resumeAll").addEventListener("click", event =>
+  withButton(event.currentTarget, async () => {
+    const { resumed } = await api("resume-all", { method: "POST" });
+    toast(resumed ? `IA reativada em ${resumed} conversa(s)` : "Nenhuma conversa estava pausada");
+  })
+);
+
 const loadSettings = async () => {
   loadInstagram();
   try {

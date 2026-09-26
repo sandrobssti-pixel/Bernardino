@@ -168,6 +168,7 @@
           <label class="field"><span>Instruções do negócio</span>
             <textarea name="agent.prompt" rows="9" placeholder="O que a empresa faz, serviços, preços, horários, endereço, como falar com o cliente, o que NÃO responder..."></textarea></label>
           <label class="switch"><input type="checkbox" name="agent.pauseWhenTeamReplies"><span></span>Pausar a IA na conversa quando a equipe responder (pelo app ou por este painel)</label>
+          <button id="resumeAll" class="btn btn-ghost btn-sm" type="button">Reativar a IA em todas as conversas pausadas</button>
           <div class="grid2">
             <label class="field"><span>Modelo principal <em class="muted">(vazio = padrão)</em></span><input name="agent.model" placeholder="claude-sonnet-5"></label>
             <label class="field"><span>Modelo reserva <em class="muted">(usado se o principal falhar)</em></span><input name="agent.fallbackModel" placeholder="claude-haiku-4-5-20251001"></label>
