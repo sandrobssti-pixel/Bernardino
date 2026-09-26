@@ -1,6 +1,8 @@
-// Armazenamento do agente (Upstash Redis via REST, sem dependência).
-// A Vercel cria as variáveis ao conectar o banco em Storage:
-// KV_REST_API_URL/KV_REST_API_TOKEN ou UPSTASH_REDIS_REST_URL/..._TOKEN.
+// Armazenamento do agente. Aceita dois tipos de Redis, conforme o que foi
+// conectado ao projeto em Vercel → Storage:
+//   - Upstash (REST): KV_REST_API_URL/KV_REST_API_TOKEN ou
+//     UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN
+//   - Redis Cloud / qualquer Redis (TCP): REDIS_URL (redis:// ou rediss://)
 //
 // Chaves:
 //   config                 JSON com as configurações do painel
@@ -18,21 +20,21 @@ const MAX_FEED = 1000;
 const MAX_COMMENTS = 1000;
 const STATS_TTL_SECONDS = 400 * 24 * 3600;
 
-const credentials = (env = process.env) => {
+const restCredentials = (env = process.env) => {
   const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL || "";
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN || "";
   return { url: url.replace(/\/+$/, ""), token };
 };
 
+const redisUrl = (env = process.env) => String(env.REDIS_URL || env.KV_URL || "").trim();
+
 export const hasStore = (env = process.env) => {
-  const { url, token } = credentials(env);
-  return Boolean(url && token);
+  const { url, token } = restCredentials(env);
+  return Boolean((url && token) || /^rediss?:\/\//.test(redisUrl(env)));
 };
 
-export const pipeline = async commands => {
-  const { url, token } = credentials();
-  if (!url || !token) throw new Error("Banco de dados não configurado (Storage → Upstash Redis)");
-
+const restPipeline = async commands => {
+  const { url, token } = restCredentials();
   const response = await fetch(`${url}/pipeline`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -47,6 +49,38 @@ export const pipeline = async commands => {
     if (item?.error) throw new Error(`Redis: ${item.error}`);
     return item?.result;
   });
+};
+
+// Conexão TCP reaproveitada entre chamadas da mesma função (instância quente).
+let tcpClientPromise = null;
+const tcpClient = () => {
+  if (!tcpClientPromise) {
+    tcpClientPromise = (async () => {
+      const { createClient } = await import("redis");
+      const client = createClient({ url: redisUrl(), socket: { connectTimeout: 5000, reconnectStrategy: false } });
+      client.on("error", error => console.error("[REDIS]", error.message));
+      client.on("end", () => (tcpClientPromise = null));
+      await client.connect();
+      return client;
+    })().catch(error => {
+      tcpClientPromise = null;
+      throw new Error(`Redis (REDIS_URL): ${error.message}`);
+    });
+  }
+  return tcpClientPromise;
+};
+
+const tcpPipeline = async commands => {
+  const client = await tcpClient();
+  // Enviados juntos na mesma conexão (o cliente agrupa automaticamente).
+  return Promise.all(commands.map(command => client.sendCommand(command.map(String))));
+};
+
+export const pipeline = async commands => {
+  const { url, token } = restCredentials();
+  if (url && token) return restPipeline(commands);
+  if (redisUrl()) return tcpPipeline(commands);
+  throw new Error("Banco de dados não configurado (Vercel → Storage → Redis)");
 };
 
 const one = async command => (await pipeline([command]))[0];

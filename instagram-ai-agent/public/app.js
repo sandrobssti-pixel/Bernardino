@@ -171,7 +171,7 @@ const handleLoadError = error => {
 
 const renderSetupBanner = setup => {
   const missing = [];
-  if (!setup.hasDatabase) missing.push("banco de dados (Vercel → Storage → Upstash Redis → Connect)");
+  if (!setup.hasDatabase) missing.push("banco de dados (Vercel → Storage → Redis → Connect Project)");
   if (!setup.hasAccessToken) missing.push("IG_ACCESS_TOKEN");
   if (!setup.hasVerifyToken) missing.push("VERIFY_TOKEN");
   if (!setup.aiProvider) missing.push("ANTHROPIC_API_KEY ou OPENAI_API_KEY");
@@ -596,7 +596,7 @@ const loadSettings = async () => {
     bindProductButtons();
     const item = (ok, text) => `<li><span class="tag ${ok ? "team" : "bad"}">${ok ? "ok" : "falta"}</span> ${text}</li>`;
     $("#setupList").innerHTML = `<h2>Status da instalação</h2><ul class="checklist">
-      ${item(setup.hasDatabase, "Banco de dados (Upstash Redis) conectado")}
+      ${item(setup.hasDatabase, "Banco de dados (Redis) conectado")}
       ${item(setup.hasAccessToken, "Token do Instagram (IG_ACCESS_TOKEN)")}
       ${item(setup.hasVerifyToken, "Verify Token do webhook (VERIFY_TOKEN)")}
       ${item(Boolean(setup.aiProvider), `Chave da IA${setup.aiProvider ? ` (${esc(setup.aiProvider)})` : ""}`)}

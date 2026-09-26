@@ -11,6 +11,7 @@
     "test": "node --test test/*.test.js"
   },
   "dependencies": {
-    "@vercel/functions": "^3.9.9"
+    "@vercel/functions": "^3.9.9",
+    "redis": "^4.7.1"
   }
 }

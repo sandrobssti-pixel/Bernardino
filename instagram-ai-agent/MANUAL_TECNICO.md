@@ -39,7 +39,7 @@ servidor `sandro@ConfianzaThechnologies`, **um bloco por vez**.
    │  POST /api/webhook                         /api/admin  (dados, config, envio)
    ▼                                                   │
  Vercel — projeto instagram-ai-agent  ◄────────────────┘
-   ├─ grava lead, mensagem e contadores ──► Upstash Redis (banco)
+   ├─ grava lead, mensagem e contadores ──► Redis (Redis Cloud ou Upstash)
    ├─ boas-vindas (1ª mensagem do lead)
    ├─ IA (Claude) gera a resposta com a base de produtos ──► api.anthropic.com
    ├─ cliente pede humano: pausa a IA e avisa ──► WhatsApp (Evolution API)
@@ -50,7 +50,7 @@ servidor `sandro@ConfianzaThechnologies`, **um bloco por vez**.
 - A Meta avisa cada DM e cada comentário no endereço `/api/webhook`.
 - O agente responde **200 na hora** e processa em segundo plano (a Meta não
   reenvia por demora).
-- Tudo fica registrado no banco (Upstash Redis): leads, conversas, comentários
+- Tudo fica registrado no banco (Redis): leads, conversas, comentários
   e contadores por dia — é o que o painel mostra.
 - As configurações do painel (instruções da IA, boas-vindas, respostas de
   comentários) ficam no banco e valem na hora, **sem novo deploy**.
@@ -158,16 +158,26 @@ A saída **tem** que mostrar `Linked ... /instagram-ai-agent`.
 > Se aparecer `confiancafacilities`, apague a ligação com
 > `rm -rf .vercel .env.local` e repita o C.2.
 
-### C.3 Criar o banco de dados (Upstash Redis)
+### C.3 Criar o banco de dados (Redis)
+
+O agente aceita dois tipos de Redis — use o que estiver disponível na Vercel:
+
+- **Redis** (Redis Cloud, do fornecedor "Redis"): cria a variável `REDIS_URL`.
+- **Upstash for Redis**: cria `KV_REST_API_URL`/`KV_REST_API_TOKEN` (ou
+  `UPSTASH_REDIS_REST_URL`/`..._TOKEN`).
 
 1. vercel.com → projeto **instagram-ai-agent** → aba **Storage** →
-   **Create Database** (ou *Browse Marketplace*) → **Upstash → Redis**.
-2. Região: a mais próxima disponível (ex.: `São Paulo` ou `Washington, D.C.`);
-   plano **Free**.
-3. **Connect Project** → `instagram-ai-agent` → ambientes **Production**
-   (pode marcar os outros também).
-4. A Vercel cria sozinha as variáveis `KV_REST_API_URL` e `KV_REST_API_TOKEN`
-   (ou `UPSTASH_REDIS_REST_URL`/`..._TOKEN`). O agente aceita os dois nomes.
+   **Create Database**.
+2. Escolha **Redis** (ou **Upstash → Upstash for Redis**), plano **Free**,
+   região mais próxima disponível.
+3. Na tela **Connect Project**: `instagram-ai-agent`, ambiente **Production**
+   → **Connect**. A Vercel grava a variável do banco sozinha — não copie nem
+   cole o endereço em lugar nenhum (ele contém a senha do banco).
+4. Confira com `vercel env ls` (aparece `REDIS_URL` ou `KV_REST_API_URL`) e
+   rode `vercel --prod`.
+
+> Se a senha do banco vazar (ex.: colada numa conversa), troque-a no painel do
+> Redis Cloud (**Security → Reset password**) e reconecte o banco ao projeto.
 
 ### C.4 Cadastrar as variáveis de ambiente
 
@@ -487,7 +497,7 @@ vercel --prod
 
 ### Backup
 
-Os dados ficam no Upstash (painel da Upstash tem backup/export). Os leads podem
+Os dados ficam no Redis (o painel do Redis Cloud/Upstash tem backup/export). Os leads podem
 ser exportados a qualquer momento em **Leads → Exportar CSV**.
 
 ---
@@ -509,7 +519,8 @@ ser exportados a qualquer momento em **Leads → Exportar CSV**.
 | `IA 401: invalid x-api-key` | Chave da Anthropic errada (ex.: colou o token do Instagram no lugar) | Recadastrar `ANTHROPIC_API_KEY` (≈108 caracteres, `sk-ant-`) e `vercel --prod` |
 | Comentários não chegam | Campo `comments` não assinado ou falta permissão de comentários | E.2 e A.2 |
 | Erro `Direct:` num comentário | Resposta privada já usada para esse comentário, ou comentário com mais de 7 dias | Limite da Meta; responder pela aba Conversas quando a pessoa mandar DM |
-| Painel mostra "Falta configurar: banco de dados" | Upstash não conectado ao projeto | C.3 e `vercel --prod` |
+| Painel mostra "Falta configurar: banco de dados" / `hasDatabase:false` | Redis não conectado ao projeto, ou faltou `vercel --prod` | C.3 e `vercel --prod` |
+| Auditoria: `Redis (REDIS_URL): ...` | Endereço/senha do Redis Cloud inválidos ou banco pausado | Reconectar o banco em Storage; conferir no painel do Redis Cloud |
 | Login do painel: "Cadastre DASHBOARD_PASSWORD" | Variável ausente | C.4 e `vercel --prod` |
 | Cliente pediu humano mas o WhatsApp não chegou | Evolution incompleta, chave errada ou instância desconectada | Auditoria (item 10); **Enviar teste no WhatsApp**; conferir `EVOLUTION_API_KEY` + `vercel --prod`. O motivo aparece na Movimentação |
 | IA não cita um produto | Produto não cadastrado ou não salvo | Configurações → Produtos → Salvar; testar no Simulador do Direct |
@@ -533,7 +544,7 @@ instagram-ai-agent/
 ├── lib/agent.js       Regras: leads, boas-vindas, IA, pausa, comentários
 ├── lib/ai.js          Chamada à IA (Anthropic ou OpenAI), prompt do sistema
 ├── lib/instagram.js   Graph API do Instagram (enviar, perfil, comentários, token)
-├── lib/store.js       Banco Upstash Redis (leads, mensagens, estatísticas, config)
+├── lib/store.js       Banco Redis — REDIS_URL (TCP) ou Upstash (REST)
 ├── lib/auth.js        Login do painel (cookie assinado, 7 dias)
 ├── lib/audit.js       Auditoria técnica com correção automática
 ├── lib/whatsapp.js    Aviso de escalação via Evolution API
@@ -543,7 +554,7 @@ instagram-ai-agent/
 └── vercel.json        Funções, pasta pública, cabeçalhos de segurança, cron
 ```
 
-### Dados no banco (Upstash Redis)
+### Dados no banco (Redis)
 
 | Chave | Conteúdo |
 |---|---|
@@ -577,3 +588,6 @@ instagram-ai-agent/
 ```bash
 cd ~/atendeflow/instagram-ai-agent && npm install && npm test
 ```
+
+Com um Redis local, testa também a conexão por `REDIS_URL`:
+`TEST_REDIS_URL=redis://127.0.0.1:6379 npm test`.

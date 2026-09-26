@@ -28,10 +28,10 @@ export const runAudit = async ({ autoFix = true } = {}) => {
   // 2. Banco
   let config = null;
   try {
-    if (!hasStore()) throw new Error("Upstash Redis não conectado ao projeto");
+    if (!hasStore()) throw new Error("Redis não conectado ao projeto (Vercel → Storage)");
     await pipeline([["PING"]]);
     config = await getConfig();
-    add("Banco de dados", "ok", "Upstash Redis respondendo");
+    add("Banco de dados", "ok", "Redis respondendo");
   } catch (error) {
     add("Banco de dados", "fail", error.message);
   }
