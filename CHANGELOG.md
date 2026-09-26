@@ -14,6 +14,9 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)
   transferência para atendente humano).
 - A IA só responde em ticket sem fila e sem atendente, como no WhatsApp.
   No Instagram/Messenger a resposta é sempre em texto.
+- Suporte a token da "API do Instagram com login do Instagram"
+  (`IGAA...`), que só funciona no `graph.instagram.com` — antes todo
+  envio ia para o `graph.facebook.com` e falhava com esse token.
 - Migração nova: `MetaConnections.promptId`. Conexões Meta existentes
   precisam ser editadas e salvas com o prompt escolhido.
 

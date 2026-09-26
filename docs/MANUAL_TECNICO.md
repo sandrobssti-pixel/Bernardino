@@ -5125,6 +5125,24 @@ segue para fluxo/filas/chatbot.
   (`ERR_META_CONNECTION_INVALID_PROMPT`).
 - Frontend: campo "Agente de IA" em `MetaConnectionModal`.
 
+### Token do Instagram (IGAA...) x token de Página (EAA...)
+
+A Meta tem duas formas de ligar o Instagram:
+
+- **Via Página do Facebook** (token de Página, começa com `EAA`): usa o
+  `graph.facebook.com`.
+- **"API do Instagram com login do Instagram"** (token começa com `IG`,
+  ex.: `IGAA...`): só funciona no `graph.instagram.com`.
+
+O `graphAPI.ts` escolhe o host pelo prefixo do token
+(`isInstagramLoginToken`), então os dois tipos funcionam colados no
+campo **Page Access Token** da conexão Meta. Com token `IGAA`, o campo
+**Instagram Business Account ID** é o ID da conta profissional do
+Instagram, o **App Secret** é a "Chave secreta do app do Instagram" e o
+nome do contato vem de `name`/`username` do perfil. Também corrigido:
+`profilePsid` não devolvia o perfil quando caía no fallback
+(`getProfile`), o que deixava o contato sem dados.
+
 ### Deploy
 
 Rodar as migrações (`npm run db:migrate`) e, depois, editar/salvar cada

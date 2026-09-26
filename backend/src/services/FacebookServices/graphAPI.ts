@@ -5,11 +5,22 @@ import logger from "../../utils/logger";
 
 const formData: FormData = new FormData();
 
+// Token da "API do Instagram com login do Instagram" (começa com "IG", ex.:
+// IGAA...) só funciona no graph.instagram.com; token de Página (EAA...) usa
+// o graph.facebook.com. Ver docs/MANUAL_TECNICO.md, seção 68.
+export const isInstagramLoginToken = (token: string): boolean =>
+  /^IG/.test(String(token || "").trim());
+
+const graphBaseUrl = (token: string): string =>
+  isInstagramLoginToken(token)
+    ? "https://graph.instagram.com/v21.0/"
+    : "https://graph.facebook.com/v18.0/";
+
 const apiBase = (token: string) =>
   axios.create({
-    baseURL: "https://graph.facebook.com/v18.0/",
+    baseURL: graphBaseUrl(token),
     params: {
-      access_token: token
+      access_token: String(token || "").trim()
     }
   });
 
@@ -156,8 +167,10 @@ export const getProfile = async (id: string, token: string): Promise<any> => {
     // Tenta buscar alguns campos básicos do perfil do usuário do Messenger
     const { data } = await apiBase(token).get(`${id}`, {
       params: {
-        // Campos mais comuns permitidos para Messenger
-        fields: "first_name,last_name,name,profile_pic"
+        // Campos mais comuns permitidos para Messenger / Instagram
+        fields: isInstagramLoginToken(token)
+          ? "name,username,profile_pic"
+          : "first_name,last_name,name,profile_pic"
       }
     });
 
@@ -233,14 +246,17 @@ export const getPageProfile = async (
 };
 
 export const profilePsid = async (id: string, token: string): Promise<any> => {
+  if (isInstagramLoginToken(token)) {
+    // graph.instagram.com não devolve campos sem "fields".
+    return getProfile(id, token);
+  }
+
   try {
-    const { data } = await axios.get(
-      `https://graph.facebook.com/v18.0/${id}?access_token=${token}`
-    );
+    const { data } = await apiBase(token).get(`${id}`);
     return data;
   } catch (error) {
     console.log(error);
-    await getProfile(id, token);
+    return getProfile(id, token);
   }
 };
 

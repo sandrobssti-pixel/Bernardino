@@ -92,7 +92,11 @@ const verifyContact = async (msgContact: any, token: any, companyId: any) => {
   if (!msgContact) return null;
 
   const contactData = {
-    name: msgContact?.name || `${msgContact?.first_name} ${msgContact?.last_name}`,
+    name:
+      msgContact?.name ||
+      (msgContact?.first_name
+        ? `${msgContact.first_name} ${msgContact?.last_name || ""}`.trim()
+        : msgContact?.username || msgContact.id),
     number: msgContact.id,
     profilePicUrl: msgContact.profile_pic,
     isGroup: false,
