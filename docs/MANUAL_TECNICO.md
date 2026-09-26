@@ -5147,3 +5147,15 @@ nome do contato vem de `name`/`username` do perfil. Também corrigido:
 
 Rodar as migrações (`npm run db:migrate`) e, depois, editar/salvar cada
 conexão Meta que deve usar a IA.
+
+### Webhook passando pela Vercel (opcional)
+
+A pedido do cliente, o endereço cadastrado no painel da Meta pode ficar na
+Vercel: a pasta `vercel-meta-webhook/` é um projeto só com `vercel.json`
+que repassa (rewrite externo) `GET`/`POST` de
+`https://<projeto>.vercel.app/api/webhook/<ID>` para
+`https://api.confiancatechnologies.com/webhook/meta/<ID>`. O Verify Token
+continua sendo o da conexão no AtendeFlow. É um projeto separado do
+`confiancafacilities` (o código daquele app não está no repositório), para
+não substituir o site existente. Publicar com `vercel --prod` de dentro da
+pasta.
