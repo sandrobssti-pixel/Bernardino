@@ -1,0 +1,16 @@
+{
+  "name": "instagram-ai-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agente de IA do Instagram Direct (Vercel, sem dependências)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.9.9"
+  }
+}
