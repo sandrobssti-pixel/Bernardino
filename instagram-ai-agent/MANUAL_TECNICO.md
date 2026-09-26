@@ -431,9 +431,18 @@ Esperado: `POST /api/webhook 200` e `[AGENT] respondeu ...`.
 Enquanto o app estiver em desenvolvimento, **só testadores** são atendidos.
 Para atender qualquer pessoa:
 
-1. **Configurações do app → Básico**: URL da política de privacidade, ícone
-   1024×1024, categoria, e-mail. (A política pode ser uma página no site
-   `site.confiancatechnologies.com`.)
+1. **Configurações do app → Básico**:
+   - **URL da Política de Privacidade**:
+     `https://instagram-ai-agent-omega.vercel.app/privacidade`
+   - **URL de instruções de exclusão de dados** (em "Exclusão de dados do
+     usuário", escolha *URL de instruções*):
+     `https://instagram-ai-agent-omega.vercel.app/exclusao-de-dados`
+   - Ícone 1024×1024, categoria (*Negócios e páginas*), e-mail de contato
+     `confianzatechnologies.pry@gmail.com`.
+
+   As duas páginas estão em português e espanhol (idioma automático pelo
+   navegador; `?lang=es` força espanhol) e descrevem exatamente o que o agente
+   faz com os dados. Revise o texto antes de enviar — não é assessoria jurídica.
 2. **Análise do app (App Review)**: solicite *Acesso avançado* para
    `instagram_business_manage_messages` e `instagram_business_manage_comments`,
    com vídeo curto mostrando o agente respondendo uma DM e um comentário, e
@@ -455,6 +464,14 @@ O prazo da análise é da Meta (normalmente alguns dias).
 | **Configurações** | Agente e modelos, produtos, escalação, boas-vindas, comentários e regras, testes sem envio, simulador, auditoria, status e token |
 
 Tema claro/escuro: botão da lua no canto da barra lateral.
+
+**Pedido de exclusão de dados** (LGPD / política de privacidade): se o cliente
+escrever no Direct algo como *"quero excluir meus dados"* / *"quiero eliminar
+mis datos"*, o agente confirma o recebimento, pausa a IA, anota no lead e
+registra **Exclusão de dados** na Movimentação (e avisa no WhatsApp, se a
+escalação estiver configurada). Para cumprir: **Conversas →** cliente →
+**Excluir dados** — apaga o lead, a conversa e os comentários dele. Prazo
+prometido na página pública: **até 15 dias**.
 
 **Desligar a IA rapidamente**: Configurações → desmarque *IA responde...* →
 Salvar. (Desligar tudo, inclusive comentários: variável `AGENT_ENABLED=false`
@@ -540,7 +557,7 @@ instagram-ai-agent/
 ├── api/admin.js       API do painel (?r=session|login|logout|overview|leads|
 │                      conversation|comments|config|lead|send|export|refresh-token|
 │                      audit|dry-run|simulate-comment|simulate-dm|extract-url|
-│                      test-whatsapp)
+│                      test-whatsapp|delete-lead)
 ├── lib/agent.js       Regras: leads, boas-vindas, IA, pausa, comentários
 ├── lib/ai.js          Chamada à IA (Anthropic ou OpenAI), prompt do sistema
 ├── lib/instagram.js   Graph API do Instagram (enviar, perfil, comentários, token)
@@ -549,7 +566,8 @@ instagram-ai-agent/
 ├── lib/audit.js       Auditoria técnica com correção automática
 ├── lib/whatsapp.js    Aviso de escalação via Evolution API
 ├── lib/extract.js     Leitura de título/descrição/preço de um link de produto
-├── public/            Painel (index.html, app.css, app.js)
+├── public/            Painel (index.html, app.css, app.js) e páginas públicas
+│                      privacidade.html / exclusao-de-dados.html (PT/ES)
 ├── test/              Testes (npm test)
 └── vercel.json        Funções, pasta pública, cabeçalhos de segurança, cron
 ```

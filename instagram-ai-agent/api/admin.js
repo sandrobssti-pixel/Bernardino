@@ -11,6 +11,7 @@ import { getMediaComments, getRecentMedia, refreshAccessToken } from "../lib/ins
 import {
   accessToken,
   countLeads,
+  deleteLeadData,
   getComments,
   getConfig,
   getFeed,
@@ -178,6 +179,8 @@ export async function POST(request) {
         return json({ config: await saveConfig(body.config || {}) });
       case "refresh-token":
         return json({ ok: true, token: tokenStatus(await refreshToken()) });
+      case "delete-lead":
+        return json({ ok: true, ...(await deleteLeadData(String(body.id || ""))) });
       case "simulate-comment": {
         // Mostra o que o agente responderia a um comentário, sem enviar.
         const config = await getConfig();

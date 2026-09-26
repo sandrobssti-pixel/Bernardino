@@ -20,7 +20,8 @@ const BY = {
   "boas-vindas": ["Boas-vindas", "ia"],
   comentario: ["Direct do comentário", "ia"],
   equipe: ["Equipe", "team"],
-  escalacao: ["Escalação", "bad"]
+  escalacao: ["Escalação", "bad"],
+  sistema: ["Sistema", "warn"]
 };
 
 const state = { tab: "overview", leads: [], currentLead: null, config: null, overviewTimer: null };
@@ -309,7 +310,7 @@ const renderFeed = feed => {
   $("#feed").innerHTML = feed
     .map(item => {
       const isComment = item.kind === "comment";
-      const [label, cls] = isComment ? ["Comentário", "warn"] : item.kind === "escalation" ? ["Pediu humano", "bad"] : item.kind === "test" ? ["Teste da Meta", "team"] : BY[item.by] || [item.by, ""];
+      const [label, cls] = isComment ? ["Comentário", "warn"] : item.kind === "escalation" ? ["Pediu humano", "bad"] : item.kind === "test" ? ["Teste da Meta", "team"] : item.kind === "deletion" ? ["Exclusão de dados", "bad"] : BY[item.by] || [item.by, ""];
       const who = item.kind === "test" ? "Meta" : item.leadLabel || (item.username ? `@${item.username}` : "cliente");
       const arrow = item.direction === "in" ? "" : "→ ";
       return `<li>
@@ -368,6 +369,7 @@ const openConversation = async id => {
           <div class="muted">${[lead.name, SOURCE[lead.source] || lead.source, lead.phone, lead.email].filter(Boolean).map(esc).join(" · ")}</div></div>
         <label class="switch" style="margin:0"><input type="checkbox" id="aiToggle" ${lead.aiPaused ? "" : "checked"}><span></span>IA ativa</label>
         ${lead.username ? `<a class="btn btn-ghost btn-sm" href="https://ig.me/m/${encodeURIComponent(lead.username)}" target="_blank" rel="noopener">Abrir no Instagram</a>` : ""}
+        <button id="deleteLead" class="btn btn-ghost btn-sm" type="button" title="Apaga o lead, a conversa e os comentários dele (pedido de exclusão de dados)">Excluir dados</button>
       </div>
       <div class="bubbles" id="bubbles">${
         messages.length
@@ -385,6 +387,19 @@ const openConversation = async id => {
       </form>`;
     const bubbles = $("#bubbles");
     bubbles.scrollTop = bubbles.scrollHeight;
+
+    $("#deleteLead").addEventListener("click", async () => {
+      if (!confirm(`Apagar TODOS os dados de ${leadLabel(lead)} (lead, conversa e comentários)? Não dá para desfazer.`)) return;
+      try {
+        await api("delete-lead", { method: "POST", body: { id } });
+        toast("Dados do lead apagados");
+        state.currentLead = null;
+        $("#thread").innerHTML = `<p class="empty">Dados apagados.</p>`;
+        loadConversations();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
 
     $("#aiToggle").addEventListener("change", async event => {
       try {

@@ -159,6 +159,13 @@ export const handleMessagingEvent = async event => {
 
   const config = await getConfig();
 
+  // Pedido de exclusão de dados (prometido na página /exclusao-de-dados):
+  // confirma ao cliente, pausa a IA, registra e avisa a equipe.
+  if (isDataDeletionRequest(text)) {
+    await handleDataDeletionRequest({ leadId: senderId, lead, text, config });
+    return;
+  }
+
   if (upserted.isNew && config.welcome.enabled && config.welcome.text.trim()) {
     await sendAndLog({ leadId: senderId, text: fillTemplate(config.welcome.text, lead), by: "boas-vindas" });
   }
@@ -238,6 +245,45 @@ const replyWithAI = async ({ leadId, message, useStoreHistory, config }) => {
   await sendAndLog({ leadId, text: reply, by: wantsHuman ? "escalacao" : "ia" });
   if (wantsHuman) await escalate({ leadId, config, reason: "pedido identificado pela IA" });
   console.log(`[AGENT] respondeu ${leadId} (${reply.length} caracteres)${wantsHuman ? " + escalação" : ""}`);
+};
+
+const DELETION_PATTERNS = [
+  /(excluir|apagar|deletar|remover|eliminar)\s+(os\s+|todos\s+os\s+)?meus\s+dados/,
+  /(eliminar|borrar|suprimir)\s+(todos\s+)?mis\s+datos/,
+  /exclus[aã]o\s+(dos\s+)?(meus\s+)?dados/,
+  /eliminaci[oó]n\s+de\s+(mis\s+)?datos/
+];
+
+export const isDataDeletionRequest = text => {
+  const normalized = String(text || "").toLowerCase();
+  return DELETION_PATTERNS.some(pattern => pattern.test(normalized));
+};
+
+const handleDataDeletionRequest = async ({ leadId, lead, text, config }) => {
+  const spanish = /\b(mis|datos|eliminaci[oó]n|borrar|quiero)\b/i.test(text) && !/\b(meus|dados|quero)\b/i.test(text);
+  const reply = spanish
+    ? "Recibimos su solicitud de eliminación de datos. Una persona de nuestro equipo la confirmará por aquí y la completaremos en un plazo de hasta 15 días."
+    : "Recebemos seu pedido de exclusão de dados. Uma pessoa da nossa equipe vai confirmar por aqui e concluímos em até 15 dias.";
+  await sendAndLog({ leadId, text: reply, by: "sistema" });
+  await updateLead(leadId, { aiPaused: true, status: "em_contato", notes: [lead?.notes, `Pediu exclusão de dados em ${new Date().toLocaleDateString("pt-BR")}`].filter(Boolean).join("\n") });
+
+  let notice = "";
+  if (config?.escalation?.enabled && evolutionConfigured(config.escalation)) {
+    try {
+      const who = lead?.username ? `@${lead.username}` : leadId;
+      await sendWhatsApp(config.escalation, `🗑️ *Instagram: pedido de exclusão de dados*\nCliente: ${who}\nPrazo: até 15 dias.\nNo painel: Conversas → ${who} → Excluir dados.`);
+      notice = " Aviso enviado no WhatsApp.";
+    } catch (error) {
+      notice = ` WhatsApp falhou: ${error.message}`;
+    }
+  }
+  await logFeed({
+    kind: "deletion",
+    leadId,
+    direction: "in",
+    by: "cliente",
+    text: `Pediu exclusão de dados — confirme e use "Excluir dados" na conversa (prazo 15 dias).${notice}`
+  });
 };
 
 export const aiOverrides = config => ({

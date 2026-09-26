@@ -396,3 +396,29 @@ export const getStats = async (days = 14) => {
 };
 
 export const countLeads = async () => Number(await one(["ZCARD", "leads"])) || 0;
+
+// Exclusão de dados a pedido do cliente (LGPD / política de privacidade):
+// apaga o lead, a conversa e tira os eventos e comentários dele das listas.
+const rewriteList = async (key, keep) => {
+  const items = (await one(["LRANGE", key, 0, -1])) || [];
+  const kept = items.filter(raw => keep(parse(raw)));
+  if (kept.length === items.length) return 0;
+  await pipeline([["DEL", key], ...(kept.length ? [["RPUSH", key, ...kept]] : [])]);
+  return items.length - kept.length;
+};
+
+export const deleteLeadData = async id => {
+  const lead = await getLead(id);
+  const username = lead?.username || "";
+  await pipeline([
+    ["DEL", `lead:${id}`],
+    ["DEL", `msgs:${id}`],
+    ["ZREM", "leads", id]
+  ]);
+  const feedRemoved = await rewriteList("feed", item => item?.leadId !== id);
+  const commentsRemoved = await rewriteList(
+    "comments",
+    item => item?.leadId !== id && !(username && item?.username === username)
+  );
+  return { deleted: Boolean(lead), feedRemoved, commentsRemoved };
+};

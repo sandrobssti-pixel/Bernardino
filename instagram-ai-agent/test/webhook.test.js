@@ -36,7 +36,10 @@ const redis = cmd => {
     case "ZREVRANGE": return [...(get() || new Map()).entries()].sort((x, y) => y[1] - x[1]).map(e => e[0]).slice(Number(a[0]), Number(a[1]) + 1);
     case "LPUSH": { const l = get() || []; l.unshift(String(a[0])); db.set(key, l); return l.length; }
     case "LTRIM": { const l = get() || []; db.set(key, l.slice(Number(a[0]), Number(a[1]) + 1)); return "OK"; }
-    case "LRANGE": return (get() || []).slice(Number(a[0]), Number(a[1]) + 1);
+    case "LRANGE": { const l = get() || []; const end = Number(a[1]) < 0 ? l.length + Number(a[1]) : Number(a[1]); return l.slice(Number(a[0]), end + 1); }
+    case "RPUSH": { const l = get() || []; l.push(...a.map(String)); db.set(key, l); return l.length; }
+    case "DEL": { const had = db.has(key); db.delete(key); return had ? 1 : 0; }
+    case "ZREM": { const z = get(); if (z) z.delete(String(a[0])); return 1; }
     case "HINCRBY": { const h = get() || {}; h[a[0]] = (h[a[0]] || 0) + Number(a[1]); db.set(key, h); return h[a[0]]; }
     case "HGETALL": return Object.entries(get() || {}).flat().map(String);
     default: throw new Error(`comando não suportado no teste: ${op}`);
@@ -394,4 +397,35 @@ test("DM real no formato changes também é processada", async () => {
   await new Promise(r => setTimeout(r, 50));
   assert.equal(aiCalls().length, 1);
   assert.ok(db.get("lead:cliente"));
+});
+
+test("exclusão de dados: apaga lead, conversa, eventos e comentários só daquele cliente", async () => {
+  saveConfig({ ...DEFAULT_CONFIG, comments: { ...DEFAULT_CONFIG.comments, enabled: true, onlyKeywords: false } });
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "d1", text: "oi" } });
+  await handleCommentChange({ id: "cc1", text: "top", from: { id: "cliente", username: "maria.silva" } }, "loja");
+  await handleCommentChange({ id: "cc2", text: "legal", from: { id: "outro", username: "outro" } }, "loja");
+  const cookie = await login();
+  const res = await admin.POST(new Request("https://x/api/admin?r=delete-lead", { method: "POST", headers: { cookie }, body: JSON.stringify({ id: "cliente" }) }));
+  const out = await res.json();
+  assert.equal(out.deleted, true);
+  assert.equal(db.get("lead:cliente"), undefined);
+  assert.equal(db.get("msgs:cliente"), undefined);
+  assert.ok(!db.get("leads").has("cliente"));
+  assert.ok((db.get("feed") || []).map(JSON.parse).every(item => item.leadId !== "cliente"));
+  const comments = db.get("comments").map(JSON.parse);
+  assert.deepEqual(comments.map(c => c.id), ["cc2"]);
+  assert.ok(db.get("lead:outro"));
+});
+
+test("pedido de exclusão pelo Direct (PT e ES): confirma, pausa a IA e registra", async () => {
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "x1", text: "Oi, quero excluir meus dados" } });
+  assert.equal(aiCalls().length, 0);
+  assert.match(sentTexts()[0], /Recebemos seu pedido de exclusão/);
+  const lead = JSON.parse(db.get("lead:cliente"));
+  assert.equal(lead.aiPaused, true);
+  assert.match(lead.notes, /exclusão de dados/);
+  assert.equal(db.get("feed").map(JSON.parse)[0].kind, "deletion");
+  calls = [];
+  await handleMessagingEvent({ sender: { id: "otro" }, ownId: "loja", message: { mid: "x2", text: "Hola, quiero eliminar mis datos" } });
+  assert.match(sentTexts()[0], /Recibimos su solicitud/);
 });

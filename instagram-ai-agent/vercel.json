@@ -35,5 +35,6 @@
       "path": "/api/admin?r=refresh-token",
       "schedule": "0 12 * * 1"
     }
-  ]
+  ],
+  "cleanUrls": true
 }
