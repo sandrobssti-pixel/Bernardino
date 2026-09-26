@@ -1,0 +1,598 @@
+// Painel do agente de IA do Instagram — Confianza Technologies.
+
+const $ = selector => document.querySelector(selector);
+const $$ = selector => [...document.querySelectorAll(selector)];
+
+const esc = value =>
+  String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+const STATUS = [
+  ["novo", "Novo"],
+  ["em_contato", "Em contato"],
+  ["qualificado", "Qualificado"],
+  ["convertido", "Convertido"],
+  ["perdido", "Perdido"]
+];
+const SOURCE = { dm: "Direct", comentario: "Comentário" };
+const BY = {
+  cliente: ["Cliente", "in"],
+  ia: ["IA", "ia"],
+  "boas-vindas": ["Boas-vindas", "ia"],
+  comentario: ["Direct do comentário", "ia"],
+  equipe: ["Equipe", "team"]
+};
+
+const state = { tab: "overview", leads: [], currentLead: null, config: null, overviewTimer: null };
+
+// ---------------- util ----------------
+
+const fmtNum = n => new Intl.NumberFormat("pt-BR").format(n || 0);
+const fmtTime = ms => {
+  const d = new Date(ms);
+  const today = new Date();
+  const sameDay = d.toDateString() === today.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+};
+const fmtDay = key => {
+  const [, m, d] = key.split("-");
+  return `${d}/${m}`;
+};
+const leadLabel = lead => (lead?.username ? `@${lead.username}` : lead?.name || `ID ${String(lead?.id || "").slice(-6)}`);
+const initials = lead => (lead?.name || lead?.username || "?").replace(/^@/, "").slice(0, 1).toUpperCase();
+const avatar = lead =>
+  lead?.profilePic
+    ? `<img class="avatar" src="${esc(lead.profilePic)}" alt="" loading="lazy" referrerpolicy="no-referrer" data-initial="${esc(initials(lead))}">`
+    : `<span class="avatar">${esc(initials(lead))}</span>`;
+
+// Foto de perfil expirada (links do Instagram vencem): mostra a inicial.
+document.addEventListener(
+  "error",
+  event => {
+    const img = event.target;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains("avatar")) return;
+    const span = document.createElement("span");
+    span.className = "avatar";
+    span.textContent = img.dataset.initial || "?";
+    img.replaceWith(span);
+  },
+  true
+);
+
+const toast = message => {
+  const el = $("#toast");
+  el.textContent = message;
+  el.hidden = false;
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => (el.hidden = true), 3200);
+};
+
+const api = async (route, { method = "GET", body } = {}) => {
+  const response = await fetch(`/api/admin?r=${route}`, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "same-origin"
+  });
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401 && route !== "login") {
+    showLogin();
+    throw new Error("Sessão expirada");
+  }
+  if (!response.ok) {
+    const error = new Error(data.error || `Erro ${response.status}`);
+    error.data = data;
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+};
+
+// ---------------- tema ----------------
+
+const storage = {
+  get: key => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set: (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* sem armazenamento local */
+    }
+  }
+};
+
+const applyTheme = theme => {
+  if (theme) document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+};
+applyTheme(storage.get("theme"));
+$("#themeToggle").addEventListener("click", () => {
+  const isLight =
+    document.documentElement.dataset.theme === "light" ||
+    (!document.documentElement.dataset.theme && matchMedia("(prefers-color-scheme: light)").matches);
+  const next = isLight ? "dark" : "light";
+  applyTheme(next);
+  storage.set("theme", next);
+  if (state.tab === "overview" && state.stats) renderChart(state.stats);
+});
+
+// ---------------- login ----------------
+
+const showLogin = () => {
+  $("#app").hidden = true;
+  $("#login").hidden = false;
+  clearInterval(state.overviewTimer);
+  $("#loginPassword").focus();
+};
+
+$("#loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  $("#loginError").textContent = "";
+  try {
+    await api("login", { method: "POST", body: { password: $("#loginPassword").value } });
+    $("#loginPassword").value = "";
+    startApp();
+  } catch (error) {
+    $("#loginError").textContent = error.message;
+  }
+});
+
+$("#logout").addEventListener("click", async () => {
+  await api("logout", { method: "POST" }).catch(() => {});
+  showLogin();
+});
+
+// ---------------- abas ----------------
+
+const openTab = tab => {
+  state.tab = tab;
+  $$(".tabs button").forEach(button => button.setAttribute("aria-selected", String(button.dataset.tab === tab)));
+  $$(".panel").forEach(panel => (panel.hidden = panel.id !== `tab-${tab}`));
+  storage.set("tab", tab);
+  ({ overview: loadOverview, conversations: loadConversations, leads: loadLeads, comments: loadComments, settings: loadSettings })[tab]?.();
+};
+$$(".tabs button").forEach(button => button.addEventListener("click", () => openTab(button.dataset.tab)));
+
+const handleLoadError = error => {
+  if (error.status === 503 && error.data?.setup) {
+    renderSetupBanner(error.data.setup);
+  } else if (error.message !== "Sessão expirada") {
+    toast(error.message);
+  }
+};
+
+const renderSetupBanner = setup => {
+  const missing = [];
+  if (!setup.hasDatabase) missing.push("banco de dados (Vercel → Storage → Upstash Redis → Connect)");
+  if (!setup.hasAccessToken) missing.push("IG_ACCESS_TOKEN");
+  if (!setup.hasVerifyToken) missing.push("VERIFY_TOKEN");
+  if (!setup.aiProvider) missing.push("ANTHROPIC_API_KEY ou OPENAI_API_KEY");
+  const banner = $("#setupBanner");
+  banner.hidden = !missing.length;
+  banner.innerHTML = missing.length
+    ? `<strong>Falta configurar:</strong> ${missing.map(esc).join(" · ")}. Depois rode <code>vercel --prod</code>.`
+    : "";
+};
+
+// ---------------- visão geral ----------------
+
+const sum = (rows, key) => rows.reduce((total, row) => total + (row[key] || 0), 0);
+
+const loadOverview = async () => {
+  try {
+    const data = await api("overview");
+    state.stats = data.stats;
+    renderSetupBanner(data.setup);
+    const today = data.stats[data.stats.length - 1] || {};
+    const week = data.stats.slice(-7);
+    const kpis = [
+      ["Leads hoje", today.leads, `${fmtNum(sum(week, "leads"))} em 7 dias`],
+      ["Total de leads", data.totalLeads, "desde o início"],
+      ["Mensagens recebidas", sum(week, "in"), `${fmtNum(today.in)} hoje`],
+      ["Respostas da IA", sum(week, "ai"), `${fmtNum(today.ai)} hoje`],
+      ["Comentários", sum(week, "comments"), `${fmtNum(today.comments)} hoje`]
+    ];
+    $("#kpis").innerHTML = kpis
+      .map(([label, value, sub], i) => `<div class="kpi"><div class="label">${label}${i > 1 ? " <span class='muted'>· 7 dias</span>" : ""}</div><div class="value">${fmtNum(value)}</div><div class="sub">${esc(sub)}</div></div>`)
+      .join("");
+    renderChart(data.stats);
+    renderChartTable(data.stats);
+    renderFeed(data.feed);
+    $("#lastUpdate").textContent = `atualizado ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+const renderChart = stats => {
+  // Largura real do container: texto do eixo não fica esticado no celular.
+  const W = Math.max(300, Math.round($("#chart").clientWidth || 760));
+  const H = 260;
+  const pad = { l: 34, r: 8, t: 12, b: 28 };
+  const max = Math.max(4, ...stats.map(s => Math.max(s.in, s.out)));
+  const step = Math.ceil(max / 4);
+  const top = step * 4;
+  const plotW = W - pad.l - pad.r;
+  const plotH = H - pad.t - pad.b;
+  const group = plotW / stats.length;
+  const barW = Math.max(4, Math.min(16, (group - 10) / 2));
+  const y = v => pad.t + plotH - (v / top) * plotH;
+
+  const bar = (x, value, cls) => {
+    if (!value) return "";
+    const h = Math.max(2, plotH - (y(value) - pad.t));
+    const yTop = pad.t + plotH - h;
+    const r = Math.min(4, barW / 2, h);
+    // topo arredondado, base reta apoiada na linha de base
+    return `<path class="${cls}" d="M${x},${yTop + h} V${yTop + r} Q${x},${yTop} ${x + r},${yTop} H${x + barW - r} Q${x + barW},${yTop} ${x + barW},${yTop + r} V${yTop + h} Z"/>`;
+  };
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mensagens recebidas e enviadas por dia, últimos 14 dias">`;
+  for (let i = 0; i <= 4; i++) {
+    const v = step * i;
+    svg += `<line class="gridline" x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}"/>`;
+    svg += `<text class="axis" x="${pad.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  }
+  stats.forEach((s, i) => {
+    const gx = pad.l + i * group;
+    const x1 = gx + group / 2 - barW - 1; // 2px de respiro entre as barras
+    const x2 = gx + group / 2 + 1;
+    svg += bar(x1, s.in, "bar-in") + bar(x2, s.out, "bar-out");
+    const every = group < 40 ? 3 : 2;
+    if ((stats.length - 1 - i) % every === 0) {
+      svg += `<text class="axis" x="${gx + group / 2}" y="${H - 8}" text-anchor="middle">${fmtDay(s.day)}</text>`;
+    }
+    svg += `<rect class="hit" data-i="${i}" x="${gx}" y="${pad.t}" width="${group}" height="${plotH}"/>`;
+  });
+  svg += "</svg>";
+  $("#chart").innerHTML = svg;
+
+  const tip = $("#tooltip");
+  $$("#chart .hit").forEach(rect => {
+    rect.addEventListener("mousemove", event => {
+      const s = stats[Number(rect.dataset.i)];
+      tip.innerHTML = `<div class="mono">${fmtDay(s.day)}</div>
+        <div><i class="sw sw-in"></i> Recebidas <b>${fmtNum(s.in)}</b></div>
+        <div><i class="sw sw-out"></i> Enviadas <b>${fmtNum(s.out)}</b></div>
+        <div class="muted">IA ${fmtNum(s.ai)} · leads ${fmtNum(s.leads)} · comentários ${fmtNum(s.comments)}</div>`;
+      tip.hidden = false;
+      const x = Math.min(event.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = `${x}px`;
+      tip.style.top = `${event.clientY + 14}px`;
+    });
+    rect.addEventListener("mouseleave", () => (tip.hidden = true));
+  });
+};
+
+const renderChartTable = stats => {
+  $("#chartTable").innerHTML = `<table class="table"><thead><tr><th>Dia</th><th>Recebidas</th><th>Enviadas</th><th>IA</th><th>Leads</th><th>Comentários</th></tr></thead><tbody>${[...stats]
+    .reverse()
+    .map(s => `<tr><td class="mono">${fmtDay(s.day)}</td><td class="num">${s.in}</td><td class="num">${s.out}</td><td class="num">${s.ai}</td><td class="num">${s.leads}</td><td class="num">${s.comments}</td></tr>`)
+    .join("")}</tbody></table>`;
+};
+
+$("#chartTableToggle").addEventListener("click", event => {
+  const showTable = event.currentTarget.getAttribute("aria-pressed") !== "true";
+  event.currentTarget.setAttribute("aria-pressed", String(showTable));
+  event.currentTarget.textContent = showTable ? "Ver gráfico" : "Ver tabela";
+  $("#chart").hidden = showTable;
+  $("#chartTable").hidden = !showTable;
+});
+
+const renderFeed = feed => {
+  if (!feed.length) {
+    $("#feed").innerHTML = `<li class="empty" style="display:block">Nenhuma movimentação ainda. Mande uma DM ou comente num post para testar.</li>`;
+    return;
+  }
+  $("#feed").innerHTML = feed
+    .map(item => {
+      const isComment = item.kind === "comment";
+      const [label, cls] = isComment ? ["Comentário", "warn"] : BY[item.by] || [item.by, ""];
+      const who = item.leadLabel || (item.username ? `@${item.username}` : "cliente");
+      const arrow = item.direction === "in" ? "" : "→ ";
+      return `<li>
+        <span class="tag ${cls}">${esc(label)}</span>
+        <div><span class="who">${esc(arrow + who)}</span> <span class="txt">${esc(String(item.text).slice(0, 400))}</span></div>
+        <time>${fmtTime(item.at)}</time></li>`;
+    })
+    .join("");
+};
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => state.tab === "overview" && state.stats && renderChart(state.stats), 150);
+});
+
+// ---------------- conversas ----------------
+
+const loadConversations = async () => {
+  try {
+    const { leads } = await api("leads");
+    state.leads = leads;
+    renderConvoList();
+    if (state.currentLead) openConversation(state.currentLead);
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+const renderConvoList = () => {
+  const q = $("#convoSearch").value.trim().toLowerCase();
+  const list = state.leads.filter(lead => !q || `${lead.username} ${lead.name}`.toLowerCase().includes(q));
+  $("#convoList").innerHTML = list.length
+    ? list
+        .map(
+          lead => `<li><button type="button" data-id="${esc(lead.id)}" aria-current="${lead.id === state.currentLead}">
+          ${avatar(lead)}
+          <span style="min-width:0"><span class="name"><span>${esc(leadLabel(lead))}</span><time class="muted mono" style="font-size:11px">${lead.lastAt ? fmtTime(lead.lastAt) : ""}</time></span>
+          <span class="last">${lead.lastDirection === "out" ? "Você: " : ""}${esc(lead.lastText || "")}</span></span></button></li>`
+        )
+        .join("")
+    : `<li class="empty">Nenhuma conversa ainda.</li>`;
+  $$("#convoList button").forEach(button => button.addEventListener("click", () => openConversation(button.dataset.id)));
+};
+$("#convoSearch").addEventListener("input", renderConvoList);
+
+const openConversation = async id => {
+  state.currentLead = id;
+  $$("#convoList button").forEach(button => button.setAttribute("aria-current", String(button.dataset.id === id)));
+  try {
+    const { lead, messages } = await api(`conversation&id=${encodeURIComponent(id)}`);
+    $("#thread").innerHTML = `
+      <div class="thread-head">
+        ${avatar(lead)}
+        <div class="grow"><strong>${esc(leadLabel(lead))}</strong>
+          <div class="muted">${[lead.name, SOURCE[lead.source] || lead.source, lead.phone, lead.email].filter(Boolean).map(esc).join(" · ")}</div></div>
+        <label class="switch" style="margin:0"><input type="checkbox" id="aiToggle" ${lead.aiPaused ? "" : "checked"}><span></span>IA ativa</label>
+        ${lead.username ? `<a class="btn btn-ghost btn-sm" href="https://ig.me/m/${encodeURIComponent(lead.username)}" target="_blank" rel="noopener">Abrir no Instagram</a>` : ""}
+      </div>
+      <div class="bubbles" id="bubbles">${
+        messages.length
+          ? messages
+              .map(m => {
+                const [label] = BY[m.by] || [m.by];
+                return `<div class="bubble ${m.direction === "in" ? "in" : "out"}">${esc(m.text)}<span class="meta">${m.direction === "in" ? "" : `${esc(label)} · `}${fmtTime(m.at)}</span></div>`;
+              })
+              .join("")
+          : `<p class="empty">Sem mensagens registradas.</p>`
+      }</div>
+      <form class="composer" id="composer">
+        <textarea id="composerText" rows="2" maxlength="1000" placeholder="Responder como equipe (a IA pausa nesta conversa)" required></textarea>
+        <button class="btn btn-primary" type="submit">Enviar</button>
+      </form>`;
+    const bubbles = $("#bubbles");
+    bubbles.scrollTop = bubbles.scrollHeight;
+
+    $("#aiToggle").addEventListener("change", async event => {
+      try {
+        await api("lead", { method: "POST", body: { id, patch: { aiPaused: !event.target.checked } } });
+        toast(event.target.checked ? "IA reativada nesta conversa" : "IA pausada nesta conversa");
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+
+    $("#composer").addEventListener("submit", async event => {
+      event.preventDefault();
+      const text = $("#composerText").value.trim();
+      if (!text) return;
+      const button = event.currentTarget.querySelector("button");
+      button.disabled = true;
+      try {
+        await api("send", { method: "POST", body: { id, text } });
+        toast("Mensagem enviada");
+        openConversation(id);
+      } catch (error) {
+        toast(`Não enviou: ${error.message}`);
+        button.disabled = false;
+      }
+    });
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+// ---------------- leads ----------------
+
+$("#leadStatus").innerHTML += STATUS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+
+const loadLeads = async () => {
+  try {
+    const { leads } = await api("leads");
+    state.leads = leads;
+    renderLeads();
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+const renderLeads = () => {
+  const q = $("#leadSearch").value.trim().toLowerCase();
+  const status = $("#leadStatus").value;
+  const source = $("#leadSource").value;
+  const list = state.leads.filter(
+    lead =>
+      (!q || `${lead.username} ${lead.name} ${lead.phone} ${lead.email}`.toLowerCase().includes(q)) &&
+      (!status || lead.status === status) &&
+      (!source || lead.source === source)
+  );
+  $("#leadTable").innerHTML = `<thead><tr><th>Lead</th><th>Origem</th><th>Status</th><th>Contato</th><th>Msgs</th><th>Primeiro contato</th><th>Último</th><th></th></tr></thead>
+    <tbody>${
+      list.length
+        ? list
+            .map(
+              lead => `<tr>
+          <td><div class="row">${avatar(lead)}<div><strong>${esc(leadLabel(lead))}</strong><div class="muted">${esc(lead.name || "")}</div></div></div></td>
+          <td><span class="tag">${esc(SOURCE[lead.source] || lead.source)}</span></td>
+          <td><select data-id="${esc(lead.id)}" aria-label="Status do lead">${STATUS.map(([v, l]) => `<option value="${v}" ${lead.status === v ? "selected" : ""}>${l}</option>`).join("")}</select></td>
+          <td>${esc(lead.phone || "")}${lead.phone && lead.email ? "<br>" : ""}${esc(lead.email || "")}</td>
+          <td class="num">${fmtNum(lead.messagesIn)}</td>
+          <td class="mono">${fmtTime(lead.firstAt)}</td>
+          <td class="mono">${fmtTime(lead.lastAt)}</td>
+          <td><button class="btn btn-ghost btn-sm" data-open="${esc(lead.id)}" type="button">Conversa</button></td></tr>`
+            )
+            .join("")
+        : `<tr><td colspan="8" class="empty">Nenhum lead encontrado.</td></tr>`
+    }</tbody>`;
+  $$("#leadTable select").forEach(select =>
+    select.addEventListener("change", async () => {
+      try {
+        await api("lead", { method: "POST", body: { id: select.dataset.id, patch: { status: select.value } } });
+        const lead = state.leads.find(item => item.id === select.dataset.id);
+        if (lead) lead.status = select.value;
+        toast("Status atualizado");
+      } catch (error) {
+        toast(error.message);
+      }
+    })
+  );
+  $$("#leadTable [data-open]").forEach(button =>
+    button.addEventListener("click", () => {
+      state.currentLead = button.dataset.open;
+      openTab("conversations");
+    })
+  );
+};
+["#leadSearch", "#leadStatus", "#leadSource"].forEach(sel => $(sel).addEventListener("input", renderLeads));
+
+// ---------------- comentários ----------------
+
+const loadComments = async () => {
+  try {
+    const { comments } = await api("comments");
+    $("#commentList").innerHTML = comments.length
+      ? comments
+          .map(
+            c => `<li>
+        <div class="row"><strong>${esc(c.username ? `@${c.username}` : "Alguém")}</strong>
+          ${c.newLead ? `<span class="tag ia">novo lead</span>` : ""}
+          ${c.rule ? `<span class="tag">regra: ${esc(c.rule)}</span>` : ""}
+          <time class="muted mono" style="margin-left:auto">${fmtTime(c.at)}</time></div>
+        <div>${esc(c.text)}</div>
+        ${c.publicReply ? `<div class="reply"><span class="muted">Resposta pública:</span> ${esc(c.publicReply)}</div>` : ""}
+        ${c.privateReply ? `<div class="reply dm"><span class="muted">Direct:</span> ${esc(c.privateReply)}</div>` : ""}
+        ${(c.errors || []).map(e => `<div><span class="tag bad">erro</span> <span class="muted">${esc(e)}</span></div>`).join("")}
+        ${!c.publicReply && !c.privateReply && !(c.errors || []).length ? `<div class="muted">Sem resposta automática (desligada nas Configurações).</div>` : ""}
+      </li>`
+          )
+          .join("")
+      : `<li class="empty">Nenhum comentário recebido ainda. Na Meta, assine o campo <code>comments</code> do webhook.</li>`;
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+// ---------------- configurações ----------------
+
+const getPath = (obj, path) => path.split(".").reduce((o, k) => o?.[k], obj);
+const setPath = (obj, path, value) => {
+  const keys = path.split(".");
+  let o = obj;
+  keys.slice(0, -1).forEach(k => (o = o[k] = o[k] || {}));
+  o[keys[keys.length - 1]] = value;
+};
+
+const ruleTemplate = (rule = {}) => `<div class="rule">
+  <div class="rule-head"><strong>Regra</strong><button type="button" class="btn btn-ghost btn-sm" data-remove>Remover</button></div>
+  <label class="field"><span>Palavras-chave</span><input data-k="keywords" value="${esc(rule.keywords || "")}" placeholder="preço, valor, quanto custa"></label>
+  <label class="field"><span>Resposta pública</span><textarea data-k="publicReply" rows="2">${esc(rule.publicReply || "")}</textarea></label>
+  <label class="field"><span>Mensagem no Direct</span><textarea data-k="privateReply" rows="2">${esc(rule.privateReply || "")}</textarea></label>
+</div>`;
+
+const bindRuleButtons = () =>
+  $$("#rules [data-remove]").forEach(button => (button.onclick = () => button.closest(".rule").remove()));
+
+$("#addRule").addEventListener("click", () => {
+  $("#rules").insertAdjacentHTML("beforeend", ruleTemplate());
+  bindRuleButtons();
+});
+
+const loadSettings = async () => {
+  try {
+    const { config, setup } = await api("config");
+    state.config = config;
+    renderSetupBanner(setup);
+    $$("#configForm [name]").forEach(input => {
+      const value = getPath(config, input.name);
+      if (input.type === "checkbox") input.checked = Boolean(value);
+      else input.value = value ?? "";
+    });
+    $("#rules").innerHTML = (config.comments.rules || []).map(ruleTemplate).join("");
+    bindRuleButtons();
+    const item = (ok, text) => `<li><span class="tag ${ok ? "team" : "bad"}">${ok ? "ok" : "falta"}</span> ${text}</li>`;
+    $("#setupList").innerHTML = `<h2>Status da instalação</h2><ul class="checklist">
+      ${item(setup.hasDatabase, "Banco de dados (Upstash Redis) conectado")}
+      ${item(setup.hasAccessToken, "Token do Instagram (IG_ACCESS_TOKEN)")}
+      ${item(setup.hasVerifyToken, "Verify Token do webhook (VERIFY_TOKEN)")}
+      ${item(Boolean(setup.aiProvider), `Chave da IA${setup.aiProvider ? ` (${esc(setup.aiProvider)})` : ""}`)}
+      ${item(setup.agentEnvEnabled, "Agente habilitado (AGENT_ENABLED)")}
+    </ul>
+    <h3>Token do Instagram</h3>
+    <p class="muted">O token vale 60 dias e é renovado automaticamente toda segunda-feira.
+      ${setup.token ? `Última renovação: <span class="mono">${fmtTime(setup.token.refreshedAt)}</span> · vence em <span class="mono">${new Date(setup.token.expiresAt).toLocaleDateString("pt-BR")}</span>.` : "Ainda não foi renovado por aqui (usa o da variável IG_ACCESS_TOKEN)."}</p>
+    <button id="refreshToken" class="btn btn-ghost btn-sm" type="button" style="margin-top:10px">Renovar token agora</button>`;
+    $("#refreshToken").addEventListener("click", async () => {
+      try {
+        await api("refresh-token", { method: "POST" });
+        toast("Token renovado por mais 60 dias");
+        loadSettings();
+      } catch (error) {
+        toast(error.message);
+      }
+    });
+  } catch (error) {
+    handleLoadError(error);
+  }
+};
+
+$("#saveConfig").addEventListener("click", async () => {
+  const config = structuredClone(state.config || {});
+  $$("#configForm [name]").forEach(input => setPath(config, input.name, input.type === "checkbox" ? input.checked : input.value));
+  config.comments.rules = $$("#rules .rule")
+    .map(rule => Object.fromEntries([...rule.querySelectorAll("[data-k]")].map(el => [el.dataset.k, el.value.trim()])))
+    .filter(rule => rule.keywords);
+  try {
+    const saved = await api("config", { method: "POST", body: { config } });
+    state.config = saved.config;
+    toast("Configurações salvas");
+  } catch (error) {
+    toast(error.message);
+  }
+});
+
+// ---------------- início ----------------
+
+const startApp = () => {
+  $("#login").hidden = true;
+  $("#app").hidden = false;
+  const saved = storage.get("tab");
+  openTab(["overview", "conversations", "leads", "comments", "settings"].includes(saved) ? saved : "overview");
+  clearInterval(state.overviewTimer);
+  state.overviewTimer = setInterval(() => {
+    if (document.hidden) return;
+    if (state.tab === "overview") loadOverview();
+    if (state.tab === "conversations" && state.currentLead) openConversation(state.currentLead);
+  }, 30000);
+};
+
+(async () => {
+  try {
+    const session = await api("session");
+    if (!session.passwordConfigured) {
+      $("#login").hidden = false;
+      $("#loginError").textContent = "Cadastre DASHBOARD_PASSWORD na Vercel (mínimo 6 caracteres) e rode vercel --prod.";
+      return;
+    }
+    session.authenticated ? startApp() : showLogin();
+  } catch {
+    showLogin();
+  }
+})();

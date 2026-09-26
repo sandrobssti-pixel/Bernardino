@@ -7,30 +7,69 @@ process.env.VERIFY_TOKEN = "segredo123";
 process.env.ANTHROPIC_API_KEY = "sk-test";
 process.env.AGENT_PROMPT = "Somos a Confianza.";
 process.env.BURST_WAIT_MS = "0";
+process.env.DASHBOARD_PASSWORD = "senha-forte";
+process.env.KV_REST_API_URL = "https://redis.test";
+process.env.KV_REST_API_TOKEN = "t";
 
-const { GET, POST, handleEvent } = await import("../api/webhook.js");
+const { GET, POST } = await import("../api/webhook.js");
+const admin = await import("../api/admin.js");
+const { handleMessagingEvent, handleCommentChange, pickCommentReplies } = await import("../lib/agent.js");
 const { splitMessage } = await import("../lib/instagram.js");
+const { DEFAULT_CONFIG } = await import("../lib/store.js");
+
+// ---------- Redis falso (subconjunto usado pelo agente) ----------
+let db;
+const redis = cmd => {
+  const [op, key, ...a] = cmd;
+  const get = () => db.get(key);
+  switch (op) {
+    case "GET": return get() ?? null;
+    case "SET":
+      if (a.includes("NX") && db.has(key)) return null;
+      db.set(key, String(a[0])); return "OK";
+    case "EXISTS": return db.has(key) ? 1 : 0;
+    case "EXPIRE": return 1;
+    case "MGET": return [key, ...a].map(k => db.get(k) ?? null);
+    case "ZADD": { const z = get() || new Map(); z.set(String(a[1]), Number(a[0])); db.set(key, z); return 1; }
+    case "ZCARD": return (get() || new Map()).size;
+    case "ZREVRANGE": return [...(get() || new Map()).entries()].sort((x, y) => y[1] - x[1]).map(e => e[0]).slice(Number(a[0]), Number(a[1]) + 1);
+    case "LPUSH": { const l = get() || []; l.unshift(String(a[0])); db.set(key, l); return l.length; }
+    case "LTRIM": { const l = get() || []; db.set(key, l.slice(Number(a[0]), Number(a[1]) + 1)); return "OK"; }
+    case "LRANGE": return (get() || []).slice(Number(a[0]), Number(a[1]) + 1);
+    case "HINCRBY": { const h = get() || {}; h[a[0]] = (h[a[0]] || 0) + Number(a[1]); db.set(key, h); return h[a[0]]; }
+    case "HGETALL": return Object.entries(get() || {}).flat().map(String);
+    default: throw new Error(`comando não suportado no teste: ${op}`);
+  }
+};
 
 let calls;
-let history;
+let aiText;
 beforeEach(() => {
+  db = new Map();
   calls = [];
-  history = [];
+  aiText = "Olá! Como posso ajudar?";
   delete process.env.IG_APP_SECRET;
+  let seq = 0;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
     const body = init.body ? JSON.parse(init.body) : undefined;
+    if (u.startsWith("https://redis.test/pipeline")) return Response.json(body.map(cmd => ({ result: redis(cmd) })));
     calls.push({ url: u, method: init.method || "GET", body, headers: init.headers });
-    if (u.includes("api.anthropic.com")) {
-      return Response.json({ content: [{ type: "text", text: "Olá! Como posso ajudar?" }] });
+    if (u.includes("refresh_access_token")) return Response.json({ access_token: "IGAA_RENOVADO", expires_in: 5184000 });
+    if (u.includes("api.anthropic.com")) return Response.json({ content: [{ type: "text", text: aiText }] });
+    if (u.includes("/replies")) return Response.json({ id: "reply1" });
+    if (u.includes("me/messages")) {
+      // "digitando" não gera mensagem (como na API real)
+      return Response.json(body?.message ? { recipient_id: "1", message_id: `out-${++seq}` } : { recipient_id: "1" });
     }
-    if (u.includes("me/conversations")) {
-      return Response.json({ data: [{ messages: { data: [...history].reverse() } }] });
-    }
-    if (u.includes("me/messages")) return Response.json({ recipient_id: "1", message_id: "m" });
-    return new Response("not found", { status: 404 });
+    if (/graph\.instagram\.com\/v21\.0\/cliente\?/.test(u)) return Response.json({ id: "cliente", username: "maria.silva", name: "Maria Silva" });
+    return new Response("{}", { status: 404 });
   };
 });
+
+const sentTexts = () => calls.filter(c => c.url.includes("me/messages") && c.body?.message).map(c => c.body.message.text);
+const aiCalls = () => calls.filter(c => c.url.includes("anthropic"));
+const saveConfig = cfg => db.set("config", JSON.stringify(cfg));
 
 test("verificação da Meta: token certo devolve o challenge", async () => {
   const ok = await GET(new Request("https://x/api/webhook?hub.mode=subscribe&hub.verify_token=segredo123&hub.challenge=abc"));
@@ -41,55 +80,104 @@ test("verificação da Meta: token certo devolve o challenge", async () => {
 });
 
 test("status sem parâmetros não expõe segredos", async () => {
-  const res = await GET(new Request("https://x/api/webhook"));
-  const text = await res.text();
-  assert.ok(!text.includes("IGAA_TEST") && !text.includes("sk-test"));
-  assert.equal(JSON.parse(text).aiProvider, "anthropic");
+  const text = await (await GET(new Request("https://x/api/webhook"))).text();
+  assert.ok(!text.includes("IGAA_TEST") && !text.includes("sk-test") && !text.includes("senha-forte"));
+  const status = JSON.parse(text);
+  assert.equal(status.aiProvider, "anthropic");
+  assert.equal(status.hasDatabase, true);
 });
 
-test("mensagem do cliente: chama a IA com histórico e responde no Direct", async () => {
-  history = [
-    { id: "a1", message: "oi", from: { id: "cliente" } },
-    { id: "a2", message: "Olá!", from: { id: "loja" } },
-    { id: "mid-atual", message: "quanto custa?", from: { id: "cliente" } }
-  ];
-  await handleEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "mid-atual", text: "quanto custa?" } });
+test("primeira DM: cria lead com perfil, manda boas-vindas e resposta da IA, registra tudo", async () => {
+  saveConfig({ ...DEFAULT_CONFIG, welcome: { enabled: true, text: "Oi, {nome}! Bem-vindo." } });
+  await handleMessagingEvent({ sender: { id: "cliente" }, recipient: { id: "loja" }, ownId: "loja", message: { mid: "m1", text: "quanto custa? meu zap 45 99999-8888" } });
 
-  const ai = calls.find(c => c.url.includes("anthropic"));
-  assert.equal(ai.body.model, "claude-sonnet-5");
-  assert.match(ai.body.system, /Somos a Confianza/);
-  assert.deepEqual(ai.body.messages.map(m => [m.role, m.content]), [
-    ["user", "oi"], ["assistant", "Olá!"], ["user", "quanto custa?"]
+  assert.deepEqual(sentTexts(), ["Oi, Maria! Bem-vindo.", "Olá! Como posso ajudar?"]);
+  const lead = JSON.parse(db.get("lead:cliente"));
+  assert.equal(lead.username, "maria.silva");
+  assert.equal(lead.source, "dm");
+  assert.match(lead.phone, /99999-8888/);
+  assert.equal(lead.messagesIn, 1);
+  assert.equal(lead.messagesOut, 2);
+  const msgs = db.get("msgs:cliente").map(JSON.parse).reverse();
+  assert.deepEqual(msgs.map(m => m.by), ["cliente", "boas-vindas", "ia"]);
+  const stats = [...db.entries()].find(([k]) => k.startsWith("stats:"))[1];
+  assert.deepEqual({ in: stats.in, out: stats.out, leads: stats.leads, ai: stats.ai }, { in: 1, out: 2, leads: 1, ai: 1 });
+  assert.match(aiCalls()[0].body.system, /Somos a Confianza/);
+});
+
+test("boas-vindas só na primeira mensagem; histórico vai para a IA", async () => {
+  saveConfig({ ...DEFAULT_CONFIG, welcome: { enabled: true, text: "Bem-vindo!" } });
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m1", text: "oi" } });
+  calls = [];
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m2", text: "e o horário?" } });
+  assert.deepEqual(sentTexts(), ["Olá! Como posso ajudar?"]);
+  assert.deepEqual(aiCalls()[0].body.messages.map(m => [m.role, m.content]), [
+    ["user", "oi"],
+    ["assistant", "Bem-vindo!\nOlá! Como posso ajudar?"],
+    ["user", "e o horário?"]
   ]);
-  const sent = calls.filter(c => c.url.includes("me/messages") && c.body.message);
-  assert.equal(sent.length, 1);
-  assert.deepEqual(sent[0].body, { recipient: { id: "cliente" }, message: { text: "Olá! Como posso ajudar?" } });
-  assert.equal(sent[0].headers.Authorization, "Bearer IGAA_TEST");
 });
 
-test("rajada: mensagem mais antiga não responde se já chegou outra do cliente", async () => {
-  history = [
-    { id: "m1", message: "oi", from: { id: "cliente" } },
-    { id: "m2", message: "tudo bem?", from: { id: "cliente" } }
-  ];
-  await handleEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m1", text: "oi" } });
-  assert.equal(calls.filter(c => c.url.includes("anthropic")).length, 0);
+test("reenvio da Meta (mesmo mid) é ignorado", async () => {
+  const event = { sender: { id: "cliente" }, ownId: "loja", message: { mid: "dup", text: "oi" } };
+  await handleMessagingEvent(event);
+  await handleMessagingEvent(event);
+  assert.equal(aiCalls().length, 1);
 });
 
-test("ignora eco das próprias mensagens", async () => {
-  await handleEvent({ sender: { id: "loja" }, ownId: "loja", message: { mid: "x", text: "oi", is_echo: true } });
-  assert.equal(calls.length, 0);
+test("eco do próprio agente é ignorado; resposta da equipe pelo app pausa a IA", async () => {
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m1", text: "oi" } });
+  // eco da resposta da IA (out-1 foi marcado como enviado pelo agente)
+  await handleMessagingEvent({ sender: { id: "loja" }, recipient: { id: "cliente" }, ownId: "loja", message: { mid: "out-1", text: "Olá!", is_echo: true } });
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, false);
+  // equipe responde pelo app
+  await handleMessagingEvent({ sender: { id: "loja" }, recipient: { id: "cliente" }, ownId: "loja", message: { mid: "humano1", text: "Oi, sou o Sandro", is_echo: true } });
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, true);
+  calls = [];
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m2", text: "beleza" } });
+  assert.equal(aiCalls().length, 0);
 });
 
-test("imagem vai para a IA como bloco de imagem", async () => {
-  await handleEvent({
-    sender: { id: "cliente" }, ownId: "loja",
-    message: { mid: "img", attachments: [{ type: "image", payload: { url: "https://cdn/x.jpg" } }] }
+test("rajada: mensagem antiga não responde se já chegou outra", async () => {
+  process.env.BURST_WAIT_MS = "30";
+  const first = handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "r1", text: "oi" } });
+  await new Promise(r => setTimeout(r, 5));
+  const second = handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "r2", text: "tudo bem?" } });
+  await Promise.all([first, second]);
+  process.env.BURST_WAIT_MS = "0";
+  assert.equal(aiCalls().length, 1);
+});
+
+test("comentário: resposta pública + Direct, regra por palavra-chave, vira lead", async () => {
+  saveConfig({
+    ...DEFAULT_CONFIG,
+    comments: { ...DEFAULT_CONFIG.comments, enabled: true, rules: [{ keywords: "preço, valor", publicReply: "Te mandei no Direct, {nome}!", privateReply: "Os valores são..." }] }
   });
-  const ai = calls.find(c => c.url.includes("anthropic"));
-  const last = ai.body.messages.at(-1);
-  assert.equal(last.content[0].type, "image");
-  assert.equal(last.content[0].source.url, "https://cdn/x.jpg");
+  await handleCommentChange({ id: "c1", text: "Qual o PREÇO?", from: { id: "fulano", username: "fulano" }, media: { id: "post1" } }, "loja");
+
+  const pub = calls.find(c => c.url.includes("c1/replies"));
+  assert.equal(new URL(pub.url).searchParams.get("message"), "Te mandei no Direct, @fulano!");
+  const dm = calls.find(c => c.body?.recipient?.comment_id === "c1");
+  assert.equal(dm.body.message.text, "Os valores são...");
+  const lead = JSON.parse(db.get("lead:fulano"));
+  assert.equal(lead.source, "comentario");
+  assert.equal(lead.comments, 1);
+  const comment = JSON.parse(db.get("comments")[0]);
+  assert.equal(comment.rule, "preço, valor");
+});
+
+test("comentário da própria conta e comentários com resposta desligada", async () => {
+  await handleCommentChange({ id: "c2", text: "obrigado!", from: { id: "loja" } }, "loja");
+  assert.equal(db.get("comments"), undefined);
+  await handleCommentChange({ id: "c3", text: "lindo", from: { id: "x", username: "x" } }, "loja");
+  assert.equal(calls.filter(c => c.method === "POST").length, 0); // desligado por padrão
+  assert.equal(db.get("comments").length, 1);
+});
+
+test("regra ignora acento e maiúscula", () => {
+  const cfg = { comments: { ...DEFAULT_CONFIG.comments, rules: [{ keywords: "preco", publicReply: "R" }] } };
+  assert.equal(pickCommentReplies(cfg, "Qual o PREÇO?").publicReply, "R");
+  assert.equal(pickCommentReplies(cfg, "lindo").rule, null);
 });
 
 test("POST com assinatura inválida é recusado; válida é aceita", async () => {
@@ -102,8 +190,56 @@ test("POST com assinatura inválida é recusado; válida é aceita", async () =>
   assert.equal(ok.status, 200);
 });
 
+test("painel: exige login, senha errada recusa, cookie dá acesso", async () => {
+  const noAuth = await admin.GET(new Request("https://x/api/admin?r=overview"));
+  assert.equal(noAuth.status, 401);
+  const wrong = await admin.POST(new Request("https://x/api/admin?r=login", { method: "POST", body: JSON.stringify({ password: "x" }) }));
+  assert.equal(wrong.status, 401);
+  const login = await admin.POST(new Request("https://x/api/admin?r=login", { method: "POST", body: JSON.stringify({ password: "senha-forte" }) }));
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  assert.match(login.headers.get("set-cookie"), /HttpOnly; Secure; SameSite=Strict/);
+
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "m1", text: "oi" } });
+  const overview = await admin.GET(new Request("https://x/api/admin?r=overview", { headers: { cookie } }));
+  assert.equal(overview.status, 200);
+  const data = await overview.json();
+  assert.equal(data.totalLeads, 1);
+  assert.equal(data.stats.length, 14);
+  assert.ok(data.feed.length >= 2);
+
+  const forged = await admin.GET(new Request("https://x/api/admin?r=leads", { headers: { cookie: `ia_session=${Date.now() + 99999}.forjado` } }));
+  assert.equal(forged.status, 401);
+
+  const cfg = await admin.POST(new Request("https://x/api/admin?r=config", { method: "POST", headers: { cookie }, body: JSON.stringify({ config: { welcome: { enabled: true, text: "Oi!" } } }) }));
+  const saved = (await cfg.json()).config;
+  assert.equal(saved.welcome.text, "Oi!");
+  assert.equal(saved.agent.enabled, true); // mantém os padrões
+
+  calls = [];
+  const send = await admin.POST(new Request("https://x/api/admin?r=send", { method: "POST", headers: { cookie }, body: JSON.stringify({ id: "cliente", text: "Oi, aqui é a equipe" }) }));
+  assert.equal(send.status, 200);
+  assert.deepEqual(sentTexts(), ["Oi, aqui é a equipe"]);
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, true);
+
+  const csv = await admin.GET(new Request("https://x/api/admin?r=export", { headers: { cookie } }));
+  assert.match(await csv.text(), /@maria\.silva/);
+});
+
 test("texto longo é quebrado em partes de até 1000 caracteres", () => {
   const parts = splitMessage("Frase de teste. ".repeat(200));
-  assert.ok(parts.length > 1);
-  assert.ok(parts.every(p => p.length <= 1000));
+  assert.ok(parts.length > 1 && parts.every(p => p.length <= 1000));
+});
+
+test("renovação do token: cron com CRON_SECRET, token novo passa a valer, variável trocada vence", async () => {
+  const { accessToken } = await import("../lib/store.js");
+  const denied = await admin.GET(new Request("https://x/api/admin?r=refresh-token"));
+  assert.equal(denied.status, 401);
+  process.env.CRON_SECRET = "cron123";
+  const ok = await admin.GET(new Request("https://x/api/admin?r=refresh-token", { headers: { authorization: "Bearer cron123" } }));
+  assert.equal(ok.status, 200);
+  assert.equal(await accessToken(), "IGAA_RENOVADO");
+  process.env.IG_ACCESS_TOKEN = "IGAA_NOVO_NA_VERCEL";
+  assert.equal(await accessToken(), "IGAA_NOVO_NA_VERCEL");
+  process.env.IG_ACCESS_TOKEN = "IGAA_TEST";
+  delete process.env.CRON_SECRET;
 });

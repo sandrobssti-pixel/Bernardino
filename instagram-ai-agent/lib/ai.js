@@ -16,9 +16,11 @@ export const resolveProvider = (env = process.env) => {
   return "";
 };
 
-export const buildSystemPrompt = (env = process.env) => {
-  const agentName = String(env.AGENT_NAME || "Assistente").trim();
-  const instructions = String(env.AGENT_PROMPT || "").trim();
+// overrides: { name, prompt, extra } vindos do painel (têm prioridade sobre
+// AGENT_NAME/AGENT_PROMPT das variáveis de ambiente).
+export const buildSystemPrompt = (env = process.env, overrides = {}) => {
+  const agentName = String(overrides.name || env.AGENT_NAME || "Assistente").trim();
+  const instructions = String(overrides.prompt || env.AGENT_PROMPT || "").trim();
 
   return [
     `Você é ${agentName}, o atendente virtual desta conta no Instagram Direct.`,
@@ -26,7 +28,8 @@ export const buildSystemPrompt = (env = process.env) => {
     "Use texto simples: sem markdown, sem listas longas, sem títulos. No máximo 2 ou 3 frases curtas por resposta, a não ser que o cliente peça detalhes.",
     "Nunca invente preços, prazos, endereços ou informações que não estejam nas instruções abaixo. Se não souber, diga que vai verificar com a equipe.",
     "Se o cliente pedir para falar com uma pessoa, diga que a equipe vai responder por aqui assim que possível.",
-    instructions ? `\nInstruções do negócio:\n${instructions}` : ""
+    instructions ? `\nInstruções do negócio:\n${instructions}` : "",
+    overrides.extra ? `\n${overrides.extra}` : ""
   ]
     .filter(Boolean)
     .join("\n");
@@ -132,9 +135,9 @@ const callModel = async ({ provider, env, system, turns, withImages }) => {
   throw new Error(`AI_PROVIDER inválido: "${provider}" (use anthropic ou openai)`);
 };
 
-export const generateReply = async (turns, env = process.env) => {
+export const generateReply = async (turns, env = process.env, overrides = {}) => {
   const provider = resolveProvider(env);
-  const system = buildSystemPrompt(env);
+  const system = buildSystemPrompt(env, overrides);
   const normalized = normalizeTurns(turns);
   if (!normalized.length) return "";
 

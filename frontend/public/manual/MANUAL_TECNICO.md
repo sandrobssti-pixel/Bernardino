@@ -5156,8 +5156,10 @@ independente (sem banco, só `fetch`), que recebe o webhook da Meta em
 `/api/webhook`, gera a resposta com Claude/OpenAI e responde pelo
 `graph.instagram.com`. Nesse modo as conversas do Instagram **não** aparecem
 no multi atendimento, e o link `atendeflow.confiancatechnologies.com` não é
-usado nem alterado. Configuração e limitações em
-`instagram-ai-agent/README.md`.
+usado nem alterado. Tem painel próprio (movimentação, leads, boas-vindas,
+respostas a comentários) protegido por senha, banco Upstash Redis e renovação
+automática do token do Instagram. Manual completo em
+`instagram-ai-agent/MANUAL_TECNICO.md`.
 
 Os dois modos são alternativos: o webhook do app do Instagram na Meta aponta
 para um **ou** para o outro. O suporte dentro do AtendeFlow (acima) continua

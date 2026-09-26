@@ -1,37 +1,21 @@
-// Webhook do Instagram Direct: a Meta chama GET para verificar e POST a cada
-// mensagem recebida. A resposta 200 sai na hora; a IA roda em segundo plano
-// (waitUntil), para a Meta não reenviar o evento por demora.
+// Webhook do Instagram: a Meta chama GET para verificar e POST a cada evento
+// (DM ou comentário). A resposta 200 sai na hora; o processamento roda em
+// segundo plano (waitUntil), para a Meta não reenviar por demora.
 
 import { waitUntil } from "@vercel/functions";
-import { generateReply, resolveProvider } from "../lib/ai.js";
-import {
-  getConversationHistory,
-  isValidSignature,
-  sendText,
-  sendTyping
-} from "../lib/instagram.js";
-
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-const env = () => process.env;
-
-const config = () => ({
-  token: String(env().IG_ACCESS_TOKEN || "").trim(),
-  verifyToken: String(env().VERIFY_TOKEN || "").trim(),
-  appSecret: String(env().IG_APP_SECRET || "").trim(),
-  historyLimit: Number(env().HISTORY_LIMIT) || 12,
-  burstWaitMs: env().BURST_WAIT_MS !== undefined ? Number(env().BURST_WAIT_MS) : 4000,
-  enabled: String(env().AGENT_ENABLED || "true").toLowerCase() !== "false"
-});
+import { handleCommentChange, handleMessagingEvent } from "../lib/agent.js";
+import { resolveProvider } from "../lib/ai.js";
+import { passwordConfigured } from "../lib/auth.js";
+import { isValidSignature } from "../lib/instagram.js";
+import { hasStore } from "../lib/store.js";
 
 export async function GET(request) {
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
-  const { verifyToken, token, appSecret, enabled } = config();
+  const verifyToken = String(process.env.VERIFY_TOKEN || "").trim();
 
   if (mode) {
-    const received = url.searchParams.get("hub.verify_token");
-    if (mode === "subscribe" && verifyToken && received === verifyToken) {
+    if (mode === "subscribe" && verifyToken && url.searchParams.get("hub.verify_token") === verifyToken) {
       return new Response(url.searchParams.get("hub.challenge") || "", { status: 200 });
     }
     console.warn("[WEBHOOK] verificação recusada: VERIFY_TOKEN diferente ou não configurado");
@@ -41,18 +25,20 @@ export async function GET(request) {
   // Sem parâmetros da Meta: mostra o que está configurado (sem expor segredos).
   return Response.json({
     ok: true,
-    agentEnabled: enabled,
-    hasAccessToken: Boolean(token),
+    agentEnabled: String(process.env.AGENT_ENABLED || "true").toLowerCase() !== "false",
+    hasAccessToken: Boolean(String(process.env.IG_ACCESS_TOKEN || "").trim()),
     hasVerifyToken: Boolean(verifyToken),
-    checksSignature: Boolean(appSecret),
-    aiProvider: resolveProvider(env()) || null,
-    hasPrompt: Boolean(String(env().AGENT_PROMPT || "").trim())
+    checksSignature: Boolean(String(process.env.IG_APP_SECRET || "").trim()),
+    aiProvider: resolveProvider(process.env) || null,
+    hasPrompt: Boolean(String(process.env.AGENT_PROMPT || "").trim()),
+    hasDatabase: hasStore(),
+    hasDashboardPassword: passwordConfigured()
   });
 }
 
 export async function POST(request) {
   const rawBody = await request.text();
-  const { appSecret } = config();
+  const appSecret = String(process.env.IG_APP_SECRET || "").trim();
 
   if (appSecret && !isValidSignature(rawBody, request.headers.get("x-hub-signature-256"), appSecret)) {
     console.warn("[WEBHOOK] assinatura inválida — confira IG_APP_SECRET");
@@ -66,85 +52,32 @@ export async function POST(request) {
     return new Response("Bad request", { status: 400 });
   }
 
-  const events = [];
-  for (const entry of Array.isArray(payload?.entry) ? payload.entry : []) {
-    for (const event of Array.isArray(entry?.messaging) ? entry.messaging : []) {
-      events.push({ ...event, ownId: String(event?.recipient?.id || entry?.id || "") });
+  const jobs = [];
+  if (payload?.object === "instagram") {
+    for (const entry of Array.isArray(payload.entry) ? payload.entry : []) {
+      const ownId = String(entry?.id || "");
+      for (const event of Array.isArray(entry?.messaging) ? entry.messaging : []) {
+        // Id da própria conta: entry.id; no eco ela é o remetente, senão o destinatário.
+        const accountId = ownId || String((event?.message?.is_echo ? event?.sender?.id : event?.recipient?.id) || "");
+        jobs.push(handleMessagingEvent({ ...event, ownId: accountId }));
+      }
+      for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+        if (change?.field === "comments" || change?.field === "live_comments") {
+          jobs.push(handleCommentChange(change.value, ownId));
+        }
+      }
     }
   }
 
-  if (payload?.object === "instagram" && events.length) {
+  if (jobs.length) {
     waitUntil(
-      Promise.all(
-        events.map(event =>
-          handleEvent(event).catch(error => {
-            console.error("[AGENT] erro ao responder:", error.message);
-          })
-        )
+      Promise.allSettled(jobs).then(results =>
+        results
+          .filter(result => result.status === "rejected")
+          .forEach(result => console.error("[AGENT] erro:", result.reason?.message || result.reason))
       )
     );
   }
 
   return new Response("EVENT_RECEIVED", { status: 200 });
 }
-
-export const handleEvent = async event => {
-  const { token, historyLimit, burstWaitMs, enabled } = config();
-  const message = event?.message;
-  const senderId = String(event?.sender?.id || "");
-  const ownId = String(event?.ownId || "");
-
-  // Só mensagem nova do cliente (ignora eco das nossas respostas, leitura,
-  // reação, mensagem apagada etc.).
-  if (!enabled || !token || !message || message.is_echo || message.is_deleted) return;
-  if (!senderId || senderId === ownId) return;
-
-  const text = String(message.text || "").trim();
-  const attachment = message.attachments?.[0];
-  const imageUrl = attachment?.type === "image" ? attachment.payload?.url : undefined;
-  const otherAttachment = attachment && !imageUrl ? attachment.type : undefined;
-
-  if (!text && !imageUrl && !otherAttachment) return;
-
-  // Espera um pouco para juntar mensagens seguidas ("oi" + "tudo bem?" +
-  // "quanto custa?"): só a última mensagem da rajada gera resposta.
-  if (burstWaitMs > 0) await sleep(burstWaitMs);
-
-  let history = [];
-  try {
-    history = await getConversationHistory(token, senderId, historyLimit);
-  } catch (error) {
-    console.warn("[AGENT] sem histórico, respondendo só a mensagem atual:", error.message);
-  }
-
-  const currentIndex = history.findIndex(item => item.id === message.mid);
-  if (currentIndex >= 0) {
-    const newerFromCustomer = history
-      .slice(currentIndex + 1)
-      .some(item => item.fromId === senderId);
-    if (newerFromCustomer) return; // a mensagem mais nova responde por todas
-    history.splice(currentIndex, 1);
-  }
-
-  const turns = history.map(item => ({
-    role: item.fromId === senderId ? "user" : "assistant",
-    text: item.text
-  }));
-
-  const currentText =
-    text ||
-    (otherAttachment ? `[o cliente enviou um anexo do tipo "${otherAttachment}", que você não consegue abrir]` : "");
-  const last = turns[turns.length - 1];
-  if (last && last.role === "user" && last.text === currentText && !imageUrl) turns.pop();
-  turns.push({ role: "user", text: currentText, imageUrl });
-
-  await sendTyping(token, senderId, true);
-  const reply = await generateReply(turns, env());
-  if (!reply) {
-    await sendTyping(token, senderId, false);
-    return;
-  }
-
-  await sendText(token, senderId, reply);
-  console.log(`[AGENT] respondeu ${senderId} (${reply.length} caracteres)`);
-};

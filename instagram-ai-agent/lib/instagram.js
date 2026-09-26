@@ -116,3 +116,45 @@ export const getConversationHistory = async (token, userId, limit) => {
     }))
     .reverse();
 };
+
+// Perfil de quem mandou mensagem (IGSID). Precisa de o cliente ter falado
+// com a conta; se a Meta negar, segue só com o id.
+export const getProfile = async (token, userId) => {
+  try {
+    return await graphRequest(token, userId, {
+      params: { fields: "name,username,profile_pic" }
+    });
+  } catch (error) {
+    console.warn("[IG] perfil indisponível:", error.message);
+    return { id: userId };
+  }
+};
+
+// Resposta pública embaixo do comentário.
+export const replyToComment = async (token, commentId, text) =>
+  graphRequest(token, `${commentId}/replies`, {
+    method: "POST",
+    params: { message: String(text).slice(0, 2200) }
+  });
+
+// "Resposta privada": abre o Direct com quem comentou (1 por comentário,
+// até 7 dias depois do comentário).
+export const sendPrivateReply = async (token, commentId, text) =>
+  graphRequest(token, "me/messages", {
+    method: "POST",
+    body: { recipient: { comment_id: commentId }, message: { text: String(text).slice(0, MAX_TEXT_LENGTH) } }
+  });
+
+// Renova o token de longa duração (válido por mais 60 dias). Só funciona com
+// token com mais de 24h e ainda não vencido.
+export const refreshAccessToken = async token => {
+  const url = new URL("https://graph.instagram.com/refresh_access_token");
+  url.searchParams.set("grant_type", "ig_refresh_token");
+  url.searchParams.set("access_token", token);
+  const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.access_token) {
+    throw new Error(`Renovação do token falhou: ${data?.error?.message || response.status}`);
+  }
+  return data; // { access_token, token_type, expires_in }
+};
