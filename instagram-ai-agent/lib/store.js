@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 // Armazenamento do agente. Aceita dois tipos de Redis, conforme o que foi
 // conectado ao projeto em Vercel → Storage:
 //   - Upstash (REST): KV_REST_API_URL/KV_REST_API_TOKEN ou
@@ -190,10 +192,12 @@ export const accessToken = async () => {
 
 export const getTokenInfo = async () => (hasStore() ? parse(await one(["GET", "ig_token"])) : null);
 
-export const saveRefreshedToken = async (token, expiresIn) => {
+// source: "renovacao" (cron/botão) ou "painel" (token colado no painel).
+export const saveRefreshedToken = async (token, expiresIn, source = "renovacao") => {
   const info = {
     token,
     baseToken: String(process.env.IG_ACCESS_TOKEN || "").trim(),
+    source,
     refreshedAt: Date.now(),
     expiresAt: Date.now() + Number(expiresIn || 0) * 1000
   };
@@ -212,6 +216,24 @@ export const markSeen = async id => {
 export const markSent = async mid => {
   if (!mid || !hasStore()) return;
   await one(["SET", `sent:${mid}`, "1", "EX", 86400]);
+};
+
+// Marca o TEXTO antes de enviar: o eco do Instagram pode chegar antes da
+// resposta da API (corrida) e com um mid diferente do message_id devolvido.
+const textKey = (leadId, text) =>
+  `sent-text:${leadId}:${crypto
+    .createHash("sha1")
+    .update(String(text || "").replace(/\s+/g, " ").trim())
+    .digest("hex")}`;
+
+export const markSentText = async (leadId, text) => {
+  if (!leadId || !String(text || "").trim() || !hasStore()) return;
+  await one(["SET", textKey(leadId, text), "1", "EX", 900]);
+};
+
+export const wasTextSentByAgent = async (leadId, text) => {
+  if (!leadId || !String(text || "").trim() || !hasStore()) return false;
+  return (await one(["EXISTS", textKey(leadId, text)])) === 1;
 };
 
 export const wasSentByAgent = async mid => {
@@ -277,7 +299,7 @@ export const upsertLead = async (id, patch = {}) => {
 export const updateLead = async (id, patch) => {
   const current = await getLead(id);
   if (!current) return null;
-  const allowed = ["status", "notes", "phone", "email", "aiPaused", "name", "escalatedAt"];
+  const allowed = ["status", "notes", "phone", "email", "aiPaused", "name", "escalatedAt", "username", "profilePic"];
   const lead = { ...current };
   for (const key of allowed) if (patch[key] !== undefined) lead[key] = patch[key];
   await one(["SET", `lead:${id}`, JSON.stringify(lead)]);

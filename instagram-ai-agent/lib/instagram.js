@@ -183,3 +183,9 @@ export const getSubscribedFields = async token => {
 // Assina os campos do webhook para a conta (correção automática da auditoria).
 export const subscribeFields = async (token, fields) =>
   graphRequest(token, "me/subscribed_apps", { method: "POST", params: { subscribed_fields: fields.join(",") } });
+
+// Perfil completo da conta conectada (bloco "Conexão com o Instagram").
+export const getAccountProfile = async token =>
+  graphRequest(token, "me", {
+    params: { fields: "user_id,username,name,profile_picture_url,followers_count,follows_count,media_count,account_type" }
+  });

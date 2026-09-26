@@ -7,7 +7,16 @@ import { extractProductFromUrl } from "../lib/extract.js";
 import { sendWhatsApp } from "../lib/whatsapp.js";
 import { checkPassword, clearCookie, isAuthenticated, passwordConfigured, sessionCookie } from "../lib/auth.js";
 import { ESCALATION_MARKER, generateReply, resolveProvider } from "../lib/ai.js";
-import { getMediaComments, getRecentMedia, refreshAccessToken } from "../lib/instagram.js";
+import {
+  getAccountProfile,
+  getMe,
+  getMediaComments,
+  getProfile,
+  getRecentMedia,
+  getSubscribedFields,
+  refreshAccessToken,
+  subscribeFields
+} from "../lib/instagram.js";
 import {
   accessToken,
   countLeads,
@@ -44,7 +53,9 @@ const refreshToken = async () => {
 };
 
 const tokenStatus = info =>
-  info ? { refreshedAt: info.refreshedAt, expiresAt: info.expiresAt, daysLeft: tokenDaysLeft(info) } : null;
+  info ? { refreshedAt: info.refreshedAt, expiresAt: info.expiresAt, daysLeft: tokenDaysLeft(info), source: info.source || "renovacao" } : null;
+
+const WEBHOOK_FIELDS = ["messages", "comments"];
 
 const csvCell = value => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
@@ -97,6 +108,29 @@ export async function GET(request) {
         return json({ comments: await getComments(200) });
       case "config":
         return json({ config: await getConfig(), setup: { ...setup(), token: tokenStatus(await getTokenInfo()) } });
+      case "instagram": {
+        // Sincroniza o bloco "Conexão com o Instagram".
+        const token = await accessToken();
+        const info = await getTokenInfo();
+        const envToken = String(process.env.IG_ACCESS_TOKEN || "").trim();
+        const usingStored = Boolean(info?.token && info.baseToken === envToken && token === info.token);
+        const result = {
+          token: tokenStatus(usingStored ? info : null),
+          tokenSource: usingStored ? (info.source === "painel" ? "painel" : "renovado automaticamente") : "variável IG_ACCESS_TOKEN (Vercel)",
+          expectedUserId: String(process.env.IG_USER_ID || "") || null
+        };
+        try {
+          result.account = await getAccountProfile(token);
+        } catch (error) {
+          result.accountError = error.message;
+        }
+        try {
+          result.webhookFields = await getSubscribedFields(token);
+        } catch (error) {
+          result.webhookError = error.message;
+        }
+        return json(result);
+      }
       case "audit":
         return json(await runAudit({ autoFix: url.searchParams.get("fix") !== "0" }));
       case "dry-run": {
@@ -179,6 +213,56 @@ export async function POST(request) {
         return json({ config: await saveConfig(body.config || {}) });
       case "refresh-token":
         return json({ ok: true, token: tokenStatus(await refreshToken()) });
+      case "instagram-token": {
+        // Troca o token pelo painel (sem mexer na Vercel). Valida antes de salvar.
+        const token = String(body.token || "").trim();
+        if (!/^IG[A-Za-z0-9_-]{40,}$/.test(token)) return json({ error: "Token inválido: precisa começar com IG (ex.: IGAA...)" }, 400);
+        let me;
+        try {
+          me = await getMe(token);
+        } catch (error) {
+          return json({ error: `A Meta recusou o token: ${error.message}` }, 400);
+        }
+        const expected = String(process.env.IG_USER_ID || "").trim();
+        if (expected && String(me.user_id) !== expected) {
+          return json({ error: `Este token é da conta @${me.username} (${me.user_id}), mas o agente está travado na conta ${expected} (IG_USER_ID).` }, 400);
+        }
+        let expiresIn = 60 * 86400;
+        let saved = token;
+        try {
+          const refreshed = await refreshAccessToken(token); // já garante 60 dias, quando possível
+          saved = refreshed.access_token;
+          expiresIn = refreshed.expires_in || expiresIn;
+        } catch {
+          // token com menos de 24h não pode ser renovado ainda: salva como veio
+        }
+        const info = await saveRefreshedToken(saved, expiresIn, "painel");
+        return json({ ok: true, username: me.username, token: tokenStatus(info) });
+      }
+      case "subscribe-webhook": {
+        const token = await accessToken();
+        const current = await getSubscribedFields(token).catch(() => []);
+        await subscribeFields(token, [...new Set([...current, ...WEBHOOK_FIELDS])]);
+        return json({ ok: true, webhookFields: await getSubscribedFields(token) });
+      }
+      case "sync-leads": {
+        // Atualiza nome/@/foto dos leads mais recentes (fotos do Instagram vencem).
+        const token = await accessToken();
+        const leads = (await listLeads(40)).filter(lead => /^\d+$/.test(String(lead.id)));
+        let updated = 0;
+        for (const lead of leads) {
+          const profile = await getProfile(token, lead.id);
+          if (profile?.username || profile?.name) {
+            await updateLead(lead.id, {
+              username: profile.username || lead.username,
+              name: profile.name || lead.name,
+              profilePic: profile.profile_pic || lead.profilePic
+            });
+            updated += 1;
+          }
+        }
+        return json({ ok: true, checked: leads.length, updated });
+      }
       case "delete-lead":
         return json({ ok: true, ...(await deleteLeadData(String(body.id || ""))) });
       case "simulate-comment": {

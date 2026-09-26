@@ -429,3 +429,50 @@ test("pedido de exclusão pelo Direct (PT e ES): confirma, pausa a IA e registra
   await handleMessagingEvent({ sender: { id: "otro" }, ownId: "loja", message: { mid: "x2", text: "Hola, quiero eliminar mis datos" } });
   assert.match(sentTexts()[0], /Recibimos su solicitud/);
 });
+
+test("eco com mid diferente e chegando antes da confirmação NÃO pausa a IA (conversa continua)", async () => {
+  // Instagram devolve message_id "out-N", mas o eco chega com outro mid.
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "q1", text: "oi" } });
+  await handleMessagingEvent({ sender: { id: "loja" }, recipient: { id: "cliente" }, ownId: "loja", message: { mid: "eco-diferente-1", text: "Olá! Como posso ajudar?", is_echo: true } });
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, false);
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "q2", text: "quanto custa?" } });
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "q3", text: "e o prazo?" } });
+  assert.equal(aiCalls().length, 3);
+  assert.equal(sentTexts().length, 3);
+  // e a equipe de verdade (texto que o agente não mandou) continua pausando
+  await handleMessagingEvent({ sender: { id: "loja" }, recipient: { id: "cliente" }, ownId: "loja", message: { mid: "h9", text: "Oi, aqui é o Sandro", is_echo: true } });
+  assert.equal(JSON.parse(db.get("lead:cliente")).aiPaused, true);
+});
+
+test("conexão com o Instagram: sincroniza conta, troca token pelo painel com validação, assina webhook, atualiza leads", async () => {
+  const cookie = await login();
+  const get = r => admin.GET(new Request(`https://x/api/admin?r=${r}`, { headers: { cookie } }));
+  const post = (r, body = {}) => admin.POST(new Request(`https://x/api/admin?r=${r}`, { method: "POST", headers: { cookie }, body: JSON.stringify(body) }));
+
+  const ig = await (await get("instagram")).json();
+  assert.equal(ig.account.username, "confianza");
+  assert.deepEqual(ig.webhookFields, ["messages"]);
+  assert.match(ig.tokenSource, /Vercel/);
+
+  assert.equal((await post("instagram-token", { token: "abc" })).status, 400);
+  process.env.IG_USER_ID = "999";
+  const wrong = await post("instagram-token", { token: "IGAA" + "x".repeat(60) });
+  assert.equal(wrong.status, 400);
+  assert.match((await wrong.json()).error, /outra conta|travado/);
+  process.env.IG_USER_ID = "17841";
+  const ok = await (await post("instagram-token", { token: "IGAA" + "x".repeat(60) })).json();
+  assert.equal(ok.username, "confianza");
+  const { accessToken } = await import("../lib/store.js");
+  assert.equal(await accessToken(), "IGAA_RENOVADO");
+  assert.match((await (await get("instagram")).json()).tokenSource, /painel/);
+  delete process.env.IG_USER_ID;
+
+  const sub = await (await post("subscribe-webhook")).json();
+  assert.deepEqual(sub.webhookFields.sort(), ["comments", "messages"]);
+
+  await handleMessagingEvent({ sender: { id: "cliente" }, ownId: "loja", message: { mid: "s1", text: "oi" } });
+  const before = JSON.parse(db.get("lead:cliente")).lastAt;
+  const synced = await (await post("sync-leads")).json();
+  assert.equal(synced.updated, 0); // id "cliente" não é numérico (IGSID real é numérico)
+  assert.equal(JSON.parse(db.get("lead:cliente")).lastAt, before);
+});

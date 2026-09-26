@@ -595,7 +595,84 @@ $("#addProduct").addEventListener("click", () => {
 
 $("#configForm").addEventListener("submit", event => event.preventDefault());
 
+// ---------------- conexão com o Instagram ----------------
+
+const loadInstagram = async () => {
+  $("#igStatus").innerHTML = `<p class="muted">Sincronizando com o Instagram…</p>`;
+  try {
+    const data = await api("instagram");
+    const a = data.account;
+    const days = data.token?.daysLeft;
+    const fields = data.webhookFields || [];
+    const missing = ["messages", "comments"].filter(f => !fields.includes(f));
+    const lock = data.expectedUserId
+      ? a && String(a.user_id) === data.expectedUserId
+        ? `<span class="tag team">conta travada (IG_USER_ID)</span>`
+        : `<span class="tag bad">token de outra conta!</span>`
+      : "";
+    $("#igStatus").innerHTML = `
+      ${a
+        ? `<div class="ig-account">
+            ${a.profile_picture_url ? `<img class="avatar" src="${esc(a.profile_picture_url)}" alt="" referrerpolicy="no-referrer" data-initial="${esc((a.username || "?")[0].toUpperCase())}">` : `<span class="avatar">${esc((a.username || "?")[0].toUpperCase())}</span>`}
+            <div><div class="row"><strong>@${esc(a.username)}</strong><span class="tag team">conectado</span>${lock}</div>
+              <div class="muted">${esc(a.name || "")} · ${esc(a.account_type || "")} · ID ${esc(a.user_id)}</div>
+              <div class="ig-stats"><span><b>${fmtNum(a.followers_count)}</b><span class="muted">seguidores</span></span><span><b>${fmtNum(a.media_count)}</b><span class="muted">posts</span></span><span><b>${fmtNum(a.follows_count)}</b><span class="muted">seguindo</span></span></div>
+            </div></div>`
+        : `<p><span class="tag bad">desconectado</span> ${esc(data.accountError || "Token inválido")}</p>`}
+      <div class="ig-meta">
+        <div><span class="muted">Token:</span> ${days === undefined || days === null ? `<span class="tag warn">vencimento desconhecido</span> — clique em Renovar token` : `<span class="tag ${days < 5 ? "bad" : days < 15 ? "warn" : "team"}">${days} dias</span> até vencer`} <span class="muted">· origem: ${esc(data.tokenSource)}</span></div>
+        <div><span class="muted">Webhook:</span> ${data.webhookError ? `<span class="tag warn">não foi possível ler</span> ${esc(data.webhookError)}` : missing.length ? `<span class="tag bad">faltam ${esc(missing.join(", "))}</span> — clique em Assinar webhook` : `<span class="tag team">${esc(fields.join(", "))}</span>`}</div>
+      </div>`;
+  } catch (error) {
+    $("#igStatus").innerHTML = `<p class="form-error">${esc(error.message)}</p>`;
+  }
+};
+
+const withButton = async (button, action) => {
+  button.disabled = true;
+  try {
+    await action();
+  } catch (error) {
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+};
+
+$("#igSync").addEventListener("click", event => withButton(event.currentTarget, loadInstagram));
+$("#igRefresh").addEventListener("click", event =>
+  withButton(event.currentTarget, async () => {
+    await api("refresh-token", { method: "POST" });
+    toast("Token renovado por mais 60 dias");
+    await loadInstagram();
+  })
+);
+$("#igSubscribe").addEventListener("click", event =>
+  withButton(event.currentTarget, async () => {
+    await api("subscribe-webhook", { method: "POST" });
+    toast("Webhook assinado");
+    await loadInstagram();
+  })
+);
+$("#igSyncLeads").addEventListener("click", event =>
+  withButton(event.currentTarget, async () => {
+    const { checked, updated } = await api("sync-leads", { method: "POST" });
+    toast(`${updated} de ${checked} leads atualizados`);
+  })
+);
+$("#igSaveToken").addEventListener("click", event =>
+  withButton(event.currentTarget, async () => {
+    const token = $("#igNewToken").value.trim();
+    if (!token) return toast("Cole o token novo");
+    const { username } = await api("instagram-token", { method: "POST", body: { token } });
+    $("#igNewToken").value = "";
+    toast(`Token salvo — conectado como @${username}`);
+    await loadInstagram();
+  })
+);
+
 const loadSettings = async () => {
+  loadInstagram();
   try {
     const { config, setup } = await api("config");
     state.config = config;

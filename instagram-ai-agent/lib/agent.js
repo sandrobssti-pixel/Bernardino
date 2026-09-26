@@ -9,7 +9,8 @@ import {
   replyToComment,
   sendPrivateReply,
   sendText,
-  sendTyping
+  sendTyping,
+  splitMessage
 } from "./instagram.js";
 import {
   accessToken,
@@ -20,6 +21,8 @@ import {
   getMessages,
   hasStore,
   incrStat,
+  markSentText,
+  wasTextSentByAgent,
   logComment,
   logFeed,
   logMessage,
@@ -63,6 +66,8 @@ const normalize = text =>
 // virar "resposta da equipe") e registra no histórico.
 export const sendAndLog = async ({ leadId, text, by }) => {
   const token = await accessToken();
+  // Marca antes de enviar, para o eco nunca ser confundido com a equipe.
+  for (const part of splitMessage(text)) await markSentText(leadId, part);
   const results = await sendText(token, leadId, text);
   if (hasStore()) {
     for (const result of results) await markSent(result?.message_id);
@@ -114,9 +119,9 @@ export const handleMessagingEvent = async event => {
   // Eco: mensagem que saiu da conta. Se não foi o agente, foi alguém da
   // equipe respondendo pelo app do Instagram.
   if (message.is_echo) {
-    if (await wasSentByAgent(message.mid)) return;
     const leadId = recipientId;
     if (!leadId || leadId === ownId) return;
+    if ((await wasSentByAgent(message.mid)) || (await wasTextSentByAgent(leadId, message.text))) return;
     await upsertLead(leadId, {});
     await logMessage({
       leadId,
@@ -450,6 +455,7 @@ export const handleCommentChange = async (value, ownId) => {
 
     if (plan.privateText) {
       try {
+        await markSentText(fromId, plan.privateText);
         const result = await sendPrivateReply(token, commentId, plan.privateText);
         await markSent(result?.message_id);
         await logMessage({ leadId: fromId, direction: "out", by: "comentario", text: plan.privateText, mid: result?.message_id });

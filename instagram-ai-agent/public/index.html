@@ -141,6 +141,25 @@
         <div><p class="eyebrow">Automação</p><h1>Configurações</h1></div>
         <button id="saveConfig" class="btn btn-primary" type="button">Salvar</button>
       </header>
+      <div class="card" id="igCard">
+        <div class="card-head"><h2>Conexão com o Instagram</h2>
+          <button id="igSync" class="btn btn-ghost btn-sm" type="button">Sincronizar</button></div>
+        <div id="igStatus"><p class="muted">Carregando…</p></div>
+        <div class="row" style="margin-top:12px">
+          <button id="igRefresh" class="btn btn-ghost btn-sm" type="button">Renovar token</button>
+          <button id="igSubscribe" class="btn btn-ghost btn-sm" type="button">Assinar webhook (messages, comments)</button>
+          <button id="igSyncLeads" class="btn btn-ghost btn-sm" type="button">Atualizar nomes e fotos dos leads</button>
+        </div>
+        <details style="margin-top:14px">
+          <summary class="muted" style="cursor:pointer">Trocar o token do Instagram pelo painel</summary>
+          <p class="muted" style="margin-top:8px">Cole um token novo (<code>IGAA…</code>) gerado na Meta. O painel confere se é válido e se é da conta certa antes de salvar — não precisa mexer na Vercel.</p>
+          <div class="row" style="margin-top:8px">
+            <input id="igNewToken" type="password" autocomplete="off" placeholder="IGAA…" style="flex:1; min-width:220px">
+            <button id="igSaveToken" class="btn btn-primary btn-sm" type="button">Validar e salvar</button>
+          </div>
+        </details>
+      </div>
+
       <form id="configForm" class="settings">
         <div class="card">
           <h2>Agente de IA no Direct</h2>

@@ -290,7 +290,13 @@ login do Instagram → Configurar webhooks**:
 
 1. Abra `https://instagram-ai-agent-omega.vercel.app` e entre com a
    `DASHBOARD_PASSWORD`.
-2. Vá em **Configurações** e preencha:
+2. Em **Configurações → Conexão com o Instagram** confira a conta conectada
+   (foto, @, seguidores, posts), os dias do token e os campos do webhook.
+   Botões: **Sincronizar**, **Renovar token**, **Assinar webhook**,
+   **Atualizar nomes e fotos dos leads** e **Trocar o token pelo painel** (cola
+   um `IGAA…` novo; o painel valida na Meta e confere a conta antes de salvar —
+   não precisa mexer na Vercel).
+3. Ainda em **Configurações**, preencha:
 
 **Agente de IA no Direct**
 
@@ -356,8 +362,8 @@ login do Instagram → Configurar webhooks**:
   (ex.: `claude-haiku-4-5-20251001`), usado automaticamente se o principal
   falhar ou estiver fora do ar.
 
-3. Clique em **Salvar**. Vale na hora, sem deploy.
-4. Teste sem enviar nada (seção 8.1) e rode a **Auditoria técnica** (seção 8.2).
+4. Clique em **Salvar**. Vale na hora, sem deploy.
+5. Teste sem enviar nada (seção 8.1) e rode a **Auditoria técnica** (seção 8.2).
 
 ---
 
@@ -532,6 +538,7 @@ ser exportados a qualquer momento em **Leads → Exportar CSV**.
 | Meta: *"Não foi possível validar a URL..."* | Mesmo caso acima, ou URL errada | Fazer o D.2 dar `teste123` antes; conferir URL com `-omega` e `/api/webhook` |
 | Meta: *"aplicativo precisa estar publicado"* | App em desenvolvimento | Testar com perfil testador (A.4); para todos, Parte H |
 | DM de teste não aparece no painel/logs | Perfil não é testador, campo `messages` não assinado, ou assinatura da conta desligada | Conferir A.4 e E.2/E.3 |
+| IA responde só a primeira mensagem e depois para | (Corrigido na versão atual.) O eco da própria resposta era confundido com resposta da equipe e pausava a IA | Atualizar o código e `vercel --prod`; nas conversas afetadas, ligar de novo a chave **IA ativa** |
 | Aparece no painel, mas a IA não responde | Chave da IA errada/sem crédito, IA desligada, ou conversa pausada | Logs (`IA 401` = chave errada); Billing da Anthropic; Configurações; botão **IA ativa** |
 | `IA 401: invalid x-api-key` | Chave da Anthropic errada (ex.: colou o token do Instagram no lugar) | Recadastrar `ANTHROPIC_API_KEY` (≈108 caracteres, `sk-ant-`) e `vercel --prod` |
 | Comentários não chegam | Campo `comments` não assinado ou falta permissão de comentários | E.2 e A.2 |
