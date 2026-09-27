@@ -5164,3 +5164,18 @@ automática do token do Instagram. Manual completo em
 Os dois modos são alternativos: o webhook do app do Instagram na Meta aponta
 para um **ou** para o outro. O suporte dentro do AtendeFlow (acima) continua
 no código, mas fica desligado enquanto nenhuma conexão Meta tiver prompt.
+
+## 69. Serviços sobem sozinhos depois de reiniciar o servidor
+
+`server-toolkit/autostart/instalar-autostart.sh` (rodar com `sudo`, uma vez;
+pode repetir) habilita o Docker no boot e cria o serviço systemd
+`confianza-stack`, que a cada boot espera rede, Docker e discos
+(`/srv/seafile-data` e NAS) e roda `docker compose up -d --no-build` do
+AtendeFlow (`docker-compose.coolify.yml` + `.env`) e do Seafile (`-p seafile`,
+`.env.seafile`). Motivo: `restart: unless-stopped` não religa container que
+foi parado à mão antes do reboot, e o Seafile não pode subir antes do disco
+`/srv/seafile-data`. Também habilita cloudflared, pm2 (`pm2 startup` +
+`pm2 save`) e disk-monitor quando existem, e avisa se o `/etc/fstab` tem
+compartilhamento de rede sem `nofail,x-systemd.automount` (ver seção 38/39).
+Conferência pós-reboot: `server-toolkit/autostart/verificar-servicos.sh`.
+
