@@ -11,6 +11,7 @@ for s in docker confianza-stack cloudflared disk-monitor "pm2-${SUDO_USER:-$USER
   if systemctl list-unit-files "$s.service" --no-legend 2>/dev/null | grep -q "$s"; then
     estado="$(systemctl is-active "$s" 2>/dev/null)"; habil="$(systemctl is-enabled "$s" 2>/dev/null)"
     if [ "$estado" = "active" ]; then verde "$s: $estado ($habil)"
+    elif [ "$habil" = "disabled" ] || [ "$habil" = "masked" ]; then echo "  ⏸️  $s: desligado de propósito ($habil)"
     elif [ "$estado" = "activating" ]; then vermelho "$s: $estado ($habil) — tentando subir em loop; veja: sudo journalctl -u $s -n 30 --no-pager"
     else vermelho "$s: $estado ($habil)"; fi
   fi
