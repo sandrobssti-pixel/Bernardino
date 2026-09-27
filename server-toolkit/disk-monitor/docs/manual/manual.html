@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Manual do Disk Monitor v1.7.1</title>
+<!-- Fonte do PDF docs/Manual-Disk-Monitor.pdf. Para gerar de novo:
+     node docs/manual/gerar-pdf.js  (precisa do Playwright/Chromium). -->
+<style>
+  @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
+  :root { --accent: #7c5cf5; --accent2: #0ea5c6; --text: #1e293b; --muted: #64748b; --line: #e2e8f0; --soft: #f5f3ff; --warn: #b45309; }
+  * { box-sizing: border-box; }
+  body { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--text); font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3 { color: #0f172a; line-height: 1.25; }
+  h2 { font-size: 16pt; margin: 0 0 10px; padding-bottom: 6px; border-bottom: 3px solid var(--accent); break-after: avoid; }
+  h3 { font-size: 12pt; margin: 18px 0 6px; color: var(--accent); break-after: avoid; }
+  p { margin: 0 0 8px; }
+  ul, ol { margin: 0 0 10px; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  code { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; background: #f1f5f9; padding: 1px 4px; border-radius: 3px; }
+  pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.8pt; background: #0f172a; color: #e2e8f0; padding: 10px 12px; border-radius: 6px; white-space: pre-wrap; break-inside: avoid; margin: 6px 0 12px; }
+  section { break-before: page; }
+  figure { margin: 10px 0 14px; break-inside: avoid; text-align: center; }
+  figure img { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; }
+  figcaption { font-size: 8.8pt; color: var(--muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 9.5pt; break-inside: avoid; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--soft); color: #312e81; }
+  .box { border-left: 4px solid var(--accent2); background: #ecfeff; padding: 8px 12px; border-radius: 4px; margin: 10px 0; break-inside: avoid; }
+  .box.warn { border-color: var(--warn); background: #fffbeb; }
+  .box.ok { border-color: #16a34a; background: #f0fdf4; }
+  .box strong:first-child { display: block; margin-bottom: 2px; }
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps li { counter-increment: s; position: relative; padding-left: 30px; margin-bottom: 7px; }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 21px; height: 21px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 9pt; text-align: center; line-height: 21px; }
+  /* capa */
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: space-between; }
+  .cover .band { background: linear-gradient(120deg, #1e1b4b, #312e81 55%, #0e7490); color: #fff; border-radius: 10px; padding: 34px 32px; }
+  .cover img { height: 46px; }
+  .cover h1 { color: #fff; font-size: 30pt; margin: 26px 0 6px; }
+  .cover .sub { font-size: 13pt; opacity: .9; }
+  .cover .ver { display: inline-block; margin-top: 18px; padding: 4px 12px; border-radius: 999px; background: linear-gradient(90deg, var(--accent), #22d3ee); font-weight: 700; }
+  .cover .meta { color: var(--muted); font-size: 9.5pt; }
+  .toc { columns: 2; column-gap: 24px; padding-left: 18px; }
+  .toc li { break-inside: avoid; }
+  .new { display: inline-block; font-size: 7.5pt; font-weight: 700; color: #fff; background: var(--accent); border-radius: 999px; padding: 0 7px; vertical-align: middle; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="band">
+    <img src="../../public/logo.png" alt="Confianza Technologies">
+    <h1>Disk Monitor</h1>
+    <div class="sub">Manual do usuário e de operação — discos, limpeza e monitoramento do servidor</div>
+    <div class="ver">Versão 1.7.1</div>
+  </div>
+  <div>
+    <h3 style="margin-top:0">Neste manual</h3>
+    <ol class="toc">
+      <li>O que é o Disk Monitor</li>
+      <li>Instalar e atualizar</li>
+      <li>Visão geral da tela</li>
+      <li>Perfil da máquina</li>
+      <li>Uso de disco agora, limpeza geral e configuração</li>
+      <li>Os 4 grupos de discos <span class="new">NOVO</span></li>
+      <li>Como cada disco é identificado <span class="new">NOVO</span></li>
+      <li>Painel do disco: tempo real e limpeza <span class="new">NOVO</span></li>
+      <li>Campo "Salvar nome" <span class="new">NOVO</span></li>
+      <li>NAS e nuvem</li>
+      <li>Usuários e permissões</li>
+      <li>Perguntas frequentes</li>
+      <li>Solução de problemas e comandos</li>
+      <li>O que mudou nesta versão</li>
+    </ol>
+  </div>
+  <div class="meta">Confianza Technologies · server-toolkit / disk-monitor · setembro de 2026<br>
+    As telas deste manual usam dados de exemplo com o mesmo layout do servidor (120 GB + 480 GB em 2 partições + 480 GB, NAS e HD USB).</div>
+</div>
+
+<section>
+  <h2>1. O que é o Disk Monitor</h2>
+  <p>O Disk Monitor é um painel web que roda no próprio servidor (porta <code>8091</code>) e serve para:</p>
+  <ul>
+    <li>ver o espaço de cada disco, partição, HD externo, NAS e nuvem montada, em tempo real;</li>
+    <li>limpar logs e arquivos desnecessários de um disco específico com um clique;</li>
+    <li>rodar uma limpeza automática quando o disco do sistema passar de um limite (padrão 85%);</li>
+    <li>acompanhar CPU, memória RAM e os processos que mais consomem;</li>
+    <li>guardar o histórico de uso e de todas as limpezas feitas.</li>
+  </ul>
+  <p>Ele é separado do AtendeFlow: não usa o banco de dados nem mexe nos dados do sistema de atendimento.</p>
+  <div class="box warn"><strong>Segurança</strong>
+    Não deixe a porta 8091 aberta para a internet. Acesse pela rede local, por túnel SSH
+    (<code>ssh -L 8091:localhost:8091 usuario@servidor</code> e abrir <code>http://localhost:8091</code>)
+    ou por um proxy com autenticação. O login do painel é uma segunda camada de proteção, não a única.</div>
+
+  <h2 style="margin-top:22px">2. Instalar e atualizar</h2>
+  <h3>Atualizar uma instalação existente (caso do servidor atual)</h3>
+  <pre>cd ~/atendeflow &amp;&amp; git fetch origin claude/instagram-ai-agent-ivcyk4 &amp;&amp; git merge --ff-only FETCH_HEAD
+cd ~/atendeflow/server-toolkit/disk-monitor &amp;&amp; sudo installers/linux/update.sh</pre>
+  <p>O script mostra a versão antiga e a nova (deve aparecer <strong>v1.7.1</strong>), instala dependências e reinicia o serviço
+  <code>disk-monitor</code>. Configuração, usuários e histórico (<code>data/</code>) são mantidos.</p>
+  <h3>Instalar num servidor novo</h3>
+  <pre>cd server-toolkit/disk-monitor
+sudo installers/linux/install.sh        # modo texto
+sudo installers/linux/install-gui.sh    # com janelas (se houver interface gráfica)</pre>
+  <p>Na primeira subida, o sistema faz a <strong>varredura do hardware</strong> sozinho: descobre os discos físicos, as
+  partições, o que é HD externo, os NAS e as nuvens montadas. Não é preciso cadastrar nada.</p>
+  <h3>Depois de instalar</h3>
+  <ol class="steps">
+    <li>Abra <code>http://IP-DO-SERVIDOR:8091</code> e entre com o usuário administrador (definido no <code>.env</code> na primeira vez).</li>
+    <li>Confira se os 3 discos internos aparecem em <strong>Discos físicos</strong> e os compartilhamentos em <strong>NAS</strong>.</li>
+    <li>Se quiser, dê um nome próprio a cada disco (seção 9).</li>
+  </ol>
+</section>
+
+<section>
+  <h2>3. Visão geral da tela</h2>
+  <figure><img src="img/01-topo.png"><figcaption>Barra do topo: versão instalada, usuário logado, idioma (português, espanhol, inglês), tema claro/escuro e Sair.</figcaption></figure>
+  <p>De cima para baixo, o painel mostra:</p>
+  <table>
+    <tr><th style="width:32%">Bloco</th><th>Para que serve</th></tr>
+    <tr><td>Perfil da máquina</td><td>Ficha do servidor: hostname, sistema, processador, RAM, discos, data da varredura.</td></tr>
+    <tr><td>Uso de disco agora</td><td>Ocupação do disco do sistema (<code>/</code>), o disco que dispara a limpeza automática.</td></tr>
+    <tr><td>Limpeza</td><td>Botão <em>Limpar agora</em>: limpeza geral do servidor (a mesma da automática).</td></tr>
+    <tr><td>Configuração</td><td>Limite da limpeza automática, intervalo de checagem e idades mínimas dos arquivos.</td></tr>
+    <tr><td>Histórico de uso de disco</td><td>Gráfico da ocupação do disco do sistema ao longo do tempo.</td></tr>
+    <tr><td>Discos físicos · Externos (USB) · NAS · Nuvem</td><td>Um card por disco ou compartilhamento, separados em grupos. Clique para abrir o detalhe.</td></tr>
+    <tr><td>CPU / Memória RAM em tempo real</td><td>Gráficos ao vivo (amostra a cada 5 segundos).</td></tr>
+    <tr><td>Processos em tempo real</td><td>Os 15 processos que mais usam CPU, com gráfico de consumo.</td></tr>
+    <tr><td>Últimas limpezas</td><td>Quando, tipo (automática/manual), uso antes e depois, espaço liberado e detalhes.</td></tr>
+    <tr><td>Usuários</td><td>Só para administradores: criar e remover acessos.</td></tr>
+  </table>
+
+  <h2 style="margin-top:20px">4. Perfil da máquina</h2>
+  <figure><img src="img/02-perfil.png"><figcaption>Ficha do servidor, feita uma vez na instalação.</figcaption></figure>
+  <p>É uma "foto" do hardware tirada na instalação — por isso não fica mudando sozinha. Em <strong>Discos</strong> conta só
+  os discos físicos internos (HD externo, NAS e nuvem não entram) e soma a capacidade deles.</p>
+  <div class="box"><strong>Trocou disco ou memória? Ou a contagem de discos está antiga?</strong>
+    Apague a ficha e reinicie; ele faz a varredura de novo:
+    <pre style="margin-bottom:0">sudo rm ~/atendeflow/server-toolkit/disk-monitor/data/machine-profile.json
+sudo systemctl restart disk-monitor</pre></div>
+</section>
+
+<section>
+  <h2>5. Uso de disco agora, limpeza geral e configuração</h2>
+  <figure><img src="img/03-uso-agora.png" style="max-height:44mm"><figcaption>Os três cards do meio da tela.</figcaption></figure>
+  <h3>Uso de disco agora</h3>
+  <p>Mostra a ocupação da partição do sistema (<code>/</code>). A partir da v1.7.1 o valor é <strong>lido na hora e atualizado
+  a cada 5 segundos</strong>, com a mesma conta do card do disco — então ele sempre bate com a linha
+  <em>Sistema /</em> do <em>Disco 1</em>, inclusive logo depois de uma limpeza.</p>
+  <p>A conta é a mesma do comando <code>df -h</code> do Linux: <em>usado ÷ (usado + livre)</em>. O pequeno espaço que o Linux
+  reserva para o administrador (cerca de 5% em discos ext4) não entra como "usado".</p>
+  <h3>Limpar agora (limpeza geral)</h3>
+  <p>Roda a limpeza do servidor inteiro, a mesma que roda sozinha quando o disco do sistema passa do limite. Para limpar
+  <strong>só um disco</strong> e ver antes o que vai ser apagado, use o painel do disco (seção 8).</p>
+  <h3>Configuração</h3>
+  <p>Altere os campos e clique em <strong>Salvar configuração</strong> (só administrador); vale na hora, sem reiniciar.</p>
+  <table>
+    <tr><th style="width:38%">Campo</th><th>O que faz</th><th style="width:12%">Padrão</th></tr>
+    <tr><td>Limite pra limpeza automática (%)</td><td>Quando o disco do sistema chegar nesse valor, a limpeza roda sozinha.</td><td>85%</td></tr>
+    <tr><td>Intervalo de checagem (minutos)</td><td>De quanto em quanto tempo o sistema verifica o limite e grava um ponto no histórico.</td><td>15</td></tr>
+    <tr><td>Truncar log do Docker maior que (MB)</td><td>Zera o log de um container que passar desse tamanho (o arquivo continua existindo).</td><td>200</td></tr>
+    <tr><td>Limpar /tmp com mais de (dias)</td><td>Idade mínima para apagar temporários e itens da lixeira.</td><td>7</td></tr>
+    <tr><td>Limpar logs do sistema com mais de (dias)</td><td>Logs do systemd (journal) mais antigos que isso são descartados.</td><td>14</td></tr>
+    <tr><td>Limpeza automática habilitada</td><td>Liga/desliga a limpeza automática sem reiniciar o serviço.</td><td>ligada</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>6. Os 4 grupos de discos <span class="new">NOVO</span></h2>
+  <p>O painel lê o <strong>hardware</strong> do servidor (comando <code>lsblk</code>) e os pontos de montagem, e separa tudo em
+  quatro grupos. Camadas internas do Docker (<code>overlay</code>), <code>efivarfs</code>, <code>tmpfs</code> e similares
+  <strong>não aparecem</strong> — elas não são discos.</p>
+  <h3>Discos físicos</h3>
+  <p>Os HD/SSD instalados dentro da máquina. Cada card é um disco, com as partições dentro.</p>
+  <figure><img src="img/04-fisicos.png"><figcaption>Layout do servidor: Disco 1 de 120 GB (sistema), Disco 2 de 480 GB em duas partições de 240 GB, Disco 3 de 480 GB com uma partição.</figcaption></figure>
+  <h3>Discos externos (USB)</h3>
+  <p>Aparecem sozinhos quando um HD/pendrive é plugado e somem quando ele é retirado.</p>
+  <figure><img src="img/05-externos.png"><figcaption>HD externo plugado na USB.</figcaption></figure>
+</section>
+
+<section>
+  <h3 style="margin-top:0">NAS / compartilhamentos de rede</h3>
+  <p>Pastas de outro equipamento montadas pela rede (SMB/CIFS, NFS, SSHFS). O card mostra o endereço do NAS e a pasta:
+  <code>//192.168.3.21/backup → /mnt/nas-backup</code>.</p>
+  <figure><img src="img/06-nas.png"><figcaption>Dois compartilhamentos do mesmo NAS (192.168.3.21).</figcaption></figure>
+  <h3>Nuvem</h3>
+  <p>Armazenamento em nuvem montado como pasta no servidor: Google Drive/OneDrive/Dropbox via <em>rclone</em>, S3,
+  Nextcloud (davfs), etc. Este grupo só aparece se houver alguma nuvem montada.</p>
+  <figure><img src="img/07-nuvem.png"><figcaption>Exemplo: Google Drive montado com rclone em /mnt/google-drive.</figcaption></figure>
+  <div class="box"><strong>Não apareceu um NAS ou uma nuvem?</strong>
+    O painel mostra o que está <em>montado</em> no momento. Confira com <code>findmnt -t cifs,nfs,nfs4,fuse.rclone</code>.
+    Se não estiver montado (ex.: NAS desligado), ele não aparece — e volta sozinho quando for montado de novo.</div>
+</section>
+
+<section>
+  <h2>7. Como cada disco é identificado <span class="new">NOVO</span></h2>
+  <p>Cada card tem um <strong>título</strong> (nome automático ou o nome que você der), uma <strong>linha técnica</strong> e
+  <strong>etiquetas</strong>:</p>
+  <table>
+    <tr><th style="width:26%">Parte</th><th>Exemplo</th><th>O que significa</th></tr>
+    <tr><td>Título automático</td><td>Disco 2 · Confianza + Seafile</td><td>Número dentro do grupo + papel das partições.</td></tr>
+    <tr><td>Linha técnica</td><td>SSD 480GB · /dev/sdb · 447.0 GB · 2 partições</td><td>Modelo, dispositivo no Linux, tamanho real, quantidade de partições.</td></tr>
+    <tr><td>Etiquetas</td><td>SISTEMA · SSD · SATA · EXTERNO · USB · NAS · SMB · NUVEM</td><td>Disco do sistema, tipo (SSD/HDD/NVMe), conexão e grupo.</td></tr>
+    <tr><td>No detalhe</td><td>S/N X1</td><td>Número de série do disco (para achar o disco físico na máquina).</td></tr>
+  </table>
+  <p>A numeração é por grupo: <em>Disco 1, 2, 3</em> (internos — o do sistema é sempre o 1), <em>Externo 1, 2…</em>,
+  e NAS/Nuvem pelo nome da pasta.</p>
+  <h3>Papel de cada partição</h3>
+  <p>Detectado sozinho pelo local onde a partição está montada e pelo rótulo dela:</p>
+  <table>
+    <tr><th style="width:26%">Papel</th><th>Quando aparece</th></tr>
+    <tr><td>Sistema</td><td>Partição raiz <code>/</code> (ou <code>C:</code> no Windows).</td></tr>
+    <tr><td>Boot EFI / Boot</td><td><code>/boot/efi</code> e <code>/boot</code> — arquivos de inicialização.</td></tr>
+    <tr><td>Seafile</td><td>Pasta ou rótulo com "seafile" (ex.: <code>/srv/seafile-data</code>, <code>/mnt/nas-seafile</code>).</td></tr>
+    <tr><td>Confianza</td><td>Pasta ou rótulo com "confianza"/"confiança" (ex.: <code>/srv/confianza</code>).</td></tr>
+    <tr><td>Backup</td><td>Pasta ou rótulo com "backup"/"bkp" (ex.: <code>/mnt/nas-backup</code>).</td></tr>
+    <tr><td>Docker · Home</td><td>Pastas do Docker e <code>/home</code>.</td></tr>
+    <tr><td>Swap</td><td>Memória virtual (não tem "espaço usado" para mostrar).</td></tr>
+    <tr><td>Livre (não montada)</td><td>Partição que existe no disco mas não está em uso por nenhuma pasta.</td></tr>
+    <tr><td>Outro nome</td><td>Nos demais casos usa o rótulo da partição ou o nome da pasta (ex.: <code>/mnt/dados</code> → "Dados").</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>8. Painel do disco: tempo real e limpeza <span class="new">NOVO</span></h2>
+  <p>Clique em qualquer card para abrir o painel do disco. Ele mostra cada partição com um gráfico de rosca, atualizado
+  <strong>a cada 2 segundos</strong> enquanto o painel estiver aberto.</p>
+  <figure><img src="img/08-detalhe-disco1.png" style="max-height:112mm"><figcaption>Disco 1 aberto: partições em tempo real e a lista do que pode ser limpo nele, com estimativa.</figcaption></figure>
+  <h3>Limpar logs e arquivos desnecessários</h3>
+  <p>A lista mostra <strong>só o que fica neste disco</strong>, com o tamanho estimado. Os itens possíveis são:</p>
+  <table>
+    <tr><th style="width:36%">Item</th><th>O que é apagado</th></tr>
+    <tr><td>Docker</td><td>Só imagens órfãs (sem nome) e cache de build com mais de 7 dias. Nunca container, volume ou imagem de serviço.</td></tr>
+    <tr><td>Journal do systemd</td><td>Logs do sistema mais antigos que o configurado (padrão 14 dias).</td></tr>
+    <tr><td>Logs rotacionados</td><td>Logs antigos já compactados em <code>/var/log</code> (<code>.gz</code>, <code>.1</code>, <code>.old</code>…).</td></tr>
+    <tr><td>Cache do apt</td><td>Pacotes de instalação já baixados (<code>apt-get clean</code>).</td></tr>
+    <tr><td>Temporários</td><td><code>/tmp</code> e <code>/var/tmp</code> com mais de 7 dias.</td></tr>
+    <tr><td>Lixeira</td><td>Arquivos já apagados que ficaram na lixeira do disco há mais de 7 dias.</td></tr>
+  </table>
+</section>
+
+<section>
+  <ol class="steps">
+    <li>Abra o disco e confira a lista e as estimativas.</li>
+    <li>Clique em <strong>Limpar logs e arquivos desnecessários</strong> e confirme.</li>
+    <li>O resultado aparece embaixo do botão: total liberado e o que cada item liberou. Os gráficos, o card
+      <em>Uso de disco agora</em> e o histórico já mostram o novo valor, e a limpeza fica registrada em <em>Últimas limpezas</em>.</li>
+  </ol>
+  <figure><img src="img/09-limpeza-feita.png" style="max-height:118mm"><figcaption>Depois da limpeza: resultado por item e total liberado neste disco.</figcaption></figure>
+  <div class="box ok"><strong>"Nada para limpar neste disco" — é normal</strong>
+    Discos de dados (Seafile, Confianza, Dados, HD externo) normalmente não guardam logs nem temporários do sistema: eles
+    ficam no disco do sistema. Nesse caso o painel informa que não há nada a fazer e o botão fica desabilitado. Os arquivos
+    dos clientes <strong>nunca</strong> são tocados.</div>
+  <div class="box warn"><strong>Nunca é apagado</strong>
+    Volumes do Docker (banco de dados, uploads, mídias), containers, imagens de serviços, arquivos de clientes,
+    conteúdo de NAS e nuvem, backups.</div>
+</section>
+
+<section>
+  <h2>9. Campo "Salvar nome" <span class="new">NOVO</span></h2>
+  <p>Serve para dar um <strong>nome seu</strong> a um disco, HD externo, NAS ou nuvem, no lugar do nome automático.
+  É só um apelido para facilitar a identificação — <strong>não mexe no disco</strong>, não formata, não renomeia pasta nem
+  partição no Linux.</p>
+  <figure><img src="img/10-salvar-nome.png"><figcaption>Campo de nome no topo do painel do disco (aparece só para administradores).</figcaption></figure>
+  <h3>Como usar</h3>
+  <ol class="steps">
+    <li>Clique no card do disco para abrir o painel.</li>
+    <li>No campo <em>Nome deste disco</em>, digite o nome desejado. Ex.: <strong>SSD do servidor</strong>, <strong>HD Seafile</strong>,
+      <strong>Backup da loja</strong>, <strong>HD do escritório (USB)</strong>.</li>
+    <li>Clique em <strong>Salvar nome</strong>. O título muda no painel e no card para todos os usuários.</li>
+  </ol>
+  <table>
+    <tr><th style="width:36%">Situação</th><th>Resultado</th></tr>
+    <tr><td>Campo vazio (padrão)</td><td>Usa o nome automático: <em>Disco 1 · Sistema</em>, <em>NAS · Backup</em>…</td></tr>
+    <tr><td>Nome preenchido e salvo</td><td>Mostra o seu nome. As etiquetas e a linha técnica continuam aparecendo.</td></tr>
+    <tr><td>Apagar o texto e salvar</td><td>Volta ao nome automático.</td></tr>
+  </table>
+  <p>O nome fica guardado em <code>data/config.json</code> (campo <code>diskNames</code>) e é ligado ao <strong>número de série</strong>
+  do disco — se o disco mudar de <code>/dev/sdb</code> para <code>/dev/sdc</code> (ou o HD externo for plugado em outra porta),
+  o nome continua certo. Para NAS e nuvem, o nome é ligado à pasta onde estão montados. Até 60 caracteres.</p>
+</section>
+
+<section>
+  <h2>10. NAS e nuvem</h2>
+  <figure><img src="img/11-detalhe-nas.png" style="max-height:95mm"><figcaption>Painel de um NAS: espaço em tempo real e aviso de que é só monitoramento.</figcaption></figure>
+  <ul>
+    <li>Mostram o espaço total, usado e livre informados pelo NAS/nuvem, atualizados em tempo real.</li>
+    <li>São <strong>só monitoramento</strong>: o botão de limpeza não aparece e nada é apagado neles. Os backups em
+      <code>/mnt/nas-backup</code> continuam sendo gerenciados pelo script de backup do AtendeFlow (retenção de 30 dias).</li>
+    <li>Se o NAS cair, o card some; quando a montagem voltar, ele aparece de novo sozinho.</li>
+  </ul>
+
+  <h2 style="margin-top:20px">11. Usuários e permissões</h2>
+  <table>
+    <tr><th style="width:24%">Papel</th><th>Pode</th></tr>
+    <tr><td>Administrador</td><td>Tudo: limpar (geral e por disco), salvar configuração, dar nome aos discos, criar e remover usuários.</td></tr>
+    <tr><td>Visualizador</td><td>Só acompanhar: vê discos, detalhes em tempo real, a lista do que seria limpo, histórico e limpezas. Botões de ação ficam desabilitados e o campo de nome não aparece.</td></tr>
+  </table>
+  <p>Para criar um acesso: seção <strong>Usuários</strong> no fim da página → usuário, senha, papel → <strong>Criar usuário</strong>.
+  Não é possível remover o próprio usuário logado nem o último administrador.</p>
+</section>
+
+<section>
+  <h2>12. Perguntas frequentes</h2>
+  <h3>Limpei o Disco 1 e ele mostrou 71%, mas "Uso de disco agora" continuou em 81%. Por quê?</h3>
+  <p>Na versão 1.7.0, o card <em>Uso de disco agora</em> mostrava a <strong>última checagem agendada</strong> (a cada 15 minutos),
+  não o valor do momento. Por isso ele só se atualizava na checagem seguinte. Além disso, usava uma conta que incluía como
+  "usado" o espaço reservado pelo Linux. <strong>Corrigido na 1.7.1</strong>: o card agora é lido na hora, atualiza a cada
+  5 segundos, usa a mesma conta dos discos e muda logo depois da limpeza. O histórico também ganha um ponto novo na hora.</p>
+  <h3>Por que alguns discos dizem que não há nada para limpar?</h3>
+  <p>Porque logs, cache e temporários do sistema ficam no disco do sistema (Disco 1). Os discos de dados guardam arquivos
+  de clientes, que o painel nunca apaga. Veja o quadro verde da seção 8.</p>
+  <h3>O tamanho do card é menor que o do disco (ex.: 480 GB aparece como 447 GB)</h3>
+  <p>O fabricante conta 1 GB = 1.000.000.000 bytes; o sistema conta em múltiplos de 1024. Um disco de 480 GB tem ~447 GB
+  "de sistema". Além disso, o sistema de arquivos ocupa uma pequena parte.</p>
+  <h3>O HD externo não aparece</h3>
+  <p>Ele aparece quando está plugado e reconhecido pelo Linux (confira com <code>lsblk</code>). Se estiver plugado mas não
+  montado, o card aparece com a partição como "Livre (não montada)".</p>
+  <h3>Um disco aparece como "Disco 2 · Dados", mas é o do Seafile</h3>
+  <p>O papel é deduzido pelo nome da pasta de montagem. Se a pasta tiver outro nome, dê um nome próprio ao disco com
+  <strong>Salvar nome</strong> (seção 9).</p>
+  <h3>A contagem de discos em "Perfil da máquina" está errada</h3>
+  <p>A ficha é da instalação. Refaça a varredura (seção 4).</p>
+</section>
+
+<section>
+  <h2>13. Solução de problemas e comandos</h2>
+  <table>
+    <tr><th style="width:44%">Para…</th><th>Comando</th></tr>
+    <tr><td>Ver se o serviço está rodando</td><td><code>sudo systemctl status disk-monitor</code></td></tr>
+    <tr><td>Reiniciar o serviço</td><td><code>sudo systemctl restart disk-monitor</code></td></tr>
+    <tr><td>Ver os últimos logs</td><td><code>sudo journalctl -u disk-monitor -n 50 --no-pager</code></td></tr>
+    <tr><td>Conferir a versão instalada</td><td>Etiqueta no topo do painel (ex.: <code>v1.7.1</code>)</td></tr>
+    <tr><td>Ver os discos como o painel vê</td><td><code>lsblk -o NAME,SIZE,TYPE,MODEL,TRAN,MOUNTPOINT</code></td></tr>
+    <tr><td>Ver o espaço como o painel calcula</td><td><code>df -h /</code></td></tr>
+    <tr><td>Ver NAS e nuvens montados</td><td><code>findmnt -t cifs,nfs,nfs4,fuse.rclone,davfs</code></td></tr>
+    <tr><td>Refazer a varredura do hardware</td><td>Apagar <code>data/machine-profile.json</code> e reiniciar</td></tr>
+  </table>
+  <div class="box"><strong>Painel não abre</strong>
+    Verifique o serviço e os logs acima. Se a porta estiver ocupada ou faltar o <code>SESSION_SECRET</code> no <code>.env</code>,
+    o log informa. Depois de corrigir, reinicie o serviço.</div>
+
+  <h2 style="margin-top:20px">14. O que mudou nesta versão</h2>
+  <h3>v1.7.1</h3>
+  <ul>
+    <li><em>Uso de disco agora</em> lido na hora, atualizado a cada 5 s e com a mesma conta dos discos (igual ao <code>df -h</code>).</li>
+    <li>Depois da limpeza por disco, o histórico ganha um ponto novo na hora.</li>
+    <li>O resultado da limpeza continua visível no painel do disco (antes sumia logo em seguida).</li>
+  </ul>
+  <h3>v1.7.0</h3>
+  <ul>
+    <li>Discos lidos do hardware e separados em 4 grupos: físicos, externos (USB), NAS e nuvem. Camadas do Docker e sistemas virtuais não aparecem mais.</li>
+    <li>Identificação de cada disco e partição (número, papel, modelo, dispositivo, série) e campo <em>Salvar nome</em>.</li>
+    <li>Painel do disco com espaço em tempo real e limpeza só daquele disco, com estimativa antes.</li>
+    <li>NAS e nuvem: só monitoramento.</li>
+  </ul>
+  <h3>v1.6.1</h3>
+  <ul><li>Limpeza segura do Docker (não remove mais imagens de serviços nem containers parados).</li></ul>
+</section>
+
+</body>
+</html>

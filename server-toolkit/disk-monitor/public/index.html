@@ -1113,7 +1113,9 @@ async function loadCleanPlan() {
       return `<li><span>${esc(task.label)} <span class="sub">(${esc(task.partitionMount)})</span></span><span class="est">${est}</span></li>`;
     }).join("");
     btn.disabled = !isAdmin;
-    document.getElementById("diskCleanResult").textContent = isAdmin ? "" : t("diskViewerOnly");
+    // Não apaga o resultado da última limpeza (esta função roda de novo
+    // logo depois dela); openDiskModal já limpa ao abrir outro disco.
+    if (!isAdmin) document.getElementById("diskCleanResult").textContent = t("diskViewerOnly");
   } catch (err) {
     list.innerHTML = `<li><span class="fail">${esc(err.message)}</span></li>`;
   }
@@ -1440,6 +1442,7 @@ async function loadLive() {
     const res = await apiFetch("/api/live");
     const data = await res.json();
     renderDisksGrid(data.physicalDisks);
+    if (data.current) renderCurrent(data.current);
     renderLineChart(cpuChartState, "cpuHistoryChart", data.cpuHistory, t("chartCpuLabel"), "#22d3ee");
     renderLineChart(memChartState, "memHistoryChart", data.memHistory, t("chartMemLabel"), "#f59e0b");
   } catch (err) {

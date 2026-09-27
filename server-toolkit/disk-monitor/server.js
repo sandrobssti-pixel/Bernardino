@@ -159,7 +159,10 @@ async function checkDiskAndMaybeClean() {
 app.get("/api/status", auth.requireAuth, async (req, res) => {
   const config = getConfig();
   const history = getHistory();
-  const current = history[history.length - 1] || (await readDiskUsage(MOUNT_PATH));
+  // "Uso de disco agora" é lido na hora (não o último ponto do histórico,
+  // que só é gravado a cada intervalo de checagem) — assim bate com o card
+  // do disco logo depois de uma limpeza.
+  const current = await readDiskUsage(MOUNT_PATH).catch(() => history[history.length - 1]);
 
   const cpuHistory = getCpuHistory();
   const memHistory = getMemHistory();
@@ -193,11 +196,15 @@ app.get("/api/status", auth.requireAuth, async (req, res) => {
 // ver sampleLiveStats acima) + discos sempre lidos na hora, com bytes
 // completos (precisão total pro card de cada disco, não só o percentual).
 app.get("/api/live", auth.requireAuth, async (req, res) => {
-  const physicalDisks = await readPhysicalDisks(getConfig().diskNames);
+  const [physicalDisks, current] = await Promise.all([
+    readPhysicalDisks(getConfig().diskNames),
+    readDiskUsage(MOUNT_PATH).catch(() => null)
+  ]);
   res.json({
     cpuHistory: liveCpuHistory,
     memHistory: liveMemHistory,
-    physicalDisks
+    physicalDisks,
+    current
   });
 });
 
@@ -254,6 +261,9 @@ app.post("/api/disks/:id/cleanup", auth.requireRole("admin"), async (req, res) =
     const steps = plan.map(item => item.task.run());
 
     const after = (await readPhysicalDisks(getConfig().diskNames)).find(item => item.id === disk.id) || disk;
+    // Ponto novo no histórico já com o espaço liberado (gráfico e "Uso de
+    // disco agora" não esperam o próximo intervalo de checagem).
+    appendReading(await readDiskUsage(MOUNT_PATH));
     const partitions = disk.partitions
       .filter(part => part.mount && part.usedBytes !== null)
       .map(part => {

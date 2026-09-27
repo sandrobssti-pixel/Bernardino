@@ -1,5 +1,8 @@
 # disk-monitor — Disco & Limpeza automática
 
+> **Manual do usuário em PDF:** [`docs/Manual-Disk-Monitor.pdf`](docs/Manual-Disk-Monitor.pdf)
+> (fonte em `docs/manual/manual.html`; gerar de novo com `node docs/manual/gerar-pdf.js`).
+
 Módulo do `server-toolkit`: ferramenta **separada** do AtendeFlow (não faz
 parte do app web nem do banco de dados dele) que roda em qualquer servidor
 Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
@@ -263,6 +266,11 @@ também mostra, sem nenhuma configuração extra:
   modelo, `/dev/...`, número de série e tipo (SSD/HDD/NVMe, SATA/USB).
   O admin pode dar um **nome próprio** a qualquer disco/NAS no painel de
   detalhe (fica em `data/config.json` → `diskNames`; vazio = automático).
+- **Uso de disco agora** (v1.7.1): lido na hora a cada 5 s, com a mesma
+  conta do `df` e dos cards dos discos (antes era o último ponto do
+  histórico, gravado só a cada intervalo de checagem, e contava o espaço
+  reservado ao root como usado — por isso ficava diferente do Disco 1
+  depois de uma limpeza).
 - **Clique no disco** abre o painel de detalhe: espaço de cada partição
   em tempo real (atualiza a cada 2 s) e o botão **Limpar logs e arquivos
   desnecessários**, que só roda as tarefas cujas pastas ficam naquele
