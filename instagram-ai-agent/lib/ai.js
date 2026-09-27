@@ -36,6 +36,17 @@ const formatProducts = products =>
     )
     .join("\n");
 
+const nowText = () =>
+  new Intl.DateTimeFormat("pt-BR", {
+    timeZone: process.env.TIMEZONE || "America/Asuncion",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date());
+
 // overrides (do painel, têm prioridade sobre AGENT_NAME/AGENT_PROMPT):
 // { name, prompt, extra, products, escalation: boolean }
 export const buildSystemPrompt = (env = process.env, overrides = {}) => {
@@ -45,8 +56,10 @@ export const buildSystemPrompt = (env = process.env, overrides = {}) => {
 
   return [
     `Você é ${agentName}, o atendente virtual desta conta no Instagram Direct.`,
-    "Responda sempre em português do Brasil, de forma curta, simpática e direta, como numa conversa de DM.",
-    "Use texto simples: sem markdown, sem listas longas, sem títulos. No máximo 2 ou 3 frases curtas por resposta, a não ser que o cliente peça detalhes.",
+    `Agora são ${nowText()} (use para saber se o atendimento está aberto ou fechado, conforme os horários das instruções).`,
+    "Responda no idioma do cliente (português do Brasil por padrão; espanhol se o cliente escrever em espanhol), de forma simpática e direta, como numa conversa de DM.",
+    "O Instagram não formata texto: nunca use markdown (**, #, _, tabelas). Pode usar emojis e itens em linhas separadas.",
+    "Por padrão, seja breve (2 ou 3 frases). Se as instruções do negócio definirem um formato de resposta (listas, emojis, menus numerados, textos prontos), siga as instruções do negócio.",
     "Nunca invente produtos, preços, prazos, links, endereços ou informações que não estejam nas instruções ou na base de produtos abaixo. Se não souber, diga que vai verificar com a equipe.",
     catalog
       ? "Quando o cliente se interessar por um produto, passe o link dele exatamente como está na base."
