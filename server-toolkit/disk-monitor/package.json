@@ -1,12 +1,13 @@
 {
   "name": "disk-monitor",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "description": "Monitor de disco e limpeza autom\u00e1tica \u2014 m\u00f3dulo do server-toolkit, reaproveit\u00e1vel em qualquer servidor novo de cliente",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test test/*.test.js",
     "build": "npm run build:linux && npm run build:win",
     "build:linux": "pkg . --targets node18-linux-x64 --output ../dist/linux/disk-monitor-linux",
     "build:win": "pkg . --targets node18-win-x64 --output ../dist/windows/disk-monitor.exe"

@@ -148,4 +148,258 @@ function runCleanup(
   return { steps, diskUsageBefore };
 }
 
-module.exports = { runCleanup };
+// ---------------------------------------------------------------------------
+// Limpeza POR DISCO (painel: clicar no disco → "Limpar logs e arquivos
+// desnecessários"). Cada tarefa sabe em que pasta atua; só entram as tarefas
+// cujas pastas ficam no disco escolhido (ver lib/hardware.js diskOfPath).
+// Mesma regra de ouro: só coisa descartável, nunca volume/dado de cliente.
+// ---------------------------------------------------------------------------
+
+const ROTATED_LOG = /\.(gz|xz|bz2|zip|old)$|\.\d+$/;
+
+// Tamanho de uma pasta (com limite de arquivos, para não travar em pasta
+// enorme). `filter(fullPath, stat)` escolhe o que conta.
+function dirSize(dir, filter = () => true, budget = { left: 200000 }) {
+  let total = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  for (const entry of entries) {
+    if (budget.left-- <= 0) break;
+    const full = path.join(dir, entry.name);
+    try {
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        total += dirSize(full, filter, budget);
+        continue;
+      }
+      const stat = fs.statSync(full);
+      if (filter(full, stat)) total += stat.size;
+    } catch {
+      // sem permissão / sumiu — ignora
+    }
+  }
+  return total;
+}
+
+const olderThan = days => (_full, stat) => stat.mtimeMs < Date.now() - days * 86400000;
+
+function deleteMatching(dir, predicate) {
+  let removed = 0;
+  let freed = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return { removed, freed };
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    try {
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
+        const sub = deleteMatching(full, predicate);
+        removed += sub.removed;
+        freed += sub.freed;
+        continue;
+      }
+      const stat = fs.statSync(full);
+      if (predicate(full, stat)) {
+        fs.unlinkSync(full);
+        removed += 1;
+        freed += stat.size;
+      }
+    } catch {
+      // arquivo em uso / sem permissão — segue
+    }
+  }
+  return { removed, freed };
+}
+
+const mb = bytes => `${(bytes / 1024 / 1024).toFixed(0)}MB`;
+
+function dockerRootDir() {
+  try {
+    return execSync("docker info -f '{{.DockerRootDir}}' 2>/dev/null", { encoding: "utf8", timeout: 5000 }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+function journalDiskUsage() {
+  try {
+    const out = execSync("journalctl --disk-usage 2>/dev/null", { encoding: "utf8", timeout: 5000 });
+    const match = out.match(/([\d.]+)\s*([KMGT])/i);
+    if (!match) return null;
+    const power = { K: 1, M: 2, G: 3, T: 4 }[match[2].toUpperCase()];
+    return Math.round(Number(match[1]) * 1024 ** power);
+  } catch {
+    return null;
+  }
+}
+
+// Pastas de lixeira dos usuários e das partições (.Trash-<uid>).
+function trashDirs(mounts) {
+  const dirs = [];
+  for (const mount of mounts) {
+    try {
+      for (const name of fs.readdirSync(mount)) {
+        if (/^\.Trash(-\d+)?$/.test(name)) dirs.push(path.join(mount, name));
+      }
+    } catch {
+      // partição sem permissão de leitura na raiz
+    }
+  }
+  for (const home of ["/root", ...(() => {
+    try {
+      return fs.readdirSync("/home").map(user => path.join("/home", user));
+    } catch {
+      return [];
+    }
+  })()]) {
+    const trash = path.join(home, ".local/share/Trash");
+    if (fs.existsSync(trash)) dirs.push(trash);
+  }
+  return dirs;
+}
+
+// Catálogo de tarefas (Linux). Cada uma: onde atua, quanto estima liberar e
+// como executar. `config` = mesmas opções do painel (dias/tamanhos).
+function cleanupCatalog(config) {
+  const tmpDays = config.tmpFilesOlderThanDays;
+  const logDays = config.systemLogsOlderThanDays;
+
+  if (isWindows) {
+    return [
+      {
+        id: "tmp",
+        label: `Arquivos temporários com mais de ${tmpDays} dias`,
+        paths: [os.tmpdir()],
+        estimate: () => dirSize(os.tmpdir(), olderThan(tmpDays)),
+        run: () => cleanTmp(tmpDays)
+      }
+    ];
+  }
+
+  const dockerRoot = dockerRootDir();
+  const tasks = [];
+
+  if (dockerRoot) {
+    tasks.push({
+      id: "docker",
+      label: "Docker: imagens órfãs, cache de build antigo e logs de container gigantes",
+      paths: [dockerRoot],
+      estimate: () => dirSize(path.join(dockerRoot, "containers"), (full, stat) => full.endsWith("-json.log") && stat.size > config.dockerLogMaxSizeMB * 1024 * 1024),
+      run: () => {
+        const prune = dockerPrune();
+        const logs = truncateLargeDockerLogs(config.dockerLogMaxSizeMB);
+        return { label: "Docker", ok: prune.ok && logs.ok, detail: `${prune.detail} | ${logs.detail}` };
+      }
+    });
+  }
+
+  tasks.push(
+    {
+      id: "journal",
+      label: `Logs do sistema (journald) com mais de ${logDays} dias`,
+      paths: ["/var/log/journal"],
+      estimate: () => journalDiskUsage(),
+      estimateIsTotal: true,
+      run: () => cleanSystemLogs(logDays)
+    },
+    {
+      id: "rotated-logs",
+      label: `Logs antigos compactados/rotacionados em /var/log com mais de ${logDays} dias`,
+      paths: ["/var/log"],
+      estimate: () => dirSize("/var/log", (full, stat) => ROTATED_LOG.test(full) && olderThan(logDays)(full, stat)),
+      run: () =>
+        runSafe("logs rotacionados", () => {
+          const { removed, freed } = deleteMatching("/var/log", (full, stat) => ROTATED_LOG.test(full) && olderThan(logDays)(full, stat));
+          return `${removed} arquivo(s), ${mb(freed)} liberados`;
+        })
+    },
+    {
+      id: "apt-cache",
+      label: "Cache de pacotes baixados (apt)",
+      paths: ["/var/cache/apt/archives"],
+      estimate: () => dirSize("/var/cache/apt/archives", full => full.endsWith(".deb")),
+      run: () =>
+        runSafe("cache do apt", () => {
+          execSync("apt-get clean 2>&1", { encoding: "utf8", timeout: 60000 });
+          return "cache de pacotes limpo";
+        })
+    },
+    {
+      id: "tmp",
+      label: `Arquivos temporários (/tmp e /var/tmp) com mais de ${tmpDays} dias`,
+      paths: [os.tmpdir(), "/var/tmp"],
+      estimate: () => dirSize(os.tmpdir(), olderThan(tmpDays)) + dirSize("/var/tmp", olderThan(tmpDays)),
+      run: () =>
+        runSafe("temporários", () => {
+          const a = deleteMatching(os.tmpdir(), olderThan(tmpDays));
+          const b = deleteMatching("/var/tmp", olderThan(tmpDays));
+          return `${a.removed + b.removed} arquivo(s), ${mb(a.freed + b.freed)} liberados`;
+        })
+    }
+  );
+
+  return tasks;
+}
+
+// Tarefas que valem para um disco (pastas que ficam nele), com estimativa.
+function planDiskCleanup(disk, disks, config, diskOfPath) {
+  // NAS/compartilhamento de rede: só monitora, nunca apaga nada lá.
+  if (disk.network) return [];
+  const onDisk = targetPath => {
+    const hit = diskOfPath(disks, targetPath);
+    return hit && hit.disk.id === disk.id ? hit.partition : null;
+  };
+
+  const tasks = [];
+  for (const task of cleanupCatalog(config)) {
+    const partitions = task.paths.map(onDisk).filter(Boolean);
+    if (!partitions.length) continue;
+    let estimateBytes = null;
+    try {
+      estimateBytes = task.estimate();
+    } catch {
+      estimateBytes = null;
+    }
+    tasks.push({ task, partitionMount: partitions[0].mount, estimateBytes, estimateIsTotal: Boolean(task.estimateIsTotal) });
+  }
+
+  // Lixeiras que ficam neste disco.
+  if (!isWindows) {
+    const mounts = disk.partitions.map(part => part.mount).filter(Boolean);
+    const trash = trashDirs(mounts).filter(dir => onDisk(dir));
+    if (trash.length) {
+      const days = config.tmpFilesOlderThanDays;
+      tasks.push({
+        task: {
+          id: "trash",
+          label: `Lixeira (arquivos já apagados) com mais de ${days} dias`,
+          run: () =>
+            runSafe("lixeira", () => {
+              let removed = 0;
+              let freed = 0;
+              for (const dir of trash) {
+                const result = deleteMatching(dir, olderThan(days));
+                removed += result.removed;
+                freed += result.freed;
+              }
+              return `${removed} arquivo(s), ${mb(freed)} liberados`;
+            })
+        },
+        partitionMount: onDisk(trash[0]).mount,
+        estimateBytes: trash.reduce((sum, dir) => sum + dirSize(dir, olderThan(days)), 0),
+        estimateIsTotal: false
+      });
+    }
+  }
+  return tasks;
+}
+
+module.exports = { runCleanup, planDiskCleanup, dirSize, deleteMatching };

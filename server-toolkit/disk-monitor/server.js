@@ -11,10 +11,10 @@ const express = require("express");
 const cron = require("node-cron");
 
 const { readDiskUsage } = require("./lib/diskUsage");
-const { runCleanup } = require("./lib/cleanup");
+const { runCleanup, planDiskCleanup } = require("./lib/cleanup");
+const { readPhysicalDisks, readMountedPartitions, diskOfPath } = require("./lib/hardware");
 const { getConfig, updateConfig } = require("./lib/configStore");
 const {
-  readAllDisks,
   readCpuLoad,
   readMemory,
   readTopProcesses
@@ -112,7 +112,7 @@ async function sampleSystemStats() {
   const [cpu, mem, disks] = await Promise.all([
     readCpuLoad(),
     readMemory(),
-    readAllDisks()
+    readMountedPartitions()
   ]);
   appendCpuReading(cpu);
   appendMemReading(mem);
@@ -169,7 +169,7 @@ app.get("/api/status", auth.requireAuth, async (req, res) => {
   // recém-instalado), lê na hora em vez de esperar o próximo tick do cron.
   const disks = disksHistory.length
     ? disksHistory[disksHistory.length - 1].disks
-    : (await readAllDisks()).map(d => ({ mount: d.mount, percent: d.percent }));
+    : (await readMountedPartitions()).map(d => ({ mount: d.mount, percent: d.percent }));
   const cpuCurrent = cpuHistory[cpuHistory.length - 1] || (await readCpuLoad());
   const memCurrent = memHistory[memHistory.length - 1] || (await readMemory());
 
@@ -193,12 +193,94 @@ app.get("/api/status", auth.requireAuth, async (req, res) => {
 // ver sampleLiveStats acima) + discos sempre lidos na hora, com bytes
 // completos (precisão total pro card de cada disco, não só o percentual).
 app.get("/api/live", auth.requireAuth, async (req, res) => {
-  const disks = await readAllDisks();
+  const physicalDisks = await readPhysicalDisks(getConfig().diskNames);
   res.json({
     cpuHistory: liveCpuHistory,
     memHistory: liveMemHistory,
-    disks
+    physicalDisks
   });
+});
+
+// Discos FÍSICOS (disco → partições) com uso em tempo real — é o que o
+// painel mostra nos cards e no painel de detalhe de cada disco.
+app.get("/api/disks", auth.requireAuth, async (req, res) => {
+  res.json({ disks: await readPhysicalDisks(getConfig().diskNames) });
+});
+
+// O que a limpeza faria NESTE disco (tarefas cujas pastas ficam nele) e
+// quanto estima liberar. Só leitura — viewer também pode ver.
+app.get("/api/disks/:id/cleanup-plan", auth.requireAuth, async (req, res) => {
+  const disks = await readPhysicalDisks(getConfig().diskNames);
+  const disk = disks.find(item => item.id === req.params.id);
+  if (!disk) return res.status(404).json({ error: "Disco não encontrado" });
+  const plan = planDiskCleanup(disk, disks, getConfig(), diskOfPath);
+  res.json({
+    disk: { id: disk.id, model: disk.model, device: disk.device },
+    tasks: plan.map(item => ({
+      id: item.task.id,
+      label: item.task.label,
+      partitionMount: item.partitionMount,
+      estimateBytes: item.estimateBytes,
+      estimateIsTotal: item.estimateIsTotal
+    }))
+  });
+});
+
+// Nome próprio de um disco/NAS (ex.: "HD Seafile"), para identificar cada
+// um no painel. Texto vazio volta ao nome automático. Admin apenas.
+app.post("/api/disks/:id/name", auth.requireRole("admin"), async (req, res) => {
+  const config = getConfig();
+  const disk = (await readPhysicalDisks(config.diskNames)).find(item => item.id === req.params.id);
+  if (!disk) return res.status(404).json({ error: "Disco não encontrado" });
+  const name = String((req.body && req.body.name) || "").trim().slice(0, 60);
+  const diskNames = { ...(config.diskNames || {}) };
+  if (name) diskNames[disk.nameKey] = name;
+  else delete diskNames[disk.nameKey];
+  updateConfig({ diskNames });
+  res.json({ id: disk.id, customName: name });
+});
+
+// Limpa logs e arquivos desnecessários SÓ do disco escolhido e mede o espaço
+// liberado em cada partição (antes/depois). Admin apenas.
+app.post("/api/disks/:id/cleanup", auth.requireRole("admin"), async (req, res) => {
+  if (cleanupRunning) return res.json({ skipped: true, reason: "já tem uma limpeza em andamento" });
+  cleanupRunning = true;
+  try {
+    const before = await readPhysicalDisks(getConfig().diskNames);
+    const disk = before.find(item => item.id === req.params.id);
+    if (!disk) return res.status(404).json({ error: "Disco não encontrado" });
+
+    const plan = planDiskCleanup(disk, before, getConfig(), diskOfPath);
+    const steps = plan.map(item => item.task.run());
+
+    const after = (await readPhysicalDisks(getConfig().diskNames)).find(item => item.id === disk.id) || disk;
+    const partitions = disk.partitions
+      .filter(part => part.mount && part.usedBytes !== null)
+      .map(part => {
+        const now = after.partitions.find(p => p.id === part.id) || part;
+        return {
+          mount: part.mount,
+          percentBefore: part.percent,
+          percentAfter: now.percent,
+          freedBytes: Math.max(0, part.usedBytes - (now.usedBytes ?? part.usedBytes))
+        };
+      });
+    const freedBytes = partitions.reduce((sum, part) => sum + part.freedBytes, 0);
+
+    const action = {
+      timestamp: new Date().toISOString(),
+      trigger: "manual",
+      disk: `${disk.model || disk.device} (${disk.device})`,
+      percentBefore: disk.usage ? disk.usage.percent : null,
+      percentAfter: after.usage ? after.usage.percent : null,
+      freedMB: Math.round(freedBytes / 1024 / 1024),
+      steps
+    };
+    appendAction(action);
+    res.json({ ...action, partitions });
+  } finally {
+    cleanupRunning = false;
+  }
 });
 
 // Perfil da máquina (hardware/SO) — varrido uma vez só, na instalação (ver

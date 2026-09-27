@@ -5,7 +5,8 @@ parte do app web nem do banco de dados dele) que roda em qualquer servidor
 Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
 
 - Acompanhar o uso de disco do servidor ao longo do tempo (gráfico) —
-  detecta sozinho **todos os discos/partições montados**, não só um.
+  lê o **hardware** sozinho (discos físicos e partições) e separa em
+  discos físicos, externos (USB), NAS e nuvem.
 - Acompanhar o uso de CPU e de memória RAM ao longo do tempo (gráficos).
 - Mostrar os processos rodando **em tempo real** (atualiza a cada poucos
   segundos), com um gráfico de consumo (CPU e RAM) dos que mais pesam.
@@ -244,9 +245,30 @@ varre de novo sozinho, sem precisar reinstalar nada.
 Além do disco monitorado (o que aciona a limpeza automática), o painel
 também mostra, sem nenhuma configuração extra:
 
-- **Todos os discos/partições detectados** automaticamente no servidor,
-  cada um com um card próprio: ícone, sistema de arquivos, gráfico de
-  rosca (usado/livre) e o valor exato em GB/TB usado, total e livre.
+- **Discos separados em 4 grupos**, detectados sozinhos na instalação e
+  a cada leitura (`lib/hardware.js`):
+  - **Discos físicos** — HD/SSD internos, lidos pelo `lsblk` (disco →
+    partições, inclusive LVM). Ex.: `Disco 1 · Sistema` (120 GB, com
+    Boot EFI e `/`), `Disco 2 · Confianza + Seafile` (480 GB em 2
+    partições), `Disco 3 · Dados` (480 GB, 1 partição).
+  - **Discos externos (USB)** — aparecem sozinhos quando plugados
+    (`Externo 1 · TOSHIBA EXT`) e somem quando retirados.
+  - **NAS** — compartilhamentos de rede cifs/smb/nfs/sshfs, com servidor
+    e pasta (`NAS · Backup` = `//192.168.3.21/backup → /mnt/nas-backup`).
+  - **Nuvem** — nuvem montada (rclone, s3fs, davfs/Nextcloud, gcsfuse...).
+  Camadas do Docker (overlay), `efivarfs`, `tmpfs` e afins não aparecem.
+- **Identificação de cada um**: número por grupo, papel de cada partição
+  detectado pelo ponto de montagem/rótulo (Sistema, Boot EFI, Seafile,
+  Confianza, Backup, Docker, Home, Dados, Swap, Livre/não montada),
+  modelo, `/dev/...`, número de série e tipo (SSD/HDD/NVMe, SATA/USB).
+  O admin pode dar um **nome próprio** a qualquer disco/NAS no painel de
+  detalhe (fica em `data/config.json` → `diskNames`; vazio = automático).
+- **Clique no disco** abre o painel de detalhe: espaço de cada partição
+  em tempo real (atualiza a cada 2 s) e o botão **Limpar logs e arquivos
+  desnecessários**, que só roda as tarefas cujas pastas ficam naquele
+  disco (journal, logs rotacionados, cache do apt, temporários, lixeira,
+  imagens/cache de build órfãos do Docker), com estimativa antes. NAS e
+  nuvem são **só monitoramento** — nada é apagado neles.
 - **CPU e memória RAM em tempo real de verdade**: janela ao vivo em
   memória, amostrada a cada 5 segundos no servidor (não depende do
   intervalo de checagem do disco, que é bem mais espaçado) — o mesmo

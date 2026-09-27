@@ -1,4 +1,5 @@
 const si = require("systeminformation");
+const { readPhysicalDisks } = require("./hardware");
 const fs = require("fs");
 const path = require("path");
 const { dataDir } = require("./paths");
@@ -12,12 +13,12 @@ const PROFILE_FILE = path.join(dataDir, "machine-profile.json");
 // pra replicar as mesmas características ao montar um servidor novo
 // (motivo original desta ferramenta ter nascido reaproveitável).
 async function scanMachineProfile() {
-  const [cpu, mem, osInfo, system, disks] = await Promise.all([
+  const [cpu, mem, osInfo, system, physicalDisks] = await Promise.all([
     si.cpu(),
     si.mem(),
     si.osInfo(),
     si.system(),
-    si.fsSize()
+    readPhysicalDisks().then(disks => disks.filter(disk => disk.group === "physical"))
   ]);
 
   return {
@@ -42,9 +43,20 @@ async function scanMachineProfile() {
       manufacturer: system.manufacturer,
       model: system.model
     },
-    disks: disks
-      .filter(d => d.size > 0)
-      .map(d => ({ mount: d.mount, fsType: d.type || d.fs || "", totalBytes: d.size }))
+    // Arquitetura de discos da máquina: disco físico → partições (tamanho,
+    // sistema de arquivos, onde monta). Substitui a lista de pontos de
+    // montagem (que trazia camadas do Docker, NAS etc.).
+    physicalDisks: physicalDisks.map(d => ({
+      id: d.id,
+      device: d.device,
+      model: d.model,
+      kind: d.kind,
+      transport: d.transport,
+      system: d.system,
+      sizeBytes: d.sizeBytes,
+      partitions: d.partitions.map(p => ({ id: p.id, sizeBytes: p.sizeBytes, fsType: p.fsType, mount: p.mount, swap: p.swap }))
+    })),
+    disks: physicalDisks.map(d => ({ mount: d.device, fsType: d.kind, totalBytes: d.sizeBytes }))
   };
 }
 
@@ -70,7 +82,9 @@ function getMachineProfile() {
 // apagou o data/machine-profile.json de propósito pra forçar uma nova
 // varredura, por exemplo depois de trocar o disco/CPU da máquina).
 async function ensureMachineProfile() {
-  if (getMachineProfile()) return;
+  const current = getMachineProfile();
+  // Perfil de versão antiga (sem o mapa de discos físicos): varre de novo.
+  if (current && Array.isArray(current.physicalDisks)) return;
   const profile = await scanMachineProfile();
   ensureDataDir();
   fs.writeFileSync(PROFILE_FILE, JSON.stringify(profile, null, 2));

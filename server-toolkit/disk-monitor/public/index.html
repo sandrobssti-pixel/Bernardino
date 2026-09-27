@@ -123,7 +123,7 @@
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   button.secondary { background: rgba(148,163,184,0.15); color: var(--text); }
   label { display: block; font-size: 0.8rem; color: var(--text-muted); margin: 10px 0 4px; }
-  input[type="number"] {
+  input[type="number"], .rename-row input {
     width: 100%;
     background: rgba(148,163,184,0.08);
     border: 1px solid var(--panel-border);
@@ -195,6 +195,53 @@
     font-size: 0.75rem; color: var(--text-muted);
     margin-top: 12px; line-height: 1.5;
   }
+  /* Discos físicos (card por disco, partições dentro) */
+  .pdisks-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .pdisk-card {
+    background: rgba(148,163,184,0.05); border: 1px solid var(--panel-border); border-radius: 12px;
+    padding: 16px; cursor: pointer; text-align: left; color: var(--text); font: inherit; width: 100%;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .pdisk-card:hover, .pdisk-card:focus-visible { border-color: var(--accent2); transform: translateY(-1px); outline: none; }
+  .pdisk-head { display: flex; gap: 12px; align-items: center; }
+  .pdisk-head .disk-icon { color: var(--accent2); flex: none; margin: 0; }
+  .pdisk-title { font-weight: 700; font-size: 0.95rem; word-break: break-word; }
+  .pdisk-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .badge { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--panel-border); color: var(--text-muted); text-transform: uppercase; }
+  .badge.system { color: var(--accent); border-color: var(--accent); }
+  .badge.external { color: var(--warn); border-color: var(--warn); }
+  .badge.nas { color: var(--accent2); border-color: var(--accent2); }
+  .badge.role { text-transform: none; color: var(--text); }
+  .part-row .part-role { color: var(--accent2); font-weight: 700; margin-right: 6px; }
+  .rename-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+  .rename-row input { flex: 1 1 200px; min-width: 0; }
+  .pdisk-total { display: flex; align-items: baseline; justify-content: space-between; margin-top: 14px; }
+  .pdisk-total .big { font-size: 1.6rem; font-weight: 700; }
+  .part-row { margin-top: 12px; }
+  .part-row .part-top { display: flex; justify-content: space-between; gap: 8px; font-size: 0.8rem; }
+  .part-row .part-mount { font-weight: 600; word-break: break-all; }
+  .part-row .part-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; }
+  .part-row .bar-track { height: 8px; margin-top: 6px; }
+  .pdisk-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 12px; }
+  /* Painel de detalhe do disco */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(2,6,23,0.65); display: none; align-items: flex-start;
+    justify-content: center; padding: 24px 16px; overflow-y: auto; z-index: 40; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 14px; width: min(860px, 100%); padding: 20px; }
+  .modal-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+  .modal-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-top: 16px; }
+  .modal-part { border: 1px solid var(--panel-border); border-radius: 12px; padding: 14px; text-align: center; }
+  .modal-part .disk-donut-wrap { width: 120px; height: 120px; }
+  .modal-section { margin-top: 20px; border-top: 1px solid var(--panel-border); padding-top: 16px; }
+  .modal-section h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 0 0 8px; }
+  .clean-list { list-style: none; padding: 0; margin: 10px 0 14px; display: grid; gap: 8px; }
+  .clean-list li { display: flex; justify-content: space-between; gap: 12px; font-size: 0.85rem;
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px; }
+  .clean-list .est { color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .clean-result { font-size: 0.82rem; margin-top: 12px; }
+  .clean-result .fail { color: var(--crit); }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -276,8 +323,23 @@
   </div>
 
   <div class="panel" style="margin-bottom:16px">
-    <h2 data-i18n="disksDetected">Discos detectados automaticamente</h2>
-    <div id="disksGrid" class="disks-grid sub" data-i18n="loading">carregando...</div>
+    <h2 data-i18n="disksDetected">Discos físicos</h2>
+    <div id="disksGrid" class="pdisks-grid sub" data-i18n="loading">carregando...</div>
+  </div>
+
+  <div class="panel" id="externalPanel" style="margin-bottom:16px" hidden>
+    <h2 data-i18n="externalTitle">Discos externos (USB)</h2>
+    <div id="externalGrid" class="pdisks-grid"></div>
+  </div>
+
+  <div class="panel" id="nasPanel" style="margin-bottom:16px" hidden>
+    <h2 data-i18n="nasTitle">NAS / compartilhamentos de rede</h2>
+    <div id="nasGrid" class="pdisks-grid"></div>
+  </div>
+
+  <div class="panel" id="cloudPanel" style="margin-bottom:16px" hidden>
+    <h2 data-i18n="cloudTitle">Nuvem</h2>
+    <div id="cloudGrid" class="pdisks-grid"></div>
   </div>
 
   <div class="grid">
@@ -365,6 +427,32 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="diskModal" role="dialog" aria-modal="true" aria-labelledby="diskModalTitle">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="pdisk-title" id="diskModalTitle"></div>
+          <div class="pdisk-meta" id="diskModalMeta"></div>
+          <div class="badges" id="diskModalBadges"></div>
+          <form class="rename-row" id="diskRenameForm" hidden>
+            <input id="diskRenameInput" maxlength="60" autocomplete="off">
+            <button type="submit" data-i18n="diskRenameSave">Salvar nome</button>
+          </form>
+        </div>
+        <button class="icon-btn" id="diskModalClose" type="button" data-i18n="diskClose">Fechar</button>
+      </div>
+      <div class="sub" style="margin-top:12px"><span class="live-dot"></span><span data-i18n="diskLive">Espaço em tempo real (atualiza a cada 2 s)</span></div>
+      <div class="modal-parts" id="diskModalParts"></div>
+      <div class="modal-section">
+        <h3 data-i18n="diskCleanTitle">Limpar logs e arquivos desnecessários</h3>
+        <div class="sub" data-i18n="diskCleanDesc">Só itens descartáveis que ficam neste disco. Nunca apaga volume do Docker, banco de dados nem arquivos de clientes.</div>
+        <ul class="clean-list" id="diskCleanList"></ul>
+        <button id="diskCleanBtn" type="button" data-i18n="diskCleanBtn">Limpar logs e arquivos desnecessários</button>
+        <div class="clean-result" id="diskCleanResult"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast"></div>
 
 <script>
@@ -395,7 +483,29 @@ const translations = {
     autoCleanupLabel: "Limpeza automática habilitada",
     saveConfig: "Salvar configuração",
     historyTitle: "Histórico de uso de disco",
-    disksDetected: "Discos detectados automaticamente",
+    disksDetected: "Discos físicos",
+    diskSystem: "Sistema", diskExternal: "Externo", diskNotMounted: "não montada", diskSwap: "memória virtual (swap)",
+    diskPartitionsCount: n => n === 1 ? "1 partição" : `${n} partições`,
+    diskNoUsage: "nenhuma partição montada",
+    diskClickHint: "Clique para ver em tempo real e limpar",
+    diskClose: "Fechar", diskLive: "Espaço em tempo real (atualiza a cada 2 s)",
+    diskCleanTitle: "Limpar logs e arquivos desnecessários",
+    diskCleanDesc: "Só itens descartáveis que ficam neste disco. Nunca apaga volume do Docker, banco de dados nem arquivos de clientes.",
+    diskCleanBtn: "Limpar logs e arquivos desnecessários",
+    diskCleanNothing: "Nada para limpar com segurança neste disco (é um disco de dados).",
+    diskCleanLoading: "Calculando o que dá para limpar…",
+    diskEstimate: bytes => `~${bytes} liberáveis`, diskEstimateTotal: bytes => `${bytes} ocupados (limpa só os antigos)`, diskEstimateUnknown: "estimativa indisponível",
+    diskCleanRunning: "Limpando…", diskCleanDone: mb => `Pronto — ${mb} MB liberados neste disco.`,
+    diskCleanConfirm: "Limpar logs e arquivos desnecessários deste disco agora?",
+    diskViewerOnly: "Somente administradores podem limpar.",
+    diskN: n => `Disco ${n}`, nasTitle: "NAS / compartilhamentos de rede", badgeNas: "NAS",
+    externalTitle: "Discos externos (USB)", externalN: n => `Externo ${n}`, cloudTitle: "Nuvem", badgeCloud: "Nuvem",
+    diskCloudNoClean: "Nuvem montada: só monitoramento. Nada é apagado na nuvem.",
+    role_system: "Sistema", role_efi: "Boot EFI", role_boot: "Boot", role_home: "Home", role_seafile: "Seafile",
+    role_backup: "Backup", role_confianza: "Confianza", role_docker: "Docker", role_swap: "Swap",
+    role_unmounted: "Livre (não montada)", role_data: "Dados",
+    diskRenamePlaceholder: "Nome deste disco (vazio = automático)", diskRenameSave: "Salvar nome", diskRenamed: "Nome salvo",
+    diskNasNoClean: "Compartilhamento de rede: só monitoramento. Nada é apagado no NAS.",
     cpuHistoryTitle: "CPU em tempo real",
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -458,7 +568,29 @@ const translations = {
     autoCleanupLabel: "Limpieza automática habilitada",
     saveConfig: "Guardar configuración",
     historyTitle: "Histórico de uso de disco",
-    disksDetected: "Discos detectados automáticamente",
+    disksDetected: "Discos físicos",
+    diskSystem: "Sistema", diskExternal: "Externo", diskNotMounted: "no montada", diskSwap: "memoria virtual (swap)",
+    diskPartitionsCount: n => n === 1 ? "1 partición" : `${n} particiones`,
+    diskNoUsage: "ninguna partición montada",
+    diskClickHint: "Haga clic para ver en tiempo real y limpiar",
+    diskClose: "Cerrar", diskLive: "Espacio en tiempo real (se actualiza cada 2 s)",
+    diskCleanTitle: "Limpiar logs y archivos innecesarios",
+    diskCleanDesc: "Solo elementos descartables que están en este disco. Nunca borra volúmenes de Docker, bases de datos ni archivos de clientes.",
+    diskCleanBtn: "Limpiar logs y archivos innecesarios",
+    diskCleanNothing: "Nada que limpiar con seguridad en este disco (es un disco de datos).",
+    diskCleanLoading: "Calculando qué se puede limpiar…",
+    diskEstimate: bytes => `~${bytes} liberables`, diskEstimateTotal: bytes => `${bytes} ocupados (limpia solo los antiguos)`, diskEstimateUnknown: "estimación no disponible",
+    diskCleanRunning: "Limpiando…", diskCleanDone: mb => `Listo — ${mb} MB liberados en este disco.`,
+    diskCleanConfirm: "¿Limpiar logs y archivos innecesarios de este disco ahora?",
+    diskViewerOnly: "Solo los administradores pueden limpiar.",
+    diskN: n => `Disco ${n}`, nasTitle: "NAS / recursos compartidos de red", badgeNas: "NAS",
+    externalTitle: "Discos externos (USB)", externalN: n => `Externo ${n}`, cloudTitle: "Nube", badgeCloud: "Nube",
+    diskCloudNoClean: "Nube montada: solo monitoreo. No se borra nada en la nube.",
+    role_system: "Sistema", role_efi: "Boot EFI", role_boot: "Boot", role_home: "Home", role_seafile: "Seafile",
+    role_backup: "Backup", role_confianza: "Confianza", role_docker: "Docker", role_swap: "Swap",
+    role_unmounted: "Libre (no montada)", role_data: "Datos",
+    diskRenamePlaceholder: "Nombre de este disco (vacío = automático)", diskRenameSave: "Guardar nombre", diskRenamed: "Nombre guardado",
+    diskNasNoClean: "Recurso de red: solo monitoreo. No se borra nada en el NAS.",
     cpuHistoryTitle: "CPU en tiempo real",
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -521,7 +653,29 @@ const translations = {
     autoCleanupLabel: "Automatic cleanup enabled",
     saveConfig: "Save configuration",
     historyTitle: "Disk usage history",
-    disksDetected: "Automatically detected disks",
+    disksDetected: "Physical disks",
+    diskSystem: "System", diskExternal: "External", diskNotMounted: "not mounted", diskSwap: "swap",
+    diskPartitionsCount: n => n === 1 ? "1 partition" : `${n} partitions`,
+    diskNoUsage: "no mounted partition",
+    diskClickHint: "Click to see it live and clean up",
+    diskClose: "Close", diskLive: "Live space (updates every 2 s)",
+    diskCleanTitle: "Clean logs and unnecessary files",
+    diskCleanDesc: "Only disposable items on this disk. Never deletes Docker volumes, databases or customer files.",
+    diskCleanBtn: "Clean logs and unnecessary files",
+    diskCleanNothing: "Nothing safe to clean on this disk (it is a data disk).",
+    diskCleanLoading: "Working out what can be cleaned…",
+    diskEstimate: bytes => `~${bytes} reclaimable`, diskEstimateTotal: bytes => `${bytes} used (only old ones are removed)`, diskEstimateUnknown: "estimate unavailable",
+    diskCleanRunning: "Cleaning…", diskCleanDone: mb => `Done — ${mb} MB freed on this disk.`,
+    diskCleanConfirm: "Clean logs and unnecessary files on this disk now?",
+    diskViewerOnly: "Only administrators can clean.",
+    diskN: n => `Disk ${n}`, nasTitle: "NAS / network shares", badgeNas: "NAS",
+    externalTitle: "External disks (USB)", externalN: n => `External ${n}`, cloudTitle: "Cloud", badgeCloud: "Cloud",
+    diskCloudNoClean: "Mounted cloud: monitoring only. Nothing is deleted in the cloud.",
+    role_system: "System", role_efi: "EFI boot", role_boot: "Boot", role_home: "Home", role_seafile: "Seafile",
+    role_backup: "Backup", role_confianza: "Confianza", role_docker: "Docker", role_swap: "Swap",
+    role_unmounted: "Free (not mounted)", role_data: "Data",
+    diskRenamePlaceholder: "Name for this disk (empty = automatic)", diskRenameSave: "Save name", diskRenamed: "Name saved",
+    diskNasNoClean: "Network share: monitoring only. Nothing is deleted on the NAS.",
     cpuHistoryTitle: "CPU — real time",
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
@@ -716,15 +870,6 @@ const DISK_ICON_SVG = `
   </svg>
 `;
 
-// Um Chart.js "doughnut" por disco (id sanitizado a partir do mount) —
-// mapa em vez de variável única porque o número de discos varia por
-// servidor e pode até mudar em tempo real (unidade removível, etc.).
-const diskCharts = {};
-
-function diskCardId(mount) {
-  return "disk-card-" + mount.replace(/[^a-zA-Z0-9]/g, "_");
-}
-
 // Perfil da máquina é identidade, não métrica — uma foto tirada na
 // instalação (lib/machineProfile.js), não algo que precise ficar
 // atualizando sozinho a cada poucos segundos como CPU/RAM/processos.
@@ -735,14 +880,17 @@ function renderMachineProfile(profile) {
     return;
   }
   grid.classList.remove("sub");
-  const totalDiskBytes = (profile.disks || []).reduce((sum, d) => sum + d.totalBytes, 0);
+  const physical = profile.physicalDisks || [];
+  const totalDiskBytes = physical.length
+    ? physical.reduce((sum, d) => sum + d.sizeBytes, 0)
+    : (profile.disks || []).reduce((sum, d) => sum + d.totalBytes, 0);
   const locale = LOCALE_MAP[currentLang] || "pt-BR";
   const items = [
     [t("mpHostname"), profile.hostname || "—"],
     [t("mpOs"), `${profile.os.distro || profile.os.platform} ${profile.os.release || ""}`.trim()],
     [t("mpCpu"), `${profile.cpu.brand} (${profile.cpu.physicalCores}c/${profile.cpu.cores}t)`],
     [t("mpRam"), formatBytes(profile.totalMemBytes)],
-    [t("mpDisks"), t("mpDisksCount", profile.disks.length, formatBytes(totalDiskBytes))],
+    [t("mpDisks"), t("mpDisksCount", physical.length || profile.disks.length, formatBytes(totalDiskBytes))],
     [t("mpScannedAt"), new Date(profile.scannedAt).toLocaleString(locale)]
   ];
   grid.innerHTML = items.map(([label, value]) => `
@@ -760,94 +908,297 @@ async function loadMachineProfile() {
   }
 }
 
-function renderDisksGrid(disks) {
-  const grid = document.getElementById("disksGrid");
-  if (!disks || !disks.length) {
-    grid.textContent = t("loading");
-    return;
+const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+let lastPhysicalDisks = [];
+
+// Papel de uma partição/compartilhamento (Sistema, Boot EFI, Seafile,
+// Backup...) — vem do servidor como código (lib/hardware.js partitionRole).
+function roleLabel(p) {
+  if (p.role === "data" && p.roleName) return p.roleName;
+  if (p.role === "seafile" || p.role === "confianza" || p.role === "docker") return p.roleName || t("role_" + p.role);
+  return t("role_" + p.role) || p.roleName || "";
+}
+
+// Papéis "que importam" de um disco, para o nome automático: Disco 2 · Seafile
+function diskRoles(d) {
+  const roles = d.partitions.filter(p => !["efi", "boot", "swap", "unmounted"].includes(p.role)).map(roleLabel).filter(Boolean);
+  return [...new Set(roles)];
+}
+
+// Nome que identifica o disco: nome dado pelo admin > automático.
+function diskTitle(d) {
+  if (d.customName) return d.customName;
+  if (d.group === "nas") return `${t("badgeNas")} · ${roleLabel(d.partitions[0]) || d.share || d.device}`;
+  if (d.group === "cloud") return `${t("badgeCloud")} · ${roleLabel(d.partitions[0]) || d.server || d.device}`;
+  if (d.group === "external") return `${t("externalN", d.index || 1)}${d.model ? " · " + d.model : ""}`;
+  const roles = diskRoles(d);
+  return `${t("diskN", d.index || 1)}${roles.length ? " · " + roles.join(" + ") : ""}`;
+}
+
+// Linha de identificação técnica: modelo, device, tamanho, partições.
+function diskMeta(d) {
+  if (d.network) return `${d.device} → ${d.partitions[0].mount}${d.sizeBytes ? " · " + formatBytes(d.sizeBytes) : ""}`;
+  return [d.model, d.device, formatBytes(d.sizeBytes), t("diskPartitionsCount", d.partitions.length)].filter(Boolean).join(" · ");
+}
+
+function diskBadges(d) {
+  const badges = [];
+  if (d.group === "nas") badges.push(`<span class="badge nas">${t("badgeNas")}</span>`);
+  if (d.group === "cloud") badges.push(`<span class="badge nas">${t("badgeCloud")}</span>`);
+  if (d.system) badges.push(`<span class="badge system">${t("diskSystem")}</span>`);
+  if (d.external) badges.push(`<span class="badge external">${t("diskExternal")}</span>`);
+  if (d.kind && !d.network) badges.push(`<span class="badge">${esc(d.kind)}</span>`);
+  if (d.transport && d.transport.toUpperCase() !== d.kind.toUpperCase()) badges.push(`<span class="badge">${esc(d.transport.toUpperCase())}</span>`);
+  if (d.network && d.server) badges.push(`<span class="badge role">${esc(d.server)}</span>`);
+  return badges.join("");
+}
+
+function partitionRow(p) {
+  const where = p.mount || (p.swap ? t("diskSwap") : `${p.device} · ${t("diskNotMounted")}`);
+  const role = roleLabel(p);
+  const name = `${role ? `<span class="part-role">${esc(role)}</span>` : ""}${esc(where)}`;
+  if (p.percent === null || p.percent === undefined) {
+    return `<div class="part-row"><div class="part-top"><span class="part-mount">${name}</span><span>${formatBytes(p.sizeBytes)}</span></div>
+      <div class="part-sub">${esc([p.device, p.fsType, p.label].filter(Boolean).join(" · "))}</div></div>`;
   }
-  grid.classList.remove("sub");
-  // Tira o texto "carregando..." do estado inicial (ainda fica como nó de
-  // texto solto no container na primeira resposta da API).
-  Array.from(grid.childNodes).forEach(node => {
-    if (!(node.nodeType === 1 && node.classList?.contains("disk-card"))) {
-      node.remove();
+  return `<div class="part-row">
+    <div class="part-top"><span class="part-mount">${name}</span><span style="color:${barColor(p.percent)};font-weight:700">${p.percent}%</span></div>
+    <div class="bar-track"><div class="bar-fill" style="width:${p.percent}%;background:${barColor(p.percent)}"></div></div>
+    <div class="part-sub">${esc([p.network ? "" : p.device, p.fsType].filter(Boolean).join(" · "))} · ${t("diskDetail", formatBytes(p.usedBytes), formatBytes(p.totalBytes), formatBytes(p.availBytes))}</div>
+  </div>`;
+}
+
+const GROUP_ICON_SVG = {
+  nas: `<svg class="disk-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6">
+    <rect x="4" y="3" width="16" height="7" rx="1.5"></rect><rect x="4" y="14" width="16" height="7" rx="1.5"></rect>
+    <circle cx="8" cy="6.5" r="1" fill="currentColor" stroke="none"></circle><circle cx="8" cy="17.5" r="1" fill="currentColor" stroke="none"></circle>
+    <line x1="12" y1="10" x2="12" y2="14"></line></svg>`,
+  cloud: `<svg class="disk-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6">
+    <path d="M7 18h10.5a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.5 9.5 4.25 4.25 0 0 0 7 18z"></path></svg>`,
+  external: `<svg class="disk-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6">
+    <rect x="6" y="2.5" width="12" height="19" rx="2.5"></rect><line x1="9.5" y1="17.5" x2="14.5" y2="17.5"></line>
+    <path d="M10 6.5h4M12 6.5v5"></path></svg>`
+};
+
+function diskCard(d) {
+  return `
+    <button class="pdisk-card" type="button" data-disk="${esc(d.id)}">
+      <div class="pdisk-head">
+        ${GROUP_ICON_SVG[d.group] || DISK_ICON_SVG}
+        <div>
+          <div class="pdisk-title">${esc(diskTitle(d))}</div>
+          <div class="pdisk-meta">${esc(diskMeta(d))}</div>
+        </div>
+      </div>
+      <div class="badges">${diskBadges(d)}</div>
+      ${d.usage
+        ? `<div class="pdisk-total"><span class="big" style="color:${barColor(d.usage.percent)}">${d.usage.percent}%</span>
+             <span class="sub">${t("diskDetail", formatBytes(d.usage.usedBytes), formatBytes(d.usage.totalBytes), formatBytes(d.usage.availBytes))}</span></div>`
+        : `<div class="pdisk-total"><span class="sub">${t("diskNoUsage")}</span></div>`}
+      ${d.partitions.map(partitionRow).join("")}
+      <div class="pdisk-hint">${t("diskClickHint")}</div>
+    </button>`;
+}
+
+// Quatro grupos, cada um no seu painel: discos físicos internos (com as
+// partições dentro), externos (USB, aparecem quando plugados), NAS e nuvem.
+// Antes era um card por ponto de montagem, incluindo camadas do Docker.
+const DISK_GROUPS = [
+  { group: "physical", grid: "disksGrid" },
+  { group: "external", grid: "externalGrid", panel: "externalPanel" },
+  { group: "nas", grid: "nasGrid", panel: "nasPanel" },
+  { group: "cloud", grid: "cloudGrid", panel: "cloudPanel" }
+];
+
+function renderDisksGrid(disks) {
+  if (!disks) return;
+  lastPhysicalDisks = disks;
+  document.getElementById("disksGrid").classList.remove("sub");
+  for (const { group, grid, panel } of DISK_GROUPS) {
+    const items = disks.filter(d => (d.group || "physical") === group);
+    if (panel) document.getElementById(panel).hidden = !items.length;
+    const el = document.getElementById(grid);
+    el.innerHTML = items.map(diskCard).join("");
+    el.querySelectorAll("[data-disk]").forEach(card => card.addEventListener("click", () => openDiskModal(card.dataset.disk)));
+  }
+  if (openDiskId) renderDiskModal();
+}
+
+// ---------- painel de detalhe do disco ----------
+let openDiskId = null;
+let diskModalTimer = null;
+const modalCharts = {};
+
+function renderDiskModal() {
+  const d = lastPhysicalDisks.find(item => item.id === openDiskId);
+  if (!d) return;
+  document.getElementById("diskModalTitle").textContent = diskTitle(d);
+  document.getElementById("diskModalMeta").textContent = diskMeta(d) + (d.serial ? " · S/N " + d.serial : "");
+  document.getElementById("diskModalBadges").innerHTML = diskBadges(d);
+
+  const wrap = document.getElementById("diskModalParts");
+  d.partitions.forEach(p => {
+    let box = wrap.querySelector(`[data-part="${CSS.escape(p.id)}"]`);
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "modal-part";
+      box.dataset.part = p.id;
+      box.innerHTML = `<div class="disk-mount"></div><div class="disk-fstype"></div>
+        <div class="disk-donut-wrap"><canvas></canvas><div class="disk-percent"></div></div><div class="disk-detail"></div>`;
+      wrap.appendChild(box);
     }
-  });
-
-  // Remove card de disco que sumiu (ex.: pendrive desmontado) — evita
-  // acumular gráfico "fantasma" de um disco que não existe mais.
-  const currentMounts = new Set(disks.map(d => d.mount));
-  Object.keys(diskCharts).forEach(mount => {
-    if (currentMounts.has(mount)) return;
-    diskCharts[mount].destroy();
-    delete diskCharts[mount];
-    document.getElementById(diskCardId(mount))?.remove();
-  });
-
-  disks.forEach(d => {
-    const cardId = diskCardId(d.mount);
-    let card = document.getElementById(cardId);
-    if (!card) {
-      card = document.createElement("div");
-      card.className = "disk-card";
-      card.id = cardId;
-      card.innerHTML = `
-        ${DISK_ICON_SVG}
-        <div class="disk-mount">${d.mount}</div>
-        <div class="disk-fstype"></div>
-        <div class="disk-donut-wrap"><canvas></canvas><div class="disk-percent"></div></div>
-        <div class="disk-detail"></div>
-      `;
-      grid.appendChild(card);
-    }
-
-    card.querySelector(".disk-fstype").textContent = d.fsType || "";
-    const percentEl = card.querySelector(".disk-percent");
-    percentEl.textContent = d.percent + "%";
-    percentEl.style.color = barColor(d.percent);
-    card.querySelector(".disk-detail").textContent =
-      t("diskDetail", formatBytes(d.usedBytes), formatBytes(d.totalBytes), formatBytes(d.availBytes));
-
-    const canvasEl = card.querySelector("canvas");
-    if (typeof Chart === "undefined") {
-      canvasEl.replaceWith(Object.assign(document.createElement("div"), {
-        className: "sub", textContent: t("chartLoadError")
-      }));
+    box.querySelector(".disk-mount").textContent = [roleLabel(p), p.mount || (p.swap ? "" : p.device)].filter(Boolean).join(" — ");
+    box.querySelector(".disk-fstype").textContent = [p.fsType, p.mount ? p.device : t("diskNotMounted")].filter(Boolean).join(" · ");
+    const percentEl = box.querySelector(".disk-percent");
+    const canvas = box.querySelector("canvas");
+    if (p.percent === null || p.percent === undefined || typeof Chart === "undefined") {
+      percentEl.textContent = "—";
+      percentEl.style.color = "var(--text-muted)";
+      box.querySelector(".disk-detail").textContent = formatBytes(p.sizeBytes);
+      if (canvas) canvas.style.visibility = "hidden";
       return;
     }
-
-    const usedColor = d.percent >= 90 ? "#ef4444" : d.percent >= 75 ? "#f59e0b" : "#22c55e";
-    const freeColor = "rgba(148,163,184,0.18)";
-    if (diskCharts[d.mount]) {
-      const c = diskCharts[d.mount];
-      c.data.datasets[0].data = [d.usedBytes, d.availBytes];
-      c.data.datasets[0].backgroundColor = [usedColor, freeColor];
-      c.update();
+    percentEl.textContent = p.percent + "%";
+    percentEl.style.color = barColor(p.percent);
+    box.querySelector(".disk-detail").textContent =
+      t("diskDetail", formatBytes(p.usedBytes), formatBytes(p.totalBytes), formatBytes(p.availBytes));
+    const usedColor = p.percent >= 90 ? "#ef4444" : p.percent >= 75 ? "#f59e0b" : "#22c55e";
+    const data = [p.usedBytes, p.availBytes];
+    if (modalCharts[p.id]) {
+      modalCharts[p.id].data.datasets[0].data = data;
+      modalCharts[p.id].data.datasets[0].backgroundColor = [usedColor, "rgba(148,163,184,0.18)"];
+      modalCharts[p.id].update("none");
     } else {
-      diskCharts[d.mount] = new Chart(canvasEl.getContext("2d"), {
+      modalCharts[p.id] = new Chart(canvas.getContext("2d"), {
         type: "doughnut",
-        data: {
-          labels: [t("diskUsedLabel"), t("diskFreeLabel")],
-          datasets: [{
-            data: [d.usedBytes, d.availBytes],
-            backgroundColor: [usedColor, freeColor],
-            borderColor: "var(--panel)",
-            borderWidth: 2
-          }]
-        },
-        options: {
-          cutout: "72%",
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatBytes(ctx.raw)}` } }
-          }
-        }
+        data: { labels: [t("diskUsedLabel"), t("diskFreeLabel")], datasets: [{ data, backgroundColor: [usedColor, "rgba(148,163,184,0.18)"], borderWidth: 2 }] },
+        options: { cutout: "72%", responsive: true, plugins: { legend: { display: false },
+          tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatBytes(ctx.raw)}` } } } }
       });
     }
   });
 }
+
+async function refreshModalDisks() {
+  try {
+    const res = await apiFetch("/api/disks");
+    const data = await res.json();
+    lastPhysicalDisks = data.disks;
+    renderDiskModal();
+  } catch (err) {
+    console.error("Falha ao atualizar o disco:", err);
+  }
+}
+
+async function loadCleanPlan() {
+  const list = document.getElementById("diskCleanList");
+  const btn = document.getElementById("diskCleanBtn");
+  const isAdmin = currentUserInfo?.role === "admin";
+  list.innerHTML = `<li><span class="sub">${t("diskCleanLoading")}</span></li>`;
+  btn.disabled = true;
+  try {
+    const res = await apiFetch(`/api/disks/${encodeURIComponent(openDiskId)}/cleanup-plan`);
+    const plan = await res.json();
+    const current = lastPhysicalDisks.find(item => item.id === openDiskId);
+    btn.hidden = Boolean(current && current.network);
+    if (!plan.tasks || !plan.tasks.length) {
+      list.innerHTML = `<li><span class="sub">${t(current && current.group === "cloud" ? "diskCloudNoClean" : current && current.network ? "diskNasNoClean" : "diskCleanNothing")}</span></li>`;
+      return;
+    }
+    list.innerHTML = plan.tasks.map(task => {
+      const est = task.estimateBytes === null || task.estimateBytes === undefined
+        ? t("diskEstimateUnknown")
+        : task.estimateIsTotal ? t("diskEstimateTotal", formatBytes(task.estimateBytes)) : t("diskEstimate", formatBytes(task.estimateBytes));
+      return `<li><span>${esc(task.label)} <span class="sub">(${esc(task.partitionMount)})</span></span><span class="est">${est}</span></li>`;
+    }).join("");
+    btn.disabled = !isAdmin;
+    document.getElementById("diskCleanResult").textContent = isAdmin ? "" : t("diskViewerOnly");
+  } catch (err) {
+    list.innerHTML = `<li><span class="fail">${esc(err.message)}</span></li>`;
+  }
+}
+
+function openDiskModal(id) {
+  openDiskId = id;
+  Object.values(modalCharts).forEach(chart => chart.destroy());
+  Object.keys(modalCharts).forEach(key => delete modalCharts[key]);
+  document.getElementById("diskModalParts").innerHTML = "";
+  document.getElementById("diskCleanResult").textContent = "";
+  document.getElementById("diskModal").classList.add("open");
+  const current = lastPhysicalDisks.find(item => item.id === id);
+  const renameForm = document.getElementById("diskRenameForm");
+  renameForm.hidden = currentUserInfo?.role !== "admin";
+  const renameInput = document.getElementById("diskRenameInput");
+  renameInput.value = current ? current.customName || "" : "";
+  renameInput.placeholder = t("diskRenamePlaceholder");
+  renderDiskModal();
+  loadCleanPlan();
+  clearInterval(diskModalTimer);
+  diskModalTimer = setInterval(refreshModalDisks, 2000);
+  document.getElementById("diskModalClose").focus();
+}
+
+function closeDiskModal() {
+  openDiskId = null;
+  clearInterval(diskModalTimer);
+  document.getElementById("diskModal").classList.remove("open");
+}
+
+document.getElementById("diskRenameForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  if (!openDiskId) return;
+  const name = document.getElementById("diskRenameInput").value.trim();
+  try {
+    const res = await apiFetch(`/api/disks/${encodeURIComponent(openDiskId)}/name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name })
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || res.status);
+    toast(t("diskRenamed"));
+    await refreshModalDisks();
+    renderDisksGrid(lastPhysicalDisks);
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
+document.getElementById("diskModalClose").addEventListener("click", closeDiskModal);
+document.getElementById("diskModal").addEventListener("click", event => {
+  if (event.target.id === "diskModal") closeDiskModal();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && openDiskId) closeDiskModal();
+});
+
+document.getElementById("diskCleanBtn").addEventListener("click", async () => {
+  if (!openDiskId || !confirm(t("diskCleanConfirm"))) return;
+  const btn = document.getElementById("diskCleanBtn");
+  const out = document.getElementById("diskCleanResult");
+  btn.disabled = true;
+  out.textContent = t("diskCleanRunning");
+  try {
+    const res = await apiFetch(`/api/disks/${encodeURIComponent(openDiskId)}/cleanup`, { method: "POST" });
+    const result = await res.json();
+    if (!res.ok) {
+      out.innerHTML = `<span class="fail">${esc(result.error || res.status)}</span>`;
+    } else if (result.skipped) {
+      out.textContent = t("toastAlreadyRunning");
+    } else {
+      out.innerHTML = `<strong>${t("diskCleanDone", result.freedMB)}</strong>` +
+        (result.steps || []).map(step => `<div class="${step.ok ? "sub" : "fail"}">${step.ok ? "✓" : "✗"} ${esc(step.label)}: ${esc(step.detail)}</div>`).join("");
+      toast(t("diskCleanDone", result.freedMB));
+    }
+  } catch (err) {
+    out.innerHTML = `<span class="fail">${esc(err.message)}</span>`;
+  } finally {
+    await refreshModalDisks();
+    await loadCleanPlan();
+    loadStatus();
+  }
+});
 
 function renderProcessesTable(processes) {
   const body = document.getElementById("processesBody");
@@ -1088,7 +1439,7 @@ async function loadLive() {
   try {
     const res = await apiFetch("/api/live");
     const data = await res.json();
-    renderDisksGrid(data.disks);
+    renderDisksGrid(data.physicalDisks);
     renderLineChart(cpuChartState, "cpuHistoryChart", data.cpuHistory, t("chartCpuLabel"), "#22d3ee");
     renderLineChart(memChartState, "memHistoryChart", data.memHistory, t("chartMemLabel"), "#f59e0b");
   } catch (err) {
