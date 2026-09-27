@@ -26,8 +26,12 @@ por sistema, sem precisar instalar Node.js no servidor novo.
 ## O que a limpeza faz (e o que ela NUNCA faz)
 
 Faz (Linux e Windows, mesmo motor):
-- `docker system prune -af` — remove container parado, imagem não usada,
-  rede órfã e cache de build.
+- Limpeza **segura** do Docker (v1.6.1): `docker image prune -f` (só
+  imagens órfãs, sem nome) e `docker builder prune -f --filter until=168h`
+  (cache de build com mais de 7 dias). Nunca remove container, volume nem
+  imagem com nome — o `docker system prune -af` das versões anteriores
+  apagava a imagem de um serviço (ex.: `atendeflow-backend:latest`) e
+  containers parados, e o serviço não subia mais sem reconstruir.
 - Trunca (zera o conteúdo, sem apagar o arquivo) log de container Docker
   que passar do tamanho configurado — o Docker continua escrevendo nele
   normalmente depois. **Só no Linux** (no Windows, o Docker Desktop

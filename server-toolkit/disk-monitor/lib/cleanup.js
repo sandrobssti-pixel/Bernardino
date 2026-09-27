@@ -21,16 +21,18 @@ function runSafe(label, fn) {
   }
 }
 
-// Remove container parado, imagem não usada, rede órfã e cache de build —
-// nunca remove volume (não passamos `--volumes`), então banco e arquivos
-// enviados pelo sistema nunca são tocados por aqui. Mesmo comando nos dois
-// sistemas (Docker Desktop no Windows expõe o mesmo `docker` na PATH).
+// Limpeza SEGURA do Docker: só imagens órfãs (sem nome, "<none>") e cache
+// de build com mais de 7 dias. Não usa `docker system prune -a`: ele apagava
+// a imagem com nome de um serviço (ex.: atendeflow-backend:latest) quando o
+// container ainda rodava a versão anterior, e também apagava containers
+// parados — e aí o serviço não subia mais sem reconstruir. Nunca remove
+// volume, container nem imagem com nome.
 function dockerPrune() {
-  return runSafe("docker system prune", () => {
-    const output = execSync("docker system prune -af 2>&1", {
-      encoding: "utf8"
-    });
-    return output.trim().split("\n").slice(-3).join(" | ");
+  return runSafe("docker prune (seguro)", () => {
+    const images = execSync("docker image prune -f 2>&1", { encoding: "utf8" });
+    const builder = execSync('docker builder prune -f --filter "until=168h" 2>&1', { encoding: "utf8" });
+    const last = text => text.trim().split("\n").slice(-1)[0] || "";
+    return `imagens órfãs: ${last(images)} | cache de build: ${last(builder)}`;
   });
 }
 

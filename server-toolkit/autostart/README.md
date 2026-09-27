@@ -9,9 +9,10 @@ Deixa pronto para o próximo boot (não reinicia nada agora):
 - **Docker** habilitado no boot.
 - Serviço **`confianza-stack`**: espera rede, Docker e discos
   (`/srv/seafile-data`, `/mnt/nas-backup`, `/mnt/nas-seafile`) e roda
-  `docker compose up -d --no-build` do **AtendeFlow** e do **Seafile** — sobe
-  inclusive container que tinha sido parado à mão (o `restart: unless-stopped`
-  sozinho não faz isso). O Seafile só sobe se `/srv/seafile-data` estiver
+  `docker compose up -d --no-recreate` do **AtendeFlow** e do **Seafile** —
+  liga inclusive container que tinha sido parado à mão (o
+  `restart: unless-stopped` sozinho não faz isso) e nunca recria os que já
+  existem. O Seafile só sobe se `/srv/seafile-data` estiver
   montado, para nunca rodar sem os arquivos.
 - **cloudflared**, **pm2** (site) e **disk-monitor** habilitados, se existirem.
 - Confere o `/etc/fstab` e avisa se um compartilhamento de rede está sem

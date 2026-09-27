@@ -1,8 +1,8 @@
 {
   "name": "disk-monitor",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "private": true,
-  "description": "Monitor de disco e limpeza automática — módulo do server-toolkit, reaproveitável em qualquer servidor novo de cliente",
+  "description": "Monitor de disco e limpeza autom\u00e1tica \u2014 m\u00f3dulo do server-toolkit, reaproveit\u00e1vel em qualquer servidor novo de cliente",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {

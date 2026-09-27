@@ -5172,10 +5172,23 @@ pode repetir) habilita o Docker no boot e cria o serviço systemd
 `confianza-stack`, que a cada boot espera rede, Docker e discos
 (`/srv/seafile-data` e NAS) e roda `docker compose up -d --no-build` do
 AtendeFlow (`docker-compose.coolify.yml` + `.env`) e do Seafile (`-p seafile`,
-`.env.seafile`). Motivo: `restart: unless-stopped` não religa container que
+`.env.seafile`) com `--no-recreate` (só liga o que está parado; nunca recria). Motivo: `restart: unless-stopped` não religa container que
 foi parado à mão antes do reboot, e o Seafile não pode subir antes do disco
 `/srv/seafile-data`. Também habilita cloudflared, pm2 (`pm2 startup` +
 `pm2 save`) e disk-monitor quando existem, e avisa se o `/etc/fstab` tem
 compartilhamento de rede sem `nofail,x-systemd.automount` (ver seção 38/39).
 Conferência pós-reboot: `server-toolkit/autostart/verificar-servicos.sh`.
+
+### Incidente no primeiro teste (corrigido)
+
+O primeiro teste do `confianza-stack` (com `--no-build`) tentou recriar o
+backend e falhou com `No such image: atendeflow-backend:latest`. Causa: o
+disk-monitor rodava `docker system prune -af`, que apaga toda imagem sem
+container associado — a imagem nova do backend (construída num `up --build`
+em que o container não chegou a ser recriado) foi apagada. Correções:
+disk-monitor v1.6.1 passou a fazer só `docker image prune -f` (órfãs) +
+`docker builder prune` de mais de 7 dias, nunca apagando imagem com nome nem
+container parado; e o `confianza-stack` passou a usar `--no-recreate`.
+Recuperação: `docker compose -f docker-compose.coolify.yml --env-file .env up
+-d --build backend frontend`.
 

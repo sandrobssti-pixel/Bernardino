@@ -7,8 +7,8 @@
 #  1. Habilita o Docker (e o containerd) no boot.
 #  2. Cria o serviço "confianza-stack": no boot espera a rede, o Docker e os
 #     discos (/srv/seafile-data e NAS) e roda "docker compose up -d" do
-#     AtendeFlow e do Seafile — sobe mesmo container que tinha sido parado
-#     à mão, e nunca reconstrói imagem (sem --build).
+#     AtendeFlow e do Seafile com --no-recreate — liga container parado
+#     (inclusive parado à mão) sem nunca recriar os que já existem.
 #  3. Habilita o cloudflared, o pm2 (site) e o disk-monitor, se existirem.
 #  4. Confere o /etc/fstab e avisa se falta "nofail"/"x-systemd.automount"
 #     (sem isso o boot pode travar ou o Seafile subir sem os arquivos).
@@ -67,13 +67,15 @@ cd "\$PASTA" || exit 1
 
 if [ -f .env ]; then
   log "subindo AtendeFlow"
-  docker compose -f docker-compose.coolify.yml --env-file .env up -d --no-build || log "ERRO ao subir AtendeFlow"
+  # --no-recreate: só liga o que estiver parado; nunca recria container que
+  # já existe. Se faltar container, cria (e constrói a imagem, se preciso).
+  docker compose -f docker-compose.coolify.yml --env-file .env up -d --no-recreate || log "ERRO ao subir AtendeFlow"
 fi
 
 if [ -f docker-compose.seafile.yml ] && [ -f .env.seafile ]; then
   if [ "\$SEAFILE_DISCO_OK" = "1" ] || ! grep -qs " /srv/seafile-data " /etc/fstab; then
     log "subindo Seafile"
-    docker compose -p seafile -f docker-compose.seafile.yml --env-file .env.seafile up -d --no-build || log "ERRO ao subir Seafile"
+    docker compose -p seafile -f docker-compose.seafile.yml --env-file .env.seafile up -d --no-recreate || log "ERRO ao subir Seafile"
   else
     log "Seafile NÃO subiu: /srv/seafile-data não está montado (evita subir sem os arquivos)"
   fi
