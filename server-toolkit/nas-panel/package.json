@@ -1,0 +1,32 @@
+{
+  "name": "nas-panel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Painel do NAS — navegador de arquivos e controle do Synology (discos/desligamento) — módulo do server-toolkit",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm run build:linux && npm run build:win",
+    "build:linux": "pkg . --targets node18-linux-x64 --output ../dist-nas-panel/linux/nas-panel-linux",
+    "build:win": "pkg . --targets node18-win-x64 --output ../dist-nas-panel/windows/nas-panel.exe"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.0.0",
+    "express": "^4.22.2",
+    "multer": "^1.4.5-lts.1",
+    "toolkit-auth": "file:../shared/auth"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": [
+      "node18-linux-x64",
+      "node18-win-x64"
+    ]
+  }
+}
