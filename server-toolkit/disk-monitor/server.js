@@ -9,8 +9,11 @@ require("dotenv").config({ path: path.join(baseDir, ".env") });
 
 const express = require("express");
 const cron = require("node-cron");
+const multer = require("multer");
 
 const { readDiskUsage } = require("./lib/diskUsage");
+const { createFileManager } = require("./lib/fileManager");
+const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
 const { getConfig, updateConfig } = require("./lib/configStore");
 const {
@@ -62,6 +65,25 @@ const auth = createAuthSystem({
     username: process.env.DASHBOARD_USER,
     password: process.env.DASHBOARD_PASSWORD
   }
+});
+
+// Painel do NAS (opcional) — sem NAS_ROOTS configurado no .env, fica
+// `null` e a seção de arquivos/discos do NAS simplesmente não aparece no
+// painel; o resto do disk-monitor funciona normalmente. Pensado pra isso
+// já vir "de fábrica" em qualquer servidor novo — só liga configurando
+// as variáveis, sem precisar instalar nada a mais.
+const fileManager = process.env.NAS_ROOTS ? createFileManager(process.env.NAS_ROOTS) : null;
+const NAS_MAX_UPLOAD_MB = Number(process.env.NAS_MAX_UPLOAD_MB || 2048);
+
+// Integração com a API do Synology DSM (discos/desligamento) — também
+// opcional e independente do navegador de arquivos acima.
+const synologyClient = createSynologyClient({
+  host: process.env.DSM_HOST,
+  port: Number(process.env.DSM_PORT || 5001),
+  useHttps: process.env.DSM_HTTPS !== "false",
+  user: process.env.DSM_USER,
+  password: process.env.DSM_PASSWORD,
+  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED === "true"
 });
 
 const app = express();
@@ -212,6 +234,110 @@ app.get("/api/machine-profile", auth.requireAuth, (req, res) => {
 app.get("/api/processes", auth.requireAuth, async (req, res) => {
   const processes = await readTopProcesses(15);
   res.json({ processes });
+});
+
+// ---------- Painel do NAS (arquivos + Synology DSM) ----------
+// Tudo abaixo é opcional — sem NAS_ROOTS no .env, os endpoints respondem
+// 501 e a seção correspondente do painel fica escondida no frontend.
+
+app.get("/api/nas/roots", auth.requireAuth, (req, res) => {
+  if (!fileManager) {
+    return res.status(501).json({ error: "Painel do NAS não configurado (ver .env.example)." });
+  }
+  res.json({ roots: fileManager.listRoots(), dsmConfigured: !!synologyClient });
+});
+
+app.get("/api/nas/browse", auth.requireAuth, (req, res) => {
+  if (!fileManager) {
+    return res.status(501).json({ error: "Painel do NAS não configurado." });
+  }
+  try {
+    const entries = fileManager.listDir(req.query.root, req.query.path || "");
+    res.json({ entries });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Visualizador também baixa — só upload (escrita) e desligamento são
+// exclusivos de admin, mesma regra de permissão já usada no resto do painel.
+app.get("/api/nas/download", auth.requireAuth, (req, res) => {
+  if (!fileManager) {
+    return res.status(501).json({ error: "Painel do NAS não configurado." });
+  }
+  try {
+    const filePath = fileManager.getFileForDownload(req.query.root, req.query.path);
+    res.download(filePath);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// A pasta de destino é resolvida (com a mesma validação de path seguro)
+// nesta função do multer, chamada antes de gravar qualquer byte — nunca
+// escreve fora de uma raiz permitida. O formulário do frontend manda
+// `root`/`path` como campos ANTES do campo do arquivo, pra já estarem em
+// `req.body` quando o multer decide o destino.
+const nasUpload = multer({
+  limits: { fileSize: NAS_MAX_UPLOAD_MB * 1024 * 1024 },
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      try {
+        const dest = fileManager.resolveUploadDestination(req.body.root, req.body.path || "");
+        cb(null, dest);
+      } catch (err) {
+        cb(err);
+      }
+    },
+    filename: (req, file, cb) => cb(null, path.basename(file.originalname))
+  })
+});
+
+app.post("/api/nas/upload", auth.requireRole("admin"), (req, res) => {
+  if (!fileManager) {
+    return res.status(501).json({ error: "Painel do NAS não configurado." });
+  }
+  nasUpload.single("file")(req, res, err => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: "Nenhum arquivo enviado." });
+    res.status(201).json({ ok: true, name: req.file.filename, sizeBytes: req.file.size });
+  });
+});
+
+// Discos/RAID do próprio Synology, via API do DSM — só aparece se
+// DSM_HOST/DSM_USER/DSM_PASSWORD estiverem configurados no .env.
+app.get("/api/nas/disks", auth.requireAuth, async (req, res) => {
+  if (!synologyClient) {
+    return res.status(501).json({ error: "Integração com o DSM não configurada (ver .env.example)." });
+  }
+  try {
+    const disks = await synologyClient.getDisks();
+    res.json({ disks });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Desliga o NAS de verdade — ação física, irreversível remotamente sem
+// Wake-on-LAN configurado. Duas travas: admin-only (já garantido pelo
+// requireRole) e uma frase de confirmação exata mandada pelo cliente,
+// nunca só o clique do botão.
+app.post("/api/nas/shutdown", auth.requireRole("admin"), async (req, res) => {
+  if (!synologyClient) {
+    return res.status(501).json({ error: "Integração com o DSM não configurada (ver .env.example)." });
+  }
+  if (req.body?.confirm !== "DESLIGAR") {
+    return res.status(400).json({ error: 'Confirmação inválida — digite exatamente "DESLIGAR".' });
+  }
+  try {
+    console.log(
+      `[disk-monitor] Desligamento do NAS disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    await synologyClient.shutdown();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // Usuário "viewer" só acompanha o painel — mudar configuração e disparar

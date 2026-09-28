@@ -23,13 +23,13 @@ seu próprio README com o passo a passo.
   `install-gui.sh`) e no Windows (`installers/windows/install.ps1` ou o
   assistente `DiskMonitorSetup.exe`) — e atualiza (`update.sh`/
   `update.ps1`) sem repetir o passo a passo de instalação inteiro.
-- **[`nas-panel/`](nas-panel/README.md)** — painel do NAS: navega,
-  baixa e envia arquivo nas pastas já montadas no servidor (login
-  admin/visualizador, mesmo modelo do `disk-monitor`), sempre travado
-  numa lista explícita de pastas permitidas (nunca a raiz do disco).
-  Opcionalmente, fala direto com a API do Synology DSM pra mostrar
-  status dos discos e desligar o NAS — admin-only, com confirmação por
-  frase exata antes de qualquer desligamento de verdade.
+  Inclui também, embutido (opcional — só liga configurando `.env`), um
+  **painel do NAS**: navega/baixa/envia arquivo nas pastas do NAS já
+  montadas no servidor, e mostra discos/desliga o NAS via API do
+  Synology DSM (admin-only, com confirmação por frase exata). Vem
+  pronto em qualquer servidor novo — não precisa instalar módulo
+  separado nem repetir instalação, só configurar quando aquele cliente
+  tiver um NAS de verdade (ver README do disk-monitor).
 
 ## Bibliotecas compartilhadas
 

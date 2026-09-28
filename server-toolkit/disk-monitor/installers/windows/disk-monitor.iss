@@ -16,7 +16,7 @@
 
 #define MyAppName "Disk Monitor"
 #define MyAppPublisher "Confiança Technologies"
-#define MyAppVersion "1.6.0"
+#define MyAppVersion "1.7.0"
 #define MyAppExeName "disk-monitor.exe"
 
 [Setup]

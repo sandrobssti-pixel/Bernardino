@@ -198,8 +198,24 @@
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
-    padding: 10px 16px; border-radius: 8px; display: none;
+    padding: 10px 16px; border-radius: 8px; display: none; max-width: 320px;
   }
+  /* ---------- Painel do NAS ---------- */
+  .roots-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .root-btn {
+    background: rgba(148,163,184,0.1); color: var(--text);
+    border: 1px solid var(--panel-border); border-radius: 999px;
+    padding: 6px 14px; font-size: 0.85rem; cursor: pointer;
+  }
+  .root-btn.active { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff; border-color: transparent; }
+  .root-btn.unmounted { opacity: 0.5; }
+  .breadcrumb { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
+  .breadcrumb a { color: var(--accent2); cursor: pointer; text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .entry-name { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .entry-name.file { cursor: default; }
+  .entry-icon { color: var(--accent2); flex-shrink: 0; }
+  .upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -314,6 +330,61 @@
     <canvas id="processChart"></canvas>
   </div>
 
+  <div id="nasSection" style="display:none">
+    <div class="panel" style="margin-bottom:16px">
+      <h2 data-i18n="filesTitle">Arquivos do NAS</h2>
+      <div class="roots-row" id="rootsRow"></div>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="thName">Nome</th>
+            <th data-i18n="thSize">Tamanho</th>
+            <th data-i18n="thModified">Modificado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="nasEntriesBody"></tbody>
+      </table>
+      <div class="upload-row" id="nasUploadRow" style="display:none">
+        <input type="file" id="nasUploadInput" />
+        <button id="nasUploadBtn" data-i18n="uploadBtn">Enviar arquivo</button>
+        <span class="sub" id="nasUploadStatus"></span>
+      </div>
+    </div>
+
+    <div class="panel" id="dsmPanel" style="display:none; margin-bottom:16px">
+      <h2 data-i18n="dsmTitle">Discos do NAS e desligamento (Synology)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="thDisk">Disco</th>
+            <th data-i18n="thStatus">Status</th>
+            <th data-i18n="thTemp">Temperatura</th>
+            <th data-i18n="thCapacity">Capacidade</th>
+          </tr>
+        </thead>
+        <tbody id="dsmDisksBody"></tbody>
+      </table>
+
+      <div id="shutdownArea" style="margin-top:20px; display:none">
+        <button class="secondary" id="shutdownOpenBtn" style="background:rgba(239,68,68,0.15); color:var(--crit)" data-i18n="shutdownOpenBtn">Desligar o NAS</button>
+        <div id="shutdownConfirmBox" style="display:none; margin-top:14px; padding:14px; border:1px solid var(--crit); border-radius:10px">
+          <div class="sub" style="color:var(--crit); margin-bottom:10px" data-i18n="shutdownWarning">
+            Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.
+          </div>
+          <label class="sub" data-i18n="shutdownTypeLabel" style="display:block; margin-bottom:6px">Digite DESLIGAR pra confirmar:</label>
+          <input type="text" id="shutdownConfirmInput" style="width:200px; background:rgba(148,163,184,0.08); border:1px solid var(--panel-border); border-radius:6px; padding:8px; color:var(--text)" />
+          <div style="margin-top:10px; display:flex; gap:8px">
+            <button id="shutdownConfirmBtn" disabled style="background:var(--crit)" data-i18n="shutdownConfirmBtn">Confirmar desligamento</button>
+            <button class="secondary" id="shutdownCancelBtn" data-i18n="shutdownCancelBtn">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="sub" id="dsmNotAdminNotice" style="margin-top:10px; display:none" data-i18n="dsmNotAdminNotice"></div>
+    </div>
+  </div>
+
   <div class="panel">
     <h2 data-i18n="recentCleanups">Últimas limpezas</h2>
     <table>
@@ -402,6 +473,28 @@ const translations = {
     chartMemLabel: "Uso de RAM (%)",
     diskUsedLabel: "Usado", diskFreeLabel: "Livre",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} livres)`,
+    filesTitle: "Arquivos do NAS",
+    thName: "Nome", thSize: "Tamanho", thModified: "Modificado",
+    uploadBtn: "Enviar arquivo",
+    downloadBtn: "Baixar",
+    rootUnmounted: "não montada",
+    emptyFolder: "Pasta vazia.",
+    toastUploadOk: "Arquivo enviado.",
+    toastUploadErr: msg => `Erro no envio: ${msg}`,
+    toastBrowseErr: msg => `Erro ao abrir pasta: ${msg}`,
+    rootRoot: "Início",
+    dsmTitle: "Discos do NAS e desligamento (Synology)",
+    thDisk: "Disco", thStatus: "Status", thTemp: "Temperatura", thCapacity: "Capacidade",
+    diskHealthy: "Normal", diskUnhealthy: "Atenção",
+    shutdownOpenBtn: "Desligar o NAS",
+    shutdownWarning: "Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.",
+    shutdownTypeLabel: "Digite DESLIGAR pra confirmar:",
+    shutdownConfirmBtn: "Confirmar desligamento",
+    shutdownCancelBtn: "Cancelar",
+    dsmNotAdminNotice: "Só um administrador pode ver e usar os controles do NAS.",
+    toastShutdownOk: "Comando de desligamento enviado ao NAS.",
+    toastShutdownErr: msg => `Erro ao desligar: ${msg}`,
+    toastDisksErr: msg => `Erro ao ler discos: ${msg}`,
     processesTitle: "Processos em tempo real",
     processesDesc: "Top 15 processos por uso de CPU, atualizado a cada poucos segundos.",
     thPid: "PID", thProcessName: "Processo", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -465,6 +558,28 @@ const translations = {
     chartMemLabel: "Uso de RAM (%)",
     diskUsedLabel: "Usado", diskFreeLabel: "Libre",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} libres)`,
+    filesTitle: "Archivos del NAS",
+    thName: "Nombre", thSize: "Tamaño", thModified: "Modificado",
+    uploadBtn: "Enviar archivo",
+    downloadBtn: "Descargar",
+    rootUnmounted: "no montada",
+    emptyFolder: "Carpeta vacía.",
+    toastUploadOk: "Archivo enviado.",
+    toastUploadErr: msg => `Error al enviar: ${msg}`,
+    toastBrowseErr: msg => `Error al abrir carpeta: ${msg}`,
+    rootRoot: "Inicio",
+    dsmTitle: "Discos del NAS y apagado (Synology)",
+    thDisk: "Disco", thStatus: "Estado", thTemp: "Temperatura", thCapacity: "Capacidad",
+    diskHealthy: "Normal", diskUnhealthy: "Atención",
+    shutdownOpenBtn: "Apagar el NAS",
+    shutdownWarning: "Esto apaga el NAS de verdad. Sin Wake-on-LAN configurado, solo se enciende de nuevo con el botón físico del equipo. Esta acción no se puede deshacer remotamente.",
+    shutdownTypeLabel: "Escriba DESLIGAR para confirmar:",
+    shutdownConfirmBtn: "Confirmar apagado",
+    shutdownCancelBtn: "Cancelar",
+    dsmNotAdminNotice: "Solo un administrador puede ver y usar los controles del NAS.",
+    toastShutdownOk: "Comando de apagado enviado al NAS.",
+    toastShutdownErr: msg => `Error al apagar: ${msg}`,
+    toastDisksErr: msg => `Error al leer discos: ${msg}`,
     processesTitle: "Procesos en tiempo real",
     processesDesc: "Top 15 procesos por uso de CPU, actualizado cada pocos segundos.",
     thPid: "PID", thProcessName: "Proceso", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -528,6 +643,28 @@ const translations = {
     chartMemLabel: "RAM usage (%)",
     diskUsedLabel: "Used", diskFreeLabel: "Free",
     diskDetail: (used, total, free) => `${used} of ${total} used (${free} free)`,
+    filesTitle: "NAS files",
+    thName: "Name", thSize: "Size", thModified: "Modified",
+    uploadBtn: "Upload file",
+    downloadBtn: "Download",
+    rootUnmounted: "not mounted",
+    emptyFolder: "Empty folder.",
+    toastUploadOk: "File uploaded.",
+    toastUploadErr: msg => `Upload error: ${msg}`,
+    toastBrowseErr: msg => `Error opening folder: ${msg}`,
+    rootRoot: "Home",
+    dsmTitle: "NAS disks and shutdown (Synology)",
+    thDisk: "Disk", thStatus: "Status", thTemp: "Temperature", thCapacity: "Capacity",
+    diskHealthy: "Normal", diskUnhealthy: "Attention",
+    shutdownOpenBtn: "Shut down the NAS",
+    shutdownWarning: "This actually shuts down the NAS. Without Wake-on-LAN configured, it can only be turned back on by pressing the physical button on the device. This action cannot be undone remotely.",
+    shutdownTypeLabel: "Type DESLIGAR to confirm:",
+    shutdownConfirmBtn: "Confirm shutdown",
+    shutdownCancelBtn: "Cancel",
+    dsmNotAdminNotice: "Only an administrator can see and use the NAS controls.",
+    toastShutdownOk: "Shutdown command sent to the NAS.",
+    toastShutdownErr: msg => `Error shutting down: ${msg}`,
+    toastDisksErr: msg => `Error reading disks: ${msg}`,
     processesTitle: "Real-time processes",
     processesDesc: "Top 15 processes by CPU usage, refreshed every few seconds.",
     thPid: "PID", thProcessName: "Process", thCpuPercent: "CPU %", thMemPercent: "RAM %",
@@ -591,6 +728,11 @@ function setLang(lang) {
   loadProcesses();
   loadLive();
   loadMachineProfile();
+  if (nasConfigured) {
+    renderNasRoots();
+    loadNasFolder();
+    loadDsmDisks();
+  }
 }
 
 // ---------- tema claro/escuro ----------
@@ -949,6 +1091,234 @@ function renderActions(actions) {
   `).join("");
 }
 
+// ---------- painel do NAS (arquivos + Synology DSM) ----------
+// Tudo aqui é opcional: se /api/nas/roots responder 501 (NAS_ROOTS não
+// configurado no .env), nasConfigured fica false e a seção inteira
+// (#nasSection) some do painel — o resto do disk-monitor funciona igual.
+let nasRoots = [];
+let currentRootKey = null;
+let currentNasPath = "";
+let nasConfigured = false;
+let dsmConfigured = false;
+
+// Formatador de bytes com mais granularidade (KB/MB/GB) que o
+// `formatBytes` já usado nos cards de disco do servidor (que só mostra
+// GB/TB, adequado pra tamanho de disco inteiro) — aqui os arquivos
+// individuais podem ser bem pequenos.
+function formatFileBytes(bytes) {
+  if (bytes === null || bytes === undefined) return "";
+  const gb = bytes / 1024 / 1024 / 1024;
+  if (gb >= 1) return gb.toFixed(1) + " GB";
+  const mb = bytes / 1024 / 1024;
+  if (mb >= 1) return mb.toFixed(1) + " MB";
+  return Math.max(1, Math.round(bytes / 1024)) + " KB";
+}
+
+function renderNasRoots() {
+  const row = document.getElementById("rootsRow");
+  row.innerHTML = nasRoots.map(r => `
+    <button type="button" class="root-btn ${r.key === currentRootKey ? "active" : ""} ${r.mounted ? "" : "unmounted"}"
+      data-root="${r.key}" ${r.mounted ? "" : "disabled"}>
+      ${r.label}${r.mounted ? "" : " (" + t("rootUnmounted") + ")"}
+    </button>
+  `).join("");
+  row.querySelectorAll("[data-root]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentRootKey = btn.getAttribute("data-root");
+      currentNasPath = "";
+      loadNasFolder();
+    });
+  });
+}
+
+function renderNasBreadcrumb() {
+  const root = nasRoots.find(r => r.key === currentRootKey);
+  const parts = currentNasPath ? currentNasPath.split("/").filter(Boolean) : [];
+  const crumbs = [`<a data-path="">${root ? root.label : t("rootRoot")}</a>`];
+  let accPath = "";
+  parts.forEach(part => {
+    accPath = accPath ? accPath + "/" + part : part;
+    crumbs.push(`<a data-path="${accPath}">${part}</a>`);
+  });
+  const el = document.getElementById("breadcrumb");
+  el.innerHTML = crumbs.join(" / ");
+  el.querySelectorAll("[data-path]").forEach(a => {
+    a.addEventListener("click", () => {
+      currentNasPath = a.getAttribute("data-path");
+      loadNasFolder();
+    });
+  });
+}
+
+function renderNasEntries(entries) {
+  const body = document.getElementById("nasEntriesBody");
+  if (!entries.length) {
+    body.innerHTML = `<tr><td colspan="4" class="sub">${t("emptyFolder")}</td></tr>`;
+    return;
+  }
+  body.innerHTML = entries.map(e => `
+    <tr>
+      <td>
+        <span class="entry-name ${e.isDir ? "" : "file"}" data-entry="${encodeURIComponent(e.name)}" data-isdir="${e.isDir}">
+          <span class="entry-icon">${e.isDir ? "📁" : "📄"}</span> ${e.name}
+        </span>
+      </td>
+      <td>${formatFileBytes(e.sizeBytes)}</td>
+      <td>${new Date(e.modifiedAt).toLocaleString(LOCALE_MAP[currentLang] || "pt-BR")}</td>
+      <td>${e.isDir ? "" : `<button class="secondary" data-download="${encodeURIComponent(e.name)}">${t("downloadBtn")}</button>`}</td>
+    </tr>
+  `).join("");
+
+  body.querySelectorAll("[data-entry]").forEach(el => {
+    if (el.getAttribute("data-isdir") !== "true") return;
+    el.addEventListener("click", () => {
+      const name = decodeURIComponent(el.getAttribute("data-entry"));
+      currentNasPath = currentNasPath ? currentNasPath + "/" + name : name;
+      loadNasFolder();
+    });
+  });
+
+  body.querySelectorAll("[data-download]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const name = decodeURIComponent(btn.getAttribute("data-download"));
+      const filePath = currentNasPath ? currentNasPath + "/" + name : name;
+      window.location.href = `/api/nas/download?root=${encodeURIComponent(currentRootKey)}&path=${encodeURIComponent(filePath)}`;
+    });
+  });
+}
+
+async function loadNasFolder() {
+  renderNasBreadcrumb();
+  if (!currentRootKey) return;
+  try {
+    const res = await apiFetch(`/api/nas/browse?root=${encodeURIComponent(currentRootKey)}&path=${encodeURIComponent(currentNasPath)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastBrowseErr", data.error));
+      return;
+    }
+    renderNasEntries(data.entries);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+document.getElementById("nasUploadBtn").addEventListener("click", async () => {
+  const input = document.getElementById("nasUploadInput");
+  if (!input.files.length) return;
+  const statusEl = document.getElementById("nasUploadStatus");
+  const form = new FormData();
+  // "root"/"path" ANTES do arquivo — o backend (multer) depende dessa
+  // ordem pra já saber o destino quando processa o campo do arquivo.
+  form.append("root", currentRootKey);
+  form.append("path", currentNasPath);
+  form.append("file", input.files[0]);
+
+  statusEl.textContent = t("loading");
+  try {
+    const res = await apiFetch("/api/nas/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastUploadErr", data.error));
+    } else {
+      toast(t("toastUploadOk"));
+      input.value = "";
+      loadNasFolder();
+    }
+  } catch (err) {
+    toast(t("toastUploadErr", err.message));
+  } finally {
+    statusEl.textContent = "";
+  }
+});
+
+async function loadNasRoots() {
+  try {
+    const res = await apiFetch("/api/nas/roots");
+    const data = await res.json();
+    nasConfigured = res.ok;
+    dsmConfigured = !!data.dsmConfigured;
+    document.getElementById("nasSection").style.display = nasConfigured ? "block" : "none";
+    document.getElementById("dsmPanel").style.display = dsmConfigured ? "block" : "none";
+    if (!nasConfigured) return;
+
+    nasRoots = data.roots;
+    if (!currentRootKey) {
+      const firstMounted = nasRoots.find(r => r.mounted);
+      currentRootKey = firstMounted ? firstMounted.key : (nasRoots[0] && nasRoots[0].key);
+    }
+    renderNasRoots();
+  } catch (err) {
+    console.error("Falha ao carregar o painel do NAS:", err);
+  }
+}
+
+// ---------- discos do NAS e desligamento (Synology) ----------
+function renderDsmDisksTable(disks) {
+  const body = document.getElementById("dsmDisksBody");
+  body.innerHTML = disks.map(d => `
+    <tr>
+      <td>${d.model || d.id}${d.vendor ? " (" + d.vendor + ")" : ""}</td>
+      <td style="color:${d.healthy ? "var(--ok)" : "var(--crit)"}">${d.healthy ? t("diskHealthy") : (t("diskUnhealthy") + " — " + d.status)}</td>
+      <td>${d.tempCelsius !== null ? d.tempCelsius + "°C" : "—"}</td>
+      <td>${d.sizeBytes ? formatBytes(d.sizeBytes) : "—"}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadDsmDisks() {
+  if (!dsmConfigured) return;
+  try {
+    const res = await apiFetch("/api/nas/disks");
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastDisksErr", data.error));
+      return;
+    }
+    renderDsmDisksTable(data.disks);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+document.getElementById("shutdownOpenBtn").addEventListener("click", () => {
+  document.getElementById("shutdownConfirmBox").style.display = "block";
+  document.getElementById("shutdownOpenBtn").style.display = "none";
+});
+
+document.getElementById("shutdownCancelBtn").addEventListener("click", () => {
+  document.getElementById("shutdownConfirmBox").style.display = "none";
+  document.getElementById("shutdownOpenBtn").style.display = "inline-block";
+  document.getElementById("shutdownConfirmInput").value = "";
+  document.getElementById("shutdownConfirmBtn").disabled = true;
+});
+
+document.getElementById("shutdownConfirmInput").addEventListener("input", e => {
+  document.getElementById("shutdownConfirmBtn").disabled = e.target.value !== "DESLIGAR";
+});
+
+document.getElementById("shutdownConfirmBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("shutdownConfirmBtn");
+  btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/nas/shutdown", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: document.getElementById("shutdownConfirmInput").value })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastShutdownErr", data.error));
+      btn.disabled = false;
+    } else {
+      toast(t("toastShutdownOk"));
+    }
+  } catch (err) {
+    toast(t("toastShutdownErr", err.message));
+    btn.disabled = false;
+  }
+});
+
 // ---------- login / usuários ----------
 let currentUserInfo = null;
 
@@ -979,6 +1349,12 @@ function applyRoleUI() {
   document.getElementById("cleanupStatus").textContent = isAdmin ? "" : t("viewerNotice");
   ["thresholdPercent", "checkIntervalMinutes", "dockerLogMaxSizeMB", "tmpFilesOlderThanDays", "systemLogsOlderThanDays", "autoCleanupEnabled"]
     .forEach(id => { document.getElementById(id).disabled = !isAdmin; });
+
+  // Painel do NAS: visualizador navega/baixa e vê os discos, mas não
+  // envia arquivo nem desliga o NAS — só admin.
+  document.getElementById("nasUploadRow").style.display = isAdmin ? "flex" : "none";
+  document.getElementById("shutdownArea").style.display = isAdmin ? "block" : "none";
+  document.getElementById("dsmNotAdminNotice").style.display = isAdmin ? "none" : "block";
 }
 
 async function checkAuth() {
@@ -1155,6 +1531,11 @@ applyTranslations();
   await loadStatus();
   await loadProcesses();
   await loadLive();
+  await loadNasRoots();
+  if (nasConfigured) {
+    await loadNasFolder();
+    await loadDsmDisks();
+  }
   setInterval(loadStatus, 30000);
   // Processos e CPU/RAM/discos mudam rápido — intervalo mais curto pra dar
   // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.

@@ -12,6 +12,12 @@ Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
 - Disparar limpeza automática quando o uso passar de um limite configurável.
 - Permitir rodar a limpeza manualmente pelo painel, com um clique.
 - Registrar o histórico de todas as limpezas (o que rodou, quanto liberou).
+- (Opcional) **Painel do NAS** embutido — navegar/baixar/enviar arquivo
+  nas pastas do NAS já montadas no servidor, e ver discos/desligar o
+  NAS via API do Synology DSM. Vem "de fábrica" com o disk-monitor,
+  mas só liga se você configurar `NAS_ROOTS` (e opcionalmente
+  `DSM_*`) no `.env` desse servidor — sem essa configuração, essa
+  parte do painel simplesmente não aparece (ver seção própria abaixo).
 
 Painel web simples (gráfico + botões), com login e dois papéis de
 usuário: **administrador** (acesso completo) e **visualizador** (só
@@ -251,6 +257,64 @@ também mostra, sem nenhuma configuração extra:
 - **Processos em tempo real**: os 15 que mais consomem CPU no momento
   (PID, nome, % de CPU, % de RAM), atualizado a cada poucos segundos —
   e um gráfico comparando o consumo dos que mais pesam.
+
+## Painel do NAS (opcional)
+
+Módulo embutido no próprio disk-monitor — sem instalar nada a mais,
+sem outro serviço rodando, sem outra porta pra abrir. Fica escondido
+até você configurar; assim, quando esse mesmo disk-monitor for pro
+servidor de outro cliente, a opção já está lá, só falta ligar.
+
+### Arquivos do NAS
+
+Navega, baixa e envia arquivo nas pastas do NAS já montadas no
+servidor (via SMB). Configure em `.env`:
+
+```bash
+NAS_ROOTS="Backups:/mnt/nas-backup,Seafile:/mnt/nas-seafile"
+#NAS_MAX_UPLOAD_MB=2048   # padrão: 2GB
+```
+
+**Nunca** acessa nada fora das pastas listadas — toda operação resolve
+o caminho real no disco (`fs.realpathSync`, segue symlink) e confirma
+que continua dentro de uma raiz permitida antes de ler ou escrever
+qualquer coisa (`lib/fileManager.js`). Visualizador navega e baixa; só
+administrador envia arquivo.
+
+### Discos do NAS e desligamento (Synology)
+
+Opcional e independente do `NAS_ROOTS` acima — fala direto com a API
+do próprio DSM (Synology):
+
+```bash
+DSM_HOST=192.168.3.21
+DSM_PORT=5001
+DSM_HTTPS=true
+DSM_USER=
+DSM_PASSWORD=
+#DSM_ALLOW_SELF_SIGNED=true   # comum em certificado de rede local
+```
+
+Use uma conta **administradora do DSM** dedicada a isso (nunca a conta
+de serviço do SMB). Mostra o status de cada disco físico (saúde,
+temperatura, capacidade) e permite desligar o NAS de verdade — só
+administrador, com duas travas: `requireRole("admin")` e uma frase de
+confirmação exata (`DESLIGAR`) digitada na tela, nunca só o clique do
+botão.
+
+> ⚠️ **Desligar é uma ação física, irreversível remotamente**: sem
+> Wake-on-LAN configurado no NAS, só liga de novo apertando o botão
+> físico no aparelho.
+
+**Honestidade sobre o que foi testado**: `lib/synologyApi.js` segue a
+documentação pública da API do Synology (a mesma usada pela integração
+Synology DSM do Home Assistant), mas **não foi testada contra um
+Synology de verdade** nesta sessão de desenvolvimento (sem acesso a um
+NAS real). Testado diretamente: painel sem DSM configurado (some sem
+quebrar nada), trava de confirmação por frase exata, erro de conexão
+tratado sem derrubar o resto do painel. Teste com cuidado antes de
+confiar em produção — comece só pela leitura dos discos, deixe o
+desligamento por último.
 
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
