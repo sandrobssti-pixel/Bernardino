@@ -23,6 +23,10 @@ seu próprio README com o passo a passo.
   `install-gui.sh`) e no Windows (`installers/windows/install.ps1` ou o
   assistente `DiskMonitorSetup.exe`) — e atualiza (`update.sh`/
   `update.ps1`) sem repetir o passo a passo de instalação inteiro.
+- **[`nas-panel/`](nas-panel/README.md)** — painel do NAS: navega,
+  baixa e envia arquivo nas pastas já montadas no servidor (login
+  admin/visualizador, mesmo modelo do `disk-monitor`), sempre travado
+  numa lista explícita de pastas permitidas (nunca a raiz do disco).
 
 ## Bibliotecas compartilhadas
 
