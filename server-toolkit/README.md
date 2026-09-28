@@ -27,6 +27,9 @@ seu próprio README com o passo a passo.
   baixa e envia arquivo nas pastas já montadas no servidor (login
   admin/visualizador, mesmo modelo do `disk-monitor`), sempre travado
   numa lista explícita de pastas permitidas (nunca a raiz do disco).
+  Opcionalmente, fala direto com a API do Synology DSM pra mostrar
+  status dos discos e desligar o NAS — admin-only, com confirmação por
+  frase exata antes de qualquer desligamento de verdade.
 
 ## Bibliotecas compartilhadas
 

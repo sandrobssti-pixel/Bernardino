@@ -147,6 +147,37 @@
     </div>
   </div>
 
+  <div class="panel" id="dsmPanel" style="display:none">
+    <h2 data-i18n="dsmTitle">Discos e desligamento (Synology)</h2>
+    <table>
+      <thead>
+        <tr>
+          <th data-i18n="thDisk">Disco</th>
+          <th data-i18n="thStatus">Status</th>
+          <th data-i18n="thTemp">Temperatura</th>
+          <th data-i18n="thCapacity">Capacidade</th>
+        </tr>
+      </thead>
+      <tbody id="disksBody"></tbody>
+    </table>
+
+    <div id="shutdownArea" style="margin-top:20px; display:none">
+      <button class="secondary" id="shutdownOpenBtn" style="background:rgba(239,68,68,0.15); color:var(--crit)" data-i18n="shutdownOpenBtn">Desligar o NAS</button>
+      <div id="shutdownConfirmBox" style="display:none; margin-top:14px; padding:14px; border:1px solid var(--crit); border-radius:10px">
+        <div class="sub" style="color:var(--crit); margin-bottom:10px" data-i18n="shutdownWarning">
+          Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.
+        </div>
+        <label class="sub" data-i18n="shutdownTypeLabel" style="display:block; margin-bottom:6px">Digite DESLIGAR pra confirmar:</label>
+        <input type="text" id="shutdownConfirmInput" style="width:200px; background:rgba(148,163,184,0.08); border:1px solid var(--panel-border); border-radius:6px; padding:8px; color:var(--text)" />
+        <div style="margin-top:10px; display:flex; gap:8px">
+          <button id="shutdownConfirmBtn" disabled style="background:var(--crit)" data-i18n="shutdownConfirmBtn">Confirmar desligamento</button>
+          <button class="secondary" id="shutdownCancelBtn" data-i18n="shutdownCancelBtn">Cancelar</button>
+        </div>
+      </div>
+    </div>
+    <div class="sub" id="dsmNotAdminNotice" style="margin-top:10px; display:none" data-i18n="dsmNotAdminNotice"></div>
+  </div>
+
   <div id="toast"></div>
 
 <script>
@@ -170,7 +201,19 @@ const translations = {
     toastUploadErr: msg => `Erro no envio: ${msg}`,
     toastBrowseErr: msg => `Erro ao abrir pasta: ${msg}`,
     viewerNotice: "Seu acesso é só de visualização — só um administrador pode enviar arquivos.",
-    rootRoot: "Início"
+    rootRoot: "Início",
+    dsmTitle: "Discos e desligamento (Synology)",
+    thDisk: "Disco", thStatus: "Status", thTemp: "Temperatura", thCapacity: "Capacidade",
+    diskHealthy: "Normal", diskUnhealthy: "Atenção",
+    shutdownOpenBtn: "Desligar o NAS",
+    shutdownWarning: "Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.",
+    shutdownTypeLabel: "Digite DESLIGAR pra confirmar:",
+    shutdownConfirmBtn: "Confirmar desligamento",
+    shutdownCancelBtn: "Cancelar",
+    dsmNotAdminNotice: "Só um administrador pode ver e usar os controles do NAS.",
+    toastShutdownOk: "Comando de desligamento enviado ao NAS.",
+    toastShutdownErr: msg => `Erro ao desligar: ${msg}`,
+    toastDisksErr: msg => `Erro ao ler discos: ${msg}`
   },
   es: {
     appTitle: "NAS Panel",
@@ -188,7 +231,19 @@ const translations = {
     toastUploadErr: msg => `Error al enviar: ${msg}`,
     toastBrowseErr: msg => `Error al abrir carpeta: ${msg}`,
     viewerNotice: "Su acceso es solo de visualización — solo un administrador puede enviar archivos.",
-    rootRoot: "Inicio"
+    rootRoot: "Inicio",
+    dsmTitle: "Discos y apagado (Synology)",
+    thDisk: "Disco", thStatus: "Estado", thTemp: "Temperatura", thCapacity: "Capacidad",
+    diskHealthy: "Normal", diskUnhealthy: "Atención",
+    shutdownOpenBtn: "Apagar el NAS",
+    shutdownWarning: "Esto apaga el NAS de verdad. Sin Wake-on-LAN configurado, solo se enciende de nuevo con el botón físico del equipo. Esta acción no se puede deshacer remotamente.",
+    shutdownTypeLabel: "Escriba DESLIGAR para confirmar:",
+    shutdownConfirmBtn: "Confirmar apagado",
+    shutdownCancelBtn: "Cancelar",
+    dsmNotAdminNotice: "Solo un administrador puede ver y usar los controles del NAS.",
+    toastShutdownOk: "Comando de apagado enviado al NAS.",
+    toastShutdownErr: msg => `Error al apagar: ${msg}`,
+    toastDisksErr: msg => `Error al leer discos: ${msg}`
   },
   en: {
     appTitle: "NAS Panel",
@@ -206,7 +261,19 @@ const translations = {
     toastUploadErr: msg => `Upload error: ${msg}`,
     toastBrowseErr: msg => `Error opening folder: ${msg}`,
     viewerNotice: "Your access is view-only — only an administrator can upload files.",
-    rootRoot: "Home"
+    rootRoot: "Home",
+    dsmTitle: "Disks and shutdown (Synology)",
+    thDisk: "Disk", thStatus: "Status", thTemp: "Temperature", thCapacity: "Capacity",
+    diskHealthy: "Normal", diskUnhealthy: "Attention",
+    shutdownOpenBtn: "Shut down the NAS",
+    shutdownWarning: "This actually shuts down the NAS. Without Wake-on-LAN configured, it can only be turned back on by pressing the physical button on the device. This action cannot be undone remotely.",
+    shutdownTypeLabel: "Type DESLIGAR to confirm:",
+    shutdownConfirmBtn: "Confirm shutdown",
+    shutdownCancelBtn: "Cancel",
+    dsmNotAdminNotice: "Only an administrator can see and use the NAS controls.",
+    toastShutdownOk: "Shutdown command sent to the NAS.",
+    toastShutdownErr: msg => `Error shutting down: ${msg}`,
+    toastDisksErr: msg => `Error reading disks: ${msg}`
   }
 };
 
@@ -264,6 +331,10 @@ function applyRoleUI() {
   const isAdmin = currentUserInfo?.role === "admin";
   document.getElementById("userInfo").textContent = t("loggedInAs", currentUserInfo.username, currentUserInfo.role);
   document.getElementById("uploadRow").style.display = isAdmin ? "flex" : "none";
+  // Visualizador vê a tabela de discos (informação), mas os controles de
+  // desligamento ficam escondidos — só admin pode agir sobre o NAS físico.
+  document.getElementById("shutdownArea").style.display = isAdmin ? "block" : "none";
+  document.getElementById("dsmNotAdminNotice").style.display = isAdmin ? "none" : "block";
 }
 
 async function checkAuth() {
@@ -422,17 +493,91 @@ document.getElementById("uploadBtn").addEventListener("click", async () => {
   }
 });
 
+let dsmConfigured = false;
+
 async function loadRoots() {
   const res = await apiFetch("/api/roots");
   const data = await res.json();
   roots = data.roots;
+  dsmConfigured = !!data.dsmConfigured;
   if (data.version) document.getElementById("versionBadge").textContent = "v" + data.version;
   if (!currentRootKey) {
     const firstMounted = roots.find(r => r.mounted);
     currentRootKey = firstMounted ? firstMounted.key : (roots[0] && roots[0].key);
   }
   renderRoots();
+  document.getElementById("dsmPanel").style.display = dsmConfigured ? "block" : "none";
 }
+
+// ---------- discos e desligamento (Synology) ----------
+function diskStatusColor(healthy) {
+  return healthy ? "var(--ok)" : "var(--crit)";
+}
+
+function renderDisks(disks) {
+  const body = document.getElementById("disksBody");
+  body.innerHTML = disks.map(d => `
+    <tr>
+      <td>${d.model || d.id}${d.vendor ? " (" + d.vendor + ")" : ""}</td>
+      <td style="color:${diskStatusColor(d.healthy)}">${d.healthy ? t("diskHealthy") : (t("diskUnhealthy") + " — " + d.status)}</td>
+      <td>${d.tempCelsius !== null ? d.tempCelsius + "°C" : "—"}</td>
+      <td>${d.sizeBytes ? formatBytes(d.sizeBytes) : "—"}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadDisks() {
+  if (!dsmConfigured) return;
+  try {
+    const res = await apiFetch("/api/nas/disks");
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastDisksErr", data.error));
+      return;
+    }
+    renderDisks(data.disks);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+document.getElementById("shutdownOpenBtn").addEventListener("click", () => {
+  document.getElementById("shutdownConfirmBox").style.display = "block";
+  document.getElementById("shutdownOpenBtn").style.display = "none";
+});
+
+document.getElementById("shutdownCancelBtn").addEventListener("click", () => {
+  document.getElementById("shutdownConfirmBox").style.display = "none";
+  document.getElementById("shutdownOpenBtn").style.display = "inline-block";
+  document.getElementById("shutdownConfirmInput").value = "";
+  document.getElementById("shutdownConfirmBtn").disabled = true;
+});
+
+document.getElementById("shutdownConfirmInput").addEventListener("input", e => {
+  document.getElementById("shutdownConfirmBtn").disabled = e.target.value !== "DESLIGAR";
+});
+
+document.getElementById("shutdownConfirmBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("shutdownConfirmBtn");
+  btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/nas/shutdown", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: document.getElementById("shutdownConfirmInput").value })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastShutdownErr", data.error));
+      btn.disabled = false;
+    } else {
+      toast(t("toastShutdownOk"));
+    }
+  } catch (err) {
+    toast(t("toastShutdownErr", err.message));
+    btn.disabled = false;
+  }
+});
 
 document.getElementById("langSelect").addEventListener("change", e => setLang(e.target.value));
 document.getElementById("themeToggle").addEventListener("click", toggleTheme);
@@ -446,6 +591,7 @@ applyTranslations();
   if (!authenticated) return;
   await loadRoots();
   await loadCurrentFolder();
+  await loadDisks();
 })();
 </script>
 </body>

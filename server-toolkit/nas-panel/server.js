@@ -10,6 +10,7 @@ const express = require("express");
 const multer = require("multer");
 
 const { createFileManager } = require("./lib/fileManager");
+const { createSynologyClient } = require("./lib/synologyApi");
 const { version } = require("./lib/version");
 const { createAuthSystem } = require("toolkit-auth");
 const { dataDir } = require("./lib/paths");
@@ -34,6 +35,18 @@ if (!process.env.NAS_ROOTS) {
 
 const fileManager = createFileManager(process.env.NAS_ROOTS);
 
+// Opcional — sem DSM_HOST/DSM_USER/DSM_PASSWORD no .env, fica `null` e a
+// aba de discos/desligamento simplesmente não aparece no painel (o
+// navegador de arquivos continua funcionando normalmente).
+const synologyClient = createSynologyClient({
+  host: process.env.DSM_HOST,
+  port: Number(process.env.DSM_PORT || 5001),
+  useHttps: process.env.DSM_HTTPS !== "false",
+  user: process.env.DSM_USER,
+  password: process.env.DSM_PASSWORD,
+  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED === "true"
+});
+
 const auth = createAuthSystem({
   dataDir,
   sessionSecret: SESSION_SECRET,
@@ -50,7 +63,43 @@ app.use("/api", auth.router);
 app.use(express.static(publicDir));
 
 app.get("/api/roots", auth.requireAuth, (req, res) => {
-  res.json({ roots: fileManager.listRoots(), version });
+  res.json({ roots: fileManager.listRoots(), version, dsmConfigured: !!synologyClient });
+});
+
+// Discos/RAID do próprio Synology, via API do DSM — só aparece se
+// DSM_HOST/DSM_USER/DSM_PASSWORD estiverem configurados no .env.
+app.get("/api/nas/disks", auth.requireAuth, async (req, res) => {
+  if (!synologyClient) {
+    return res.status(501).json({ error: "Integração com o DSM não configurada (ver .env.example)." });
+  }
+  try {
+    const disks = await synologyClient.getDisks();
+    res.json({ disks });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// Desliga o NAS de verdade — ação física, irreversível remotamente sem
+// Wake-on-LAN configurado. Duas travas: admin-only (já garantido pelo
+// requireRole) e uma frase de confirmação exata mandada pelo cliente,
+// nunca só o clique do botão.
+app.post("/api/nas/shutdown", auth.requireRole("admin"), async (req, res) => {
+  if (!synologyClient) {
+    return res.status(501).json({ error: "Integração com o DSM não configurada (ver .env.example)." });
+  }
+  if (req.body?.confirm !== "DESLIGAR") {
+    return res.status(400).json({ error: 'Confirmação inválida — digite exatamente "DESLIGAR".' });
+  }
+  try {
+    console.log(
+      `[nas-panel] Desligamento do NAS disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    await synologyClient.shutdown();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 app.get("/api/browse", auth.requireAuth, (req, res) => {
