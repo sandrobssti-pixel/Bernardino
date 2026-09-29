@@ -6,16 +6,15 @@ const http = require("http");
 // próprio DSM usa por trás da tela de Armazenamento e do botão
 // "Desligar". Sem dependência nova: só `https`/`http` do Node.
 //
-// ATENÇÃO — NÃO TESTADO CONTRA UM SYNOLOGY DE VERDADE nesta sessão (sem
-// acesso a um NAS real pra validar). Escrito seguindo a documentação
-// pública dessa API, usada por ferramentas conhecidas da comunidade
-// (ex.: a integração Synology DSM do Home Assistant, o pacote Python
-// `synology-dsm`). Teste com cuidado antes de confiar em produção — em
-// especial o desligamento, que é uma ação física irreversível
-// remotamente (sem Wake-on-LAN configurado, só liga de novo apertando o
-// botão físico do NAS).
+// O login (com conta protegida por verificação em duas etapas, via
+// device_id de dispositivo confiável) foi validado contra um Synology
+// DS223j real, DSM 7.4.1. Leitura de discos e desligamento ainda não
+// confirmados contra hardware real — teste com cuidado antes de
+// confiar em produção, em especial o desligamento, que é uma ação
+// física irreversível remotamente (sem Wake-on-LAN configurado, só liga
+// de novo apertando o botão físico do NAS).
 
-function createSynologyClient({ host, port, useHttps, user, password, allowSelfSigned }) {
+function createSynologyClient({ host, port, useHttps, user, password, allowSelfSigned, deviceId }) {
   if (!host || !user || !password) return null;
 
   const scheme = useHttps ? "https" : "http";
@@ -52,13 +51,23 @@ function createSynologyClient({ host, port, useHttps, user, password, allowSelfS
 
   async function login() {
     if (cachedSid && Date.now() - cachedAt < SID_TTL_MS) return cachedSid;
-    const query =
-      `/webapi/auth.cgi?api=SYNO.API.Auth&version=6&method=login` +
+    // version=7 é o mínimo que aceita device_id — necessário pra contas
+    // com verificação em duas etapas ativada (ver DSM_DEVICE_ID no
+    // .env.example: identifica esse servidor como dispositivo confiável,
+    // sem precisar do código de 6 dígitos a cada login).
+    let query =
+      `/webapi/auth.cgi?api=SYNO.API.Auth&version=7&method=login` +
       `&account=${encodeURIComponent(user)}&passwd=${encodeURIComponent(password)}` +
       `&session=nas-panel&format=sid`;
+    if (deviceId) query += `&device_id=${encodeURIComponent(deviceId)}`;
     const data = await request(query);
     if (!data.success) {
-      throw new Error(`Login no DSM falhou (código de erro ${data.error?.code}). Confira DSM_USER/DSM_PASSWORD.`);
+      const code = data.error?.code;
+      const hint =
+        code === 403 || code === 404
+          ? " A conta exige verificação em duas etapas — confira se DSM_DEVICE_ID está correto no .env."
+          : " Confira DSM_USER/DSM_PASSWORD.";
+      throw new Error(`Login no DSM falhou (código de erro ${code}).${hint}`);
     }
     cachedSid = data.data.sid;
     cachedAt = Date.now();

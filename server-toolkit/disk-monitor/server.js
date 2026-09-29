@@ -83,7 +83,8 @@ const synologyClient = createSynologyClient({
   useHttps: process.env.DSM_HTTPS !== "false",
   user: process.env.DSM_USER,
   password: process.env.DSM_PASSWORD,
-  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED === "true"
+  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED === "true",
+  deviceId: process.env.DSM_DEVICE_ID
 });
 
 const app = express();

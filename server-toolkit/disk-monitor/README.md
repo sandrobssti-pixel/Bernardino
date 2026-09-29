@@ -293,6 +293,7 @@ DSM_HTTPS=true
 DSM_USER=
 DSM_PASSWORD=
 #DSM_ALLOW_SELF_SIGNED=true   # comum em certificado de rede local
+#DSM_DEVICE_ID=               # ver "Login com verificação em duas etapas" abaixo
 ```
 
 Use uma conta **administradora do DSM** dedicada a isso (nunca a conta
@@ -306,15 +307,42 @@ botão.
 > Wake-on-LAN configurado no NAS, só liga de novo apertando o botão
 > físico no aparelho.
 
-**Honestidade sobre o que foi testado**: `lib/synologyApi.js` segue a
-documentação pública da API do Synology (a mesma usada pela integração
-Synology DSM do Home Assistant), mas **não foi testada contra um
-Synology de verdade** nesta sessão de desenvolvimento (sem acesso a um
-NAS real). Testado diretamente: painel sem DSM configurado (some sem
-quebrar nada), trava de confirmação por frase exata, erro de conexão
-tratado sem derrubar o resto do painel. Teste com cuidado antes de
-confiar em produção — comece só pela leitura dos discos, deixe o
-desligamento por último.
+#### Login com verificação em duas etapas (2FA)
+
+Se a conta usada em `DSM_USER` tiver 2FA ativado (recomendado — **nunca
+desligue o 2FA só pra essa integração funcionar**), o login simples com
+usuário/senha não passa. É preciso fazer **uma única vez** um login
+manual incluindo o código de 6 dígitos do app autenticador, pedindo pro
+DSM lembrar esse servidor como dispositivo confiável:
+
+```bash
+curl -sk -G "https://SEU_IP_DSM:5001/webapi/auth.cgi" \
+  --data-urlencode "api=SYNO.API.Auth" \
+  --data-urlencode "version=7" \
+  --data-urlencode "method=login" \
+  --data-urlencode "account=SEU_USUARIO" \
+  --data-urlencode "passwd=SUA_SENHA" \
+  --data-urlencode "otp_code=CODIGO_DE_6_DIGITOS_AGORA" \
+  --data-urlencode "enable_device_token=yes" \
+  --data-urlencode "device_name=disk-monitor" \
+  --data-urlencode "session=nas-panel" \
+  --data-urlencode "format=sid"
+```
+
+A resposta (se o código ainda estiver válido) traz um `device_id` bem
+longo — copia esse valor pro `DSM_DEVICE_ID` no `.env` e reinicia o
+serviço. Daí em diante, os logins da integração usam esse identificador
+no lugar do código, sem precisar repetir esse processo (a menos que a
+conta perca a confiança no DSM, aí é só gerar de novo).
+
+**Honestidade sobre o que foi testado**: o login (incluindo o fluxo
+acima com conta 2FA) foi validado contra um **Synology DS223j real,
+DSM 7.4.1**. Leitura dos discos e desligamento ainda não foram
+confirmados contra hardware real nesta sessão. Testado diretamente:
+painel sem DSM configurado (some sem quebrar nada), trava de
+confirmação por frase exata, erro de conexão tratado sem derrubar o
+resto do painel, e agora o login em si. Teste com cuidado antes de
+confiar o desligamento em produção — comece só pela leitura dos discos.
 
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
