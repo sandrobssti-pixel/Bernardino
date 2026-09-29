@@ -1,15 +1,18 @@
 {
   "name": "disk-monitor",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "private": true,
   "description": "Monitor de disco e limpeza automática — módulo do server-toolkit, reaproveitável em qualquer servidor novo de cliente",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "npm run build:linux && npm run build:win",
+    "build": "npm run build:linux && npm run build:win && npm run build:macos",
     "build:linux": "pkg . --targets node18-linux-x64 --output ../dist/linux/disk-monitor-linux",
-    "build:win": "pkg . --targets node18-win-x64 --output ../dist/windows/disk-monitor.exe"
+    "build:win": "pkg . --targets node18-win-x64 --output ../dist/windows/disk-monitor.exe",
+    "build:macos": "npm run build:macos-x64 && npm run build:macos-arm64",
+    "build:macos-x64": "pkg . --targets node18-macos-x64 --output ../dist/macos/disk-monitor-macos-x64",
+    "build:macos-arm64": "pkg . --targets node18-macos-arm64 --output ../dist/macos/disk-monitor-macos-arm64"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -29,7 +32,9 @@
     "assets": [],
     "targets": [
       "node18-linux-x64",
-      "node18-win-x64"
+      "node18-win-x64",
+      "node18-macos-x64",
+      "node18-macos-arm64"
     ]
   }
 }

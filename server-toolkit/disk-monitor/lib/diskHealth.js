@@ -14,6 +14,7 @@ const { execFileSync } = require("child_process");
 //    deliberadamente evitado aqui).
 
 const isWindows = process.platform === "win32";
+const isMac = process.platform === "darwin";
 
 function runReadOnly(fn, fallback) {
   try {
@@ -48,11 +49,12 @@ function readSmartReport(device) {
   }, { available: false });
 }
 
-// Só Linux — no Windows não existe journalctl, e o Visor de Eventos exige
-// uma integração própria que ainda não foi feita (fica documentado no
-// README como limitação conhecida).
+// Só Linux — nem Windows (não existe journalctl, o Visor de Eventos
+// exige integração própria) nem macOS (log unificado da Apple, outra
+// ferramenta/formato) têm isso implementado ainda; fica documentado no
+// README como limitação conhecida.
 function readKernelErrors(deviceBaseName) {
-  if (isWindows || !deviceBaseName) return { available: false, entries: [] };
+  if (isWindows || isMac || !deviceBaseName) return { available: false, entries: [] };
   return runReadOnly(() => {
     const output = execFileSync(
       "journalctl",

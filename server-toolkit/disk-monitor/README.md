@@ -1,8 +1,8 @@
 # disk-monitor — Disco & Limpeza automática
 
 Módulo do `server-toolkit`: ferramenta **separada** do AtendeFlow (não faz
-parte do app web nem do banco de dados dele) que roda em qualquer servidor
-Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
+parte do app web nem do banco de dados dele) que roda em qualquer
+servidor/computador — Linux, Windows ou macOS — pra:
 
 - Acompanhar o uso de disco do servidor ao longo do tempo (gráfico) —
   detecta sozinho **todos os discos/partições montados**, não só um.
@@ -28,28 +28,29 @@ Painel web simples (gráfico + botões), com login e dois papéis de
 usuário: **administrador** (acesso completo) e **visualizador** (só
 acompanha o painel, não limpa nem muda configuração).
 
-Pensado pra reaproveitar em qualquer servidor novo que a Confiança
-Technologies montar — **Linux ou Windows** —, instalando por terminal
-ou por um instalador gráfico, nos dois sistemas. Dá pra rodar direto do
-código-fonte (como está instalado aqui) OU como um **executável único**
-por sistema, sem precisar instalar Node.js no servidor novo.
+Pensado pra reaproveitar em qualquer servidor/computador novo de cliente
+— **Linux, Windows ou macOS** —, instalando por terminal (nos três
+sistemas) ou por instalador gráfico (Linux e Windows só, por enquanto —
+ver `installers/macos/README.md`). Dá pra rodar direto do código-fonte
+(como está instalado aqui) OU como um **executável único** por sistema,
+sem precisar instalar Node.js na máquina de destino.
 
 ## O que a limpeza faz (e o que ela NUNCA faz)
 
-Faz (Linux e Windows, mesmo motor):
+Faz (Linux, Windows e macOS, mesmo motor):
 - `docker system prune -af` — remove container parado, imagem não usada,
   rede órfã e cache de build.
 - Trunca (zera o conteúdo, sem apagar o arquivo) log de container Docker
   que passar do tamanho configurado — o Docker continua escrevendo nele
-  normalmente depois. **Só no Linux** (no Windows, o Docker Desktop
-  guarda isso dentro de uma VM sem caminho de arquivo acessível pelo
-  host — esse passo aparece "pulado" no histórico de limpezas).
+  normalmente depois. **Só no Linux** (no Windows e no macOS, o Docker
+  Desktop guarda isso dentro de uma VM sem caminho de arquivo acessível
+  pelo host — esse passo aparece "pulado" no histórico de limpezas).
 - Remove arquivo mais velho que N dias da pasta temporária do sistema
-  (`/tmp` no Linux, `%TEMP%` no Windows).
+  (`/tmp` no Linux, `%TEMP%` no Windows, `$TMPDIR` no macOS).
 - Compacta os logs do sistema mais velhos que N dias (`journalctl
-  --vacuum-time`). **Só no Linux** (log de eventos do Windows é gerido de
-  outro jeito, fora do escopo desta limpeza — esse passo aparece
-  "pulado" no histórico).
+  --vacuum-time`). **Só no Linux** (log de eventos do Windows e o log
+  unificado do macOS são geridos de outro jeito, fora do escopo desta
+  limpeza — esse passo aparece "pulado" no histórico nos dois).
 
 **Nunca**:
 - Não remove volume Docker (onde ficam o banco Postgres e os arquivos
@@ -65,10 +66,13 @@ Faz (Linux e Windows, mesmo motor):
 |---|---|---|
 | Linux   | `sudo installers/linux/install.sh` | `installers/linux/install-gui.sh` (usa zenity) |
 | Windows | `installers\windows\install.ps1` (PowerShell, como Admin) | `DiskMonitorSetup.exe` — assistente compilado do `installers/windows/disk-monitor.iss` |
+| macOS   | `sudo installers/macos/install.sh` | ainda não existe (precisa ser gerado num Mac — ver `installers/macos/README.md`) |
 
 Detalhes completos do lado Windows (inclusive o pré-requisito do WinSW e
 como compilar o instalador gráfico) em
-[`installers/windows/README.md`](installers/windows/README.md).
+[`installers/windows/README.md`](installers/windows/README.md), e do
+lado macOS (inclusive a assinatura automática do executável) em
+[`installers/macos/README.md`](installers/macos/README.md).
 
 As seções abaixo detalham o caminho manual/passo a passo no Linux — útil
 pra entender o que o `install.sh` faz por trás, ou pra quem prefere
@@ -96,6 +100,13 @@ sudo systemctl status disk-monitor   # confirma a versão nova no log
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\update.ps1
+```
+
+**macOS**, de dentro da pasta com o executável novo (gerado por
+`npm run build:macos` ou baixado atualizado):
+```bash
+sudo installers/macos/update.sh
+sudo launchctl list | grep disk-monitor   # confirma que subiu de novo
 ```
 
 Testado nesta sessão (Linux): simulei uma instalação antiga (versão

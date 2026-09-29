@@ -11,6 +11,7 @@ const path = require("path");
 // Windows (o disk-monitor roda nos dois, ver README.md).
 
 const isWindows = process.platform === "win32";
+const isMac = process.platform === "darwin";
 
 function runSafe(label, fn) {
   try {
@@ -38,13 +39,17 @@ function dockerPrune() {
 // docker-compose não configurar rotação — trunca (não apaga o arquivo,
 // só zera o conteúdo) os que passarem do limite, o que é seguro: o Docker
 // continua escrevendo no mesmo arquivo aberto sem quebrar o container.
-// Só existe nesse caminho previsível no Linux — no Windows o Docker
-// Desktop guarda isso dentro da VM (WSL2/Hyper-V), sem um caminho de
-// arquivo comum pra acessar direto do host, então esse passo é pulado.
+// Só existe nesse caminho previsível no Linux — no Windows e no macOS o
+// Docker Desktop guarda isso dentro de uma VM (WSL2/Hyper-V no Windows,
+// uma VM leve no Mac), sem um caminho de arquivo comum pra acessar
+// direto do host, então esse passo é pulado nos dois.
 function truncateLargeDockerLogs(maxSizeMB) {
   return runSafe(`truncar logs docker > ${maxSizeMB}MB`, () => {
     if (isWindows) {
       return "pulado no Windows (Docker Desktop guarda o log dentro da VM, sem caminho de arquivo direto pelo host)";
+    }
+    if (isMac) {
+      return "pulado no macOS (Docker Desktop também guarda o log dentro de uma VM, sem caminho de arquivo direto pelo host)";
     }
 
     const maxBytes = maxSizeMB * 1024 * 1024;
@@ -104,12 +109,16 @@ function deleteOldFilesRecursive(dir, olderThanMs) {
 // `olderThanDays` — só marca como "vazio" o espaço, quem decide o que
 // journald apaga de fato é o próprio `journalctl` (nunca mexemos direto
 // em arquivo de log do sistema). Só existe em distros com systemd; no
-// Windows (Visualizador de Eventos é outra coisa, gerido de outro jeito)
-// esse passo aparece "pulado", igual ao truncamento de log do Docker.
+// Windows (Visualizador de Eventos) e no macOS (unified logging, `log`)
+// isso é gerido de outro jeito — esse passo aparece "pulado" nos dois,
+// igual ao truncamento de log do Docker.
 function cleanSystemLogs(olderThanDays) {
   return runSafe(`limpar logs do sistema (> ${olderThanDays} dias)`, () => {
     if (isWindows) {
       return "pulado no Windows (log de eventos do Windows é gerido de outro jeito, fora do escopo desta limpeza)";
+    }
+    if (isMac) {
+      return "pulado no macOS (o log unificado do sistema é gerido pela Apple de outro jeito, fora do escopo desta limpeza)";
     }
     const output = execSync(`journalctl --vacuum-time=${olderThanDays}d 2>&1`, {
       encoding: "utf8"

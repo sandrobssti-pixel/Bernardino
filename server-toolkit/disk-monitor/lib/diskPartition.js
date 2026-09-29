@@ -14,10 +14,11 @@ const si = require("systeminformation");
 //    `execute` exige exatamente essa mesma checagem de novo, mais duas
 //    confirmações explícitas do cliente (caminho do disco + frase).
 // 3. Só Linux por enquanto — no Windows a API é bem diferente
-//    (diskpart/PowerShell) e não foi implementada ainda; retorna erro
-//    claro em vez de tentar algo não testado.
+//    (diskpart/PowerShell) e no macOS também (diskutil, nomes de
+//    dispositivo /dev/diskN); nenhum dos dois foi implementado ainda,
+//    retorna erro claro em vez de tentar algo não testado.
 
-const isWindows = process.platform === "win32";
+const isLinux = process.platform === "linux";
 const CONFIRM_PHRASE = "FORMATAR";
 
 function parentDiskName(blockDeviceName) {
@@ -29,8 +30,11 @@ function parentDiskName(blockDeviceName) {
 // Reconfere na hora se o disco está livre pra mexer — chamado tanto no
 // preview (só informativo) quanto, de novo, bem antes de executar.
 async function checkEligibility(device) {
-  if (isWindows) {
-    return { eligible: false, reason: "Particionamento ainda não implementado no Windows." };
+  if (!isLinux) {
+    return {
+      eligible: false,
+      reason: `Particionamento ainda não implementado em ${process.platform === "darwin" ? "macOS" : "Windows"} — os comandos usados aqui (wipefs/parted/mkfs) são específicos do Linux.`
+    };
   }
   const shortName = (device || "").replace(/^\/dev\//, "");
   if (!shortName) {

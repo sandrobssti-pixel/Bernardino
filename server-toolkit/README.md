@@ -3,11 +3,11 @@
 Conjunto de ferramentas de operação de servidor da **Confiança
 Technologies**, separado do AtendeFlow (não depende do app web nem do
 banco dele). Pensado desde o início pra ser reaproveitado em qualquer
-servidor novo que a empresa montar — **Linux ou Windows** — com o mesmo
+servidor/computador novo — **Linux, Windows ou macOS** — com o mesmo
 modelo do VPS atual: cada módulo roda sozinho, pode virar um executável
-único por sistema (sem precisar instalar Node.js no servidor novo),
-instala por terminal ou por instalador gráfico nos dois sistemas, e tem
-seu próprio README com o passo a passo.
+único por sistema (sem precisar instalar Node.js na máquina de destino),
+instala por terminal nos três sistemas (Linux e Windows também têm
+instalador gráfico), e tem seu próprio README com o passo a passo.
 
 ## Módulos
 
@@ -20,9 +20,13 @@ seu próprio README com o passo a passo.
   pasta temporária — nunca mexe em volume nem em dado de cliente).
   Faz uma varredura de hardware/SO na instalação (perfil da máquina, fixo
   no painel). Instala no Linux (`installers/linux/install.sh` ou
-  `install-gui.sh`) e no Windows (`installers/windows/install.ps1` ou o
-  assistente `DiskMonitorSetup.exe`) — e atualiza (`update.sh`/
-  `update.ps1`) sem repetir o passo a passo de instalação inteiro.
+  `install-gui.sh`), no Windows (`installers/windows/install.ps1` ou o
+  assistente `DiskMonitorSetup.exe`) e no macOS
+  (`installers/macos/install.sh`, assina o executável sozinho) — e
+  atualiza (`update.sh`/`update.ps1`) sem repetir o passo a passo de
+  instalação inteiro. Também tem particionar/formatar disco (novo ou com
+  tabela de partições corrompida), com prévia do comando e confirmação
+  dupla antes de executar — só Linux por enquanto.
   Inclui também, embutido (opcional — só liga configurando `.env`), um
   **painel do NAS**: navega/baixa/envia arquivo nas pastas do NAS já
   montadas no servidor, e mostra discos/desliga o NAS via API do
