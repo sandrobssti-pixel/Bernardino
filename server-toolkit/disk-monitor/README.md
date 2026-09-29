@@ -326,6 +326,46 @@ em qualquer partição, e um disco de dados de cliente, NAS ou backup
 **nunca** deve ter arquivo apagado automaticamente pelo painel. Isso seria
 quebrar a regra de ouro do projeto ("nunca mexer em dado de cliente").
 
+### Particionar e formatar disco (ação irreversível)
+
+Pensado pra disco **novo** (sem nenhuma partição ainda) ou disco **com
+problema na tabela de partições** que precisa ser recriado do zero — nunca
+pra disco em uso. Aparece como botão **"Particionar / Formatar"** em
+qualquer disco que não seja o do sistema, admin-only.
+
+Duas camadas de segurança, nenhuma pulável pela interface:
+
+1. **Elegibilidade sempre reconferida no servidor** (`lib/diskPartition.js`),
+   nunca confia em nada vindo do navegador: se **qualquer** partição
+   desse disco estiver montada no momento — mesmo que não seja o disco
+   do sistema — o painel recusa e mostra exatamente qual pasta está
+   montada, pedindo pra desmontar manualmente primeiro (o painel nunca
+   desmonta nada sozinho).
+2. **Prévia sempre antes de executar**: "Ver comando" só monta o texto
+   dos comandos exatos que seriam rodados (`wipefs`, `parted`, `mkfs.*`)
+   — nada é executado nessa etapa. Só depois de ver a prévia é que
+   aparecem os dois campos de confirmação: digitar o **caminho exato do
+   disco** (ex.: `/dev/sdd`) e a **frase exata** `FORMATAR`. O botão de
+   executar (vermelho, "Apagar e formatar agora") só fica clicável
+   quando os dois campos batem exatamente — sem meio-termo, sem "clicar
+   sem querer".
+
+Sistemas de arquivo suportados: `ext4`, `xfs`, `exfat` (útil pra disco
+que vai ser lido também em Windows/Mac). Cria uma tabela GPT com uma
+única partição ocupando o disco inteiro.
+
+**Honestidade sobre o que foi testado**: a lógica de elegibilidade (nunca
+deixar particionar disco com algo montado) foi testada com dados
+simulados, incluindo o caso de disco inexistente e disco com partição
+montada — ambos recusados corretamente. A execução de verdade
+(`wipefs`/`parted`/`mkfs`) **não foi testada contra um disco físico
+real** nesta sessão (não há um disco descartável disponível pra testar
+com segurança). Teste primeiro com "Ver comando" pra conferir que o
+disco/comando estão certos, e considere testar a execução pela primeira
+vez num disco de teste antes de confiar em produção. **Só Linux** por
+enquanto — no Windows a integração ainda não existe (retorna erro claro
+em vez de tentar algo não testado).
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

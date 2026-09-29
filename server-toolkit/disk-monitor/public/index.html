@@ -207,6 +207,28 @@
     font-size: 0.7rem; font-family: monospace; color: var(--crit);
     word-break: break-all; margin-top: 2px;
   }
+  .pd-partition-tool {
+    margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--panel-border);
+  }
+  .pd-partition-tool-label { font-size: 0.75rem; color: var(--text-muted); margin: 8px 0 3px; display: block; }
+  .pd-partition-tool select, .pd-partition-tool input[type="text"] {
+    width: 100%; background: rgba(148,163,184,0.08); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 0.82rem;
+  }
+  .pd-preview-btn { margin-top: 10px; }
+  .pd-partition-danger {
+    background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
+    color: var(--crit); border-radius: 8px; padding: 8px 10px;
+    font-size: 0.8rem; margin: 8px 0; font-weight: 600;
+  }
+  .pd-partition-commands {
+    background: rgba(0,0,0,0.25); border-radius: 8px; padding: 10px;
+    font-size: 0.72rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+  }
+  .pd-execute-partition-btn {
+    margin-top: 10px; background: linear-gradient(90deg, #ef4444, #b91c1c) !important;
+  }
+  .pd-execute-partition-btn:disabled { background: rgba(148,163,184,0.15) !important; opacity: 0.6; }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -505,6 +527,17 @@ const translations = {
     healthPending: "Setores pendentes",
     noKernelErrors: "Nenhum erro encontrado no log recente.",
     kernelLogUnavailable: "Verificação de log do sistema não disponível neste servidor.",
+    partitionBtn: "Particionar / Formatar",
+    fsTypeLabel: "Sistema de arquivos",
+    previewPartitionBtn: "Ver comando",
+    partitionNotEligible: "Não é possível particionar este disco agora",
+    partitionWarning: "⚠️ ISSO APAGA TODOS OS DADOS DESSE DISCO PARA SEMPRE. Confira o comando abaixo com atenção antes de confirmar.",
+    confirmDeviceLabel: d => `Digite exatamente "${d}" para confirmar o disco`,
+    confirmPhraseLabel: p => `Digite exatamente "${p}" para confirmar`,
+    executePartitionBtn: "Apagar e formatar agora",
+    partitionRunning: "Particionando e formatando — não feche esta janela...",
+    partitionDone: "Disco particionado e formatado com sucesso.",
+    partitionFailed: "Falha ao particionar/formatar",
     cpuHistoryTitle: "CPU em tempo real",
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -605,6 +638,17 @@ const translations = {
     healthPending: "Sectores pendientes",
     noKernelErrors: "No se encontraron errores en el registro reciente.",
     kernelLogUnavailable: "Verificación del registro del sistema no disponible en este servidor.",
+    partitionBtn: "Particionar / Formatear",
+    fsTypeLabel: "Sistema de archivos",
+    previewPartitionBtn: "Ver comando",
+    partitionNotEligible: "No es posible particionar este disco ahora",
+    partitionWarning: "⚠️ ESTO BORRA TODOS LOS DATOS DE ESE DISCO PARA SIEMPRE. Revise el comando abajo con atención antes de confirmar.",
+    confirmDeviceLabel: d => `Escriba exactamente "${d}" para confirmar el disco`,
+    confirmPhraseLabel: p => `Escriba exactamente "${p}" para confirmar`,
+    executePartitionBtn: "Borrar y formatear ahora",
+    partitionRunning: "Particionando y formateando — no cierre esta ventana...",
+    partitionDone: "Disco particionado y formateado con éxito.",
+    partitionFailed: "Falla al particionar/formatear",
     cpuHistoryTitle: "CPU en tiempo real",
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -705,6 +749,17 @@ const translations = {
     healthPending: "Pending sectors",
     noKernelErrors: "No errors found in the recent log.",
     kernelLogUnavailable: "System log check not available on this server.",
+    partitionBtn: "Partition / Format",
+    fsTypeLabel: "Filesystem",
+    previewPartitionBtn: "Show command",
+    partitionNotEligible: "This disk can't be partitioned right now",
+    partitionWarning: "⚠️ THIS ERASES ALL DATA ON THIS DISK FOREVER. Review the command below carefully before confirming.",
+    confirmDeviceLabel: d => `Type exactly "${d}" to confirm the disk`,
+    confirmPhraseLabel: p => `Type exactly "${p}" to confirm`,
+    executePartitionBtn: "Erase and format now",
+    partitionRunning: "Partitioning and formatting — do not close this window...",
+    partitionDone: "Disk partitioned and formatted successfully.",
+    partitionFailed: "Failed to partition/format",
     cpuHistoryTitle: "CPU — real time",
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
@@ -1067,6 +1122,83 @@ async function runDiskHealthCheck(device, card) {
   }
 }
 
+// Só monta o texto da prévia — nunca executa nada aqui. O botão de
+// executar só aparece DEPOIS da prévia, e só fica clicável quando as
+// duas confirmações (caminho exato do disco + frase) baterem.
+async function runPartitionPreview(device, card) {
+  const tool = card.querySelector(".pd-partition-tool");
+  const fsType = tool.querySelector(".pd-fstype-select").value;
+  const previewEl = tool.querySelector(".pd-partition-preview");
+  previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
+  try {
+    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&fsType=${encodeURIComponent(fsType)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      previewEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
+      return;
+    }
+    if (!data.eligible) {
+      previewEl.innerHTML = `<div class="pd-partition-danger">${t("partitionNotEligible")}: ${data.reason}</div>`;
+      return;
+    }
+    previewEl.innerHTML = `
+      <div class="pd-partition-danger">${t("partitionWarning")}</div>
+      <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
+      <label class="pd-partition-tool-label">${t("confirmDeviceLabel", device)}</label>
+      <input type="text" class="pd-confirm-device" placeholder="${device}">
+      <label class="pd-partition-tool-label">${t("confirmPhraseLabel", data.confirmPhrase)}</label>
+      <input type="text" class="pd-confirm-phrase" placeholder="${data.confirmPhrase}">
+      <button class="pd-execute-partition-btn" type="button" disabled>${t("executePartitionBtn")}</button>
+      <div class="pd-partition-result"></div>
+    `;
+    const deviceInput = previewEl.querySelector(".pd-confirm-device");
+    const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
+    const execBtn = previewEl.querySelector(".pd-execute-partition-btn");
+    const updateExecEnabled = () => {
+      execBtn.disabled = !(deviceInput.value === device && phraseInput.value === data.confirmPhrase);
+    };
+    deviceInput.addEventListener("input", updateExecEnabled);
+    phraseInput.addEventListener("input", updateExecEnabled);
+  } catch (err) {
+    previewEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
+  }
+}
+
+async function runPartitionExecute(device, card) {
+  const tool = card.querySelector(".pd-partition-tool");
+  const fsType = tool.querySelector(".pd-fstype-select").value;
+  const previewEl = tool.querySelector(".pd-partition-preview");
+  const deviceInput = previewEl.querySelector(".pd-confirm-device");
+  const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
+  const execBtn = previewEl.querySelector(".pd-execute-partition-btn");
+  const resultEl = previewEl.querySelector(".pd-partition-result");
+  execBtn.disabled = true;
+  resultEl.innerHTML = `<div class="pd-empty">${t("partitionRunning")}</div>`;
+  try {
+    const res = await apiFetch("/api/disk-partition/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        device, fsType,
+        confirmDevice: deviceInput.value,
+        confirmPhrase: phraseInput.value
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-partition-danger">${t("partitionFailed")}: ${data.error}</div>`;
+      execBtn.disabled = false;
+      return;
+    }
+    resultEl.innerHTML = `<div class="pd-empty">${t("partitionDone")}</div>`;
+    toast(t("partitionDone"));
+    loadDiskTopology();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
+    execBtn.disabled = false;
+  }
+}
+
 // Delegação de clique: os cards são recriados a cada atualização (60s), então
 // um listener por botão se perderia — um único listener no container pai
 // (que nunca é substituído, só o conteúdo dentro dele) resolve isso.
@@ -1080,6 +1212,13 @@ function bindDiskCardActions(containerId) {
       runDiskHealthCheck(device, card);
     } else if (e.target.classList.contains("pd-clean-btn")) {
       runManualCleanup(e.target);
+    } else if (e.target.classList.contains("pd-partition-toggle-btn")) {
+      const tool = card.querySelector(".pd-partition-tool");
+      tool.style.display = tool.style.display === "none" ? "block" : "none";
+    } else if (e.target.classList.contains("pd-preview-btn")) {
+      runPartitionPreview(device, card);
+    } else if (e.target.classList.contains("pd-execute-partition-btn")) {
+      runPartitionExecute(device, card);
     }
   });
 }
@@ -1113,8 +1252,25 @@ function renderDiskCard(disk) {
       <div class="pd-actions">
         <button class="secondary pd-check-btn" type="button">${t("checkHealthBtn")}</button>
         ${hasSystemMount && isAdmin ? `<button class="secondary pd-clean-btn" type="button">${t("runCleanupBtn")}</button>` : ""}
+        ${!hasSystemMount && isAdmin ? `<button class="secondary pd-partition-toggle-btn" type="button">${t("partitionBtn")}</button>` : ""}
       </div>
       <div class="pd-health-result"></div>
+      ${!hasSystemMount && isAdmin ? renderPartitionTool() : ""}
+    </div>
+  `;
+}
+
+function renderPartitionTool() {
+  return `
+    <div class="pd-partition-tool" style="display:none">
+      <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
+      <select class="pd-fstype-select">
+        <option value="ext4">ext4</option>
+        <option value="xfs">xfs</option>
+        <option value="exfat">exFAT</option>
+      </select>
+      <button class="secondary pd-preview-btn" type="button">${t("previewPartitionBtn")}</button>
+      <div class="pd-partition-preview"></div>
     </div>
   `;
 }

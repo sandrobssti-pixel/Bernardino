@@ -14,6 +14,7 @@ const multer = require("multer");
 const { readDiskUsage } = require("./lib/diskUsage");
 const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
+const { previewPartition, executePartition, CONFIRM_PHRASE } = require("./lib/diskPartition");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -257,6 +258,46 @@ app.get("/api/disk-health", auth.requireAuth, (req, res) => {
   } catch (err) {
     console.error("[disk-monitor] Falha ao verificar saúde do disco:", err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Particionar/formatar disco inteiro — ação irreversível. `preview` só
+// monta o texto dos comandos (nunca executa nada); `execute` reconfere a
+// elegibilidade de novo e exige a frase de confirmação exata, igual ao
+// desligamento do NAS (ver lib/diskPartition.js).
+app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, res) => {
+  if (!req.query.device) {
+    return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
+  }
+  try {
+    const preview = await previewPartition(req.query.device, req.query.fsType);
+    res.json({ ...preview, confirmPhrase: CONFIRM_PHRASE });
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao montar prévia de particionamento:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, res) => {
+  const { device, fsType, confirmDevice, confirmPhrase } = req.body || {};
+  if (!device) {
+    return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
+  }
+  if (confirmDevice !== device) {
+    return res.status(400).json({ error: "O caminho do disco digitado não confere." });
+  }
+  if (confirmPhrase !== CONFIRM_PHRASE) {
+    return res.status(400).json({ error: `Confirmação inválida — digite exatamente "${CONFIRM_PHRASE}".` });
+  }
+  try {
+    console.log(
+      `[disk-monitor] Particionamento/formatação de "${device}" disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    const result = await executePartition(device, fsType);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao particionar/formatar disco:", err.message, err.log || "");
+    res.status(500).json({ error: err.message, log: err.log || [] });
   }
 });
 
