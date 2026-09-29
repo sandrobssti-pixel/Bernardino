@@ -361,21 +361,49 @@ Duas camadas de segurança, nenhuma pulável pela interface:
    quando os dois campos batem exatamente — sem meio-termo, sem "clicar
    sem querer".
 
-Sistemas de arquivo suportados: `ext4`, `xfs`, `exfat` (útil pra disco
-que vai ser lido também em Windows/Mac). Cria uma tabela GPT com uma
-única partição ocupando o disco inteiro.
+Três esquemas de disco pra escolher (dropdown "Esquema do disco"):
 
-**Honestidade sobre o que foi testado**: a lógica de elegibilidade (nunca
-deixar particionar disco com algo montado) foi testada com dados
-simulados, incluindo o caso de disco inexistente e disco com partição
-montada — ambos recusados corretamente. A execução de verdade
-(`wipefs`/`parted`/`mkfs`) **não foi testada contra um disco físico
-real** nesta sessão (não há um disco descartável disponível pra testar
-com segurança). Teste primeiro com "Ver comando" pra conferir que o
-disco/comando estão certos, e considere testar a execução pela primeira
-vez num disco de teste antes de confiar em produção. **Só Linux** por
-enquanto — no Windows a integração ainda não existe (retorna erro claro
-em vez de tentar algo não testado).
+- **Volume único (dados)** — uma partição só ocupando o disco inteiro,
+  sistema de arquivos à escolha (`ext4`, `xfs`, `exfat`). Pra usar o
+  disco como armazenamento extra, não pra instalar sistema operacional.
+- **Linux com UEFI (EFI + swap + raiz)** — GPT com três partições: EFI
+  (`fat32`, 512MiB, com a flag `esp`), `swap` (4GiB) e raiz (o resto do
+  disco, `ext4`/`xfs` à escolha) — a estrutura que um instalador de
+  Linux moderno (Ubuntu, Debian, etc.) espera encontrar.
+- **Windows com UEFI (EFI + principal NTFS)** — GPT com EFI (`fat32`,
+  512MiB, flag `esp`) + uma partição principal `NTFS` ocupando o resto —
+  a estrutura básica que o instalador do Windows espera.
+
+**Importante — o que isso NÃO faz**: os esquemas Linux/Windows só
+deixam o disco com as **partições prontas**; **não instalam o sistema
+operacional** (não copiam nenhum arquivo do Windows/Linux, não
+configuram bootloader). Depois de rodar isso, ainda é preciso instalar
+o sistema normalmente (pendrive bootável, PXE, etc.) — só que já
+apontando pra um disco com a estrutura certa.
+
+Antes de deixar prosseguir, a checagem de elegibilidade também confere
+se as ferramentas que aquele esquema precisa estão instaladas no
+servidor (`parted`, `wipefs`, `mkfs.fat`/`dosfstools`, `mkfs.ntfs`/
+`ntfs-3g`, `mkswap`/`util-linux`, `mkfs.ext4`/`e2fsprogs`,
+`mkfs.xfs`/`xfsprogs`, conforme o esquema) — se faltar alguma, recusa
+**antes** de apagar qualquer coisa, em vez de travar no meio do
+particionamento com o disco pela metade.
+
+**Honestidade sobre o que foi testado**: a lógica de elegibilidade
+(nunca deixar particionar disco com algo montado, e recusar se faltar
+ferramenta) foi testada com dados simulados nos três esquemas —
+incluindo disco inexistente, disco com partição montada e ferramenta
+faltando, todos recusados corretamente; testado também o fluxo completo
+até a prévia (com `parted`/`dosfstools` instalados) mostrando a lista de
+partições e os comandos certos pros três esquemas. A execução de
+verdade (`wipefs`/`parted`/`mkfs`/`mkswap`) **não foi testada contra um
+disco físico real** nesta sessão (não há um disco descartável
+disponível pra testar com segurança). Teste primeiro com "Ver comando"
+pra conferir que o disco/comando estão certos, e considere testar a
+execução pela primeira vez num disco de teste antes de confiar em
+produção. **Só Linux** por enquanto — no Windows e no macOS a
+integração ainda não existe (retorna erro claro em vez de tentar algo
+não testado).
 
 ## Painel do NAS (opcional)
 

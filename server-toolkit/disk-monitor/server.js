@@ -270,7 +270,7 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
   try {
-    const preview = await previewPartition(req.query.device, req.query.fsType);
+    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType);
     res.json({ ...preview, confirmPhrase: CONFIRM_PHRASE });
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar prévia de particionamento:", err.message);
@@ -279,7 +279,7 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
 });
 
 app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, res) => {
-  const { device, fsType, confirmDevice, confirmPhrase } = req.body || {};
+  const { device, scheme, fsType, confirmDevice, confirmPhrase } = req.body || {};
   if (!device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
@@ -293,7 +293,7 @@ app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, r
     console.log(
       `[disk-monitor] Particionamento/formatação de "${device}" disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
     );
-    const result = await executePartition(device, fsType);
+    const result = await executePartition(device, scheme, fsType);
     res.json(result);
   } catch (err) {
     console.error("[disk-monitor] Falha ao particionar/formatar disco:", err.message, err.log || "");
