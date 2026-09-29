@@ -314,6 +314,7 @@ app.get("/api/nas/disks", auth.requireAuth, async (req, res) => {
     const disks = await synologyClient.getDisks();
     res.json({ disks });
   } catch (err) {
+    console.error("[disk-monitor] Falha ao ler discos do DSM:", err.message);
     res.status(502).json({ error: err.message });
   }
 });
@@ -336,6 +337,7 @@ app.post("/api/nas/shutdown", auth.requireRole("admin"), async (req, res) => {
     await synologyClient.shutdown();
     res.json({ ok: true });
   } catch (err) {
+    console.error("[disk-monitor] Falha ao desligar o NAS via DSM:", err.message);
     res.status(502).json({ error: err.message });
   }
 });
