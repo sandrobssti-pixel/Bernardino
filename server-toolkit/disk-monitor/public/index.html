@@ -195,6 +195,43 @@
     font-size: 0.75rem; color: var(--text-muted);
     margin-top: 12px; line-height: 1.5;
   }
+  /* ---------- Discos físicos agrupados ---------- */
+  .physical-disks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .physical-disk-card {
+    background: rgba(148,163,184,0.05);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .physical-disk-card .pd-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px; margin-bottom: 4px; flex-wrap: wrap;
+  }
+  .physical-disk-card .pd-name { font-weight: 600; font-size: 0.9rem; word-break: break-word; }
+  .physical-disk-card .pd-meta {
+    font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px;
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .pd-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .pd-badge.ok { background: rgba(34,197,94,0.15); color: var(--ok); }
+  .pd-badge.warn { background: rgba(245,158,11,0.15); color: var(--warn); }
+  .pd-badge.crit { background: rgba(239,68,68,0.15); color: var(--crit); }
+  .pd-badge.unknown { background: rgba(148,163,184,0.15); color: var(--text-muted); }
+  .pd-partition { margin-top: 10px; }
+  .pd-partition .pd-partition-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 0.78rem; margin-bottom: 4px; gap: 8px;
+  }
+  .pd-partition .pd-partition-mount { font-weight: 600; word-break: break-all; }
+  .pd-partition .pd-partition-detail { color: var(--text-muted); font-size: 0.72rem; margin-top: 2px; }
+  .pd-empty { color: var(--text-muted); font-size: 0.85rem; }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -289,6 +326,21 @@
   <div class="panel" style="margin-bottom:16px">
     <h2 data-i18n="historyTitle">Histórico de uso de disco</h2>
     <canvas id="historyChart"></canvas>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2 data-i18n="physicalDisksTitle">Discos físicos</h2>
+    <div id="physicalDisksGrid" class="physical-disks-grid sub" data-i18n="loading">carregando...</div>
+  </div>
+
+  <div class="panel" id="usbDisksPanel" style="display:none; margin-bottom:16px">
+    <h2 data-i18n="usbDisksTitle">Discos externos (USB)</h2>
+    <div id="usbDisksGrid" class="physical-disks-grid"></div>
+  </div>
+
+  <div class="panel" id="networkSharesPanel" style="display:none; margin-bottom:16px">
+    <h2 data-i18n="networkSharesTitle">NAS / Compartilhamentos de rede</h2>
+    <div id="networkSharesGrid" class="physical-disks-grid"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px">
@@ -467,6 +519,11 @@ const translations = {
     saveConfig: "Salvar configuração",
     historyTitle: "Histórico de uso de disco",
     disksDetected: "Discos detectados automaticamente",
+    physicalDisksTitle: "Discos físicos",
+    usbDisksTitle: "Discos externos (USB)",
+    networkSharesTitle: "NAS / Compartilhamentos de rede",
+    smartOk: "Saudável", smartFail: "Com falha", smartUnknown: "Indisponível",
+    noPartitions: "Nenhuma partição montada detectada.",
     cpuHistoryTitle: "CPU em tempo real",
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -552,6 +609,11 @@ const translations = {
     saveConfig: "Guardar configuración",
     historyTitle: "Histórico de uso de disco",
     disksDetected: "Discos detectados automáticamente",
+    physicalDisksTitle: "Discos físicos",
+    usbDisksTitle: "Discos externos (USB)",
+    networkSharesTitle: "NAS / Recursos compartidos de red",
+    smartOk: "Saludable", smartFail: "Con falla", smartUnknown: "No disponible",
+    noPartitions: "No se detectó ninguna partición montada.",
     cpuHistoryTitle: "CPU en tiempo real",
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -637,6 +699,11 @@ const translations = {
     saveConfig: "Save configuration",
     historyTitle: "Disk usage history",
     disksDetected: "Automatically detected disks",
+    physicalDisksTitle: "Physical disks",
+    usbDisksTitle: "External disks (USB)",
+    networkSharesTitle: "NAS / Network shares",
+    smartOk: "Healthy", smartFail: "Failing", smartUnknown: "Unavailable",
+    noPartitions: "No mounted partition detected.",
     cpuHistoryTitle: "CPU — real time",
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
@@ -728,6 +795,7 @@ function setLang(lang) {
   loadProcesses();
   loadLive();
   loadMachineProfile();
+  loadDiskTopology();
   if (nasConfigured) {
     renderNasRoots();
     loadNasFolder();
@@ -899,6 +967,104 @@ async function loadMachineProfile() {
     renderMachineProfile(data.profile);
   } catch (err) {
     console.error("Falha ao carregar o perfil da máquina:", err);
+  }
+}
+
+// ---------- Discos físicos agrupados (com partições) ----------
+// Complementa o grid plano acima (renderDisksGrid): aqui os mesmos dados
+// vêm organizados por disco físico de verdade (ex.: "Disco 2" com duas
+// partições de 240GB dentro), mais discos USB e compartilhamentos de
+// rede (NAS via SMB) separados em seções próprias.
+
+function smartBadge(disk) {
+  if (!disk.smartStatus) {
+    return `<span class="pd-badge unknown">${t("smartUnknown")}</span>`;
+  }
+  const normalized = disk.smartStatus.toLowerCase();
+  const ok = normalized.includes("ok") || normalized.includes("passed") || normalized.includes("healthy");
+  return ok
+    ? `<span class="pd-badge ok">${t("smartOk")}</span>`
+    : `<span class="pd-badge crit">${t("smartFail")}</span>`;
+}
+
+function renderPartitionRow(p) {
+  return `
+    <div class="pd-partition">
+      <div class="pd-partition-row">
+        <span class="pd-partition-mount">${p.mount}</span>
+        <span style="color:${barColor(p.percent)}">${p.percent}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${p.percent}%; background:${barColor(p.percent)}"></div></div>
+      <div class="pd-partition-detail">${t("diskDetail", formatBytes(p.usedBytes), formatBytes(p.sizeBytes), formatBytes(p.availBytes))}</div>
+    </div>
+  `;
+}
+
+function renderDiskCard(disk) {
+  const meta = [
+    disk.vendor,
+    formatBytes(disk.sizeBytes),
+    disk.interfaceType || "",
+    typeof disk.temperatureCelsius === "number" ? `${disk.temperatureCelsius}°C` : null
+  ].filter(Boolean).join(" · ");
+
+  const partitionsHtml = disk.partitions.length
+    ? disk.partitions.map(renderPartitionRow).join("")
+    : `<div class="pd-empty">${t("noPartitions")}</div>`;
+
+  return `
+    <div class="physical-disk-card">
+      <div class="pd-header">
+        <span class="pd-name">${disk.name}</span>
+        ${smartBadge(disk)}
+      </div>
+      <div class="pd-meta">${meta || "—"}</div>
+      ${partitionsHtml}
+    </div>
+  `;
+}
+
+function renderShareCard(share) {
+  return `
+    <div class="physical-disk-card">
+      <div class="pd-header"><span class="pd-name">${share.mount}</span></div>
+      <div class="pd-meta">${(share.fsType || "").toUpperCase()}</div>
+      ${renderPartitionRow(share)}
+    </div>
+  `;
+}
+
+async function loadDiskTopology() {
+  try {
+    const res = await apiFetch("/api/disk-topology");
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const physGrid = document.getElementById("physicalDisksGrid");
+    physGrid.classList.remove("sub");
+    physGrid.innerHTML = (data.internalDisks || []).length
+      ? data.internalDisks.map(renderDiskCard).join("")
+      : `<div class="pd-empty">${t("noPartitions")}</div>`;
+
+    const usbPanel = document.getElementById("usbDisksPanel");
+    const usbGrid = document.getElementById("usbDisksGrid");
+    if ((data.usbDisks || []).length) {
+      usbPanel.style.display = "";
+      usbGrid.innerHTML = data.usbDisks.map(renderDiskCard).join("");
+    } else {
+      usbPanel.style.display = "none";
+    }
+
+    const netPanel = document.getElementById("networkSharesPanel");
+    const netGrid = document.getElementById("networkSharesGrid");
+    if ((data.networkShares || []).length) {
+      netPanel.style.display = "";
+      netGrid.innerHTML = data.networkShares.map(renderShareCard).join("");
+    } else {
+      netPanel.style.display = "none";
+    }
+  } catch (err) {
+    console.error("Falha ao carregar topologia de discos:", err);
   }
 }
 
@@ -1529,6 +1695,7 @@ applyTranslations();
   await loadUsers();
   await loadMachineProfile();
   await loadStatus();
+  await loadDiskTopology();
   await loadProcesses();
   await loadLive();
   await loadNasRoots();
@@ -1541,6 +1708,9 @@ applyTranslations();
   // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.
   setInterval(loadProcesses, 5000);
   setInterval(loadLive, 5000);
+  // Topologia (discos físicos/partições/USB/NAS) muda pouco — intervalo
+  // bem mais espaçado, só pra pegar disco novo plugado/desmontado.
+  setInterval(loadDiskTopology, 60000);
 })();
 </script>
 </body>

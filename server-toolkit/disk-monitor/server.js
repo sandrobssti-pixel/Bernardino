@@ -12,6 +12,7 @@ const cron = require("node-cron");
 const multer = require("multer");
 
 const { readDiskUsage } = require("./lib/diskUsage");
+const { readDiskTopology } = require("./lib/diskTopology");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -228,6 +229,19 @@ app.get("/api/live", auth.requireAuth, async (req, res) => {
 // ensureMachineProfile mais abaixo), não muda a cada request.
 app.get("/api/machine-profile", auth.requireAuth, (req, res) => {
   res.json({ profile: getMachineProfile() });
+});
+
+// Discos físicos agrupados com suas partições, mais USB e compartilhamentos
+// de rede separados (ver lib/diskTopology.js) — sempre lido na hora (não
+// entra no histórico, é caro demais pra amostrar a cada poucos segundos).
+app.get("/api/disk-topology", auth.requireAuth, async (req, res) => {
+  try {
+    const topology = await readDiskTopology();
+    res.json(topology);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao ler topologia de discos:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Lista de processos é sempre lida na hora (nunca fica em cache/histórico)

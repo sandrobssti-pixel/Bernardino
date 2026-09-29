@@ -6,6 +6,11 @@ Linux (o VPS atual, ou um servidor novo de outro cliente) pra:
 
 - Acompanhar o uso de disco do servidor ao longo do tempo (gráfico) —
   detecta sozinho **todos os discos/partições montados**, não só um.
+- Mostrar os **discos físicos agrupados com suas partições dentro** (ex.:
+  um disco de 480GB com duas partições de 240GB cada aparecem juntos,
+  não soltos), separando também **discos USB externos** e
+  **compartilhamentos de rede (NAS via SMB)** em seções próprias — com
+  status de saúde do disco (SMART) quando disponível no servidor.
 - Acompanhar o uso de CPU e de memória RAM ao longo do tempo (gráficos).
 - Mostrar os processos rodando **em tempo real** (atualiza a cada poucos
   segundos), com um gráfico de consumo (CPU e RAM) dos que mais pesam.
@@ -257,6 +262,32 @@ também mostra, sem nenhuma configuração extra:
 - **Processos em tempo real**: os 15 que mais consomem CPU no momento
   (PID, nome, % de CPU, % de RAM), atualizado a cada poucos segundos —
   e um gráfico comparando o consumo dos que mais pesam.
+
+### Discos físicos, USB e compartilhamentos de rede
+
+Além do grid plano acima, o painel também agrupa os mesmos discos por
+**disco físico de verdade** (`lib/diskTopology.js`): um HD de 480GB com
+duas partições de 240GB aparece como um card só, com as duas partições
+listadas dentro dele — em vez de dois cards soltos sem relação visível
+um com o outro. Junto de cada disco, mostra (quando o sistema
+operacional expõe essa informação): fabricante, tamanho, tipo de
+interface, temperatura e **status de saúde (SMART)** — "Saudável" ou
+"Com falha".
+
+Separado em três seções:
+- **Discos físicos** — discos internos do servidor.
+- **Discos externos (USB)** — só aparece se detectar algum.
+- **NAS / Compartilhamentos de rede** — pontos de montagem SMB/NFS (ex.:
+  o mesmo NAS usado pelo backup), só aparece se detectar algum.
+
+**Honestidade sobre limitação conhecida**: o agrupamento de partição
+dentro do disco físico usa o nome do dispositivo (ex.: `sda1` pertence a
+`sda`) — funciona bem em Linux, mas no Windows a API do sistema expõe
+menos detalhe, então esse agrupamento fica mais limitado lá (os discos
+continuam aparecendo, só a relação disco-físico/partição pode não ficar
+tão precisa quanto no Linux). O status SMART depende do que o sistema
+operacional consegue expor sem ferramenta extra — se vier vazio, o
+painel mostra "Indisponível", nunca trata como erro.
 
 ## Painel do NAS (opcional)
 
