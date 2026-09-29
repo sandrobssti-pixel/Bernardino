@@ -412,6 +412,15 @@ sem outro serviço rodando, sem outra porta pra abrir. Fica escondido
 até você configurar; assim, quando esse mesmo disk-monitor for pro
 servidor de outro cliente, a opção já está lá, só falta ligar.
 
+**Diagnóstico**: toda vez que o serviço sobe, ele anuncia no log
+(`journalctl -u disk-monitor` ou o log do `launchd`/Visualizador de
+Eventos) se o painel do NAS e a integração com o DSM estão ativos ou
+não — ex.: `[disk-monitor] Painel do NAS: ATIVO | Synology DSM: inativo
+(DSM_HOST/DSM_USER/DSM_PASSWORD não configurados)`. Se a seção do NAS
+sumir do painel sem ninguém ter mexido em nada, primeiro olhar é esse
+log — ele diz imediatamente se é falta de configuração no `.env` ou
+outra coisa, sem precisar caçar manualmente.
+
 ### Arquivos do NAS
 
 Navega, baixa e envia arquivo nas pastas do NAS já montadas no

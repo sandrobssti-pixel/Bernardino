@@ -440,6 +440,13 @@ app.post("/api/cleanup", auth.requireRole("admin"), async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`disk-monitor v${version} rodando em http://localhost:${PORT}`);
+  // Estado do NAS/DSM sempre visível no log de boot — se algum dia isso
+  // "sumir" sem ninguém mexer, aparece aqui na hora (journalctl -u
+  // disk-monitor), sem precisar caçar manualmente dentro do .env.
+  console.log(
+    `[disk-monitor] Painel do NAS: ${fileManager ? "ATIVO" : "inativo (NAS_ROOTS não configurado)"} | ` +
+    `Synology DSM: ${synologyClient ? "ATIVO" : "inativo (DSM_HOST/DSM_USER/DSM_PASSWORD não configurados)"}`
+  );
 });
 
 // Roda a primeira leitura já na subida (não espera o primeiro tick do
