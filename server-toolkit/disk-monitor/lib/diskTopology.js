@@ -14,6 +14,20 @@ const si = require("systeminformation");
 
 const NETWORK_FS_TYPES = new Set(["cifs", "nfs", "nfs4", "smbfs", "smb"]);
 
+// si.diskLayout() lê SMART de cada disco físico chamando `smartctl` por
+// baixo dos panos — num disco USB que não responde direito a comandos
+// ATA, isso pode travar por muito tempo em vez de simplesmente falhar.
+// Limite de tempo evita que o painel fique "carregando..." pra sempre
+// por causa de UM disco problemático.
+const DISK_LAYOUT_TIMEOUT_MS = 8000;
+
+function withTimeout(promise, ms, fallback) {
+  return Promise.race([
+    promise,
+    new Promise(resolve => setTimeout(() => resolve(fallback), ms))
+  ]);
+}
+
 function parentDiskName(blockDeviceName) {
   if (!blockDeviceName) return null;
   const match = blockDeviceName.match(/^(nvme\d+n\d+|mmcblk\d+|sd[a-z]+|hd[a-z]+|vd[a-z]+|xvd[a-z]+)/);
@@ -22,7 +36,7 @@ function parentDiskName(blockDeviceName) {
 
 async function readDiskTopology() {
   const [layout, fsList, blockDevices] = await Promise.all([
-    si.diskLayout().catch(() => []),
+    withTimeout(si.diskLayout().catch(() => []), DISK_LAYOUT_TIMEOUT_MS, []),
     si.fsSize().catch(() => []),
     si.blockDevices().catch(() => [])
   ]);

@@ -1695,7 +1695,10 @@ applyTranslations();
   await loadUsers();
   await loadMachineProfile();
   await loadStatus();
-  await loadDiskTopology();
+  // Não espera terminar (pode demorar mais que o resto — lê SMART de cada
+  // disco físico) pra não travar o carregamento de CPU/RAM/processos
+  // enquanto isso não volta.
+  loadDiskTopology();
   await loadProcesses();
   await loadLive();
   await loadNasRoots();
