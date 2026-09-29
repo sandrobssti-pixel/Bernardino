@@ -6,6 +6,18 @@ const si = require("systeminformation");
 // pra limpeza) com uma visão mais ampla: todos os discos, CPU, RAM e
 // processos, pro painel mostrar em tempo real.
 
+// Sistemas de arquivo virtuais/internos do SO ou do Docker — nunca são
+// "um disco" de verdade pro usuário, e o Docker cria um overlay novo por
+// container/imagem (podem ser dezenas), cada um reportando o mesmo
+// tamanho do disco raiz. Sem filtrar isso, o painel vira uma lista com
+// dezenas de cards idênticos e nenhuma informação nova.
+const VIRTUAL_FS_TYPES = new Set([
+  "overlay", "overlay2", "aufs", "tmpfs", "devtmpfs", "proc", "sysfs",
+  "cgroup", "cgroup2", "squashfs", "efivarfs", "devpts", "mqueue",
+  "debugfs", "tracefs", "fusectl", "configfs", "autofs", "rpc_pipefs",
+  "binfmt_misc", "securityfs", "pstore", "bpf", "nsfs", "overlayfs"
+]);
+
 // Detecta sozinho todos os discos/partições montados — o usuário não
 // precisa informar caminho nenhum. `size`/`used`/`available` já vêm em
 // bytes; `use` já vem em percentual (0-100).
@@ -13,6 +25,7 @@ async function readAllDisks() {
   const disks = await si.fsSize();
   return disks
     .filter(d => d.size > 0) // ignora entradas virtuais sem tamanho (ex.: alguns pontos de bind mount)
+    .filter(d => !VIRTUAL_FS_TYPES.has((d.type || d.fs || "").toLowerCase()))
     .map(d => ({
       mount: d.mount,
       fsType: d.type || d.fs || "",

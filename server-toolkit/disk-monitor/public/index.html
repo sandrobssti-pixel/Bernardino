@@ -158,43 +158,6 @@
     margin-bottom: 3px;
   }
   .machine-profile-grid .mp-value { font-size: 0.95rem; font-weight: 600; }
-  .disks-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-  }
-  .disk-card {
-    background: rgba(148,163,184,0.05);
-    border: 1px solid var(--panel-border);
-    border-radius: 12px;
-    padding: 16px;
-    text-align: center;
-  }
-  .disk-card .disk-icon { color: var(--accent2); margin-bottom: 4px; }
-  .disk-card .disk-mount {
-    font-weight: 600; font-size: 0.85rem;
-    word-break: break-all; margin-bottom: 2px;
-  }
-  .disk-card .disk-fstype {
-    font-size: 0.7rem; color: var(--text-muted);
-    text-transform: uppercase; letter-spacing: 0.04em;
-    margin-bottom: 10px;
-  }
-  .disk-donut-wrap {
-    position: relative;
-    width: 130px; height: 130px;
-    margin: 0 auto;
-  }
-  .disk-donut-wrap canvas { max-height: none; width: 100% !important; height: 100% !important; }
-  .disk-percent {
-    position: absolute; top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 1.4rem; font-weight: 700;
-  }
-  .disk-detail {
-    font-size: 0.75rem; color: var(--text-muted);
-    margin-top: 12px; line-height: 1.5;
-  }
   /* ---------- Discos físicos agrupados ---------- */
   .physical-disks-grid {
     display: grid;
@@ -206,11 +169,15 @@
     border: 1px solid var(--panel-border);
     border-radius: 12px;
     padding: 16px;
+    transition: border-color 0.15s ease;
   }
+  .physical-disk-card:hover { border-color: var(--accent2); }
   .physical-disk-card .pd-header {
-    display: flex; align-items: baseline; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between;
     gap: 8px; margin-bottom: 4px; flex-wrap: wrap;
   }
+  .physical-disk-card .pd-title { display: flex; align-items: center; gap: 8px; }
+  .physical-disk-card .pd-title svg { color: var(--accent2); flex-shrink: 0; }
   .physical-disk-card .pd-name { font-weight: 600; font-size: 0.9rem; word-break: break-word; }
   .physical-disk-card .pd-meta {
     font-size: 0.72rem; color: var(--text-muted); margin-bottom: 12px;
@@ -349,11 +316,6 @@
   <div class="panel" id="networkSharesPanel" style="display:none; margin-bottom:16px">
     <h2 data-i18n="networkSharesTitle">NAS / Compartilhamentos de rede</h2>
     <div id="networkSharesGrid" class="physical-disks-grid"></div>
-  </div>
-
-  <div class="panel" style="margin-bottom:16px">
-    <h2 data-i18n="disksDetected">Discos detectados automaticamente</h2>
-    <div id="disksGrid" class="disks-grid sub" data-i18n="loading">carregando...</div>
   </div>
 
   <div class="grid">
@@ -526,7 +488,6 @@ const translations = {
     autoCleanupLabel: "Limpeza automática habilitada",
     saveConfig: "Salvar configuração",
     historyTitle: "Histórico de uso de disco",
-    disksDetected: "Discos detectados automaticamente",
     physicalDisksTitle: "Discos físicos",
     usbDisksTitle: "Discos externos (USB)",
     networkSharesTitle: "NAS / Compartilhamentos de rede",
@@ -548,7 +509,6 @@ const translations = {
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
-    diskUsedLabel: "Usado", diskFreeLabel: "Livre",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} livres)`,
     filesTitle: "Arquivos do NAS",
     thName: "Nome", thSize: "Tamanho", thModified: "Modificado",
@@ -628,7 +588,6 @@ const translations = {
     autoCleanupLabel: "Limpieza automática habilitada",
     saveConfig: "Guardar configuración",
     historyTitle: "Histórico de uso de disco",
-    disksDetected: "Discos detectados automáticamente",
     physicalDisksTitle: "Discos físicos",
     usbDisksTitle: "Discos externos (USB)",
     networkSharesTitle: "NAS / Recursos compartidos de red",
@@ -650,7 +609,6 @@ const translations = {
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
-    diskUsedLabel: "Usado", diskFreeLabel: "Libre",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} libres)`,
     filesTitle: "Archivos del NAS",
     thName: "Nombre", thSize: "Tamaño", thModified: "Modificado",
@@ -730,7 +688,6 @@ const translations = {
     autoCleanupLabel: "Automatic cleanup enabled",
     saveConfig: "Save configuration",
     historyTitle: "Disk usage history",
-    disksDetected: "Automatically detected disks",
     physicalDisksTitle: "Physical disks",
     usbDisksTitle: "External disks (USB)",
     networkSharesTitle: "NAS / Network shares",
@@ -752,7 +709,6 @@ const translations = {
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
     chartMemLabel: "RAM usage (%)",
-    diskUsedLabel: "Used", diskFreeLabel: "Free",
     diskDetail: (used, total, free) => `${used} of ${total} used (${free} free)`,
     filesTitle: "NAS files",
     thName: "Name", thSize: "Size", thModified: "Modified",
@@ -970,15 +926,6 @@ const DISK_ICON_SVG = `
   </svg>
 `;
 
-// Um Chart.js "doughnut" por disco (id sanitizado a partir do mount) —
-// mapa em vez de variável única porque o número de discos varia por
-// servidor e pode até mudar em tempo real (unidade removível, etc.).
-const diskCharts = {};
-
-function diskCardId(mount) {
-  return "disk-card-" + mount.replace(/[^a-zA-Z0-9]/g, "_");
-}
-
 // Perfil da máquina é identidade, não métrica — uma foto tirada na
 // instalação (lib/machineProfile.js), não algo que precise ficar
 // atualizando sozinho a cada poucos segundos como CPU/RAM/processos.
@@ -1015,20 +962,48 @@ async function loadMachineProfile() {
 }
 
 // ---------- Discos físicos agrupados (com partições) ----------
-// Complementa o grid plano acima (renderDisksGrid): aqui os mesmos dados
-// vêm organizados por disco físico de verdade (ex.: "Disco 2" com duas
-// partições de 240GB dentro), mais discos USB e compartilhamentos de
-// rede (NAS via SMB) separados em seções próprias.
+// Discos organizados por disco físico de verdade (ex.: um disco de
+// 480GB com duas partições de 240GB aparecem juntos, não soltos), mais
+// discos USB e compartilhamentos de rede (NAS via SMB) em seções
+// próprias.
+
+// Ícone de "prato giratório" pra disco físico/USB — mais reconhecível
+// como HD do que um retângulo genérico.
+const PD_DISK_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+    <circle cx="12" cy="12" r="9.2"></circle>
+    <circle cx="12" cy="12" r="3.4"></circle>
+    <circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"></circle>
+    <line x1="12" y1="2.8" x2="12" y2="5.6"></line>
+  </svg>
+`;
+
+// Ícone de compartilhamento de rede (dois "racks" empilhados) pra NAS/SMB.
+const PD_NETWORK_ICON_SVG = `
+  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5">
+    <rect x="3" y="4" width="18" height="6" rx="1.4"></rect>
+    <rect x="3" y="14" width="18" height="6" rx="1.4"></rect>
+    <circle cx="7" cy="7" r="0.9" fill="currentColor" stroke="none"></circle>
+    <circle cx="7" cy="17" r="0.9" fill="currentColor" stroke="none"></circle>
+    <line x1="12" y1="10" x2="12" y2="14"></line>
+  </svg>
+`;
 
 function smartBadge(disk) {
   if (!disk.smartStatus) {
     return `<span class="pd-badge unknown">${t("smartUnknown")}</span>`;
   }
+  // Nunca assume "com falha" por padrão — só quando o texto realmente
+  // indica isso. Qualquer coisa ambígua ou não reconhecida (comum quando
+  // o servidor não tem smartctl instalado e o SO devolve um texto
+  // genérico) mostra "indisponível", nunca alarma falso de defeito de
+  // hardware.
   const normalized = disk.smartStatus.toLowerCase();
-  const ok = normalized.includes("ok") || normalized.includes("passed") || normalized.includes("healthy");
-  return ok
-    ? `<span class="pd-badge ok">${t("smartOk")}</span>`
-    : `<span class="pd-badge crit">${t("smartFail")}</span>`;
+  const failed = normalized.includes("fail") || normalized.includes("bad") || normalized.includes("predicted");
+  if (failed) return `<span class="pd-badge crit">${t("smartFail")}</span>`;
+  const ok = normalized.includes("ok") || normalized.includes("pass") || normalized.includes("healthy") || normalized.includes("good");
+  if (ok) return `<span class="pd-badge ok">${t("smartOk")}</span>`;
+  return `<span class="pd-badge unknown">${t("smartUnknown")}</span>`;
 }
 
 function renderPartitionRow(p) {
@@ -1127,7 +1102,10 @@ function renderDiskCard(disk) {
   return `
     <div class="physical-disk-card" data-device="${disk.device}">
       <div class="pd-header">
-        <span class="pd-name">${disk.name}${hasSystemMount ? ` <span class="pd-badge unknown">${t("systemDiskBadge")}</span>` : ""}</span>
+        <div class="pd-title">
+          ${PD_DISK_ICON_SVG}
+          <span class="pd-name">${disk.name}${hasSystemMount ? ` <span class="pd-badge unknown">${t("systemDiskBadge")}</span>` : ""}</span>
+        </div>
         ${smartBadge(disk)}
       </div>
       <div class="pd-meta">${meta || "—"}</div>
@@ -1144,7 +1122,9 @@ function renderDiskCard(disk) {
 function renderShareCard(share) {
   return `
     <div class="physical-disk-card">
-      <div class="pd-header"><span class="pd-name">${share.mount}</span></div>
+      <div class="pd-header">
+        <div class="pd-title">${PD_NETWORK_ICON_SVG}<span class="pd-name">${share.mount}</span></div>
+      </div>
       <div class="pd-meta">${(share.fsType || "").toUpperCase()}</div>
       ${renderPartitionRow(share)}
     </div>
@@ -1183,95 +1163,6 @@ async function loadDiskTopology() {
   } catch (err) {
     console.error("Falha ao carregar topologia de discos:", err);
   }
-}
-
-function renderDisksGrid(disks) {
-  const grid = document.getElementById("disksGrid");
-  if (!disks || !disks.length) {
-    grid.textContent = t("loading");
-    return;
-  }
-  grid.classList.remove("sub");
-  // Tira o texto "carregando..." do estado inicial (ainda fica como nó de
-  // texto solto no container na primeira resposta da API).
-  Array.from(grid.childNodes).forEach(node => {
-    if (!(node.nodeType === 1 && node.classList?.contains("disk-card"))) {
-      node.remove();
-    }
-  });
-
-  // Remove card de disco que sumiu (ex.: pendrive desmontado) — evita
-  // acumular gráfico "fantasma" de um disco que não existe mais.
-  const currentMounts = new Set(disks.map(d => d.mount));
-  Object.keys(diskCharts).forEach(mount => {
-    if (currentMounts.has(mount)) return;
-    diskCharts[mount].destroy();
-    delete diskCharts[mount];
-    document.getElementById(diskCardId(mount))?.remove();
-  });
-
-  disks.forEach(d => {
-    const cardId = diskCardId(d.mount);
-    let card = document.getElementById(cardId);
-    if (!card) {
-      card = document.createElement("div");
-      card.className = "disk-card";
-      card.id = cardId;
-      card.innerHTML = `
-        ${DISK_ICON_SVG}
-        <div class="disk-mount">${d.mount}</div>
-        <div class="disk-fstype"></div>
-        <div class="disk-donut-wrap"><canvas></canvas><div class="disk-percent"></div></div>
-        <div class="disk-detail"></div>
-      `;
-      grid.appendChild(card);
-    }
-
-    card.querySelector(".disk-fstype").textContent = d.fsType || "";
-    const percentEl = card.querySelector(".disk-percent");
-    percentEl.textContent = d.percent + "%";
-    percentEl.style.color = barColor(d.percent);
-    card.querySelector(".disk-detail").textContent =
-      t("diskDetail", formatBytes(d.usedBytes), formatBytes(d.totalBytes), formatBytes(d.availBytes));
-
-    const canvasEl = card.querySelector("canvas");
-    if (typeof Chart === "undefined") {
-      canvasEl.replaceWith(Object.assign(document.createElement("div"), {
-        className: "sub", textContent: t("chartLoadError")
-      }));
-      return;
-    }
-
-    const usedColor = d.percent >= 90 ? "#ef4444" : d.percent >= 75 ? "#f59e0b" : "#22c55e";
-    const freeColor = "rgba(148,163,184,0.18)";
-    if (diskCharts[d.mount]) {
-      const c = diskCharts[d.mount];
-      c.data.datasets[0].data = [d.usedBytes, d.availBytes];
-      c.data.datasets[0].backgroundColor = [usedColor, freeColor];
-      c.update();
-    } else {
-      diskCharts[d.mount] = new Chart(canvasEl.getContext("2d"), {
-        type: "doughnut",
-        data: {
-          labels: [t("diskUsedLabel"), t("diskFreeLabel")],
-          datasets: [{
-            data: [d.usedBytes, d.availBytes],
-            backgroundColor: [usedColor, freeColor],
-            borderColor: "var(--panel)",
-            borderWidth: 2
-          }]
-        },
-        options: {
-          cutout: "72%",
-          responsive: true,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => `${ctx.label}: ${formatBytes(ctx.raw)}` } }
-          }
-        }
-      });
-    }
-  });
 }
 
 function renderProcessesTable(processes) {
@@ -1739,15 +1630,16 @@ async function loadStatus() {
   }
 }
 
-// CPU, RAM e os cards de disco são "ao vivo" de verdade: janela em memória
-// amostrada a cada 5s no servidor (lib/systemStats.js), não o histórico
-// mais espaçado usado pelo gráfico de disco acima (esse aciona a limpeza
-// automática e por isso segue o intervalo configurável).
+// CPU e RAM são "ao vivo" de verdade: janela em memória amostrada a cada
+// 5s no servidor (lib/systemStats.js), não o histórico mais espaçado
+// usado pelo gráfico de disco acima (esse aciona a limpeza automática e
+// por isso segue o intervalo configurável). Os discos em si (campo
+// `disks` dessa mesma resposta) não são mais usados aqui — ver "Discos
+// físicos" (loadDiskTopology), que substituiu o grid plano antigo.
 async function loadLive() {
   try {
     const res = await apiFetch("/api/live");
     const data = await res.json();
-    renderDisksGrid(data.disks);
     renderLineChart(cpuChartState, "cpuHistoryChart", data.cpuHistory, t("chartCpuLabel"), "#22d3ee");
     renderLineChart(memChartState, "memHistoryChart", data.memHistory, t("chartMemLabel"), "#f59e0b");
   } catch (err) {

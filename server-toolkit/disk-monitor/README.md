@@ -252,8 +252,10 @@ Além do disco monitorado (o que aciona a limpeza automática), o painel
 também mostra, sem nenhuma configuração extra:
 
 - **Todos os discos/partições detectados** automaticamente no servidor,
-  cada um com um card próprio: ícone, sistema de arquivos, gráfico de
-  rosca (usado/livre) e o valor exato em GB/TB usado, total e livre.
+  agrupados por disco físico de verdade (ver seção "Discos físicos, USB
+  e compartilhamentos de rede" abaixo) — nunca lista sistema de arquivo
+  virtual/interno (overlay do Docker, tmpfs, proc, etc.) como se fosse
+  um disco, mesmo que o servidor tenha dezenas de containers rodando.
 - **CPU e memória RAM em tempo real de verdade**: janela ao vivo em
   memória, amostrada a cada 5 segundos no servidor (não depende do
   intervalo de checagem do disco, que é bem mais espaçado) — o mesmo
@@ -286,8 +288,11 @@ dentro do disco físico usa o nome do dispositivo (ex.: `sda1` pertence a
 menos detalhe, então esse agrupamento fica mais limitado lá (os discos
 continuam aparecendo, só a relação disco-físico/partição pode não ficar
 tão precisa quanto no Linux). O status SMART depende do que o sistema
-operacional consegue expor sem ferramenta extra — se vier vazio, o
-painel mostra "Indisponível", nunca trata como erro.
+operacional consegue expor sem ferramenta extra — se vier vazio **ou**
+ambíguo (texto que não indica claramente OK nem falha — comum sem
+`smartctl` instalado), o painel mostra "Indisponível", **nunca**
+assume "com falha" por padrão (uma versão anterior tinha esse bug —
+corrigido: só mostra "com falha" quando o texto realmente indica isso).
 
 ### Verificar saúde e manutenção preventiva
 
