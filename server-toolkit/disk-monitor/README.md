@@ -289,6 +289,38 @@ tão precisa quanto no Linux). O status SMART depende do que o sistema
 operacional consegue expor sem ferramenta extra — se vier vazio, o
 painel mostra "Indisponível", nunca trata como erro.
 
+### Verificar saúde e manutenção preventiva
+
+Cada card de disco físico (incluindo USB) tem um botão **"Verificar
+saúde agora"** — sempre só leitura, disponível pra qualquer usuário
+(admin ou visualizador). Ele consulta (`lib/diskHealth.js`):
+
+- **SMART** (via `smartctl`, se o pacote `smartmontools` estiver
+  instalado no servidor): status geral, temperatura, horas ligado,
+  setores realocados/pendentes. Se `smartctl` não estiver instalado,
+  mostra "indisponível" — nunca trata como erro nem impede o resto do
+  painel de funcionar.
+- **Log do kernel** (`journalctl -k`, só Linux): procura por erro de
+  E/S ou bloco defeituoso relacionado àquele disco nas últimas 1000
+  linhas — sinal real de problema de hardware, sem precisar rodar
+  `fsck` num sistema de arquivos montado (**deliberadamente evitado**:
+  rodar `fsck` em disco montado é arriscado e pode dar resultado
+  incorreto, então essa opção não existe no painel).
+
+O disco do **sistema** (o mesmo do `MOUNT_PATH`, com a badge "Sistema"
+no card) também ganha o botão **"Rodar limpeza agora"** — a mesma
+limpeza segura já descrita em ["O que a limpeza faz (e o que ela NUNCA
+faz)"](#o-que-a-limpeza-faz-e-o-que-ela-nunca-faz), só que acessível
+direto pelo card do disco, admin-only (igual ao botão principal do
+painel de Limpeza).
+
+**Por que os outros discos não têm botão de limpeza**: a limpeza
+existente (Docker, `/tmp`, log do sistema) só faz sentido no disco do
+sistema — não existe um padrão de "lixo" seguro e genérico pra aplicar
+em qualquer partição, e um disco de dados de cliente, NAS ou backup
+**nunca** deve ter arquivo apagado automaticamente pelo painel. Isso seria
+quebrar a regra de ouro do projeto ("nunca mexer em dado de cliente").
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

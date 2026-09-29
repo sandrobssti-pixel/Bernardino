@@ -13,6 +13,7 @@ const multer = require("multer");
 
 const { readDiskUsage } = require("./lib/diskUsage");
 const { readDiskTopology } = require("./lib/diskTopology");
+const { checkDiskHealth } = require("./lib/diskHealth");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -236,10 +237,25 @@ app.get("/api/machine-profile", auth.requireAuth, (req, res) => {
 // entra no histórico, é caro demais pra amostrar a cada poucos segundos).
 app.get("/api/disk-topology", auth.requireAuth, async (req, res) => {
   try {
-    const topology = await readDiskTopology();
+    const topology = await readDiskTopology(MOUNT_PATH);
     res.json(topology);
   } catch (err) {
     console.error("[disk-monitor] Falha ao ler topologia de discos:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Diagnóstico sob demanda de UM disco físico (SMART + log do kernel) —
+// só leitura, nunca corrige nada sozinho (ver lib/diskHealth.js).
+app.get("/api/disk-health", auth.requireAuth, (req, res) => {
+  if (!req.query.device) {
+    return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
+  }
+  try {
+    const report = checkDiskHealth(req.query.device);
+    res.json(report);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao verificar saúde do disco:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

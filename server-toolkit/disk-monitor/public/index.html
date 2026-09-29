@@ -232,6 +232,14 @@
   .pd-partition .pd-partition-mount { font-weight: 600; word-break: break-all; }
   .pd-partition .pd-partition-detail { color: var(--text-muted); font-size: 0.72rem; margin-top: 2px; }
   .pd-empty { color: var(--text-muted); font-size: 0.85rem; }
+  .pd-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .pd-actions button { padding: 6px 12px; font-size: 0.78rem; }
+  .pd-health-result:not(:empty) { margin-top: 10px; }
+  .pd-health-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+  .pd-log-line {
+    font-size: 0.7rem; font-family: monospace; color: var(--crit);
+    word-break: break-all; margin-top: 2px;
+  }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -505,7 +513,7 @@ const translations = {
     mpRam: "Memória RAM total", mpDisks: "Discos",
     mpDisksCount: (count, total) => `${count} (${total} no total)`,
     mpScannedAt: "Varredura feita em",
-    diskUsageNow: "Uso de disco agora",
+    diskUsageNow: "Uso de disco agora (sistema)",
     cleanup: "Limpeza",
     cleanupDesc: "Remove container/imagem não usada, cache de build, log gigante do Docker e arquivo velho de /tmp. Nunca mexe em volume (banco de dados e arquivos enviados ficam intocados).",
     cleanupNow: "Limpar agora",
@@ -524,6 +532,18 @@ const translations = {
     networkSharesTitle: "NAS / Compartilhamentos de rede",
     smartOk: "Saudável", smartFail: "Com falha", smartUnknown: "Indisponível",
     noPartitions: "Nenhuma partição montada detectada.",
+    systemDiskBadge: "Sistema",
+    checkHealthBtn: "Verificar saúde agora",
+    runCleanupBtn: "Rodar limpeza agora",
+    checkingHealth: "Verificando...",
+    smartToolUnavailable: "Ferramenta de SMART (smartctl) não disponível neste servidor.",
+    healthSmartTitle: "Saúde do disco (SMART)",
+    healthKernelTitle: "Erros recentes no log do sistema",
+    healthSmartStatus: "Status", healthTemp: "Temperatura",
+    healthPowerOn: "Horas ligado", healthRealloc: "Setores realocados",
+    healthPending: "Setores pendentes",
+    noKernelErrors: "Nenhum erro encontrado no log recente.",
+    kernelLogUnavailable: "Verificação de log do sistema não disponível neste servidor.",
     cpuHistoryTitle: "CPU em tempo real",
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -595,7 +615,7 @@ const translations = {
     mpRam: "Memoria RAM total", mpDisks: "Discos",
     mpDisksCount: (count, total) => `${count} (${total} en total)`,
     mpScannedAt: "Escaneo hecho en",
-    diskUsageNow: "Uso de disco ahora",
+    diskUsageNow: "Uso de disco ahora (sistema)",
     cleanup: "Limpieza",
     cleanupDesc: "Elimina contenedor/imagen sin uso, cache de build, log enorme de Docker y archivo viejo de /tmp. Nunca toca volumen (base de datos y archivos subidos quedan intactos).",
     cleanupNow: "Limpiar ahora",
@@ -614,6 +634,18 @@ const translations = {
     networkSharesTitle: "NAS / Recursos compartidos de red",
     smartOk: "Saludable", smartFail: "Con falla", smartUnknown: "No disponible",
     noPartitions: "No se detectó ninguna partición montada.",
+    systemDiskBadge: "Sistema",
+    checkHealthBtn: "Verificar salud ahora",
+    runCleanupBtn: "Ejecutar limpieza ahora",
+    checkingHealth: "Verificando...",
+    smartToolUnavailable: "Herramienta SMART (smartctl) no disponible en este servidor.",
+    healthSmartTitle: "Salud del disco (SMART)",
+    healthKernelTitle: "Errores recientes en el registro del sistema",
+    healthSmartStatus: "Estado", healthTemp: "Temperatura",
+    healthPowerOn: "Horas encendido", healthRealloc: "Sectores reasignados",
+    healthPending: "Sectores pendientes",
+    noKernelErrors: "No se encontraron errores en el registro reciente.",
+    kernelLogUnavailable: "Verificación del registro del sistema no disponible en este servidor.",
     cpuHistoryTitle: "CPU en tiempo real",
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -685,7 +717,7 @@ const translations = {
     mpRam: "Total RAM", mpDisks: "Disks",
     mpDisksCount: (count, total) => `${count} (${total} total)`,
     mpScannedAt: "Scanned at",
-    diskUsageNow: "Disk usage now",
+    diskUsageNow: "Disk usage now (system)",
     cleanup: "Cleanup",
     cleanupDesc: "Removes unused containers/images, build cache, oversized Docker logs, and old /tmp files. Never touches a volume (database and uploaded files stay untouched).",
     cleanupNow: "Clean up now",
@@ -704,6 +736,18 @@ const translations = {
     networkSharesTitle: "NAS / Network shares",
     smartOk: "Healthy", smartFail: "Failing", smartUnknown: "Unavailable",
     noPartitions: "No mounted partition detected.",
+    systemDiskBadge: "System",
+    checkHealthBtn: "Check health now",
+    runCleanupBtn: "Run cleanup now",
+    checkingHealth: "Checking...",
+    smartToolUnavailable: "SMART tool (smartctl) not available on this server.",
+    healthSmartTitle: "Disk health (SMART)",
+    healthKernelTitle: "Recent errors in system log",
+    healthSmartStatus: "Status", healthTemp: "Temperature",
+    healthPowerOn: "Power-on hours", healthRealloc: "Reallocated sectors",
+    healthPending: "Pending sectors",
+    noKernelErrors: "No errors found in the recent log.",
+    kernelLogUnavailable: "System log check not available on this server.",
     cpuHistoryTitle: "CPU — real time",
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
@@ -1000,6 +1044,71 @@ function renderPartitionRow(p) {
   `;
 }
 
+function renderHealthReport(data) {
+  const smart = data.smart;
+  const smartLines = smart.available
+    ? [
+        `${t("healthSmartStatus")}: ${smart.healthy ? t("smartOk") : t("smartFail")}`,
+        typeof smart.temperatureCelsius === "number" ? `${t("healthTemp")}: ${smart.temperatureCelsius}°C` : null,
+        smart.powerOnHours != null ? `${t("healthPowerOn")}: ${smart.powerOnHours}h` : null,
+        smart.reallocatedSectors != null ? `${t("healthRealloc")}: ${smart.reallocatedSectors}` : null,
+        smart.pendingSectors != null ? `${t("healthPending")}: ${smart.pendingSectors}` : null
+      ].filter(Boolean).join(" · ")
+    : t("smartToolUnavailable");
+
+  const kernelHtml = data.kernelErrors.available
+    ? (data.kernelErrors.entries.length
+        ? data.kernelErrors.entries.map(l => `<div class="pd-log-line">${l}</div>`).join("")
+        : `<div class="pd-empty">${t("noKernelErrors")}</div>`)
+    : `<div class="pd-empty">${t("kernelLogUnavailable")}</div>`;
+
+  return `
+    <div class="pd-health-block">
+      <div class="pd-health-title">${t("healthSmartTitle")}</div>
+      <div class="pd-partition-detail">${smartLines}</div>
+      <div class="pd-health-title" style="margin-top:8px">${t("healthKernelTitle")}</div>
+      ${kernelHtml}
+    </div>
+  `;
+}
+
+async function runDiskHealthCheck(device, card) {
+  const resultEl = card.querySelector(".pd-health-result");
+  const btn = card.querySelector(".pd-check-btn");
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
+  try {
+    const res = await apiFetch("/api/disk-health?device=" + encodeURIComponent(device));
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
+      return;
+    }
+    resultEl.innerHTML = renderHealthReport(data);
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Delegação de clique: os cards são recriados a cada atualização (60s), então
+// um listener por botão se perderia — um único listener no container pai
+// (que nunca é substituído, só o conteúdo dentro dele) resolve isso.
+function bindDiskCardActions(containerId) {
+  const container = document.getElementById(containerId);
+  container.addEventListener("click", e => {
+    const card = e.target.closest(".physical-disk-card");
+    if (!card) return;
+    const device = card.dataset.device;
+    if (e.target.classList.contains("pd-check-btn")) {
+      runDiskHealthCheck(device, card);
+    } else if (e.target.classList.contains("pd-clean-btn")) {
+      runManualCleanup(e.target);
+    }
+  });
+}
+
 function renderDiskCard(disk) {
   const meta = [
     disk.vendor,
@@ -1012,14 +1121,22 @@ function renderDiskCard(disk) {
     ? disk.partitions.map(renderPartitionRow).join("")
     : `<div class="pd-empty">${t("noPartitions")}</div>`;
 
+  const hasSystemMount = disk.partitions.some(p => p.isSystemMount);
+  const isAdmin = currentUserInfo?.role === "admin";
+
   return `
-    <div class="physical-disk-card">
+    <div class="physical-disk-card" data-device="${disk.device}">
       <div class="pd-header">
-        <span class="pd-name">${disk.name}</span>
+        <span class="pd-name">${disk.name}${hasSystemMount ? ` <span class="pd-badge unknown">${t("systemDiskBadge")}</span>` : ""}</span>
         ${smartBadge(disk)}
       </div>
       <div class="pd-meta">${meta || "—"}</div>
       ${partitionsHtml}
+      <div class="pd-actions">
+        <button class="secondary pd-check-btn" type="button">${t("checkHealthBtn")}</button>
+        ${hasSystemMount && isAdmin ? `<button class="secondary pd-clean-btn" type="button">${t("runCleanupBtn")}</button>` : ""}
+      </div>
+      <div class="pd-health-result"></div>
     </div>
   `;
 }
@@ -1638,9 +1755,13 @@ async function loadLive() {
   }
 }
 
-document.getElementById("cleanupBtn").addEventListener("click", async () => {
+// extraBtn: botão adicional a desabilitar durante a limpeza (usado pelo
+// botão "Rodar limpeza agora" dentro do card do disco do sistema, além do
+// botão principal do painel de Limpeza) — mesma ação, dois lugares.
+async function runManualCleanup(extraBtn) {
   const btn = document.getElementById("cleanupBtn");
-  btn.disabled = true;
+  const buttons = [btn, extraBtn].filter(Boolean);
+  buttons.forEach(b => { b.disabled = true; });
   document.getElementById("cleanupStatus").textContent = t("cleanupRunningLabel");
   try {
     const res = await apiFetch("/api/cleanup", { method: "POST" });
@@ -1655,9 +1776,11 @@ document.getElementById("cleanupBtn").addEventListener("click", async () => {
   } catch (err) {
     toast(t("toastError", err.message));
   } finally {
+    buttons.forEach(b => { b.disabled = false; });
     await loadStatus();
   }
-});
+}
+document.getElementById("cleanupBtn").addEventListener("click", () => runManualCleanup());
 
 document.getElementById("saveConfigBtn").addEventListener("click", async () => {
   const payload = {
@@ -1689,6 +1812,8 @@ document.getElementById("themeToggle").addEventListener("click", toggleTheme);
 applyTheme(localStorage.getItem("dm-theme") || "dark");
 document.getElementById("langSelect").value = currentLang;
 applyTranslations();
+bindDiskCardActions("physicalDisksGrid");
+bindDiskCardActions("usbDisksGrid");
 (async () => {
   const authenticated = await checkAuth();
   if (!authenticated) return;

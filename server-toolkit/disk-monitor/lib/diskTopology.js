@@ -34,7 +34,7 @@ function parentDiskName(blockDeviceName) {
   return match ? match[1] : blockDeviceName.replace(/\d+$/, "");
 }
 
-async function readDiskTopology() {
+async function readDiskTopology(systemMountPath) {
   const [layout, fsList, blockDevices] = await Promise.all([
     withTimeout(si.diskLayout().catch(() => []), DISK_LAYOUT_TIMEOUT_MS, []),
     si.fsSize().catch(() => []),
@@ -60,7 +60,8 @@ async function readDiskTopology() {
           sizeBytes: fs.size || 0,
           usedBytes: fs.used || 0,
           availBytes: Math.max(0, (fs.size || 0) - (fs.used || 0)),
-          percent: fs.size ? Math.round((fs.used / fs.size) * 100) : 0
+          percent: fs.size ? Math.round((fs.used / fs.size) * 100) : 0,
+          isSystemMount: fs.mount === systemMountPath
         };
       });
 
