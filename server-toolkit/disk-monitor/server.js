@@ -15,6 +15,7 @@ const { readDiskUsage } = require("./lib/diskUsage");
 const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
 const { previewPartition, executePartition, CONFIRM_PHRASE } = require("./lib/diskPartition");
+const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -297,6 +298,50 @@ app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, r
     res.json(result);
   } catch (err) {
     console.error("[disk-monitor] Falha ao particionar/formatar disco:", err.message, err.log || "");
+    res.status(500).json({ error: err.message, log: err.log || [] });
+  }
+});
+
+// Montar uma partição existente (ex.: HD extra plugado sem ponto de
+// montagem) e, se pedido, deixar persistente no /etc/fstab — ver
+// lib/diskMount.js pras camadas de proteção (só /mnt ou /media, backup
+// do fstab, nunca duplica entrada).
+app.get("/api/disk-mount/list", auth.requireRole("admin"), async (req, res) => {
+  try {
+    const partitions = await listMountablePartitions();
+    res.json({ partitions });
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao listar partições sem montar:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/disk-mount/preview", auth.requireRole("admin"), async (req, res) => {
+  if (!req.query.device || !req.query.mountPoint) {
+    return res.status(400).json({ error: "Parâmetros 'device' e 'mountPoint' obrigatórios." });
+  }
+  try {
+    const preview = await previewMount(req.query.device, req.query.mountPoint);
+    res.json(preview);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao montar prévia de montagem de disco:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/disk-mount/execute", auth.requireRole("admin"), async (req, res) => {
+  const { device, mountPoint, persist } = req.body || {};
+  if (!device || !mountPoint) {
+    return res.status(400).json({ error: "Parâmetros 'device' e 'mountPoint' obrigatórios." });
+  }
+  try {
+    console.log(
+      `[disk-monitor] Montagem de "${device}" em "${mountPoint}" disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    const result = await executeMount(device, mountPoint, !!persist);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao montar disco:", err.message, err.log || "");
     res.status(500).json({ error: err.message, log: err.log || [] });
   }
 });

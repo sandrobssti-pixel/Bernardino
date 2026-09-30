@@ -347,6 +347,11 @@
     <div id="networkSharesGrid" class="physical-disks-grid"></div>
   </div>
 
+  <div class="panel" id="unmountedPartitionsPanel" style="display:none; margin-bottom:16px">
+    <h2 data-i18n="unmountedPartitionsTitle">Partições sem montar</h2>
+    <div id="unmountedPartitionsGrid" class="physical-disks-grid"></div>
+  </div>
+
   <div class="grid">
     <div class="panel">
       <h2><span class="live-dot"></span><span data-i18n="cpuHistoryTitle">Histórico de uso de CPU</span></h2>
@@ -551,6 +556,20 @@ const translations = {
     schemeWindowsUefi: "Windows com UEFI (EFI + principal NTFS)",
     schemeOsNote: "Isso só prepara a estrutura de partições — instalar o sistema operacional em si ainda precisa do instalador oficial (pendrive bootável, etc).",
     partitionsToCreate: "partições que serão criadas",
+    unmountedPartitionsTitle: "Partições sem montar",
+    noUnmountedPartitions: "Nenhuma partição sem montar encontrada.",
+    mountBtn: "Montar",
+    mountPointLabel: "Ponto de montagem (dentro de /mnt ou /media)",
+    persistFstabLabel: "Montar sempre no boot (adiciona ao /etc/fstab)",
+    previewMountBtn: "Ver comando",
+    mountNotEligible: "Não é possível montar essa partição agora",
+    mountWarning: "Confira o comando abaixo antes de confirmar.",
+    executeMountBtn: "Montar agora",
+    mountRunning: "Montando — não feche esta janela...",
+    mountDone: "Partição montada com sucesso.",
+    mountFailed: "Falha ao montar",
+    fstabLinePreview: "Linha que será adicionada ao /etc/fstab",
+    fstabAlreadyThere: "Já existe uma entrada pra essa partição no /etc/fstab — não será duplicada.",
     cpuHistoryTitle: "CPU em tempo real",
     memHistoryTitle: "Memória RAM em tempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -668,6 +687,20 @@ const translations = {
     schemeWindowsUefi: "Windows con UEFI (EFI + principal NTFS)",
     schemeOsNote: "Esto solo prepara la estructura de particiones — instalar el sistema operativo en sí todavía necesita el instalador oficial (USB de arranque, etc).",
     partitionsToCreate: "particiones que se crearán",
+    unmountedPartitionsTitle: "Particiones sin montar",
+    noUnmountedPartitions: "No se encontraron particiones sin montar.",
+    mountBtn: "Montar",
+    mountPointLabel: "Punto de montaje (dentro de /mnt o /media)",
+    persistFstabLabel: "Montar siempre al iniciar (agrega a /etc/fstab)",
+    previewMountBtn: "Ver comando",
+    mountNotEligible: "No es posible montar esta partición ahora",
+    mountWarning: "Revise el comando abajo antes de confirmar.",
+    executeMountBtn: "Montar ahora",
+    mountRunning: "Montando — no cierre esta ventana...",
+    mountDone: "Partición montada con éxito.",
+    mountFailed: "Falla al montar",
+    fstabLinePreview: "Línea que se agregará al /etc/fstab",
+    fstabAlreadyThere: "Ya existe una entrada para esta partición en /etc/fstab — no se duplicará.",
     cpuHistoryTitle: "CPU en tiempo real",
     memHistoryTitle: "Memoria RAM en tiempo real",
     chartCpuLabel: "Uso de CPU (%)",
@@ -785,6 +818,20 @@ const translations = {
     schemeWindowsUefi: "Windows with UEFI (EFI + primary NTFS)",
     schemeOsNote: "This only prepares the partition structure — actually installing the operating system still needs the official installer (bootable USB, etc).",
     partitionsToCreate: "partitions that will be created",
+    unmountedPartitionsTitle: "Unmounted partitions",
+    noUnmountedPartitions: "No unmounted partitions found.",
+    mountBtn: "Mount",
+    mountPointLabel: "Mount point (inside /mnt or /media)",
+    persistFstabLabel: "Always mount on boot (adds to /etc/fstab)",
+    previewMountBtn: "Show command",
+    mountNotEligible: "This partition can't be mounted right now",
+    mountWarning: "Review the command below before confirming.",
+    executeMountBtn: "Mount now",
+    mountRunning: "Mounting — do not close this window...",
+    mountDone: "Partition mounted successfully.",
+    mountFailed: "Failed to mount",
+    fstabLinePreview: "Line that will be added to /etc/fstab",
+    fstabAlreadyThere: "There's already an entry for this partition in /etc/fstab — it won't be duplicated.",
     cpuHistoryTitle: "CPU — real time",
     memHistoryTitle: "RAM — real time",
     chartCpuLabel: "CPU usage (%)",
@@ -1368,6 +1415,147 @@ async function loadDiskTopology() {
   }
 }
 
+function renderMountTool() {
+  return `
+    <div class="pd-mount-tool" style="display:none">
+      <label class="pd-partition-tool-label">${t("mountPointLabel")}</label>
+      <input type="text" class="pd-mount-point-input" placeholder="/mnt/...">
+      <label class="pd-partition-tool-label"><input type="checkbox" class="pd-mount-persist-checkbox" checked> ${t("persistFstabLabel")}</label>
+      <button class="secondary pd-mount-preview-btn" type="button">${t("previewMountBtn")}</button>
+      <div class="pd-mount-preview"></div>
+    </div>
+  `;
+}
+
+function renderMountCard(p) {
+  const meta = [p.device, p.fsType || "?", formatBytes(p.sizeBytes)].filter(Boolean).join(" · ");
+  return `
+    <div class="physical-disk-card" data-device="${p.device}">
+      <div class="pd-header">
+        <div class="pd-title">${PD_DISK_ICON_SVG}<span class="pd-name">${p.label || p.device}</span></div>
+      </div>
+      <div class="pd-meta">${meta}</div>
+      <div class="pd-actions">
+        <button class="secondary pd-mount-toggle-btn" type="button">${t("mountBtn")}</button>
+      </div>
+      ${renderMountTool()}
+    </div>
+  `;
+}
+
+// Só monta o texto da prévia (comando + linha de fstab) — nunca executa
+// nada aqui. O botão de montar só aparece depois da prévia.
+async function runMountPreview(device, card) {
+  const tool = card.querySelector(".pd-mount-tool");
+  const mountPoint = tool.querySelector(".pd-mount-point-input").value.trim();
+  const persist = tool.querySelector(".pd-mount-persist-checkbox").checked;
+  const previewEl = tool.querySelector(".pd-mount-preview");
+  if (!mountPoint) {
+    previewEl.innerHTML = `<div class="pd-partition-danger">${t("mountPointLabel")}</div>`;
+    return;
+  }
+  previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
+  try {
+    const res = await apiFetch(`/api/disk-mount/preview?device=${encodeURIComponent(device)}&mountPoint=${encodeURIComponent(mountPoint)}`);
+    const data = await res.json();
+    if (!res.ok) {
+      previewEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
+      return;
+    }
+    if (!data.eligible) {
+      previewEl.innerHTML = `<div class="pd-partition-danger">${t("mountNotEligible")}: ${data.reason}</div>`;
+      return;
+    }
+    const warningHtml = data.mountPointWarning ? `<div class="pd-partition-danger">${data.mountPointWarning}</div>` : "";
+    const fstabHtml = persist
+      ? (data.alreadyInFstab
+          ? `<div class="pd-empty">${t("fstabAlreadyThere")}</div>`
+          : `<div class="pd-partition-tool-label">${t("fstabLinePreview")}</div><pre class="pd-partition-commands">${data.fstabLine}</pre>`)
+      : "";
+    previewEl.innerHTML = `
+      <div class="pd-partition-danger">${t("mountWarning")}</div>
+      ${warningHtml}
+      <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
+      ${fstabHtml}
+      <button class="pd-execute-mount-btn" type="button">${t("executeMountBtn")}</button>
+      <div class="pd-mount-result"></div>
+    `;
+  } catch (err) {
+    previewEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
+  }
+}
+
+async function runMountExecute(device, card) {
+  const tool = card.querySelector(".pd-mount-tool");
+  const mountPoint = tool.querySelector(".pd-mount-point-input").value.trim();
+  const persist = tool.querySelector(".pd-mount-persist-checkbox").checked;
+  const previewEl = tool.querySelector(".pd-mount-preview");
+  const execBtn = previewEl.querySelector(".pd-execute-mount-btn");
+  const resultEl = previewEl.querySelector(".pd-mount-result");
+  execBtn.disabled = true;
+  resultEl.innerHTML = `<div class="pd-empty">${t("mountRunning")}</div>`;
+  try {
+    const res = await apiFetch("/api/disk-mount/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device, mountPoint, persist })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-partition-danger">${t("mountFailed")}: ${data.error}</div>`;
+      execBtn.disabled = false;
+      return;
+    }
+    resultEl.innerHTML = `<div class="pd-empty">${t("mountDone")}</div>`;
+    toast(t("mountDone"));
+    loadUnmountedPartitions();
+    loadDiskTopology();
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
+    execBtn.disabled = false;
+  }
+}
+
+// Delegação de clique, mesmo espírito de bindDiskCardActions — os cards
+// são recriados a cada atualização.
+function bindMountCardActions(containerId) {
+  const container = document.getElementById(containerId);
+  container.addEventListener("click", e => {
+    const card = e.target.closest(".physical-disk-card");
+    if (!card) return;
+    const device = card.dataset.device;
+    if (e.target.classList.contains("pd-mount-toggle-btn")) {
+      const tool = card.querySelector(".pd-mount-tool");
+      tool.style.display = tool.style.display === "none" ? "block" : "none";
+    } else if (e.target.classList.contains("pd-mount-preview-btn")) {
+      runMountPreview(device, card);
+    } else if (e.target.classList.contains("pd-execute-mount-btn")) {
+      runMountExecute(device, card);
+    }
+  });
+}
+
+// Só admin tem a rota liberada no backend — pula direto se não for admin,
+// pra não gastar uma chamada que vai voltar 403 de qualquer jeito.
+async function loadUnmountedPartitions() {
+  if (currentUserInfo?.role !== "admin") return;
+  try {
+    const res = await apiFetch("/api/disk-mount/list");
+    if (!res.ok) return;
+    const data = await res.json();
+    const panel = document.getElementById("unmountedPartitionsPanel");
+    const grid = document.getElementById("unmountedPartitionsGrid");
+    if ((data.partitions || []).length) {
+      panel.style.display = "";
+      grid.innerHTML = data.partitions.map(renderMountCard).join("");
+    } else {
+      panel.style.display = "none";
+    }
+  } catch (err) {
+    console.error("Falha ao carregar partições sem montar:", err);
+  }
+}
+
 function renderProcessesTable(processes) {
   const body = document.getElementById("processesBody");
   body.innerHTML = processes.map(p => `
@@ -1909,6 +2097,7 @@ document.getElementById("langSelect").value = currentLang;
 applyTranslations();
 bindDiskCardActions("physicalDisksGrid");
 bindDiskCardActions("usbDisksGrid");
+bindMountCardActions("unmountedPartitionsGrid");
 (async () => {
   const authenticated = await checkAuth();
   if (!authenticated) return;
@@ -1919,6 +2108,7 @@ bindDiskCardActions("usbDisksGrid");
   // disco físico) pra não travar o carregamento de CPU/RAM/processos
   // enquanto isso não volta.
   loadDiskTopology();
+  loadUnmountedPartitions();
   await loadProcesses();
   await loadLive();
   await loadNasRoots();
@@ -1934,6 +2124,7 @@ bindDiskCardActions("usbDisksGrid");
   // Topologia (discos físicos/partições/USB/NAS) muda pouco — intervalo
   // bem mais espaçado, só pra pegar disco novo plugado/desmontado.
   setInterval(loadDiskTopology, 60000);
+  setInterval(loadUnmountedPartitions, 60000);
 })();
 </script>
 </body>
