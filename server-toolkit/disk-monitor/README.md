@@ -405,6 +405,38 @@ produção. **Só Linux** por enquanto — no Windows e no macOS a
 integração ainda não existe (retorna erro claro em vez de tentar algo
 não testado).
 
+### Limpeza avançada por categorias
+
+Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):
+varre categorias seguras e conhecidas — arquivos temporários, lixeira,
+cache de navegador, cache de pacotes do sistema (`apt` no Linux, cache do
+Homebrew no macOS) e revisões antigas de pacotes Snap no Linux — mostra
+o tamanho de cada uma num gráfico de barras, e deixa escolher quais
+limpar (nada é apagado sem seleção explícita e clique em "Limpar
+selecionados").
+
+Deliberadamente **não** inclui duas coisas que foram pedidas e decidimos
+não implementar por segurança:
+- **"Achar executáveis sem uso há muito tempo" pra deletar** — um
+  binário do sistema pode ficar meses sem rodar e continuar essencial; a
+  data de último acesso (atime) também é pouco confiável no Linux
+  moderno. Não existe forma segura de automatizar isso sem risco real de
+  quebrar o sistema operacional do cliente.
+- **"Desfragmentação"** — obsoleto em SSD (desgasta à toa, não ajuda em
+  nada) e nem existe no Linux (ext4) ou macOS (APFS) do jeito que existia
+  no Windows antigo. O gráfico de uso por categoria substitui essa ideia
+  mostrando informação real e acionável.
+
+**Honestidade sobre o que foi testado**: a varredura (leitura de
+tamanho) foi testada em ambiente Linux real nesta sessão, incluindo
+cache de pacotes (`apt`) e arquivos temporários — funcionou
+corretamente. A limpeza de verdade (apagar os arquivos) foi exercitada
+no código mas **não foi confirmada contra um ambiente Windows ou macOS
+real** — os caminhos de cache/lixeira dessas plataformas foram escritos
+com base na documentação oficial de cada sistema, não testados ao vivo.
+Teste com cautela a primeira vez em cada plataforma nova antes de
+confiar em produção.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

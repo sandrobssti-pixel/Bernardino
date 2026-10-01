@@ -16,6 +16,7 @@ const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
 const { previewPartition, executePartition, CONFIRM_PHRASE } = require("./lib/diskPartition");
 const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
+const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -348,6 +349,36 @@ app.post("/api/disk-mount/execute", auth.requireRole("admin"), async (req, res) 
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar disco:", err.message, err.log || "");
     res.status(500).json({ error: err.message, log: err.log || [] });
+  }
+});
+
+// Varredura de limpeza avançada por categorias (cache, temporários,
+// lixeira, pacotes antigos) — ver lib/diskCleanupScan.js pro porquê de
+// deliberadamente NÃO incluir "executáveis sem uso" nem "desfragmentação".
+app.get("/api/disk-cleanup-scan", auth.requireRole("admin"), async (req, res) => {
+  try {
+    const result = await scanCleanupCategories();
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha na varredura de limpeza:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/disk-cleanup-scan/execute", auth.requireRole("admin"), async (req, res) => {
+  const { categoryIds } = req.body || {};
+  if (!Array.isArray(categoryIds) || !categoryIds.length) {
+    return res.status(400).json({ error: "Selecione ao menos uma categoria pra limpar." });
+  }
+  try {
+    console.log(
+      `[disk-monitor] Limpeza avançada (${categoryIds.join(", ")}) disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    const result = await executeCleanupCategories(categoryIds);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha na limpeza avançada:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

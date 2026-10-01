@@ -305,6 +305,17 @@
       <div class="sub" id="cleanupStatus" style="margin-top:8px"></div>
     </div>
 
+    <div class="panel" id="advancedCleanupPanel" style="display:none">
+      <h2 data-i18n="advancedCleanupTitle">Limpeza avançada de disco</h2>
+      <div class="sub" style="margin-bottom:12px" data-i18n="advancedCleanupDesc">
+        Varre categorias seguras e conhecidas (cache, temporários, lixeira,
+        pacotes antigos). Nunca mexe em executável do sistema, nem faz
+        "desfragmentação" — conceito obsoleto em SSD.
+      </div>
+      <button id="cleanupScanBtn" type="button" data-i18n="scanDiskBtn">Analisar disco</button>
+      <div id="cleanupScanResult"></div>
+    </div>
+
     <div class="panel">
       <h2 data-i18n="configuration">Configuração</h2>
       <label data-i18n="thresholdLabel">Limite pra limpeza automática (%)</label>
@@ -603,6 +614,24 @@ const translations = {
     processConsumptionTitle: "Consumo por processo",
     chartProcessCpuLabel: "CPU (%)",
     chartProcessMemLabel: "RAM (%)",
+    advancedCleanupTitle: "Limpeza avançada de disco",
+    advancedCleanupDesc: "Varre categorias seguras e conhecidas (cache, temporários, lixeira, pacotes antigos). Nunca mexe em executável do sistema, nem faz \"desfragmentação\" — conceito obsoleto em SSD.",
+    scanDiskBtn: "Analisar disco",
+    scanningDiskLabel: "Analisando...",
+    categoryTempFiles: "Arquivos temporários",
+    categoryTrash: "Lixeira",
+    categoryBrowserCache: "Cache do navegador",
+    categoryPackageCache: "Cache de pacotes do sistema",
+    categoryOldPackages: "Pacotes/revisões antigas (Snap)",
+    categoryUnsupported: "Não disponível neste sistema operacional",
+    categoryEmpty: "Nada encontrado nessa categoria",
+    cleanSelectedBtn: "Limpar selecionados",
+    advancedCleanupRunning: "Limpando — não feche esta janela...",
+    advancedCleanupDone: "Limpeza concluída.",
+    advancedCleanupFailed: msg => `Erro na limpeza: ${msg}`,
+    chartDiskCategoriesTitle: "Uso de disco por categoria",
+    freeSpaceLabel: "Espaço livre",
+    otherUsedLabel: "Outros arquivos (sistema/usuário)",
     recentCleanups: "Últimas limpezas",
     thWhen: "Quando", thType: "Tipo", thBefore: "Antes", thAfter: "Depois", thFreed: "Liberado", thDetails: "Detalhes",
     noCleanups: "Nenhuma limpeza registrada ainda.",
@@ -734,6 +763,24 @@ const translations = {
     processConsumptionTitle: "Consumo por proceso",
     chartProcessCpuLabel: "CPU (%)",
     chartProcessMemLabel: "RAM (%)",
+    advancedCleanupTitle: "Limpieza avanzada de disco",
+    advancedCleanupDesc: "Analiza categorías seguras y conocidas (caché, temporales, papelera, paquetes antiguos). Nunca toca ejecutables del sistema, ni hace \"desfragmentación\" — concepto obsoleto en SSD.",
+    scanDiskBtn: "Analizar disco",
+    scanningDiskLabel: "Analizando...",
+    categoryTempFiles: "Archivos temporales",
+    categoryTrash: "Papelera",
+    categoryBrowserCache: "Caché del navegador",
+    categoryPackageCache: "Caché de paquetes del sistema",
+    categoryOldPackages: "Paquetes/revisiones antiguas (Snap)",
+    categoryUnsupported: "No disponible en este sistema operativo",
+    categoryEmpty: "Nada encontrado en esta categoría",
+    cleanSelectedBtn: "Limpiar seleccionados",
+    advancedCleanupRunning: "Limpiando — no cierre esta ventana...",
+    advancedCleanupDone: "Limpieza completada.",
+    advancedCleanupFailed: msg => `Error en la limpieza: ${msg}`,
+    chartDiskCategoriesTitle: "Uso de disco por categoría",
+    freeSpaceLabel: "Espacio libre",
+    otherUsedLabel: "Otros archivos (sistema/usuario)",
     recentCleanups: "Últimas limpiezas",
     thWhen: "Cuándo", thType: "Tipo", thBefore: "Antes", thAfter: "Después", thFreed: "Liberado", thDetails: "Detalles",
     noCleanups: "Ninguna limpieza registrada todavía.",
@@ -865,6 +912,24 @@ const translations = {
     processConsumptionTitle: "Consumption by process",
     chartProcessCpuLabel: "CPU (%)",
     chartProcessMemLabel: "RAM (%)",
+    advancedCleanupTitle: "Advanced disk cleanup",
+    advancedCleanupDesc: "Scans known, safe categories (cache, temp files, trash, old packages). Never touches system executables, and no \"defragmentation\" — an obsolete concept on SSDs.",
+    scanDiskBtn: "Scan disk",
+    scanningDiskLabel: "Scanning...",
+    categoryTempFiles: "Temporary files",
+    categoryTrash: "Trash",
+    categoryBrowserCache: "Browser cache",
+    categoryPackageCache: "System package cache",
+    categoryOldPackages: "Old packages/revisions (Snap)",
+    categoryUnsupported: "Not available on this operating system",
+    categoryEmpty: "Nothing found in this category",
+    cleanSelectedBtn: "Clean selected",
+    advancedCleanupRunning: "Cleaning — do not close this window...",
+    advancedCleanupDone: "Cleanup complete.",
+    advancedCleanupFailed: msg => `Cleanup error: ${msg}`,
+    chartDiskCategoriesTitle: "Disk usage by category",
+    freeSpaceLabel: "Free space",
+    otherUsedLabel: "Other files (system/user)",
     recentCleanups: "Recent cleanups",
     thWhen: "When", thType: "Type", thBefore: "Before", thAfter: "After", thFreed: "Freed", thDetails: "Details",
     noCleanups: "No cleanup recorded yet.",
@@ -1912,6 +1977,7 @@ function applyRoleUI() {
   document.getElementById("cleanupBtn").disabled = !isAdmin;
   document.getElementById("saveConfigBtn").disabled = !isAdmin;
   document.getElementById("cleanupStatus").textContent = isAdmin ? "" : t("viewerNotice");
+  document.getElementById("advancedCleanupPanel").style.display = isAdmin ? "block" : "none";
   ["thresholdPercent", "checkIntervalMinutes", "dockerLogMaxSizeMB", "tmpFilesOlderThanDays", "systemLogsOlderThanDays", "autoCleanupEnabled"]
     .forEach(id => { document.getElementById(id).disabled = !isAdmin; });
 
@@ -2064,6 +2130,146 @@ async function runManualCleanup(extraBtn) {
   }
 }
 document.getElementById("cleanupBtn").addEventListener("click", () => runManualCleanup());
+
+// ---------- Limpeza avançada por categorias (seguras) ----------
+const CLEANUP_CATEGORY_LABELS = {
+  tempFiles: "categoryTempFiles",
+  trash: "categoryTrash",
+  browserCache: "categoryBrowserCache",
+  packageCache: "categoryPackageCache",
+  oldPackages: "categoryOldPackages"
+};
+const CLEANUP_CATEGORY_COLORS = {
+  tempFiles: "#7c5cf5",
+  trash: "#22d3ee",
+  browserCache: "#f59e0b",
+  packageCache: "#ef4444",
+  oldPackages: "#10b981"
+};
+let cleanupCategoryChart = null;
+
+async function runCleanupScan() {
+  const btn = document.getElementById("cleanupScanBtn");
+  const resultEl = document.getElementById("cleanupScanResult");
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="pd-empty">${t("scanningDiskLabel")}</div>`;
+  try {
+    const res = await apiFetch("/api/disk-cleanup-scan");
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
+      return;
+    }
+    renderCleanupScanResult(data.categories || []);
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderCleanupScanResult(categories) {
+  const resultEl = document.getElementById("cleanupScanResult");
+
+  const rows = categories.map(cat => {
+    const label = t(CLEANUP_CATEGORY_LABELS[cat.id] || cat.id);
+    const disabled = !cat.supported || !cat.sizeBytes;
+    const sizeText = cat.supported ? formatBytes(cat.sizeBytes || 0) : t("categoryUnsupported");
+    return `
+      <label class="pd-partition-tool-label" style="display:flex; align-items:center; gap:8px; opacity:${cat.supported ? 1 : 0.5}">
+        <input type="checkbox" class="cleanup-cat-checkbox" value="${cat.id}" ${disabled ? "disabled" : ""}>
+        <span style="flex:1">${label}</span>
+        <span>${sizeText}</span>
+      </label>
+    `;
+  }).join("");
+
+  resultEl.innerHTML = `
+    <canvas id="cleanupCategoryChart" height="140" style="margin:12px 0"></canvas>
+    <div class="cleanup-category-list">${rows}</div>
+    <button id="cleanupExecuteBtn" type="button" disabled style="margin-top:10px">${t("cleanSelectedBtn")}</button>
+    <div id="cleanupExecuteResult" class="sub" style="margin-top:8px"></div>
+  `;
+
+  renderCleanupCategoryChart(categories);
+
+  const checkboxes = [...resultEl.querySelectorAll(".cleanup-cat-checkbox")];
+  const execBtn = document.getElementById("cleanupExecuteBtn");
+  checkboxes.forEach(cb => cb.addEventListener("change", () => {
+    execBtn.disabled = !checkboxes.some(c => c.checked);
+  }));
+  execBtn.addEventListener("click", () => {
+    const selected = checkboxes.filter(c => c.checked).map(c => c.value);
+    runCleanupExecute(selected);
+  });
+}
+
+// Gráfico de uso por categoria — barras horizontais, cor fixa por
+// categoria (nunca ciclada), só categorias com conteúdo de verdade pra
+// não poluir com zeros. Isso substitui o "gráfico de desfragmentação"
+// pedido originalmente — mostra o que ocupa espaço de verdade, que é a
+// informação realmente acionável.
+function renderCleanupCategoryChart(categories) {
+  const canvasEl = document.getElementById("cleanupCategoryChart");
+  if (!canvasEl) return;
+  if (typeof Chart === "undefined") {
+    canvasEl.replaceWith(
+      Object.assign(document.createElement("div"), { className: "sub", textContent: t("chartLoadError") })
+    );
+    return;
+  }
+  const supported = categories.filter(c => c.supported && c.sizeBytes > 0);
+  if (cleanupCategoryChart) { cleanupCategoryChart.destroy(); cleanupCategoryChart = null; }
+  if (!supported.length) return;
+
+  const labels = supported.map(c => t(CLEANUP_CATEGORY_LABELS[c.id] || c.id));
+  const values = supported.map(c => c.sizeBytes);
+  const colors = supported.map(c => CLEANUP_CATEGORY_COLORS[c.id] || "#94a3b8");
+
+  const ctx = canvasEl.getContext("2d");
+  cleanupCategoryChart = new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: t("chartDiskCategoriesTitle"), data: values, backgroundColor: colors }] },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      scales: {
+        x: { beginAtZero: true, grid: { color: "rgba(148,163,184,0.1)" }, ticks: { color: "#94a3b8", callback: v => formatBytes(v) } },
+        y: { grid: { display: false }, ticks: { color: "#94a3b8" } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+async function runCleanupExecute(categoryIds) {
+  const execBtn = document.getElementById("cleanupExecuteBtn");
+  const resultEl = document.getElementById("cleanupExecuteResult");
+  execBtn.disabled = true;
+  resultEl.textContent = t("advancedCleanupRunning");
+  try {
+    const res = await apiFetch("/api/disk-cleanup-scan/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ categoryIds })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.textContent = t("advancedCleanupFailed", data.error);
+      execBtn.disabled = false;
+      return;
+    }
+    resultEl.textContent = t("advancedCleanupDone");
+    toast(t("advancedCleanupDone"));
+    await runCleanupScan();
+    await loadStatus();
+  } catch (err) {
+    resultEl.textContent = t("toastError", err.message);
+    execBtn.disabled = false;
+  }
+}
+
+document.getElementById("cleanupScanBtn").addEventListener("click", runCleanupScan);
 
 document.getElementById("saveConfigBtn").addEventListener("click", async () => {
   const payload = {
