@@ -87,7 +87,12 @@ const synologyClient = createSynologyClient({
   useHttps: process.env.DSM_HTTPS !== "false",
   user: process.env.DSM_USER,
   password: process.env.DSM_PASSWORD,
-  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED === "true",
+  // Um Synology na rede local praticamente sempre usa certificado
+  // autoassinado por padrão (poucos clientes configuram um certificado
+  // de verdade pro IP interno do NAS) — por isso aceita autoassinado
+  // por padrão aqui, e só recusa se o cliente explicitamente marcar
+  // DSM_ALLOW_SELF_SIGNED=false (caso tenha um certificado válido).
+  allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED !== "false",
   deviceId: process.env.DSM_DEVICE_ID
 });
 

@@ -38,7 +38,22 @@ function createSynologyClient({ host, port, useHttps, user, password, allowSelfS
           });
         }
       );
-      req.on("error", reject);
+      req.on("error", err => {
+        // Mensagem crua do Node ("unable to verify the first certificate")
+        // não diz nada útil pro cliente final — troca por uma explicação
+        // acionável. Só deveria acontecer se allowSelfSigned estiver
+        // desligado contra um DSM com certificado autoassinado.
+        const isCertError =
+          /certificate|CERT_|SELF_SIGNED|UNABLE_TO_VERIFY/i.test(err.code || err.message || "");
+        if (isCertError) {
+          reject(new Error(
+            "Não foi possível confiar no certificado HTTPS do DSM. Se for um Synology na rede local " +
+            "com certificado autoassinado (o mais comum), defina DSM_ALLOW_SELF_SIGNED=true no .env."
+          ));
+          return;
+        }
+        reject(err);
+      });
       req.setTimeout(10000, () => req.destroy(new Error("Tempo esgotado ao falar com o DSM.")));
     });
   }
