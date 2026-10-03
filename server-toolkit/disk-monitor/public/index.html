@@ -360,6 +360,11 @@
 
   <div class="panel" id="unmountedPartitionsPanel" style="display:none; margin-bottom:16px">
     <h2 data-i18n="unmountedPartitionsTitle">Partições sem montar</h2>
+    <div class="sub" style="margin-bottom:12px" data-i18n="unmountedPartitionsDesc">
+      Ferramenta separada da formatação — só monta uma partição que já
+      existe num ponto de montagem, sem apagar nada. Não é um passo
+      necessário depois de formatar um disco acima.
+    </div>
     <div id="unmountedPartitionsGrid" class="physical-disks-grid"></div>
   </div>
 
@@ -571,7 +576,10 @@ const translations = {
     confirmPhraseLabel: p => `Digite exatamente "${p}" para confirmar`,
     executePartitionBtn: "Apagar e formatar agora",
     partitionRunning: "Particionando e formatando — não feche esta janela...",
-    partitionDone: "Disco particionado e formatado com sucesso.",
+    partitionDone: "✅ Formatação concluída com sucesso!",
+    diskAlreadyEmpty: "✅ Disco novo/vazio — nenhuma partição existente encontrada.",
+    existingPartitionsWillBeErased: "⚠️ Este disco já tem conteúdo — as partições abaixo serão APAGADAS:",
+    unmountedPartitionsDesc: "Ferramenta separada da formatação — só monta uma partição que já existe num ponto de montagem, sem apagar nada. Não é um passo necessário depois de formatar um disco acima.",
     partitionFailed: "Falha ao particionar/formatar",
     schemeLabel: "Esquema do disco",
     schemeSingle: "Volume único (dados)",
@@ -732,7 +740,10 @@ const translations = {
     confirmPhraseLabel: p => `Escriba exactamente "${p}" para confirmar`,
     executePartitionBtn: "Borrar y formatear ahora",
     partitionRunning: "Particionando y formateando — no cierre esta ventana...",
-    partitionDone: "Disco particionado y formateado con éxito.",
+    partitionDone: "✅ ¡Formateo completado con éxito!",
+    diskAlreadyEmpty: "✅ Disco nuevo/vacío — no se encontraron particiones existentes.",
+    existingPartitionsWillBeErased: "⚠️ Este disco ya tiene contenido — las particiones abajo serán BORRADAS:",
+    unmountedPartitionsDesc: "Herramienta separada del formateo — solo monta una partición que ya existe en un punto de montaje, sin borrar nada. No es un paso necesario después de formatear un disco arriba.",
     partitionFailed: "Falla al particionar/formatear",
     schemeLabel: "Esquema del disco",
     schemeSingle: "Volumen único (datos)",
@@ -893,7 +904,10 @@ const translations = {
     confirmPhraseLabel: p => `Type exactly "${p}" to confirm`,
     executePartitionBtn: "Erase and format now",
     partitionRunning: "Partitioning and formatting — do not close this window...",
-    partitionDone: "Disk partitioned and formatted successfully.",
+    partitionDone: "✅ Formatting completed successfully!",
+    diskAlreadyEmpty: "✅ New/empty disk — no existing partitions found.",
+    existingPartitionsWillBeErased: "⚠️ This disk already has content — the partitions below will be ERASED:",
+    unmountedPartitionsDesc: "A separate tool from formatting — only mounts a partition that already exists at a mount point, without erasing anything. Not a required step after formatting a disk above.",
     partitionFailed: "Failed to partition/format",
     schemeLabel: "Disk scheme",
     schemeSingle: "Single volume (data)",
@@ -1321,6 +1335,23 @@ function renderPartitionVisualBar(partitions) {
   return `<div style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
 }
 
+// Deixa explícito, ANTES de escolher o esquema, se o disco já tem
+// conteúdo (HD usado — vai apagar) ou já está vazio (HD novo) — sem
+// isso o usuário precisava adivinhar o que ia acontecer com dados
+// existentes.
+function renderExistingPartitionsNotice(existingPartitions) {
+  if (!existingPartitions || !existingPartitions.length) {
+    return `<div class="pd-empty">${t("diskAlreadyEmpty")}</div>`;
+  }
+  const items = existingPartitions
+    .map(p => `<li>${p.device} — ${p.fsType} (${formatBytes(p.sizeBytes)})</li>`)
+    .join("");
+  return `
+    <div class="pd-partition-danger">${t("existingPartitionsWillBeErased")}</div>
+    <ul class="pd-partition-list">${items}</ul>
+  `;
+}
+
 // Só monta o texto da prévia — nunca executa nada aqui. O botão de
 // executar só aparece DEPOIS da prévia, e só fica clicável quando as
 // duas confirmações (caminho exato do disco + frase) baterem.
@@ -1343,6 +1374,7 @@ async function runPartitionPreview(device, card) {
     }
     const partitionsList = data.partitions.map(p => `<li>${p.label} — <code>${p.device}</code></li>`).join("");
     previewEl.innerHTML = `
+      ${renderExistingPartitionsNotice(data.existingPartitions)}
       <div class="pd-partition-danger">${t("partitionWarning")}</div>
       <div class="pd-partition-tool-label">${data.schemeLabel} — ${t("partitionsToCreate")}</div>
       ${renderPartitionVisualBar(data.partitions)}

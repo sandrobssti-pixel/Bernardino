@@ -167,19 +167,21 @@ async function checkEligibility(device, plan) {
   }
   const blockDevices = await si.blockDevices().catch(() => []);
   const diskEntry = blockDevices.find(bd => bd.name === shortName && bd.type === "disk");
-  const exists = diskEntry || blockDevices.some(bd => parentDiskName(bd.name) === shortName);
+  const existingPartitions = blockDevices
+    .filter(bd => bd.type === "part" && parentDiskName(bd.name) === shortName)
+    .map(bd => ({ device: `/dev/${bd.name}`, fsType: bd.fsType || "?", sizeBytes: bd.size || 0, mount: bd.mount || null }));
+  const exists = diskEntry || existingPartitions.length > 0;
   if (!exists) {
-    return { eligible: false, reason: "Disco não encontrado no servidor.", diskSizeBytes: null };
+    return { eligible: false, reason: "Disco não encontrado no servidor.", diskSizeBytes: null, existingPartitions: [] };
   }
   const diskSizeBytes = diskEntry?.size || null;
-  const mountedPartition = blockDevices.find(
-    bd => parentDiskName(bd.name) === shortName && bd.mount
-  );
+  const mountedPartition = existingPartitions.find(p => p.mount);
   if (mountedPartition) {
     return {
       eligible: false,
       reason: `O disco tem uma partição montada em "${mountedPartition.mount}" — desmonte tudo antes (isso nunca é feito automaticamente).`,
-      diskSizeBytes
+      diskSizeBytes,
+      existingPartitions
     };
   }
   const missingTools = requiredTools(plan).filter(tool => !toolExists(tool));
@@ -187,10 +189,11 @@ async function checkEligibility(device, plan) {
     return {
       eligible: false,
       reason: `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pra esse esquema: ${missingTools.join(", ")}. Instale antes de continuar (ex.: pacotes "parted", "dosfstools", "ntfs-3g", "util-linux", conforme a ferramenta faltando).`,
-      diskSizeBytes
+      diskSizeBytes,
+      existingPartitions
     };
   }
-  return { eligible: true, reason: null, diskSizeBytes };
+  return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
 }
 
 async function previewPartition(device, scheme, fsType) {
@@ -203,6 +206,10 @@ async function previewPartition(device, scheme, fsType) {
     device,
     scheme: plan.scheme,
     schemeLabel: plan.schemeLabel,
+    // Partições que JÁ existem no disco agora — mostradas pra deixar
+    // explícito que elas serão apagadas (disco usado) ou que o disco já
+    // está vazio (sem nenhuma, disco novo), sem precisar adivinhar.
+    existingPartitions: eligibility.existingPartitions || [],
     partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk })),
     commands: planToPreviewLines(plan)
   };
