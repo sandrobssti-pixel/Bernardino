@@ -704,6 +704,26 @@ si não foi executado contra uma máquina real** — não há como testar
 isso com segurança sem um servidor descartável. Revise cada comando
 antes de rodar, e tenha certeza de entender o que cada passo faz.
 
+**Corrigido: "Esquema de disco não suportado" em disco GPT de verdade**.
+A detecção de tabela de partições lia o texto normal do `parted ...
+print` ("Partition Table: gpt") com um regex em inglês — só que esse
+texto é **traduzido** conforme o idioma configurado no servidor
+(`LANG`/`LC_ALL`); num servidor com locale em português/espanhol/etc.,
+`parted` respondia a mesma informação com outras palavras, e o regex
+em inglês não batia — fazendo o gerador recusar um disco que, na
+verdade, podia ser GPT perfeitamente válido. Trocado pra `parted -m`
+(modo máquina: campos fixos separados por `:`, nunca traduzidos,
+documentado como estável pelo próprio `parted`) tanto pra ler o tipo de
+tabela quanto pra reconhecer a partição EFI — elimina essa classe de
+falso negativo. Se o disco do sistema **realmente** não for GPT (MBR/
+`msdos` de verdade, não é incomum em VPS mais antigas com boot BIOS em
+vez de UEFI), a mensagem de erro agora também informa o tipo de tabela
+detectado de verdade, em vez de um "não suportado" genérico — mas a
+limitação em si (gerar roteiro só pra sistema GPT) continua de pé; dar
+suporte a MBR precisaria de outra lógica inteira (`sfdisk` em vez de
+`sgdisk`, `grub-install --target=i386-pc` em vez de UEFI, sem partição
+EFI no layout) — não implementado.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

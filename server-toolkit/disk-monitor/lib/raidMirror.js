@@ -83,18 +83,34 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
 
   const sysDevice = found.systemDisk.device;
 
+  // `-m` (modo máquina) em vez do texto normal do `parted` — o texto
+  // normal é traduzido conforme o LANG/LC_ALL do servidor ("Partition
+  // Table: gpt" vira outra coisa em português/espanhol/etc.), então o
+  // regex em inglês podia falhar mesmo num disco GPT de verdade,
+  // relatando "não suportado" por engano. O modo máquina é sempre em
+  // campos fixos separados por ":", nunca traduzido.
   let partedOut;
   try {
-    partedOut = execFileSync("parted", ["-s", sysDevice, "print"], { encoding: "utf8" });
+    partedOut = execFileSync("parted", ["-m", "-s", sysDevice, "unit", "B", "print"], { encoding: "utf8" });
   } catch {
     throw new Error("Não foi possível ler a tabela de partições do disco do sistema (parted falhou ou não está instalado).");
   }
 
-  if (!/Partition Table:\s*gpt/i.test(partedOut)) {
-    throw new Error("Esquema de disco não suportado — este gerador só reconhece GPT, e o disco do sistema não está em GPT.");
+  const lines = partedOut.split("\n").map(l => l.trim()).filter(Boolean);
+  // lines[0] é sempre "BYT;" (cabeçalho fixo do modo máquina); lines[1]
+  // é a linha do disco: device:tamanho:tipo:tam-setor-lógico:tam-setor-
+  // físico:TABELA:modelo;  — campo 5 (índice 5) é o tipo de tabela.
+  const diskFields = (lines[1] || "").replace(/;\s*$/, "").split(":");
+  const tableType = (diskFields[5] || "").toLowerCase();
+  if (tableType !== "gpt") {
+    throw new Error(
+      `Esquema de disco não suportado — este gerador só reconhece GPT, e o disco do sistema está em "${tableType || "desconhecido"}". ` +
+      `Se o disco for GPT de verdade e esse erro insistir, confirme rodando "sudo parted -m ${sysDevice} unit B print" direto no servidor.`
+    );
   }
 
-  const partLines = partedOut.split("\n").map(l => l.trim()).filter(l => /^\d+\s/.test(l));
+  // Linhas de partição no modo máquina: "N:início:fim:tamanho:fs:nome:flags;"
+  const partLines = lines.slice(2).filter(l => /^\d+:/.test(l));
   if (partLines.length !== 2) {
     throw new Error(
       `Layout de disco não suportado — este gerador só cobre o padrão mais comum (2 partições: EFI + raiz). ` +
@@ -102,7 +118,10 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       `extras precisam de orientação especializada manual, não geração automática.`
     );
   }
-  if (!/boot|esp|fat32/i.test(partLines[0])) {
+  const firstPartFields = partLines[0].replace(/;\s*$/, "").split(":");
+  const firstPartFsType = (firstPartFields[4] || "").toLowerCase();
+  const firstPartFlags = (firstPartFields[6] || "").toLowerCase();
+  if (!/boot|esp/.test(firstPartFlags) && !/fat/.test(firstPartFsType)) {
     throw new Error("Não foi possível confirmar a partição EFI na posição esperada (1ª partição) — layout não reconhecido.");
   }
 
