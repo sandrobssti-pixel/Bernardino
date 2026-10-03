@@ -263,10 +263,35 @@
     background: rgba(148,163,184,0.15); border-radius: 4px; padding: 1px 5px; font-size: 0.72rem;
   }
   .pd-fstype-row { margin-top: 2px; }
-  .pd-execute-partition-btn {
-    margin-top: 10px; background: linear-gradient(90deg, #ef4444, #b91c1c) !important;
+  /* Três etapas separadas e visíveis (apagar / criar / formatar), cada
+     uma com seu próprio botão — em vez de um único botão que fazia tudo
+     de uma vez sem mostrar em qual parte parou quando dava errado. Só a
+     etapa "apagar" fica vermelha — é a única que leva dado existente. */
+  .pd-phase-block {
+    margin-top: 14px; padding: 10px 12px; border: 1px solid var(--panel-border);
+    border-radius: 10px; background: rgba(148,163,184,0.04);
   }
-  .pd-execute-partition-btn:disabled { background: rgba(148,163,184,0.15) !important; opacity: 0.6; }
+  .pd-phase-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+  .pd-phase-preview:not(:empty) { margin-top: 8px; }
+  .pd-phase-execute-btn { margin-top: 10px; }
+  .pd-phase-execute-btn[data-phase="delete"] {
+    background: linear-gradient(90deg, #ef4444, #b91c1c) !important;
+  }
+  .pd-phase-execute-btn[data-phase="delete"]:disabled { background: rgba(148,163,184,0.15) !important; opacity: 0.6; }
+  /* Segmento da barra proporcional clicável — "aponta pra partição" e
+     destaca tanto o pedaço da barra quanto a linha correspondente na
+     legenda embaixo, pra deixar claro qual é qual antes de agir. */
+  .pd-partition-bar-segment { cursor: pointer; }
+  .pd-partition-bar-segment.selected, .pd-partition-bar-legend-item.selected {
+    outline: 2px solid var(--text); outline-offset: -2px;
+  }
+  .pd-partition-bar-legend-item { cursor: pointer; border-radius: 4px; padding: 1px 3px; }
+  /* Partições sem montar, agora dentro do próprio card do disco físico
+     (não é mais um painel separado) — cada uma com sua ferramenta de
+     montar embutida, fechada por padrão. */
+  .pd-unmounted-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--panel-border); }
+  .pd-unmounted-row { margin-top: 6px; }
+  .pd-unmounted-row .pd-partition-row { align-items: center; }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -387,16 +412,6 @@
   <div class="panel" id="networkSharesPanel" style="display:none; margin-bottom:16px">
     <h2 data-i18n="networkSharesTitle">NAS / Compartilhamentos de rede</h2>
     <div id="networkSharesGrid" class="physical-disks-grid"></div>
-  </div>
-
-  <div class="panel" id="unmountedPartitionsPanel" style="display:none; margin-bottom:16px">
-    <h2 data-i18n="unmountedPartitionsTitle">Partições sem montar</h2>
-    <div class="sub" style="margin-bottom:12px" data-i18n="unmountedPartitionsDesc">
-      Ferramenta separada da formatação — só monta uma partição que já
-      existe num ponto de montagem, sem apagar nada. Não é um passo
-      necessário depois de formatar um disco acima.
-    </div>
-    <div id="unmountedPartitionsGrid" class="physical-disks-grid"></div>
   </div>
 
   <div class="panel" id="raidMirrorPanel" style="display:none; margin-bottom:16px">
@@ -628,6 +643,19 @@ const translations = {
     fsTypeXfsTitle: "Avançado — Linux (XFS)",
     fsTypeXfsDesc: "Também só Linux — recomendado só se você já usa XFS de propósito neste servidor.",
     partitionLabel: n => `Partição ${n}`,
+    phaseDeleteTitle: "1. Apagar partições existentes",
+    phaseDeleteDesc: "Apaga a tabela de partições inteira do disco — único passo que leva dado já existente. É o único que pede as duas confirmações abaixo.",
+    phaseDeleteBtn: "Ver o que será apagado",
+    phaseDeleteExecuteBtn: "Apagar partições agora",
+    phaseCreateTitle: "2. Criar partição(ões)",
+    phaseCreateBtn: "Ver partições que serão criadas",
+    phaseCreateExecuteBtn: "Criar partições agora",
+    phaseFormatTitle: "3. Formatar",
+    phaseFormatDesc: "Formata as partições criadas no passo anterior com o sistema de arquivos escolhido ali.",
+    phaseFormatBtn: "Ver comando de formatação",
+    phaseFormatExecuteBtn: "Formatar agora",
+    phaseDeleteDone: "✅ Partições apagadas — disco limpo.",
+    phaseCreateDone: "✅ Partição(ões) criada(s) — pronta(s) pra formatar no passo 3.",
     unmountedPartitionsTitle: "Partições sem montar",
     noUnmountedPartitions: "Nenhuma partição sem montar encontrada.",
     mountBtn: "Montar",
@@ -802,6 +830,19 @@ const translations = {
     fsTypeXfsTitle: "Avanzado — Linux (XFS)",
     fsTypeXfsDesc: "También solo Linux — recomendado solo si ya usa XFS a propósito en este servidor.",
     partitionLabel: n => `Partición ${n}`,
+    phaseDeleteTitle: "1. Borrar particiones existentes",
+    phaseDeleteDesc: "Borra toda la tabla de particiones del disco — único paso que borra datos existentes. Es el único que pide las dos confirmaciones de abajo.",
+    phaseDeleteBtn: "Ver lo que se borrará",
+    phaseDeleteExecuteBtn: "Borrar particiones ahora",
+    phaseCreateTitle: "2. Crear partición(es)",
+    phaseCreateBtn: "Ver particiones que se crearán",
+    phaseCreateExecuteBtn: "Crear particiones ahora",
+    phaseFormatTitle: "3. Formatear",
+    phaseFormatDesc: "Formatea las particiones creadas en el paso anterior con el sistema de archivos elegido ahí.",
+    phaseFormatBtn: "Ver comando de formateo",
+    phaseFormatExecuteBtn: "Formatear ahora",
+    phaseDeleteDone: "✅ Particiones borradas — disco limpio.",
+    phaseCreateDone: "✅ Partición(es) creada(s) — lista(s) para formatear en el paso 3.",
     unmountedPartitionsTitle: "Particiones sin montar",
     noUnmountedPartitions: "No se encontraron particiones sin montar.",
     mountBtn: "Montar",
@@ -976,6 +1017,19 @@ const translations = {
     fsTypeXfsTitle: "Advanced — Linux (XFS)",
     fsTypeXfsDesc: "Also Linux-only — recommended only if you're already intentionally using XFS on this server.",
     partitionLabel: n => `Partition ${n}`,
+    phaseDeleteTitle: "1. Delete existing partitions",
+    phaseDeleteDesc: "Erases the disk's entire partition table — the only step that destroys existing data. It's the only one that asks for the two confirmations below.",
+    phaseDeleteBtn: "Show what will be deleted",
+    phaseDeleteExecuteBtn: "Delete partitions now",
+    phaseCreateTitle: "2. Create partition(s)",
+    phaseCreateBtn: "Show partitions that will be created",
+    phaseCreateExecuteBtn: "Create partitions now",
+    phaseFormatTitle: "3. Format",
+    phaseFormatDesc: "Formats the partitions created in the previous step with the filesystem chosen there.",
+    phaseFormatBtn: "Show format command",
+    phaseFormatExecuteBtn: "Format now",
+    phaseDeleteDone: "✅ Partitions deleted — disk is clean.",
+    phaseCreateDone: "✅ Partition(s) created — ready to format in step 3.",
     unmountedPartitionsTitle: "Unmounted partitions",
     noUnmountedPartitions: "No unmounted partitions found.",
     mountBtn: "Mount",
@@ -1387,25 +1441,29 @@ async function runDiskHealthCheck(device, card) {
 // nunca ciclada, pra bater sempre a mesma cor com o mesmo tipo de
 // partição entre as execuções.
 const PD_PARTITION_COLORS = ["#f59e0b", "#7c5cf5", "#22d3ee", "#10b981"];
+// Cada segmento é clicável (data-idx) e destaca, junto com a linha
+// correspondente na legenda embaixo — "apontar pra partição" antes de
+// agir nela, em vez de só uma barra decorativa.
 function renderPartitionVisualBar(partitions) {
   const segments = partitions.map((p, i) => {
     const width = p.percentOfDisk || Math.round(100 / partitions.length);
     const color = PD_PARTITION_COLORS[i % PD_PARTITION_COLORS.length];
-    return `<div style="width:${width}%; background:${color}; display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; font-size:11px; color:#0b1020; font-weight:600; min-width:0" title="${p.label} (${p.device})">${p.label}</div>`;
+    return `<div class="pd-partition-bar-segment" data-idx="${i}" style="width:${width}%; background:${color}; display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; font-size:11px; color:#0b1020; font-weight:600; min-width:0" title="${p.label} (${p.device})">${p.label}</div>`;
   }).join("");
-  return `<div style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
+  return `<div class="pd-partition-visual-bar" style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
 }
 
 // Legenda embaixo da barra, duas linhas por partição (número + tipo de
 // sistema de arquivos / tamanho e caminho do dispositivo) — igual ao
 // jeito que o GNOME Disks rotula cada pedaço da barra proporcional.
+// data-idx bate com o segmento da barra — clicar num destaca o outro.
 function renderPartitionBarLegend(partitions) {
   const items = partitions.map((p, i) => {
     const color = PD_PARTITION_COLORS[i % PD_PARTITION_COLORS.length];
     const sizeText = p.sizeBytes ? formatBytes(p.sizeBytes) : "";
     const fsText = p.fsType || "";
     return `
-      <div class="pd-partition-bar-legend-item">
+      <div class="pd-partition-bar-legend-item" data-idx="${i}">
         <span class="pd-partition-bar-legend-swatch" style="background:${color}"></span>
         <span class="pd-partition-bar-legend-text">
           <b>${t("partitionLabel", i + 1)}</b> — ${[sizeText, fsText].filter(Boolean).join(" ")} — <code>${p.device}</code>
@@ -1414,6 +1472,19 @@ function renderPartitionBarLegend(partitions) {
     `;
   }).join("");
   return `<div class="pd-partition-bar-legend">${items}</div>`;
+}
+
+// Clicar num segmento da barra ou numa linha da legenda destaca os dois
+// (mesmo data-idx) — só visual, não muda nenhuma seleção de verdade,
+// já que apagar/criar/formatar sempre agem no disco/esquema inteiro.
+function togglePartitionBarSelection(e, scopeEl) {
+  const target = e.target.closest("[data-idx]");
+  if (!target) return;
+  const idx = target.dataset.idx;
+  const alreadySelected = target.classList.contains("selected");
+  scopeEl.querySelectorAll("[data-idx].selected").forEach(el => el.classList.remove("selected"));
+  if (alreadySelected) return;
+  scopeEl.querySelectorAll(`[data-idx="${idx}"]`).forEach(el => el.classList.add("selected"));
 }
 
 // Deixa explícito, ANTES de escolher o esquema, se o disco já tem
@@ -1433,62 +1504,108 @@ function renderExistingPartitionsNotice(existingPartitions) {
   `;
 }
 
-// Só monta o texto da prévia — nunca executa nada aqui. O botão de
-// executar só aparece DEPOIS da prévia, e só fica clicável quando as
-// duas confirmações (caminho exato do disco + frase) baterem.
-async function runPartitionPreview(device, card) {
+// Monta o % de cada partição JÁ EXISTENTE em relação ao disco inteiro,
+// só pro desenho visual da barra na etapa "apagar" — o backend não
+// manda isso pronto pra essa etapa porque ali as partições que importam
+// são as ATUAIS do disco, não as do esquema novo escolhido.
+function withClientPercent(parts, diskSizeBytes) {
+  if (!diskSizeBytes) return parts.map(p => ({ ...p, percentOfDisk: null }));
+  return parts.map(p => ({ ...p, percentOfDisk: Math.max(1, Math.round((p.sizeBytes / diskSizeBytes) * 100)) }));
+}
+
+// Três etapas (apagar/criar/formatar), cada uma com sua própria prévia +
+// execução — nunca uma dispara a outra sozinha. A ordem é garantida pelo
+// próprio backend (checkEligibility recusa "criar" se ainda sobrar
+// partição, e recusa "formatar" se a partição esperada ainda não
+// existir), então a tela só precisa mostrar o que a API devolver.
+const PHASE_DONE_KEY = { delete: "phaseDeleteDone", create: "phaseCreateDone", format: "partitionDone" };
+const PHASE_EXECUTE_BTN_KEY = { delete: "phaseDeleteExecuteBtn", create: "phaseCreateExecuteBtn", format: "phaseFormatExecuteBtn" };
+
+async function runPartitionPhasePreview(phase, device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
-  const previewEl = tool.querySelector(".pd-partition-preview");
+  const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
   previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
   try {
-    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}`);
+    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}&phase=${phase}`);
     const data = await res.json();
     if (!res.ok) {
       previewEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
       return;
     }
+
+    if (phase === "delete") {
+      const existing = data.existingPartitions || [];
+      if (!existing.length) {
+        previewEl.innerHTML = `<div class="pd-empty">${t("diskAlreadyEmpty")}</div>`;
+        return;
+      }
+      if (!data.eligible) {
+        previewEl.innerHTML = `
+          ${renderExistingPartitionsNotice(existing)}
+          <div class="pd-partition-danger">${t("partitionNotEligible")}: ${data.reason}</div>
+        `;
+        return;
+      }
+      const barParts = withClientPercent(existing.map(p => ({ label: (p.fsType || "?").toUpperCase(), device: p.device, sizeBytes: p.sizeBytes, fsType: (p.fsType || "").toUpperCase() })), data.diskSizeBytes);
+      previewEl.innerHTML = `
+        ${renderExistingPartitionsNotice(existing)}
+        ${renderPartitionVisualBar(barParts)}
+        ${renderPartitionBarLegend(barParts)}
+        <div class="pd-partition-danger">${t("partitionWarning")}</div>
+        <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
+        <label class="pd-partition-tool-label">${t("confirmDeviceLabel", device)}</label>
+        <input type="text" class="pd-confirm-device" placeholder="${device}">
+        <label class="pd-partition-tool-label">${t("confirmPhraseLabel", data.confirmPhrase)}</label>
+        <input type="text" class="pd-confirm-phrase" placeholder="${data.confirmPhrase}">
+        <button class="pd-phase-execute-btn" type="button" data-phase="delete" disabled>${t("phaseDeleteExecuteBtn")}</button>
+        <div class="pd-phase-result" data-phase="delete"></div>
+      `;
+      const deviceInput = previewEl.querySelector(".pd-confirm-device");
+      const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
+      const execBtn = previewEl.querySelector(".pd-phase-execute-btn");
+      const updateExecEnabled = () => {
+        execBtn.disabled = !(deviceInput.value === device && phraseInput.value === data.confirmPhrase);
+      };
+      deviceInput.addEventListener("input", updateExecEnabled);
+      phraseInput.addEventListener("input", updateExecEnabled);
+      return;
+    }
+
+    // "create" e "format" — mesma estrutura: mostra o esquema escolhido,
+    // a barra/legenda e o comando; só libera o botão se o backend disse
+    // que essa etapa está elegível AGORA (ou seja, a etapa anterior já
+    // rodou de verdade, reconferido no servidor, não só na tela).
     if (!data.eligible) {
       previewEl.innerHTML = `<div class="pd-partition-danger">${t("partitionNotEligible")}: ${data.reason}</div>`;
       return;
     }
     previewEl.innerHTML = `
-      ${renderExistingPartitionsNotice(data.existingPartitions)}
-      <div class="pd-partition-danger">${t("partitionWarning")}</div>
       <div class="pd-partition-tool-label">${data.schemeLabel} — ${t("partitionsToCreate")}</div>
       ${renderPartitionVisualBar(data.partitions)}
       ${renderPartitionBarLegend(data.partitions)}
       <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
-      <label class="pd-partition-tool-label">${t("confirmDeviceLabel", device)}</label>
-      <input type="text" class="pd-confirm-device" placeholder="${device}">
-      <label class="pd-partition-tool-label">${t("confirmPhraseLabel", data.confirmPhrase)}</label>
-      <input type="text" class="pd-confirm-phrase" placeholder="${data.confirmPhrase}">
-      <button class="pd-execute-partition-btn" type="button" disabled>${t("executePartitionBtn")}</button>
-      <div class="pd-partition-result"></div>
+      <button class="pd-phase-execute-btn" type="button" data-phase="${phase}">${t(PHASE_EXECUTE_BTN_KEY[phase])}</button>
+      <div class="pd-phase-result" data-phase="${phase}"></div>
     `;
-    const deviceInput = previewEl.querySelector(".pd-confirm-device");
-    const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
-    const execBtn = previewEl.querySelector(".pd-execute-partition-btn");
-    const updateExecEnabled = () => {
-      execBtn.disabled = !(deviceInput.value === device && phraseInput.value === data.confirmPhrase);
-    };
-    deviceInput.addEventListener("input", updateExecEnabled);
-    phraseInput.addEventListener("input", updateExecEnabled);
   } catch (err) {
     previewEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
   }
 }
 
-async function runPartitionExecute(device, card) {
+async function runPartitionPhaseExecute(phase, device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
-  const previewEl = tool.querySelector(".pd-partition-preview");
-  const deviceInput = previewEl.querySelector(".pd-confirm-device");
-  const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
-  const execBtn = previewEl.querySelector(".pd-execute-partition-btn");
-  const resultEl = previewEl.querySelector(".pd-partition-result");
+  const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
+  const execBtn = previewEl.querySelector(".pd-phase-execute-btn");
+  const resultEl = previewEl.querySelector(".pd-phase-result");
+  const body = { device, scheme, fsType, phase };
+  if (phase === "delete") {
+    body.confirmDevice = previewEl.querySelector(".pd-confirm-device").value;
+    body.confirmPhrase = previewEl.querySelector(".pd-confirm-phrase").value;
+  }
   execBtn.disabled = true;
   resultEl.innerHTML = `
     <div class="pd-partition-tool-label" data-progress-label>${t("partitionRunning")}</div>
@@ -1498,11 +1615,7 @@ async function runPartitionExecute(device, card) {
     const res = await apiFetch("/api/disk-partition/execute", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        device, scheme, fsType,
-        confirmDevice: deviceInput.value,
-        confirmPhrase: phraseInput.value
-      })
+      body: JSON.stringify(body)
     });
     const data = await res.json();
     if (!res.ok) {
@@ -1510,7 +1623,7 @@ async function runPartitionExecute(device, card) {
       execBtn.disabled = false;
       return;
     }
-    await pollPartitionJob(data.jobId, resultEl, execBtn);
+    await pollPartitionJob(phase, data.jobId, resultEl, execBtn);
   } catch (err) {
     resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
     execBtn.disabled = false;
@@ -1519,8 +1632,9 @@ async function runPartitionExecute(device, card) {
 
 // Acompanha o job em segundo plano (ver startPartitionExecution no
 // backend) até terminar — é isso que dá a barra de % de verdade em vez
-// de só uma mensagem estática de "rodando".
-function pollPartitionJob(jobId, resultEl, execBtn) {
+// de só uma mensagem estática de "rodando". Só atualiza a topologia no
+// final (etapa "formatar") pra não fechar o card no meio das três etapas.
+function pollPartitionJob(phase, jobId, resultEl, execBtn) {
   return new Promise(resolve => {
     const tick = async () => {
       let job;
@@ -1546,9 +1660,10 @@ function pollPartitionJob(jobId, resultEl, execBtn) {
       if (labelEl) labelEl.textContent = `${job.currentLabel} (${job.currentStep}/${job.totalSteps} — ${job.percent}%)`;
 
       if (job.status === "done") {
-        resultEl.innerHTML = `<div class="pd-empty">${t("partitionDone")}</div>`;
-        toast(t("partitionDone"));
-        loadDiskTopology();
+        const doneText = t(PHASE_DONE_KEY[phase]);
+        resultEl.innerHTML = `<div class="pd-empty">${doneText}</div>`;
+        toast(doneText);
+        if (phase === "format") loadDiskTopology();
         resolve();
         return;
       }
@@ -1573,6 +1688,7 @@ function bindDiskCardActions(containerId) {
     const card = e.target.closest(".physical-disk-card");
     if (!card) return;
     const device = card.dataset.device;
+    const barOrLegendTarget = e.target.closest(".pd-partition-bar-segment, .pd-partition-bar-legend-item");
     if (e.target.classList.contains("pd-check-btn")) {
       runDiskHealthCheck(device, card);
     } else if (e.target.classList.contains("pd-clean-btn")) {
@@ -1580,10 +1696,22 @@ function bindDiskCardActions(containerId) {
     } else if (e.target.classList.contains("pd-partition-toggle-btn")) {
       const tool = card.querySelector(".pd-partition-tool");
       tool.style.display = tool.style.display === "none" ? "block" : "none";
-    } else if (e.target.classList.contains("pd-preview-btn")) {
-      runPartitionPreview(device, card);
-    } else if (e.target.classList.contains("pd-execute-partition-btn")) {
-      runPartitionExecute(device, card);
+    } else if (e.target.classList.contains("pd-phase-preview-btn")) {
+      runPartitionPhasePreview(e.target.dataset.phase, device, card);
+    } else if (e.target.classList.contains("pd-phase-execute-btn")) {
+      runPartitionPhaseExecute(e.target.dataset.phase, device, card);
+    } else if (barOrLegendTarget) {
+      togglePartitionBarSelection(e, barOrLegendTarget.closest(".pd-phase-preview"));
+    } else if (e.target.classList.contains("pd-mount-toggle-btn")) {
+      const row = e.target.closest("[data-partition-device]");
+      const tool = row.querySelector(".pd-mount-tool");
+      tool.style.display = tool.style.display === "none" ? "block" : "none";
+    } else if (e.target.classList.contains("pd-mount-preview-btn")) {
+      const row = e.target.closest("[data-partition-device]");
+      runMountPreview(row.dataset.partitionDevice, row);
+    } else if (e.target.classList.contains("pd-execute-mount-btn")) {
+      const row = e.target.closest("[data-partition-device]");
+      runMountExecute(row.dataset.partitionDevice, row);
     }
   });
   // Windows (NTFS) não usa o seletor de sistema de arquivos — só faz
@@ -1596,7 +1724,26 @@ function bindDiskCardActions(containerId) {
   });
 }
 
-function renderDiskCard(disk) {
+// Linha de uma partição sem montar que pertence a ESTE disco físico —
+// antes era um card à parte numa seção separada "Partições sem montar";
+// agora fica dentro do próprio card do disco, tudo num lugar só.
+function renderUnmountedPartitionBlock(p) {
+  const meta = [p.fsType || "?", formatBytes(p.sizeBytes)].filter(Boolean).join(" · ");
+  return `
+    <div class="pd-unmounted-row" data-partition-device="${p.device}">
+      <div class="pd-partition-row">
+        <span class="pd-partition-mount"><code>${p.device}</code></span>
+        <span class="pd-partition-detail">${meta}</span>
+      </div>
+      <div class="pd-actions">
+        <button class="secondary pd-mount-toggle-btn" type="button">${t("mountBtn")}</button>
+      </div>
+      ${renderMountTool()}
+    </div>
+  `;
+}
+
+function renderDiskCard(disk, unmountedPartitions) {
   const meta = [
     disk.vendor,
     formatBytes(disk.sizeBytes),
@@ -1611,6 +1758,15 @@ function renderDiskCard(disk) {
   const hasSystemMount = disk.partitions.some(p => p.isSystemMount);
   const isAdmin = currentUserInfo?.role === "admin";
 
+  const unmountedHtml = (isAdmin && unmountedPartitions && unmountedPartitions.length)
+    ? `
+      <div class="pd-unmounted-block">
+        <div class="pd-health-title">${t("unmountedPartitionsTitle")}</div>
+        ${unmountedPartitions.map(renderUnmountedPartitionBlock).join("")}
+      </div>
+    `
+    : "";
+
   return `
     <div class="physical-disk-card" data-device="${disk.device}">
       <div class="pd-header">
@@ -1622,6 +1778,7 @@ function renderDiskCard(disk) {
       </div>
       <div class="pd-meta">${meta || "—"}</div>
       ${partitionsHtml}
+      ${unmountedHtml}
       <div class="pd-actions">
         <button class="secondary pd-check-btn" type="button">${t("checkHealthBtn")}</button>
         ${hasSystemMount && isAdmin ? `<button class="secondary pd-clean-btn" type="button">${t("runCleanupBtn")}</button>` : ""}
@@ -1681,23 +1838,46 @@ function renderFsTypeRadioList() {
   `;
 }
 
+// Três blocos separados — apagar / criar / formatar — cada um com seu
+// próprio botão de prévia e de execução (ver runPartitionPhasePreview/
+// runPartitionPhaseExecute). O esquema e o tipo de sistema de arquivos
+// são escolhidos uma vez só, no bloco "criar", e reaproveitados pelo
+// bloco "formatar" (é o mesmo valor que decide os dois).
 function renderPartitionTool(disk) {
   return `
     <div class="pd-partition-tool" style="display:none">
       ${renderDiskSidebar(disk)}
-      <label class="pd-partition-tool-label">${t("schemeLabel")}</label>
-      <select class="pd-scheme-select">
-        <option value="single">${t("schemeSingle")}</option>
-        <option value="linux-uefi">${t("schemeLinuxUefi")}</option>
-        <option value="windows-uefi">${t("schemeWindowsUefi")}</option>
-      </select>
-      <div class="pd-fstype-row">
-        <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
-        ${renderFsTypeRadioList()}
+
+      <div class="pd-phase-block" data-phase="delete">
+        <div class="pd-phase-title">${t("phaseDeleteTitle")}</div>
+        <div class="pd-empty">${t("phaseDeleteDesc")}</div>
+        <button class="secondary pd-phase-preview-btn" type="button" data-phase="delete">${t("phaseDeleteBtn")}</button>
+        <div class="pd-phase-preview" data-phase="delete"></div>
       </div>
-      <div class="pd-empty" style="margin-top:6px">${t("schemeOsNote")}</div>
-      <button class="secondary pd-preview-btn" type="button">${t("previewPartitionBtn")}</button>
-      <div class="pd-partition-preview"></div>
+
+      <div class="pd-phase-block" data-phase="create">
+        <div class="pd-phase-title">${t("phaseCreateTitle")}</div>
+        <label class="pd-partition-tool-label">${t("schemeLabel")}</label>
+        <select class="pd-scheme-select">
+          <option value="single">${t("schemeSingle")}</option>
+          <option value="linux-uefi">${t("schemeLinuxUefi")}</option>
+          <option value="windows-uefi">${t("schemeWindowsUefi")}</option>
+        </select>
+        <div class="pd-fstype-row">
+          <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
+          ${renderFsTypeRadioList()}
+        </div>
+        <div class="pd-empty" style="margin-top:6px">${t("schemeOsNote")}</div>
+        <button class="secondary pd-phase-preview-btn" type="button" data-phase="create">${t("phaseCreateBtn")}</button>
+        <div class="pd-phase-preview" data-phase="create"></div>
+      </div>
+
+      <div class="pd-phase-block" data-phase="format">
+        <div class="pd-phase-title">${t("phaseFormatTitle")}</div>
+        <div class="pd-empty">${t("phaseFormatDesc")}</div>
+        <button class="secondary pd-phase-preview-btn" type="button" data-phase="format">${t("phaseFormatBtn")}</button>
+        <div class="pd-phase-preview" data-phase="format"></div>
+      </div>
     </div>
   `;
 }
@@ -1714,23 +1894,46 @@ function renderShareCard(share) {
   `;
 }
 
+// Partições sem montar entram DENTRO do card do disco físico dono delas
+// (ver renderUnmountedPartitionBlock) — não existe mais uma seção à
+// parte pra isso, então essa busca acontece junto com a topologia.
+async function loadMountableByDisk() {
+  if (currentUserInfo?.role !== "admin") return new Map();
+  try {
+    const res = await apiFetch("/api/disk-mount/list");
+    if (!res.ok) return new Map();
+    const data = await res.json();
+    const byDisk = new Map();
+    (data.partitions || []).forEach(p => {
+      const key = p.parentDisk || "";
+      if (!byDisk.has(key)) byDisk.set(key, []);
+      byDisk.get(key).push(p);
+    });
+    return byDisk;
+  } catch (err) {
+    console.error("Falha ao carregar partições sem montar:", err);
+    return new Map();
+  }
+}
+
 async function loadDiskTopology() {
   try {
-    const res = await apiFetch("/api/disk-topology");
+    const [res, mountableByDisk] = await Promise.all([apiFetch("/api/disk-topology"), loadMountableByDisk()]);
     if (!res.ok) return;
     const data = await res.json();
+    const shortName = device => (device || "").replace(/^\/dev\//, "");
 
     const physGrid = document.getElementById("physicalDisksGrid");
     physGrid.classList.remove("sub");
     physGrid.innerHTML = (data.internalDisks || []).length
-      ? data.internalDisks.map(renderDiskCard).join("")
+      ? data.internalDisks.map(d => renderDiskCard(d, mountableByDisk.get(shortName(d.device)))).join("")
       : `<div class="pd-empty">${t("noPartitions")}</div>`;
 
     const usbPanel = document.getElementById("usbDisksPanel");
     const usbGrid = document.getElementById("usbDisksGrid");
     if ((data.usbDisks || []).length) {
       usbPanel.style.display = "";
-      usbGrid.innerHTML = data.usbDisks.map(renderDiskCard).join("");
+      usbGrid.innerHTML = data.usbDisks.map(d => renderDiskCard(d, mountableByDisk.get(shortName(d.device)))).join("");
     } else {
       usbPanel.style.display = "none";
     }
@@ -1756,22 +1959,6 @@ function renderMountTool() {
       <label class="pd-partition-tool-label"><input type="checkbox" class="pd-mount-persist-checkbox" checked> ${t("persistFstabLabel")}</label>
       <button class="secondary pd-mount-preview-btn" type="button">${t("previewMountBtn")}</button>
       <div class="pd-mount-preview"></div>
-    </div>
-  `;
-}
-
-function renderMountCard(p) {
-  const meta = [p.device, p.fsType || "?", formatBytes(p.sizeBytes)].filter(Boolean).join(" · ");
-  return `
-    <div class="physical-disk-card" data-device="${p.device}">
-      <div class="pd-header">
-        <div class="pd-title">${PD_DISK_ICON_SVG}<span class="pd-name">${p.label || p.device}</span></div>
-      </div>
-      <div class="pd-meta">${meta}</div>
-      <div class="pd-actions">
-        <button class="secondary pd-mount-toggle-btn" type="button">${t("mountBtn")}</button>
-      </div>
-      ${renderMountTool()}
     </div>
   `;
 }
@@ -1841,51 +2028,13 @@ async function runMountExecute(device, card) {
     }
     resultEl.innerHTML = `<div class="pd-empty">${t("mountDone")}</div>`;
     toast(t("mountDone"));
-    loadUnmountedPartitions();
+    // A linha dessa partição vive dentro do card do disco físico — uma
+    // atualização completa da topologia é o que tira ela da lista de
+    // "sem montar" agora que já foi montada.
     loadDiskTopology();
   } catch (err) {
     resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
     execBtn.disabled = false;
-  }
-}
-
-// Delegação de clique, mesmo espírito de bindDiskCardActions — os cards
-// são recriados a cada atualização.
-function bindMountCardActions(containerId) {
-  const container = document.getElementById(containerId);
-  container.addEventListener("click", e => {
-    const card = e.target.closest(".physical-disk-card");
-    if (!card) return;
-    const device = card.dataset.device;
-    if (e.target.classList.contains("pd-mount-toggle-btn")) {
-      const tool = card.querySelector(".pd-mount-tool");
-      tool.style.display = tool.style.display === "none" ? "block" : "none";
-    } else if (e.target.classList.contains("pd-mount-preview-btn")) {
-      runMountPreview(device, card);
-    } else if (e.target.classList.contains("pd-execute-mount-btn")) {
-      runMountExecute(device, card);
-    }
-  });
-}
-
-// Só admin tem a rota liberada no backend — pula direto se não for admin,
-// pra não gastar uma chamada que vai voltar 403 de qualquer jeito.
-async function loadUnmountedPartitions() {
-  if (currentUserInfo?.role !== "admin") return;
-  try {
-    const res = await apiFetch("/api/disk-mount/list");
-    if (!res.ok) return;
-    const data = await res.json();
-    const panel = document.getElementById("unmountedPartitionsPanel");
-    const grid = document.getElementById("unmountedPartitionsGrid");
-    if ((data.partitions || []).length) {
-      panel.style.display = "";
-      grid.innerHTML = data.partitions.map(renderMountCard).join("");
-    } else {
-      panel.style.display = "none";
-    }
-  } catch (err) {
-    console.error("Falha ao carregar partições sem montar:", err);
   }
 }
 
@@ -2679,7 +2828,6 @@ document.getElementById("langSelect").value = currentLang;
 applyTranslations();
 bindDiskCardActions("physicalDisksGrid");
 bindDiskCardActions("usbDisksGrid");
-bindMountCardActions("unmountedPartitionsGrid");
 (async () => {
   const authenticated = await checkAuth();
   if (!authenticated) return;
@@ -2688,9 +2836,9 @@ bindMountCardActions("unmountedPartitionsGrid");
   await loadStatus();
   // Não espera terminar (pode demorar mais que o resto — lê SMART de cada
   // disco físico) pra não travar o carregamento de CPU/RAM/processos
-  // enquanto isso não volta.
+  // enquanto isso não volta. Partições sem montar vêm junto (ver
+  // loadMountableByDisk), não tem mais uma busca separada pra isso.
   loadDiskTopology();
-  loadUnmountedPartitions();
   await loadProcesses();
   await loadLive();
   await loadNasRoots();
@@ -2703,10 +2851,10 @@ bindMountCardActions("unmountedPartitionsGrid");
   // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.
   setInterval(loadProcesses, 5000);
   setInterval(loadLive, 5000);
-  // Topologia (discos físicos/partições/USB/NAS) muda pouco — intervalo
-  // bem mais espaçado, só pra pegar disco novo plugado/desmontado.
+  // Topologia (discos físicos/partições/USB/NAS/partições sem montar)
+  // muda pouco — intervalo bem mais espaçado, só pra pegar disco novo
+  // plugado/desmontado.
   setInterval(loadDiskTopology, 60000);
-  setInterval(loadUnmountedPartitions, 60000);
 })();
 </script>
 </body>

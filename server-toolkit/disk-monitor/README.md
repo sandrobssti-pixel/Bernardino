@@ -436,6 +436,64 @@ Disks tem essas duas opções no assistente dele, mas esta ferramenta não
 suporta nomear volume nem apagamento seguro por sobrescrita, então elas
 ficaram de fora em vez de aparecer sem funcionar de verdade.
 
+**Três etapas separadas e visíveis — apagar / criar / formatar**: o
+botão único "Apagar e formatar agora" virou três botões independentes,
+um por etapa, cada um com sua própria prévia e resultado. Motivo: um
+caso real em hardware do próprio ambiente de testes onde o job parava
+logo na primeira etapa (apagar a tabela de partições antiga) sem
+nenhuma explicação visível — e como era um job único, nada rodava
+depois disso, então parecia que a ferramenta "não apagava partição
+nenhuma" quando na verdade só tinha falhado silenciosamente bem no
+começo. A causa raiz identificada: uma partição antiga do disco ainda
+estava "em uso" no nível do kernel (um mapeamento LUKS ou um array
+RAID aberto de uma formatação anterior que nunca foi fechado) — isso
+não aparece como "montada" (`si.blockDevices().mount` fica vazio), mas
+o `parted` recusa reescrever a tabela de partições mesmo assim.
+
+Correções:
+- `checkEligibility()` agora também confere `/sys/class/block/<partição>/holders/`
+  pra cada partição existente antes de liberar a etapa "apagar" — se
+  tiver algo lá, recusa com uma mensagem nomeando o dispositivo que está
+  segurando (ex.: `dm-2`) e o comando exato pra resolver
+  (`cryptsetup close <nome>` ou `mdadm --stop /dev/mdX`), em vez de só
+  deixar o `parted` falhar no meio sem explicação.
+- A etapa "apagar" nunca mais inicia a criação/formatação sozinha — e
+  vice-versa: `checkEligibility()` recusa "criar partição" se o disco
+  ainda tiver qualquer partição (precisa rodar "apagar" antes) e recusa
+  "formatar" se a partição esperada ainda não existir (precisa rodar
+  "criar" antes) — a ordem é garantida pelo servidor, reconferida do
+  zero em cada chamada, nunca só pela tela.
+- Só a etapa "apagar" pede a confirmação em duas camadas (caminho exato
+  do disco + frase "FORMATAR") — é a única que leva dado já existente;
+  criar partição num disco que a própria etapa anterior já deixou vazio,
+  ou formatar uma partição recém-criada, não tem nada de usuário pra
+  perder.
+- Quando um comando falha, o erro mostrado na tela agora inclui a saída
+  de verdade do comando (stderr/stdout), não só "falhou — veja o log" —
+  o técnico vê o motivo real sem precisar de SSH na máquina.
+- A barra proporcional de partições agora é clicável: clicar num pedaço
+  da barra (ou na linha correspondente da legenda) destaca os dois
+  juntos, pra deixar claro qual partição é qual antes de agir.
+
+**Partições sem montar, unificadas no card do disco**: a seção "Partições
+sem montar" deixou de ser um painel à parte, com seus próprios cards —
+agora cada partição sem ponto de montagem aparece dentro do card do
+próprio disco físico dono dela (campo `parentDisk` que `listMountablePartitions()`
+já devolvia), junto com o resto das ferramentas daquele disco. Tudo num
+lugar só, como pedido.
+
+**Honestidade sobre o que foi testado nesta rodada**: a correção do
+`holders` foi validada por leitura/raciocínio sobre `/sys/class/block`
+(mecanismo padrão do kernel Linux pra isso) e por execução das três
+etapas em modo de prévia contra discos reais do ambiente de
+desenvolvimento (sem `parted`/`udevadm` instalados ali, então a
+checagem de ferramenta faltando foi o que disparou — validando que o
+caminho de código roda sem erro) — ainda não foi confirmada contra um
+disco físico de verdade com um mapeamento LUKS/RAID aberto reproduzindo
+o sintoma original relatado. Ainda só Linux; Windows e macOS continuam
+retornando erro claro de "não implementado" em qualquer uma das três
+etapas.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

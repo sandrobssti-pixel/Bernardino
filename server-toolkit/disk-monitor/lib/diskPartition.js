@@ -1,5 +1,6 @@
 const { execFileSync } = require("child_process");
 const crypto = require("crypto");
+const fs = require("fs");
 const si = require("systeminformation");
 
 // Particionar/formatar um disco inteiro — a ação mais destrutiva e
@@ -15,7 +16,8 @@ const si = require("systeminformation");
 //    apagar o disco pra descobrir isso no meio do caminho.
 // 2. `preview` só MONTA os comandos como texto — nunca executa nada.
 //    `execute` exige exatamente essa mesma checagem de novo, mais duas
-//    confirmações explícitas do cliente (caminho do disco + frase).
+//    confirmações explícitas do cliente (caminho do disco + frase) —
+//    só na etapa de APAGAR, que é a única irreversível de verdade.
 // 3. Só Linux por enquanto — no Windows a API é bem diferente
 //    (diskpart/PowerShell) e no macOS também (diskutil, nomes de
 //    dispositivo /dev/diskN); nenhum dos dois foi implementado ainda,
@@ -28,10 +30,26 @@ const si = require("systeminformation");
 // (não copiam arquivo nenhum de SO, não configuram bootloader). Depois
 // de rodar isso, ainda é preciso instalar o Windows/Linux normalmente
 // (pendrive bootável, PXE, etc.) — só que já com o disco pronto.
+//
+// FLUXO EM TRÊS ETAPAS VISÍVEIS (delete / create / format) — antes era
+// um único job que fazia tudo de uma vez só, sem o técnico ver em qual
+// parte parou quando dava errado. Veio de um caso real: o job falhava
+// bem no início (apagar a tabela de partições antiga) porque uma
+// partição antiga ainda estava "em uso" no kernel (ex.: mapeamento LUKS
+// aberto de uma formatação anterior que nunca foi fechado) — e como o
+// job parava ali, NADA acontecia depois (nem criar partição nova, nem
+// formatar), e pra quem estava olhando só a tela parecia que "não
+// deletava partição nenhuma", sem explicação do motivo real. Agora cada
+// etapa é uma chamada separada, com resultado visível antes de liberar
+// a próxima, e a checagem de elegibilidade de "apagar" detecta
+// especificamente esse caso (partição com holder ativo no kernel) e
+// devolve o comando exato pra resolver, em vez de só falhar no meio do
+// `parted`.
 
 const isLinux = process.platform === "linux";
 const CONFIRM_PHRASE = "FORMATAR";
 const MIB = 1024 * 1024;
+const PHASES = new Set(["delete", "create", "format"]);
 
 function partName(device, n) {
   const shortName = device.replace(/^\/dev\//, "");
@@ -51,6 +69,21 @@ function parentDiskName(blockDeviceName) {
   if (!blockDeviceName) return null;
   const match = blockDeviceName.match(/^(nvme\d+n\d+|mmcblk\d+|sd[a-z]+|hd[a-z]+|vd[a-z]+|xvd[a-z]+)/);
   return match ? match[1] : blockDeviceName.replace(/\d+$/, "");
+}
+
+// Se essa partição está "segurada" por outro dispositivo do kernel (um
+// mapeamento dm-crypt/LUKS aberto, um membro de array mdadm, um grupo
+// LVM) — o /sys é a fonte mais confiável disso, não depende de nenhuma
+// ferramenta extra instalada. Uma partição com holder não aparece como
+// "montada" (si.blockDevices().mount fica vazio), mas o kernel recusa
+// apagar a tabela de partições dela mesmo assim — é exatamente o caso
+// que fazia o "apagar partições" falhar silenciosamente no meio.
+function partitionHolders(partitionShortName) {
+  try {
+    return fs.readdirSync(`/sys/class/block/${partitionShortName}/holders`);
+  } catch {
+    return [];
+  }
 }
 
 const FS_TYPES = new Set(["ext4", "xfs", "exfat"]);
@@ -112,14 +145,22 @@ function withVisualPercent(partitions, diskSizeBytes) {
   }));
 }
 
-function buildPlan(device, scheme, fsType) {
-  const normalizedScheme = SCHEMES.has(scheme) ? scheme : "single";
-  const described = describeScheme(device, normalizedScheme, fsType);
+// --- Comandos por etapa --------------------------------------------------
+// Separado em três listas em vez de uma só: "apagar" nunca cria nem
+// formata nada, "criar" nunca apaga nem formata, "formatar" nunca apaga
+// nem cria — cada botão da tela dispara só a lista certa.
 
-  const commands = [
+function buildDeleteCommands(device) {
+  return [
     { cmd: "wipefs", args: ["-a", device], label: "Apagando assinaturas antigas" },
-    { cmd: "parted", args: ["-s", device, "mklabel", "gpt"], label: "Criando tabela de partições GPT" }
+    { cmd: "parted", args: ["-s", device, "mklabel", "gpt"], label: "Criando tabela de partições GPT vazia" },
+    { cmd: "partprobe", args: [device], label: "Avisando o sistema que as partições antigas sumiram" },
+    { cmd: "udevadm", args: ["settle", "--timeout=10"], label: "Aguardando o sistema confirmar o disco limpo" }
   ];
+}
+
+function buildCreateCommands(device, described) {
+  const commands = [];
   described.partitions.forEach((p, i) => {
     commands.push({ cmd: "parted", args: ["-s", device, "mkpart", "primary", p.partedFsType, p.start, p.end], label: `Criando partição "${p.label}"` });
     if (p.espFlag) {
@@ -128,16 +169,28 @@ function buildPlan(device, scheme, fsType) {
   });
   // Sem isso, o kernel às vezes continua enxergando a tabela de partições
   // antiga (os nós /dev/sdXN novos não aparecem a tempo) e os `mkfs`
-  // abaixo tanto podem falhar quanto formatar o nó errado — validado
-  // contra hardware real: sem o partprobe, o disco ficava "formatado" só
-  // no parted, mas o painel continuava lendo as partições antigas.
+  // da etapa seguinte tanto podem falhar quanto formatar o nó errado —
+  // validado contra hardware real.
   commands.push({ cmd: "partprobe", args: [device], label: "Avisando o sistema sobre as partições novas" });
-  commands.push({ cmd: "udevadm", args: ["settle", "--timeout=10"], label: "Aguardando o sistema reconhecer os discos novos" });
-  described.partitions.forEach(p => {
-    commands.push({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device], label: `Formatando "${p.label}" (${p.device})` });
-  });
+  commands.push({ cmd: "udevadm", args: ["settle", "--timeout=10"], label: "Aguardando o sistema reconhecer as partições novas" });
+  return commands;
+}
 
-  return { device, scheme: normalizedScheme, schemeLabel: described.schemeLabel, partitions: described.partitions, commands };
+function buildFormatCommands(described) {
+  return described.partitions.map(p => ({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device], label: `Formatando "${p.label}" (${p.device})` }));
+}
+
+function buildPlan(device, scheme, fsType, phase) {
+  const normalizedScheme = SCHEMES.has(scheme) ? scheme : "single";
+  const normalizedPhase = PHASES.has(phase) ? phase : "delete";
+  const described = describeScheme(device, normalizedScheme, fsType);
+
+  let commands;
+  if (normalizedPhase === "delete") commands = buildDeleteCommands(device);
+  else if (normalizedPhase === "create") commands = buildCreateCommands(device, described);
+  else commands = buildFormatCommands(described);
+
+  return { device, phase: normalizedPhase, scheme: normalizedScheme, schemeLabel: described.schemeLabel, partitions: described.partitions, commands };
 }
 
 function planToPreviewLines(plan) {
@@ -145,15 +198,15 @@ function planToPreviewLines(plan) {
 }
 
 function requiredTools(plan) {
-  const tools = new Set(["wipefs", "parted", "partprobe", "udevadm"]);
-  plan.partitions.forEach(p => tools.add(p.mkfsCmd));
-  return [...tools];
+  if (plan.phase === "delete") return ["wipefs", "parted", "partprobe", "udevadm"];
+  if (plan.phase === "create") return ["parted", "partprobe", "udevadm"];
+  return [...new Set(plan.partitions.map(p => p.mkfsCmd))];
 }
 
-// Reconfere na hora se o disco está livre pra mexer, E se as ferramentas
-// que o esquema escolhido precisa estão instaladas — chamado tanto no
-// preview (só informativo) quanto, de novo, bem antes de executar.
-// Também devolve o tamanho do disco (pro desenho visual da barra).
+// Reconfere na hora se o disco está livre pra mexer nessa etapa
+// específica, E se as ferramentas que ela precisa estão instaladas —
+// chamado tanto no preview (só informativo) quanto, de novo, bem antes
+// de executar. Também devolve o tamanho do disco (pro desenho visual).
 async function checkEligibility(device, plan) {
   if (!isLinux) {
     return {
@@ -170,26 +223,76 @@ async function checkEligibility(device, plan) {
   const diskEntry = blockDevices.find(bd => bd.name === shortName && bd.type === "disk");
   const existingPartitions = blockDevices
     .filter(bd => bd.type === "part" && parentDiskName(bd.name) === shortName)
-    .map(bd => ({ device: `/dev/${bd.name}`, fsType: bd.fsType || "?", sizeBytes: bd.size || 0, mount: bd.mount || null }));
+    .map(bd => ({ device: `/dev/${bd.name}`, name: bd.name, fsType: bd.fsType || "?", sizeBytes: bd.size || 0, mount: bd.mount || null }));
   const exists = diskEntry || existingPartitions.length > 0;
   if (!exists) {
     return { eligible: false, reason: "Disco não encontrado no servidor.", diskSizeBytes: null, existingPartitions: [] };
   }
   const diskSizeBytes = diskEntry?.size || null;
-  const mountedPartition = existingPartitions.find(p => p.mount);
-  if (mountedPartition) {
-    return {
-      eligible: false,
-      reason: `O disco tem uma partição montada em "${mountedPartition.mount}" — desmonte tudo antes (isso nunca é feito automaticamente).`,
-      diskSizeBytes,
-      existingPartitions
-    };
-  }
+
   const missingTools = requiredTools(plan).filter(tool => !toolExists(tool));
   if (missingTools.length) {
     return {
       eligible: false,
-      reason: `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pra esse esquema: ${missingTools.join(", ")}. Instale antes de continuar (ex.: pacotes "parted", "dosfstools", "ntfs-3g", "util-linux", conforme a ferramenta faltando).`,
+      reason: `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pra essa etapa: ${missingTools.join(", ")}. Instale antes de continuar (ex.: pacotes "parted", "dosfstools", "ntfs-3g", "util-linux", conforme a ferramenta faltando).`,
+      diskSizeBytes,
+      existingPartitions
+    };
+  }
+
+  if (plan.phase === "delete") {
+    const mountedPartition = existingPartitions.find(p => p.mount);
+    if (mountedPartition) {
+      return {
+        eligible: false,
+        reason: `O disco tem uma partição montada em "${mountedPartition.mount}" — desmonte tudo antes (isso nunca é feito automaticamente).`,
+        diskSizeBytes,
+        existingPartitions
+      };
+    }
+    const busyPartition = existingPartitions
+      .map(p => ({ ...p, holders: partitionHolders(p.name) }))
+      .find(p => p.holders.length > 0);
+    if (busyPartition) {
+      return {
+        eligible: false,
+        reason: `A partição ${busyPartition.device} está em uso por outro dispositivo do kernel (${busyPartition.holders.join(", ")}) — provavelmente um mapeamento LUKS ou um array RAID aberto de uma formatação anterior que nunca foi fechado. Identifique com "dmsetup ls --target crypt" (LUKS) ou "cat /proc/mdstat" (RAID) e feche com "cryptsetup close <nome>" ou "mdadm --stop /dev/mdX", depois tente apagar de novo.`,
+        diskSizeBytes,
+        existingPartitions
+      };
+    }
+    return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
+  }
+
+  if (plan.phase === "create") {
+    if (existingPartitions.length > 0) {
+      return {
+        eligible: false,
+        reason: `O disco ainda tem ${existingPartitions.length} partição(ões) — apague as partições existentes antes de criar novas (etapa 1).`,
+        diskSizeBytes,
+        existingPartitions
+      };
+    }
+    return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
+  }
+
+  // "format" — as partições alvo (geradas por essa etapa "criar") precisam
+  // já existir de verdade no servidor agora, e não podem estar montadas.
+  const targetNames = plan.partitions.map(p => p.device.replace(/^\/dev\//, ""));
+  const missing = targetNames.filter(n => !blockDevices.some(bd => bd.name === n));
+  if (missing.length) {
+    return {
+      eligible: false,
+      reason: `Partição(ões) esperada(s) não encontrada(s): ${missing.map(n => "/dev/" + n).join(", ")} — rode "Criar partição" primeiro (etapa 2).`,
+      diskSizeBytes,
+      existingPartitions
+    };
+  }
+  const mountedTarget = blockDevices.find(bd => targetNames.includes(bd.name) && bd.mount);
+  if (mountedTarget) {
+    return {
+      eligible: false,
+      reason: `A partição /dev/${mountedTarget.name} está montada em "${mountedTarget.mount}" — desmonte antes de formatar.`,
       diskSizeBytes,
       existingPartitions
     };
@@ -197,19 +300,20 @@ async function checkEligibility(device, plan) {
   return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
 }
 
-async function previewPartition(device, scheme, fsType) {
-  const plan = buildPlan(device, scheme, fsType);
+async function previewPartition(device, scheme, fsType, phase) {
+  const plan = buildPlan(device, scheme, fsType, phase);
   const eligibility = await checkEligibility(device, plan);
   const partitionsWithPercent = withVisualPercent(plan.partitions, eligibility.diskSizeBytes);
   return {
     eligible: eligibility.eligible,
     reason: eligibility.reason,
     device,
+    phase: plan.phase,
     scheme: plan.scheme,
     schemeLabel: plan.schemeLabel,
     // Partições que JÁ existem no disco agora — mostradas pra deixar
     // explícito que elas serão apagadas (disco usado) ou que o disco já
-    // está vazio (sem nenhuma, disco novo), sem precisar adivinhar.
+    // está vazio (sem nenhuma, disco novo/já limpo), sem precisar adivinhar.
     existingPartitions: eligibility.existingPartitions || [],
     diskSizeBytes: eligibility.diskSizeBytes,
     partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk, sizeBytes: p.sizeBytes, fsType: p.displayFsType })),
@@ -236,11 +340,11 @@ function cleanupOldJobs() {
   }
 }
 
-async function startPartitionExecution(device, scheme, fsType) {
-  const plan = buildPlan(device, scheme, fsType);
+async function startPartitionExecution(device, scheme, fsType, phase) {
+  const plan = buildPlan(device, scheme, fsType, phase);
   const eligibility = await checkEligibility(device, plan);
   if (!eligibility.eligible) {
-    throw new Error(eligibility.reason || "Disco não elegível pra particionar.");
+    throw new Error(eligibility.reason || "Disco não elegível pra essa etapa.");
   }
 
   cleanupOldJobs();
@@ -248,6 +352,7 @@ async function startPartitionExecution(device, scheme, fsType) {
   const job = {
     jobId,
     device,
+    phase: plan.phase,
     scheme: plan.scheme,
     status: "running",
     currentStep: 0,
@@ -269,9 +374,13 @@ async function startPartitionExecution(device, scheme, fsType) {
         execFileSync(step.cmd, step.args, { encoding: "utf8", timeout: 120000 });
         job.log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: true });
       } catch (err) {
-        job.log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: false, error: String(err.message || err) });
+        // Mostra o stderr/stdout de verdade (não só "falhou") — é o que
+        // diferencia "disco ocupado por LUKS aberto" de qualquer outro
+        // erro pra quem estiver olhando a tela, sem precisar de SSH.
+        const detail = String(err.stderr || err.stdout || err.message || err).trim();
+        job.log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: false, error: detail });
         job.status = "error";
-        job.error = `Falhou em "${step.cmd}" — veja o log.`;
+        job.error = `Falhou em "${step.label}": ${detail}`;
         job.finishedAt = Date.now();
         return;
       }
@@ -290,8 +399,8 @@ async function startPartitionExecution(device, scheme, fsType) {
 function getPartitionJobStatus(jobId) {
   const job = jobs.get(jobId);
   if (!job) return null;
-  const { jobId: id, device, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error } = job;
-  return { jobId: id, device, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error };
+  const { jobId: id, device, phase, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error } = job;
+  return { jobId: id, device, phase, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error };
 }
 
 module.exports = { previewPartition, startPartitionExecution, getPartitionJobStatus, CONFIRM_PHRASE };

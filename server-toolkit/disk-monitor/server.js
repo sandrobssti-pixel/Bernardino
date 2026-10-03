@@ -269,16 +269,23 @@ app.get("/api/disk-health", auth.requireAuth, (req, res) => {
   }
 });
 
-// Particionar/formatar disco inteiro — ação irreversível. `preview` só
-// monta o texto dos comandos (nunca executa nada); `execute` reconfere a
-// elegibilidade de novo e exige a frase de confirmação exata, igual ao
-// desligamento do NAS (ver lib/diskPartition.js).
+// Particionar/formatar disco inteiro — dividido em três etapas visíveis
+// e independentes (delete/create/format, ver lib/diskPartition.js), cada
+// uma com seu próprio botão na tela. `preview` só monta o texto dos
+// comandos daquela etapa (nunca executa nada); `execute` reconfere a
+// elegibilidade de novo. A confirmação pesada (caminho do disco + frase,
+// igual ao desligamento do NAS) só é exigida na etapa "delete" — a única
+// de verdade irreversível (apagar dado existente); "create"/"format" só
+// mexem num disco que a própria etapa "delete" já deixou vazio.
+const PARTITION_PHASES = new Set(["delete", "create", "format"]);
+
 app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, res) => {
   if (!req.query.device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
+  const phase = PARTITION_PHASES.has(req.query.phase) ? req.query.phase : "delete";
   try {
-    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType);
+    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType, phase);
     res.json({ ...preview, confirmPhrase: CONFIRM_PHRASE });
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar prévia de particionamento:", err.message);
@@ -287,24 +294,30 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
 });
 
 app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, res) => {
-  const { device, scheme, fsType, confirmDevice, confirmPhrase } = req.body || {};
+  const { device, scheme, fsType, phase, confirmDevice, confirmPhrase } = req.body || {};
   if (!device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
-  if (confirmDevice !== device) {
-    return res.status(400).json({ error: "O caminho do disco digitado não confere." });
-  }
-  if (confirmPhrase !== CONFIRM_PHRASE) {
-    return res.status(400).json({ error: `Confirmação inválida — digite exatamente "${CONFIRM_PHRASE}".` });
+  const normalizedPhase = PARTITION_PHASES.has(phase) ? phase : "delete";
+  // Só a etapa que apaga dado existente pede a confirmação em duas
+  // camadas — criar partição num disco já vazio ou formatar uma partição
+  // recém-criada não tem nada de usuário pra perder.
+  if (normalizedPhase === "delete") {
+    if (confirmDevice !== device) {
+      return res.status(400).json({ error: "O caminho do disco digitado não confere." });
+    }
+    if (confirmPhrase !== CONFIRM_PHRASE) {
+      return res.status(400).json({ error: `Confirmação inválida — digite exatamente "${CONFIRM_PHRASE}".` });
+    }
   }
   try {
     console.log(
-      `[disk-monitor] Particionamento/formatação de "${device}" disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
+      `[disk-monitor] Etapa "${normalizedPhase}" de particionamento de "${device}" disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
     );
-    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType);
+    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType, normalizedPhase);
     res.json({ jobId, totalSteps });
   } catch (err) {
-    console.error("[disk-monitor] Falha ao iniciar particionamento/formatação:", err.message);
+    console.error("[disk-monitor] Falha ao iniciar etapa de particionamento:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
