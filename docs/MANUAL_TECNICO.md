@@ -5058,3 +5058,69 @@ demais.
   pré-existentes de sempre).
 - Pendente: reteste do cliente confirmando que a lista de 96 números
   não dispara mais o aviso de país diferente.
+
+## 68. disk-monitor — correções e funcionalidades novas (server-toolkit/disk-monitor v1.13.1 → v1.16.1)
+
+Módulo independente, versionamento próprio (`1.x`, não segue o `v2.3.x`
+do AtendeFlow acima — nenhum arquivo do backend/frontend do AtendeFlow
+mudou nesta leva). Documentação completa de cada item, incluindo seções
+de honestidade sobre o que foi testado contra hardware real, está em
+`server-toolkit/disk-monitor/README.md` — aqui só o resumo.
+
+### Bugs corrigidos
+
+- **Divergência de uso de disco** entre o painel principal e o card de
+  "Discos físicos" pro mesmo disco: a biblioteca `check-disk-space`
+  calculava "livre" excluindo os blocos reservados pra root no Linux
+  (~5% do disco), a `systeminformation` não — unificado numa fonte só
+  (`lib/diskUsage.js` passou a usar `systeminformation`), removida a
+  dependência antiga do `package.json`.
+- **Certificado autoassinado do Synology DSM**: `DSM_ALLOW_SELF_SIGNED`
+  era opt-in (exigia o cliente configurar `.env` manualmente) — virou
+  opt-out, já que praticamente todo NAS Synology numa rede local usa
+  certificado autoassinado por padrão. Mensagem de erro de TLS trocada
+  por uma explicação acionável (`lib/synologyApi.js`).
+- **Tamanho de disco do NAS inflado 1024x** (um HD de 4TB aparecia como
+  3726TB): `size_total` da API do Synology já vem em bytes nesta versão
+  do DSM, o código multiplicava por 1024 achando que vinha em KB —
+  validado contra hardware real (dois HDs Seagate/WDC de 4TB).
+- **Status "Atenção" (vermelho) falso** pro status `not_use` do DSM, que
+  só significa "disco presente mas fora de qualquer pool/volume" (ex.:
+  disco recém-colocado, antes de formatar) — agora distingue
+  saudável / com falha real / não configurado, mesmo princípio já usado
+  no badge de SMART dos discos locais (nunca assumir falha a partir de
+  dado ambíguo).
+- **Discos do NAS indistinguíveis** quando dois têm o mesmo modelo (ex.:
+  dois HDs de 4TB comprados juntos) — tabela agora sempre mostra a
+  posição física (ex. `sata2`) junto com o modelo.
+
+### Funcionalidades novas
+
+- **Montar partição sem ponto de montagem** (`lib/diskMount.js`): detecta
+  partições existentes sem mountpoint, preview do comando + linha de
+  fstab antes de executar, opção de persistir (com backup automático do
+  `/etc/fstab`, nunca duplica entrada). Só `/mnt` ou `/media` por
+  segurança.
+- **Limpeza avançada por categorias seguras** (`lib/diskCleanupScan.js`):
+  temporários, lixeira, cache de navegador, cache de pacotes do sistema
+  (apt/Homebrew), revisões antigas de Snap — com gráfico de uso por
+  categoria. Deliberadamente **não** inclui "achar executável sem uso"
+  nem "desfragmentação" (pedidos e recusados por risco real de quebrar o
+  sistema do cliente / ser obsoleto em SSD — decisão documentada no
+  README).
+- **Gerador de roteiro pra espelhar o disco do sistema em RAID1**
+  (`lib/raidMirror.js`): detecta disco do mesmo tamanho do sistema ou
+  maior (sobra vira partição de backup automática, fora do array) e gera
+  o roteiro de comandos exato (`sgdisk`/`mdadm`/`rsync`/`grub-install`)
+  — **a única ação deste painel que nunca vira um botão "executar"**,
+  por envolver bootloader e reinicialização (erro pode deixar o servidor
+  sem ligar). Inclui parar/religar containers Docker em volta da cópia,
+  pra garantir consistência dos dados do AtendeFlow/Seafile.
+
+### Uso real nesta sessão
+
+Motivado por manutenção real na VPS de produção: adição de dois HDs de
+4TB no NAS (daí os bugs de tamanho/status acima) e planejamento de
+migrar o disco do sistema da VPS (120GB) pra um RAID1 num disco de
+240GB (partição espelhada + partição de backup), usando o próprio
+gerador de roteiro construído aqui.
