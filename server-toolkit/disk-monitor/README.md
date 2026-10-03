@@ -396,12 +396,13 @@ incluindo disco inexistente, disco com partição montada e ferramenta
 faltando, todos recusados corretamente; testado também o fluxo completo
 até a prévia (com `parted`/`dosfstools` instalados) mostrando a lista de
 partições e os comandos certos pros três esquemas. A execução de
-verdade (`wipefs`/`parted`/`mkfs`/`mkswap`) **não foi testada contra um
-disco físico real** nesta sessão (não há um disco descartável
-disponível pra testar com segurança). Teste primeiro com "Ver comando"
-pra conferir que o disco/comando estão certos, e considere testar a
-execução pela primeira vez num disco de teste antes de confiar em
-produção. **Só Linux** por enquanto — no Windows e no macOS a
+verdade foi confirmada contra hardware real (HD de 240GB com partições
+antigas vfat/ext4/LUKS) — e revelou um bug real: sem `partprobe` depois
+de criar as partições, o kernel continuava com a visão antiga da tabela
+de partições, então o painel (e o `mkfs` seguinte) lia o layout velho em
+vez do novo. Corrigido adicionando `partprobe <disco>` +
+`udevadm settle` logo depois de criar as partições, antes de formatar
+cada uma. **Só Linux** por enquanto — no Windows e no macOS a
 integração ainda não existe (retorna erro claro em vez de tentar algo
 não testado).
 

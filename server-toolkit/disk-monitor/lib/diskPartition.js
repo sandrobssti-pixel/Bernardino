@@ -106,6 +106,13 @@ function buildPlan(device, scheme, fsType) {
       commands.push({ cmd: "parted", args: ["-s", device, "set", String(i + 1), "esp", "on"] });
     }
   });
+  // Sem isso, o kernel às vezes continua enxergando a tabela de partições
+  // antiga (os nós /dev/sdXN novos não aparecem a tempo) e os `mkfs`
+  // abaixo tanto podem falhar quanto formatar o nó errado — validado
+  // contra hardware real: sem o partprobe, o disco ficava "formatado" só
+  // no parted, mas o painel continuava lendo as partições antigas.
+  commands.push({ cmd: "partprobe", args: [device] });
+  commands.push({ cmd: "udevadm", args: ["settle", "--timeout=10"] });
   described.partitions.forEach(p => {
     commands.push({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device] });
   });
@@ -118,7 +125,7 @@ function planToPreviewLines(plan) {
 }
 
 function requiredTools(plan) {
-  const tools = new Set(["wipefs", "parted"]);
+  const tools = new Set(["wipefs", "parted", "partprobe", "udevadm"]);
   plan.partitions.forEach(p => tools.add(p.mkfsCmd));
   return [...tools];
 }
