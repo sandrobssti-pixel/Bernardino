@@ -416,6 +416,26 @@ dispara o trabalho em segundo plano (`POST .../execute` devolve um
 e % concluído numa barra de verdade — em vez de uma mensagem estática de
 "rodando" sem noção de quanto falta.
 
+**Layout inspirado no painel nativo "Discos" do Ubuntu (GNOME Disks)**:
+a ferramenta de particionar/formatar ganhou uma ficha técnica do disco
+(Modelo / Número de série / Tamanho / Interface) antes do seletor de
+esquema — igual à barra lateral do GNOME Disks —, e o seletor de sistema
+de arquivos deixou de ser um `<select>` seco e virou uma lista de opções
+explicadas (igual ao passo "Tipo" do assistente de formatação do GNOME
+Disks: "Disco interno para usar somente com sistemas Linux (Ext4)",
+"Para usar com todos os sistemas e dispositivos (exFAT)", "Avançado —
+Linux (XFS)"). A barra proporcional de partições ganhou uma legenda
+embaixo com número da partição, tamanho e tipo de sistema de arquivos de
+cada pedaço, com a cor batendo com o segmento na barra — igual à
+legenda "Partição 1 / 1.1 GB / FAT" do GNOME Disks. Número de série vem
+de `systeminformation` (`si.diskLayout()`); quando o fabricante/driver
+não expõe esse dado, mostra "Não informado pelo fabricante" em vez de
+inventar um valor. Não existe (e não foi adicionado) campo de "nome do
+volume" nem alternância de "apagar com sobrescrita segura" — o GNOME
+Disks tem essas duas opções no assistente dele, mas esta ferramenta não
+suporta nomear volume nem apagamento seguro por sobrescrita, então elas
+ficaram de fora em vez de aparecer sem funcionar de verdade.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

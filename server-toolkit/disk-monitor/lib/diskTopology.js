@@ -70,6 +70,7 @@ async function readDiskTopology(systemMountPath) {
       device: disk.device || shortName,
       name: disk.name || shortName || "—",
       vendor: disk.vendor || "",
+      serialNum: disk.serialNum || "",
       sizeBytes: disk.size || 0,
       interfaceType: disk.interfaceType || "",
       isUsb: interfaceType.includes("USB"),

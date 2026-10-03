@@ -71,9 +71,9 @@ function describeScheme(device, scheme, fsType) {
     return {
       schemeLabel: "Linux com UEFI (EFI + swap + raiz)",
       partitions: [
-        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
-        { label: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2), fixedBytes: SWAP_BYTES },
-        { label: `raiz (${rootType})`, partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3), fixedBytes: null }
+        { label: "EFI (boot)", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "swap", displayFsType: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2), fixedBytes: SWAP_BYTES },
+        { label: `raiz (${rootType})`, displayFsType: rootType.toUpperCase(), partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3), fixedBytes: null }
       ]
     };
   }
@@ -82,8 +82,8 @@ function describeScheme(device, scheme, fsType) {
     return {
       schemeLabel: "Windows com UEFI (EFI + principal NTFS)",
       partitions: [
-        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
-        { label: "principal (NTFS)", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2), fixedBytes: null }
+        { label: "EFI (boot)", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "principal (NTFS)", displayFsType: "NTFS", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2), fixedBytes: null }
       ]
     };
   }
@@ -93,7 +93,7 @@ function describeScheme(device, scheme, fsType) {
   return {
     schemeLabel: "Volume único (dados)",
     partitions: [
-      { label: `dado (${rootType})`, partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1), fixedBytes: null }
+      { label: `dado (${rootType})`, displayFsType: rootType.toUpperCase(), partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1), fixedBytes: null }
     ]
   };
 }
@@ -102,11 +102,12 @@ function describeScheme(device, scheme, fsType) {
 // desenho visual (barra proporcional) — partição sem `fixedBytes` (a
 // "raiz"/"principal"/"dado") fica com o que sobrar.
 function withVisualPercent(partitions, diskSizeBytes) {
-  if (!diskSizeBytes) return partitions.map(p => ({ ...p, percentOfDisk: null }));
+  if (!diskSizeBytes) return partitions.map(p => ({ ...p, percentOfDisk: null, sizeBytes: p.fixedBytes || null }));
   const fixedTotal = partitions.reduce((sum, p) => sum + (p.fixedBytes || 0), 0);
   const remainderBytes = Math.max(0, diskSizeBytes - fixedTotal);
   return partitions.map(p => ({
     ...p,
+    sizeBytes: p.fixedBytes || remainderBytes,
     percentOfDisk: Math.max(1, Math.round(((p.fixedBytes || remainderBytes) / diskSizeBytes) * 100))
   }));
 }
@@ -210,7 +211,8 @@ async function previewPartition(device, scheme, fsType) {
     // explícito que elas serão apagadas (disco usado) ou que o disco já
     // está vazio (sem nenhuma, disco novo), sem precisar adivinhar.
     existingPartitions: eligibility.existingPartitions || [],
-    partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk })),
+    diskSizeBytes: eligibility.diskSizeBytes,
+    partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk, sizeBytes: p.sizeBytes, fsType: p.displayFsType })),
     commands: planToPreviewLines(plan)
   };
 }

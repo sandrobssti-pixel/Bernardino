@@ -216,6 +216,37 @@
     border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 0.82rem;
   }
   .pd-preview-btn { margin-top: 10px; }
+  /* Inspirado no painel nativo "Discos" do Ubuntu (GNOME Disks) — ficha
+     técnica do disco (Modelo/Número de série/Tamanho/Interface) em cima
+     do seletor de esquema, pra deixar claro qual disco físico vai ser
+     mexido antes de qualquer escolha. */
+  .pd-disk-sidebar {
+    background: rgba(0,0,0,0.22); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 10px;
+    display: grid; grid-template-columns: auto 1fr; gap: 4px 12px;
+  }
+  .pd-disk-sidebar-label { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+  .pd-disk-sidebar-value { font-size: 0.78rem; font-weight: 600; word-break: break-all; }
+  .pd-fstype-radio-list { display: flex; flex-direction: column; gap: 6px; }
+  .pd-fstype-radio-option {
+    display: flex; align-items: flex-start; gap: 8px; cursor: pointer;
+    background: rgba(148,163,184,0.06); border: 1px solid var(--panel-border);
+    border-radius: 8px; padding: 8px 10px; transition: border-color 0.15s ease;
+  }
+  .pd-fstype-radio-option:has(input:checked) { border-color: var(--accent2); background: rgba(124,92,245,0.1); }
+  .pd-fstype-radio-option input[type="radio"] { margin-top: 3px; flex-shrink: 0; width: auto; }
+  .pd-fstype-radio-text { display: flex; flex-direction: column; }
+  .pd-fstype-radio-title { font-size: 0.8rem; font-weight: 600; }
+  .pd-fstype-radio-desc { font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; }
+  /* Segmentos da barra visual com legenda de duas linhas embaixo (número +
+     tipo de sistema de arquivos / tamanho) — igual ao GNOME Disks. */
+  .pd-partition-bar-legend {
+    display: flex; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px;
+  }
+  .pd-partition-bar-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; }
+  .pd-partition-bar-legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  .pd-partition-bar-legend-text { color: var(--text-muted); }
+  .pd-partition-bar-legend-text b { color: var(--text); font-weight: 600; }
   .pd-partition-danger {
     background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.4);
     color: var(--crit); border-radius: 8px; padding: 8px 10px;
@@ -587,6 +618,16 @@ const translations = {
     schemeWindowsUefi: "Windows com UEFI (EFI + principal NTFS)",
     schemeOsNote: "Isso só prepara a estrutura de partições — instalar o sistema operacional em si ainda precisa do instalador oficial (pendrive bootável, etc).",
     partitionsToCreate: "partições que serão criadas",
+    diskModelLabel: "Modelo", diskSerialLabel: "Número de série",
+    diskSizeLabel: "Tamanho", diskInterfaceLabel: "Interface",
+    diskSerialUnknown: "Não informado pelo fabricante",
+    fsTypeExt4Title: "Disco interno para usar somente com sistemas Linux (Ext4)",
+    fsTypeExt4Desc: "Formato nativo do Linux — não é lido por Windows/macOS sem ferramenta extra.",
+    fsTypeExfatTitle: "Para usar com todos os sistemas e dispositivos (exFAT)",
+    fsTypeExfatDesc: "Lido por Windows, macOS e Linux — ideal pra disco que vai circular entre máquinas diferentes.",
+    fsTypeXfsTitle: "Avançado — Linux (XFS)",
+    fsTypeXfsDesc: "Também só Linux — recomendado só se você já usa XFS de propósito neste servidor.",
+    partitionLabel: n => `Partição ${n}`,
     unmountedPartitionsTitle: "Partições sem montar",
     noUnmountedPartitions: "Nenhuma partição sem montar encontrada.",
     mountBtn: "Montar",
@@ -751,6 +792,16 @@ const translations = {
     schemeWindowsUefi: "Windows con UEFI (EFI + principal NTFS)",
     schemeOsNote: "Esto solo prepara la estructura de particiones — instalar el sistema operativo en sí todavía necesita el instalador oficial (USB de arranque, etc).",
     partitionsToCreate: "particiones que se crearán",
+    diskModelLabel: "Modelo", diskSerialLabel: "Número de serie",
+    diskSizeLabel: "Tamaño", diskInterfaceLabel: "Interfaz",
+    diskSerialUnknown: "No informado por el fabricante",
+    fsTypeExt4Title: "Disco interno para usar solo con sistemas Linux (Ext4)",
+    fsTypeExt4Desc: "Formato nativo de Linux — no es leído por Windows/macOS sin herramienta extra.",
+    fsTypeExfatTitle: "Para usar con todos los sistemas y dispositivos (exFAT)",
+    fsTypeExfatDesc: "Leído por Windows, macOS y Linux — ideal para un disco que circulará entre máquinas distintas.",
+    fsTypeXfsTitle: "Avanzado — Linux (XFS)",
+    fsTypeXfsDesc: "También solo Linux — recomendado solo si ya usa XFS a propósito en este servidor.",
+    partitionLabel: n => `Partición ${n}`,
     unmountedPartitionsTitle: "Particiones sin montar",
     noUnmountedPartitions: "No se encontraron particiones sin montar.",
     mountBtn: "Montar",
@@ -915,6 +966,16 @@ const translations = {
     schemeWindowsUefi: "Windows with UEFI (EFI + primary NTFS)",
     schemeOsNote: "This only prepares the partition structure — actually installing the operating system still needs the official installer (bootable USB, etc).",
     partitionsToCreate: "partitions that will be created",
+    diskModelLabel: "Model", diskSerialLabel: "Serial number",
+    diskSizeLabel: "Size", diskInterfaceLabel: "Interface",
+    diskSerialUnknown: "Not reported by manufacturer",
+    fsTypeExt4Title: "Internal disk for use only with Linux systems (Ext4)",
+    fsTypeExt4Desc: "Linux's native format — not readable by Windows/macOS without extra software.",
+    fsTypeExfatTitle: "For use with all systems and devices (exFAT)",
+    fsTypeExfatDesc: "Readable by Windows, macOS and Linux — ideal for a disk that will travel between different machines.",
+    fsTypeXfsTitle: "Advanced — Linux (XFS)",
+    fsTypeXfsDesc: "Also Linux-only — recommended only if you're already intentionally using XFS on this server.",
+    partitionLabel: n => `Partition ${n}`,
     unmountedPartitionsTitle: "Unmounted partitions",
     noUnmountedPartitions: "No unmounted partitions found.",
     mountBtn: "Mount",
@@ -1335,6 +1396,26 @@ function renderPartitionVisualBar(partitions) {
   return `<div style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
 }
 
+// Legenda embaixo da barra, duas linhas por partição (número + tipo de
+// sistema de arquivos / tamanho e caminho do dispositivo) — igual ao
+// jeito que o GNOME Disks rotula cada pedaço da barra proporcional.
+function renderPartitionBarLegend(partitions) {
+  const items = partitions.map((p, i) => {
+    const color = PD_PARTITION_COLORS[i % PD_PARTITION_COLORS.length];
+    const sizeText = p.sizeBytes ? formatBytes(p.sizeBytes) : "";
+    const fsText = p.fsType || "";
+    return `
+      <div class="pd-partition-bar-legend-item">
+        <span class="pd-partition-bar-legend-swatch" style="background:${color}"></span>
+        <span class="pd-partition-bar-legend-text">
+          <b>${t("partitionLabel", i + 1)}</b> — ${[sizeText, fsText].filter(Boolean).join(" ")} — <code>${p.device}</code>
+        </span>
+      </div>
+    `;
+  }).join("");
+  return `<div class="pd-partition-bar-legend">${items}</div>`;
+}
+
 // Deixa explícito, ANTES de escolher o esquema, se o disco já tem
 // conteúdo (HD usado — vai apagar) ou já está vazio (HD novo) — sem
 // isso o usuário precisava adivinhar o que ia acontecer com dados
@@ -1358,7 +1439,7 @@ function renderExistingPartitionsNotice(existingPartitions) {
 async function runPartitionPreview(device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
-  const fsType = tool.querySelector(".pd-fstype-select").value;
+  const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
   const previewEl = tool.querySelector(".pd-partition-preview");
   previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
   try {
@@ -1372,13 +1453,12 @@ async function runPartitionPreview(device, card) {
       previewEl.innerHTML = `<div class="pd-partition-danger">${t("partitionNotEligible")}: ${data.reason}</div>`;
       return;
     }
-    const partitionsList = data.partitions.map(p => `<li>${p.label} — <code>${p.device}</code></li>`).join("");
     previewEl.innerHTML = `
       ${renderExistingPartitionsNotice(data.existingPartitions)}
       <div class="pd-partition-danger">${t("partitionWarning")}</div>
       <div class="pd-partition-tool-label">${data.schemeLabel} — ${t("partitionsToCreate")}</div>
       ${renderPartitionVisualBar(data.partitions)}
-      <ul class="pd-partition-list">${partitionsList}</ul>
+      ${renderPartitionBarLegend(data.partitions)}
       <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
       <label class="pd-partition-tool-label">${t("confirmDeviceLabel", device)}</label>
       <input type="text" class="pd-confirm-device" placeholder="${device}">
@@ -1403,7 +1483,7 @@ async function runPartitionPreview(device, card) {
 async function runPartitionExecute(device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
-  const fsType = tool.querySelector(".pd-fstype-select").value;
+  const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
   const previewEl = tool.querySelector(".pd-partition-preview");
   const deviceInput = previewEl.querySelector(".pd-confirm-device");
   const phraseInput = previewEl.querySelector(".pd-confirm-phrase");
@@ -1548,14 +1628,63 @@ function renderDiskCard(disk) {
         ${!hasSystemMount && isAdmin ? `<button class="secondary pd-partition-toggle-btn" type="button">${t("partitionBtn")}</button>` : ""}
       </div>
       <div class="pd-health-result"></div>
-      ${!hasSystemMount && isAdmin ? renderPartitionTool() : ""}
+      ${!hasSystemMount && isAdmin ? renderPartitionTool(disk) : ""}
     </div>
   `;
 }
 
-function renderPartitionTool() {
+// Ficha técnica do disco no estilo da barra lateral do GNOME Disks (painel
+// nativo "Discos" do Ubuntu) — mostra só o que a gente de fato tem (nunca
+// inventa "tabela de partições" ou outro dado que não consiga ler).
+function renderDiskSidebar(disk) {
+  const rows = [
+    [t("diskModelLabel"), disk.name || "—"],
+    [t("diskSerialLabel"), disk.serialNum || t("diskSerialUnknown")],
+    [t("diskSizeLabel"), formatBytes(disk.sizeBytes)],
+    [t("diskInterfaceLabel"), disk.interfaceType || "—"]
+  ];
+  return `
+    <div class="pd-disk-sidebar">
+      ${rows.map(([label, value]) => `
+        <span class="pd-disk-sidebar-label">${label}</span>
+        <span class="pd-disk-sidebar-value">${value}</span>
+      `).join("")}
+    </div>
+  `;
+}
+
+// Em vez de um <select> seco, uma lista de opções com título + explicação
+// (igual ao "Tipo" do assistente de formatação do GNOME Disks) — mesmas
+// três opções de sempre (ext4/exFAT/xfs), só explicadas em vez de cruas.
+function renderFsTypeRadioList() {
+  const options = [
+    ["ext4", t("fsTypeExt4Title"), t("fsTypeExt4Desc"), true],
+    ["exfat", t("fsTypeExfatTitle"), t("fsTypeExfatDesc"), false],
+    ["xfs", t("fsTypeXfsTitle"), t("fsTypeXfsDesc"), false]
+  ];
+  // Mesmo nome de grupo pras três opções (senão cada rádio vira seu próprio
+  // grupo e dá pra "selecionar" mais de um ao mesmo tempo) — só precisa ser
+  // único ENTRE CARDS, não entre as opções do mesmo card.
+  const groupName = `pd-fstype-${Math.random().toString(36).slice(2)}`;
+  return `
+    <div class="pd-fstype-radio-list">
+      ${options.map(([value, title, desc, checked]) => `
+        <label class="pd-fstype-radio-option">
+          <input type="radio" name="${groupName}" class="pd-fstype-radio" value="${value}" ${checked ? "checked" : ""}>
+          <span class="pd-fstype-radio-text">
+            <span class="pd-fstype-radio-title">${title}</span>
+            <span class="pd-fstype-radio-desc">${desc}</span>
+          </span>
+        </label>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderPartitionTool(disk) {
   return `
     <div class="pd-partition-tool" style="display:none">
+      ${renderDiskSidebar(disk)}
       <label class="pd-partition-tool-label">${t("schemeLabel")}</label>
       <select class="pd-scheme-select">
         <option value="single">${t("schemeSingle")}</option>
@@ -1564,11 +1693,7 @@ function renderPartitionTool() {
       </select>
       <div class="pd-fstype-row">
         <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
-        <select class="pd-fstype-select">
-          <option value="ext4">ext4</option>
-          <option value="xfs">xfs</option>
-          <option value="exfat">exFAT</option>
-        </select>
+        ${renderFsTypeRadioList()}
       </div>
       <div class="pd-empty" style="margin-top:6px">${t("schemeOsNote")}</div>
       <button class="secondary pd-preview-btn" type="button">${t("previewPartitionBtn")}</button>
