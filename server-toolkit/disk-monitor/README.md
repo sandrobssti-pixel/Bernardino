@@ -797,6 +797,27 @@ passo 5 (UUID do array confirmado, prestes a editar o fstab) — passos
 5 (resto), 6, 7 e 8 ainda não foram confirmados executando de ponta a
 ponta.
 
+6. **Corrigido: `grub-install` sem a ESP de verdade montada**. O
+   `/boot/efi` é uma partição separada (`fat32`); o `rsync` só copia os
+   ARQUIVOS que estavam visíveis ali, não deixa uma partição de verdade
+   montada no destino — então rodar `grub-install` direto, sem montar a
+   ESP de cada disco antes, ia falhar (ou pior, escrever num diretório
+   comum do ext4 em vez da partição EFI de verdade, deixando o disco
+   silenciosamente não-bootável). Corrigido: o passo 5 agora monta a
+   ESP do disco original (`${sysDevice}1`), instala o bootloader nela,
+   desmonta, monta a ESP do disco novo (`${targetDevice}1`), instala o
+   bootloader nela também, desmonta, e remonta a do disco original por
+   último (pra bater com o que o `/etc/fstab` da nova raiz espera no
+   próximo boot). Achado ANTES de rodar o `grub-install` de verdade —
+   ainda não confirmado executando.
+
+**Honestidade (atualizada de novo)**: passo 5 completo (incluindo o
+ajuste do EFI acima) ainda não foi confirmado executando de ponta a
+ponta — a correção foi feita a partir do raciocínio sobre como
+`grub-install`/ESP funcionam, não de um erro já visto em produção como
+os itens 1-5 acima. Reboot (passo 6) e o que vem depois continuam sem
+nenhuma confirmação real.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

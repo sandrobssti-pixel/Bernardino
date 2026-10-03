@@ -238,16 +238,31 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       ]
     },
     {
+      // grub-install precisa da ESP de VERDADE montada em /boot/efi pra
+      // saber onde escrever o bootloader — o rsync só copiou os ARQUIVOS
+      // que estavam visíveis ali (porque /boot/efi é partição separada),
+      // não deixou uma partição montada no destino. Sem montar a ESP de
+      // cada disco antes do grub-install correspondente, ele falha (ou,
+      // pior, escreve num diretório comum do ext4 em vez da partição
+      // EFI de verdade, deixando o disco não-bootável sem avisar).
       title: "5. Ajustar fstab, initramfs e instalar o bootloader nos dois discos (dentro de um chroot)",
       commands: [
         `mount --bind /dev /mnt/newroot/dev && mount --bind /proc /mnt/newroot/proc && mount --bind /sys /mnt/newroot/sys`,
         `chroot /mnt/newroot blkid -s UUID -o value /dev/md0   # anote esse UUID`,
         `# edite /mnt/newroot/etc/fstab trocando a linha da raiz pra: UUID=<anotado>  /  ext4  defaults  0  1`,
         `mdadm --detail --scan >> /mnt/newroot/etc/mdadm/mdadm.conf`,
-        `chroot /mnt/newroot update-initramfs -u`,
+        `# Monta a ESP do disco ORIGINAL de verdade antes de instalar o bootloader nela`,
+        `mount ${sysDevice}1 /mnt/newroot/boot/efi`,
         `chroot /mnt/newroot grub-install ${sysDevice}`,
+        `chroot /mnt/newroot update-initramfs -u`,
+        `chroot /mnt/newroot update-grub`,
+        `umount /mnt/newroot/boot/efi`,
+        `# Agora monta a ESP do disco NOVO e instala o bootloader nela também`,
+        `mount ${targetDevice}1 /mnt/newroot/boot/efi`,
         `chroot /mnt/newroot grub-install ${targetDevice}`,
-        `chroot /mnt/newroot update-grub`
+        `umount /mnt/newroot/boot/efi`,
+        `# Deixa montada de novo a do disco original, que é a que bate com o fstab no próximo boot`,
+        `mount ${sysDevice}1 /mnt/newroot/boot/efi`
       ]
     },
     {
