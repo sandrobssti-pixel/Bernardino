@@ -137,7 +137,16 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       commands: [`mdadm --create /dev/md0 --level=1 --raid-devices=2 missing ${newRootPart}`, `mkfs.ext4 /dev/md0`]
     },
     {
-      title: "4. Copiar o sistema atual pro array novo",
+      title: "4a. Parar os containers Docker antes de copiar (evita cópia inconsistente de dados sendo escritos agora)",
+      commands: [
+        `# Rode isso em cada stack que estiver de pé (ex.: AtendeFlow, Seafile) — ajuste os caminhos do docker-compose.yml:`,
+        `docker compose -f /caminho/docker-compose.yml down`,
+        `# Confirme que não sobrou nada rodando:`,
+        `docker ps`
+      ]
+    },
+    {
+      title: "4b. Copiar o sistema atual pro array novo (com os containers parados)",
       commands: [
         `mkdir -p /mnt/newroot`,
         `mount /dev/md0 /mnt/newroot`,
@@ -160,6 +169,10 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
     {
       title: "6. Reiniciar e CONFIRMAR que o sistema ligou a partir do RAID — NÃO prossiga sem confirmar",
       commands: [`reboot`, `# depois de ligar: cat /proc/mdstat   (precisa mostrar md0 ativo)`]
+    },
+    {
+      title: "6b. Religar os containers Docker que foram parados no passo 4a",
+      commands: [`docker compose -f /caminho/docker-compose.yml up -d`, `docker ps   # confirme que tudo voltou`]
     },
     {
       title: "7. Só depois de confirmado o boot: apagar o disco original e adicioná-lo ao array",
