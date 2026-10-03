@@ -103,7 +103,7 @@ function normalizePartitionCount(partitionCount) {
 // de qualquer coisa ser executada. `approxBytes`/`fixedSize` servem só
 // pro desenho visual da barra de partições (não precisam ser exatos ao
 // byte, só proporcionais).
-function describeScheme(device, scheme, fsType, partitionCount) {
+function describeScheme(device, scheme, fsType, partitionCount, customSizesBytes) {
   const rootType = FS_TYPES.has(fsType) ? fsType : "ext4";
   const EFI_BYTES = 512 * MIB;
   const SWAP_BYTES = 4096 * MIB;
@@ -113,27 +113,60 @@ function describeScheme(device, scheme, fsType, partitionCount) {
     const mkfsCmd = rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`;
     const mkfsArgs = rootType === "ext4" ? ["-F"] : [];
     const partedFsType = rootType === "exfat" ? "ntfs" : rootType;
+
+    // Tamanho explícito por partição (ex.: "120GB na primeira, o
+    // restante na segunda") — um valor em bytes por partição, EXCETO a
+    // última, que sempre fica com o que sobrar (mesmo mecanismo de
+    // EFI/swap: `fixedBytes` fixo pras primeiras, `null` na última).
+    // Só é usado se vier um valor válido (> 0) pra CADA uma das n-1
+    // primeiras partições — senão cai no modo antigo (divisão igual).
+    const sizes = Array.isArray(customSizesBytes) ? customSizesBytes.slice(0, n - 1) : [];
+    const hasExplicitSizes = sizes.length === n - 1 && sizes.every(s => Number.isFinite(s) && s > 0);
+
     const partitions = [];
-    for (let i = 0; i < n; i++) {
-      const startPct = Math.round((i * 100) / n);
-      const endPct = i === n - 1 ? 100 : Math.round(((i + 1) * 100) / n);
-      partitions.push({
-        label: `partição ${i + 1} (${rootType})`,
-        role: "data",
-        displayFsType: rootType.toUpperCase(),
-        partedFsType,
-        start: `${startPct}%`,
-        end: `${endPct}%`,
-        mkfsCmd,
-        mkfsArgs,
-        device: partName(device, i + 1),
-        fixedBytes: null,
-        // % exato dessa partição (não "o que sobrar") — todas as
-        // partições do esquema personalizado são do tipo "sobra
-        // dividida", então withVisualPercent precisa desse valor
-        // explícito em vez do cálculo de resto único de sempre.
-        percentHint: endPct - startPct
-      });
+    if (hasExplicitSizes) {
+      let cursorMiB = 1; // 1MiB de alinhamento no início, igual aos outros esquemas
+      for (let i = 0; i < n; i++) {
+        const isLast = i === n - 1;
+        const sizeBytes = isLast ? null : sizes[i];
+        const start = `${cursorMiB}MiB`;
+        if (!isLast) cursorMiB += Math.max(1, Math.round(sizeBytes / MIB));
+        const end = isLast ? "100%" : `${cursorMiB}MiB`;
+        partitions.push({
+          label: `partição ${i + 1} (${rootType})`,
+          role: "data",
+          displayFsType: rootType.toUpperCase(),
+          partedFsType,
+          start,
+          end,
+          mkfsCmd,
+          mkfsArgs,
+          device: partName(device, i + 1),
+          fixedBytes: sizeBytes
+        });
+      }
+    } else {
+      for (let i = 0; i < n; i++) {
+        const startPct = Math.round((i * 100) / n);
+        const endPct = i === n - 1 ? 100 : Math.round(((i + 1) * 100) / n);
+        partitions.push({
+          label: `partição ${i + 1} (${rootType})`,
+          role: "data",
+          displayFsType: rootType.toUpperCase(),
+          partedFsType,
+          start: `${startPct}%`,
+          end: `${endPct}%`,
+          mkfsCmd,
+          mkfsArgs,
+          device: partName(device, i + 1),
+          fixedBytes: null,
+          // % exato dessa partição (não "o que sobrar") — todas as
+          // partições do esquema personalizado são do tipo "sobra
+          // dividida", então withVisualPercent precisa desse valor
+          // explícito em vez do cálculo de resto único de sempre.
+          percentHint: endPct - startPct
+        });
+      }
     }
     return { schemeLabel: `Personalizado (${n} partições)`, partitions };
   }
@@ -227,10 +260,10 @@ function buildFormatCommands(described) {
   return described.partitions.map(p => ({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device], label: `Formatando "${p.label}" (${p.device})` }));
 }
 
-function buildPlan(device, scheme, fsType, phase, partitionCount) {
+function buildPlan(device, scheme, fsType, phase, partitionCount, customSizesBytes) {
   const normalizedScheme = SCHEMES.has(scheme) ? scheme : "single";
   const normalizedPhase = PHASES.has(phase) ? phase : "delete";
-  const described = describeScheme(device, normalizedScheme, fsType, partitionCount);
+  const described = describeScheme(device, normalizedScheme, fsType, partitionCount, customSizesBytes);
 
   let commands;
   if (normalizedPhase === "delete") commands = buildDeleteCommands(device);
@@ -320,6 +353,18 @@ async function checkEligibility(device, plan) {
         existingPartitions
       };
     }
+    // Esquema personalizado com tamanho explícito por partição — confere
+    // se a soma não passa do disco antes de deixar prosseguir (senão o
+    // `parted` ia só recusar a última partição no meio da execução).
+    const fixedTotal = plan.partitions.reduce((sum, p) => sum + (p.fixedBytes || 0), 0);
+    if (diskSizeBytes && fixedTotal > diskSizeBytes) {
+      return {
+        eligible: false,
+        reason: `A soma dos tamanhos informados (${(fixedTotal / (1024 ** 3)).toFixed(1)} GB) passa do tamanho do disco (${(diskSizeBytes / (1024 ** 3)).toFixed(1)} GB) — diminua algum valor.`,
+        diskSizeBytes,
+        existingPartitions
+      };
+    }
     return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
   }
 
@@ -347,8 +392,8 @@ async function checkEligibility(device, plan) {
   return { eligible: true, reason: null, diskSizeBytes, existingPartitions };
 }
 
-async function previewPartition(device, scheme, fsType, phase, partitionCount) {
-  const plan = buildPlan(device, scheme, fsType, phase, partitionCount);
+async function previewPartition(device, scheme, fsType, phase, partitionCount, customSizesBytes) {
+  const plan = buildPlan(device, scheme, fsType, phase, partitionCount, customSizesBytes);
   const eligibility = await checkEligibility(device, plan);
   const partitionsWithPercent = withVisualPercent(plan.partitions, eligibility.diskSizeBytes);
   return {
@@ -392,8 +437,8 @@ function cleanupOldJobs() {
   }
 }
 
-async function startPartitionExecution(device, scheme, fsType, phase, partitionCount) {
-  const plan = buildPlan(device, scheme, fsType, phase, partitionCount);
+async function startPartitionExecution(device, scheme, fsType, phase, partitionCount, customSizesBytes) {
+  const plan = buildPlan(device, scheme, fsType, phase, partitionCount, customSizesBytes);
   const eligibility = await checkEligibility(device, plan);
   if (!eligibility.eligible) {
     throw new Error(eligibility.reason || "Disco não elegível pra essa etapa.");

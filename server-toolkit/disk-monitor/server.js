@@ -278,14 +278,28 @@ app.get("/api/disk-health", auth.requireAuth, (req, res) => {
 // de verdade irreversível (apagar dado existente); "create"/"format" só
 // mexem num disco que a própria etapa "delete" já deixou vazio.
 const PARTITION_PHASES = new Set(["delete", "create", "format"]);
+const GB_BYTES = 1024 ** 3;
+
+// "120,  " (query, separado por vírgula) ou [120] (body, array) — GB por
+// partição, EXCETO a última (que sempre fica com o resto do disco). Um
+// valor inválido/vazio em qualquer posição derruba o array inteiro —
+// describeScheme() então cai sozinho no modo de divisão igual, nunca
+// tenta adivinhar o que o técnico quis dizer com um valor faltando.
+function parseCustomSizesBytes(raw) {
+  if (raw == null || raw === "") return undefined;
+  const list = Array.isArray(raw) ? raw : String(raw).split(",");
+  const bytes = list.map(v => Number(v) * GB_BYTES);
+  return bytes.every(b => Number.isFinite(b) && b > 0) ? bytes : undefined;
+}
 
 app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, res) => {
   if (!req.query.device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
   const phase = PARTITION_PHASES.has(req.query.phase) ? req.query.phase : "delete";
+  const customSizesBytes = parseCustomSizesBytes(req.query.customSizesGB);
   try {
-    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType, phase, req.query.partitionCount);
+    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType, phase, req.query.partitionCount, customSizesBytes);
     res.json({ ...preview, confirmPhrase: CONFIRM_PHRASE });
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar prévia de particionamento:", err.message);
@@ -294,11 +308,12 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
 });
 
 app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, res) => {
-  const { device, scheme, fsType, phase, partitionCount, confirmDevice, confirmPhrase } = req.body || {};
+  const { device, scheme, fsType, phase, partitionCount, customSizesGB, confirmDevice, confirmPhrase } = req.body || {};
   if (!device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
   const normalizedPhase = PARTITION_PHASES.has(phase) ? phase : "delete";
+  const customSizesBytes = parseCustomSizesBytes(customSizesGB);
   // Só a etapa que apaga dado existente pede a confirmação em duas
   // camadas — criar partição num disco já vazio ou formatar uma partição
   // recém-criada não tem nada de usuário pra perder.
@@ -314,7 +329,7 @@ app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, r
     console.log(
       `[disk-monitor] Etapa "${normalizedPhase}" de particionamento de "${device}" disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
     );
-    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType, normalizedPhase, partitionCount);
+    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType, normalizedPhase, partitionCount, customSizesBytes);
     res.json({ jobId, totalSteps });
   } catch (err) {
     console.error("[disk-monitor] Falha ao iniciar etapa de particionamento:", err.message);

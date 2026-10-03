@@ -559,6 +559,24 @@ mesmo com algo aberto. CPU/RAM/processos continuam atualizando normal
 nesse meio tempo, só a grade de discos físicos fica parada enquanto
 houver algo aberto.
 
+**Tamanho em GB por partição no esquema personalizado**: antes o
+esquema "Personalizado" só deixava escolher QUANTAS partições (divididas
+sempre em partes iguais); agora também deixa definir o tamanho de cada
+uma em GB — exceto a última, que automaticamente fica com o que sobrar
+do disco (mesmo padrão já usado pelas partições EFI/swap de tamanho fixo
+nos esquemas prontos). Campo por campo: ao escolher N partições, aparecem
+N-1 campos ("Partição 1 (GB)", "Partição 2 (GB)"...) e uma linha final
+fixa avisando que a última é automática. Se QUALQUER um dos N-1 campos
+ficar vazio, a ferramenta ignora todos e volta pra divisão igual — nunca
+tenta adivinhar um valor parcial. `checkEligibility()` da etapa "criar"
+confere se a soma dos tamanhos informados cabe no disco antes de deixar
+prosseguir (em vez de deixar o `parted` recusar a última partição no
+meio da execução). Validado em modo de prévia (120GB numa partição de
+2, soma estourando o tamanho do disco pra confirmar a recusa, e sem
+nenhum tamanho preenchido pra confirmar que cai na divisão igual) contra
+um disco do ambiente de desenvolvimento — ainda não confirmado criando
+partições de tamanho customizado de verdade contra hardware físico real.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

@@ -216,6 +216,13 @@
     border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 0.82rem;
   }
   .pd-partition-count-row { margin-top: 2px; }
+  /* Tamanho em GB por partição (menos a última, que sempre fica com o
+     resto do disco) — uma linha por partição, label curto + input. */
+  .pd-custom-sizes-row { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .pd-custom-size-item { display: flex; align-items: center; gap: 8px; }
+  .pd-custom-size-item label { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; min-width: 90px; }
+  .pd-custom-size-item input { width: 100%; }
+  .pd-custom-size-item.pd-custom-size-remainder { color: var(--text-muted); font-size: 0.78rem; font-style: italic; }
   .pd-preview-btn { margin-top: 10px; }
   /* Inspirado no painel nativo "Discos" do Ubuntu (GNOME Disks) — ficha
      técnica do disco (Modelo/Número de série/Tamanho/Interface) em cima
@@ -634,7 +641,9 @@ const translations = {
     schemeWindowsUefi: "Windows com UEFI (EFI + principal NTFS)",
     schemeCustom: "Personalizado — escolher quantas partições",
     partitionCountLabel: "Quantas partições?",
-    partitionCountHint: "De 2 a 8 — o espaço do disco é dividido em partes iguais entre elas.",
+    partitionCountHint: "De 2 a 8 — o espaço do disco é dividido em partes iguais entre elas, a não ser que você defina um tamanho pra cada uma abaixo.",
+    customSizeLabel: n => `Partição ${n} (GB)`,
+    customSizeRemainder: n => `Partição ${n}: resto do disco (automático)`,
     diskPartitionCount: n => n === 1 ? "1 partição" : `${n} partições`,
     roleBoot: "boot/EFI", roleSwap: "memória virtual (swap)", roleData: "dados",
     roleBootDesc: "Partição padrão que o sistema precisa pra dar boot — não é onde seus arquivos ficam.",
@@ -833,7 +842,9 @@ const translations = {
     schemeWindowsUefi: "Windows con UEFI (EFI + principal NTFS)",
     schemeCustom: "Personalizado — elegir cuántas particiones",
     partitionCountLabel: "¿Cuántas particiones?",
-    partitionCountHint: "De 2 a 8 — el espacio del disco se divide en partes iguales entre ellas.",
+    partitionCountHint: "De 2 a 8 — el espacio del disco se divide en partes iguales entre ellas, a menos que defina un tamaño para cada una abajo.",
+    customSizeLabel: n => `Partición ${n} (GB)`,
+    customSizeRemainder: n => `Partición ${n}: resto del disco (automático)`,
     diskPartitionCount: n => n === 1 ? "1 partición" : `${n} particiones`,
     roleBoot: "boot/EFI", roleSwap: "memoria virtual (swap)", roleData: "datos",
     roleBootDesc: "Partición estándar que el sistema necesita para arrancar — no es donde quedan sus archivos.",
@@ -1032,7 +1043,9 @@ const translations = {
     schemeWindowsUefi: "Windows with UEFI (EFI + primary NTFS)",
     schemeCustom: "Custom — choose how many partitions",
     partitionCountLabel: "How many partitions?",
-    partitionCountHint: "From 2 to 8 — the disk space is split evenly between them.",
+    partitionCountHint: "From 2 to 8 — the disk space is split evenly between them, unless you set a size for each one below.",
+    customSizeLabel: n => `Partition ${n} (GB)`,
+    customSizeRemainder: n => `Partition ${n}: rest of the disk (automatic)`,
     diskPartitionCount: n => n === 1 ? "1 partition" : `${n} partitions`,
     roleBoot: "boot/EFI", roleSwap: "virtual memory (swap)", roleData: "data",
     roleBootDesc: "Standard partition the system needs to boot — not where your files live.",
@@ -1587,15 +1600,28 @@ function withClientPercent(parts, diskSizeBytes) {
 const PHASE_DONE_KEY = { delete: "phaseDeleteDone", create: "phaseCreateDone", format: "partitionDone" };
 const PHASE_EXECUTE_BTN_KEY = { delete: "phaseDeleteExecuteBtn", create: "phaseCreateExecuteBtn", format: "phaseFormatExecuteBtn" };
 
+// Lê os campos de tamanho (GB) preenchidos — string vazia se faltar
+// QUALQUER um deles, nunca manda valor parcial: o backend (ver
+// parseCustomSizesBytes em server.js) só usa tamanho explícito se TODOS
+// os n-1 campos vierem preenchidos, senão cai sozinho na divisão igual.
+function readCustomSizesGB(tool) {
+  const inputs = Array.from(tool.querySelectorAll(".pd-custom-size-input"));
+  if (!inputs.length) return "";
+  const values = inputs.map(el => el.value.trim());
+  if (values.some(v => !v)) return "";
+  return values.join(",");
+}
+
 async function runPartitionPhasePreview(phase, device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
   const partitionCount = scheme === "custom" ? tool.querySelector(".pd-partition-count-input").value : "";
+  const customSizesGB = scheme === "custom" ? readCustomSizesGB(tool) : "";
   const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
   previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
   try {
-    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}&phase=${phase}&partitionCount=${encodeURIComponent(partitionCount)}`);
+    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}&phase=${phase}&partitionCount=${encodeURIComponent(partitionCount)}&customSizesGB=${encodeURIComponent(customSizesGB)}`);
     const data = await res.json();
     if (!res.ok) {
       previewEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
@@ -1672,10 +1698,11 @@ async function runPartitionPhaseExecute(phase, device, card) {
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
   const partitionCount = scheme === "custom" ? tool.querySelector(".pd-partition-count-input").value : "";
+  const customSizesGB = scheme === "custom" ? readCustomSizesGB(tool) : "";
   const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
   const execBtn = previewEl.querySelector(".pd-phase-execute-btn");
   const resultEl = previewEl.querySelector(".pd-phase-result");
-  const body = { device, scheme, fsType, phase, partitionCount };
+  const body = { device, scheme, fsType, phase, partitionCount, customSizesGB };
   if (phase === "delete") {
     body.confirmDevice = previewEl.querySelector(".pd-confirm-device").value;
     body.confirmPhrase = previewEl.querySelector(".pd-confirm-phrase").value;
@@ -1801,13 +1828,50 @@ function bindDiskCardActions(containerId) {
   // sentido pra "volume único", "Linux UEFI" e "personalizado" (ext4/
   // xfs/exfat). O campo "quantas partições" só aparece no personalizado.
   container.addEventListener("change", e => {
-    if (!e.target.classList.contains("pd-scheme-select")) return;
     const card = e.target.closest(".physical-disk-card");
-    const fsRow = card.querySelector(".pd-fstype-row");
-    const countRow = card.querySelector(".pd-partition-count-row");
-    fsRow.style.display = e.target.value === "windows-uefi" ? "none" : "block";
-    countRow.style.display = e.target.value === "custom" ? "block" : "none";
+    if (!card) return;
+    if (e.target.classList.contains("pd-scheme-select")) {
+      const fsRow = card.querySelector(".pd-fstype-row");
+      const countRow = card.querySelector(".pd-partition-count-row");
+      fsRow.style.display = e.target.value === "windows-uefi" ? "none" : "block";
+      countRow.style.display = e.target.value === "custom" ? "block" : "none";
+      if (e.target.value === "custom") renderCustomSizeInputs(card.querySelector(".pd-partition-tool"));
+      return;
+    }
+    if (e.target.classList.contains("pd-partition-count-input")) {
+      renderCustomSizeInputs(card.querySelector(".pd-partition-tool"));
+    }
   });
+  // "input" (não só "change") pra atualizar a lista de campos de tamanho
+  // enquanto o técnico ainda está digitando/usando as setinhas do campo
+  // "quantas partições", sem precisar sair do campo primeiro.
+  container.addEventListener("input", e => {
+    if (!e.target.classList.contains("pd-partition-count-input")) return;
+    const card = e.target.closest(".physical-disk-card");
+    if (card) renderCustomSizeInputs(card.querySelector(".pd-partition-tool"));
+  });
+}
+
+// Monta um campo de tamanho (GB) pra cada partição MENOS a última, que
+// sempre fica com o resto do disco (igual EFI/swap fixos + "raiz" com o
+// que sobrar nos esquemas prontos). Reconstrói do zero a cada mudança
+// de quantidade — perde valor já digitado se o técnico mudar a
+// quantidade depois de preencher, mas evita estado inconsistente (ex.:
+// 5 campos de tamanho sobrando depois de voltar pra 2 partições).
+function renderCustomSizeInputs(tool) {
+  const container = tool.querySelector(".pd-custom-sizes-row");
+  const n = Math.min(8, Math.max(2, parseInt(tool.querySelector(".pd-partition-count-input").value, 10) || 2));
+  const items = [];
+  for (let i = 0; i < n - 1; i++) {
+    items.push(`
+      <div class="pd-custom-size-item">
+        <label>${t("customSizeLabel", i + 1)}</label>
+        <input type="number" class="pd-custom-size-input" min="1" step="0.1" placeholder="GB">
+      </div>
+    `);
+  }
+  items.push(`<div class="pd-custom-size-item pd-custom-size-remainder">${t("customSizeRemainder", n)}</div>`);
+  container.innerHTML = items.join("");
 }
 
 // Linha de uma partição sem montar que pertence a ESTE disco físico —
@@ -1978,6 +2042,7 @@ function renderPartitionTool(disk) {
           <label class="pd-partition-tool-label">${t("partitionCountLabel")}</label>
           <input type="number" class="pd-partition-count-input" min="2" max="8" value="2" step="1">
           <div class="pd-empty" style="margin-top:3px">${t("partitionCountHint")}</div>
+          <div class="pd-custom-sizes-row"></div>
         </div>
         <div class="pd-fstype-row">
           <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
