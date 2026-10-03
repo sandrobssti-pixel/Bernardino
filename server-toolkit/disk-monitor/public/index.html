@@ -1888,7 +1888,7 @@ function renderDsmDisksTable(disks) {
   const body = document.getElementById("dsmDisksBody");
   body.innerHTML = disks.map(d => `
     <tr>
-      <td>${d.model || d.id}${d.vendor ? " (" + d.vendor + ")" : ""}</td>
+      <td>${d.id ? `${d.id} — ` : ""}${d.model || "—"}${d.vendor ? " (" + d.vendor + ")" : ""}</td>
       <td style="color:${d.healthy ? "var(--ok)" : "var(--crit)"}">${d.healthy ? t("diskHealthy") : (t("diskUnhealthy") + " — " + d.status)}</td>
       <td>${d.tempCelsius !== null ? d.tempCelsius + "°C" : "—"}</td>
       <td>${d.sizeBytes ? formatBytes(d.sizeBytes) : "—"}</td>
