@@ -761,6 +761,42 @@ completa até o passo 3, contra o servidor de produção do usuário — não
 rsync, chroot, bootloader, reinicialização) ainda não foram confirmados
 executando de ponta a ponta.
 
+**Mais dois ajustes, vindos de continuar a mesma execução real até o
+passo 4/5**:
+
+4. **Cópia em duas passadas (4a/4b/4c) em vez de "parar tudo, copiar,
+   religar"**. No caso real que motivou isso, o servidor tinha 23
+   containers Docker rodando (incluindo 5 bancos de dados — Postgres,
+   MariaDB, Mongo — e uma plataforma de deploy, Coolify, gerenciando
+   parte deles), e o jeito antigo (parar tudo, copiar ~85GB, religar)
+   significava uma parada total de serviço do tamanho do tempo de cópia
+   inteiro. Agora o roteiro faz uma primeira cópia com tudo rodando
+   (sem downtime), só então para os containers, e faz uma segunda
+   passada rápida (só as diferenças, com `--delete`) — o downtime fica
+   do tamanho da segunda passada, não da cópia inteira. Também trocou o
+   jeito de parar/religar: em vez de supor caminhos de
+   `docker-compose.yml` (que nem sempre existem de forma acessível —
+   containers geridos por uma plataforma tipo Coolify não têm um
+   arquivo óbvio), salva a lista de containers rodando num arquivo
+   (`docker ps -q > /root/containers-parados.txt`) e usa `docker stop`/
+   `docker start` nela — funciona igual não importa como os containers
+   foram criados.
+5. **Corrigido: `mount --bind` falhando com "ponto de montagem não
+   existe"** no passo 5. O `rsync` do passo 4 exclui `/dev`, `/proc`,
+   `/sys`, `/tmp`, `/run`, `/mnt`, `/media` da cópia — mas excluir esses
+   caminhos também excluiu as PASTAS vazias em si, não só o conteúdo
+   delas, então elas nunca existiam dentro de `/mnt/newroot` pro
+   `mount --bind` do passo 5 montar em cima. Corrigido adicionando um
+   `mkdir -p` dessas pastas vazias logo depois de montar o array,
+   dentro do próprio passo 4a — pegadinha clássica de clonar sistema via
+   `rsync`, documentada até nas wikis do Debian/Arch, que o roteiro não
+   tinha coberto antes.
+
+**Honestidade (atualizada)**: a execução real avançou até o meio do
+passo 5 (UUID do array confirmado, prestes a editar o fstab) — passos
+5 (resto), 6, 7 e 8 ainda não foram confirmados executando de ponta a
+ponta.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

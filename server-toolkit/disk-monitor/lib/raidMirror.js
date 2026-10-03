@@ -201,20 +201,40 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       ]
     },
     {
-      title: "4a. Parar os containers Docker antes de copiar (evita cópia inconsistente de dados sendo escritos agora)",
+      // Cópia em duas passadas em vez de "parar tudo, copiar, religar" —
+      // valida bem melhor em servidor com várias stacks/containers de
+      // banco de dados rodando (downtime vira só a janela da segunda
+      // passada, bem mais curta, já que a primeira copia quase tudo com
+      // o sistema vivo). A lista exata de containers é salva num
+      // arquivo em vez de depender de caminhos de docker-compose.yml
+      // (que variam por instalação e nem sempre existem pra containers
+      // geridos por uma plataforma tipo Coolify) — religar depois usa
+      // esse mesmo arquivo, garantindo que volta exatamente o que foi
+      // parado.
+      title: "4a. Primeira cópia do sistema pro array novo (com tudo rodando normalmente, sem downtime ainda)",
       commands: [
-        `# Rode isso em cada stack que estiver de pé (ex.: AtendeFlow, Seafile) — ajuste os caminhos do docker-compose.yml:`,
-        `docker compose -f /caminho/docker-compose.yml down`,
+        `mkdir -p /mnt/newroot`,
+        `mount /dev/md0 /mnt/newroot`,
+        `# Cria as pastas vazias que os excludes abaixo pulam — sem isso o "mount --bind" do passo 5 falha`,
+        `# com "ponto de montagem não existe" (o rsync exclui a PASTA inteira, não só o conteúdo dela)`,
+        `mkdir -p /mnt/newroot/dev /mnt/newroot/proc /mnt/newroot/sys /mnt/newroot/tmp /mnt/newroot/run /mnt/newroot/mnt /mnt/newroot/media`,
+        `rsync -axHAWXS --numeric-ids --exclude=/dev --exclude=/proc --exclude=/sys --exclude=/tmp --exclude=/run --exclude=/mnt --exclude=/media --exclude=/lost+found ${systemMountPath} /mnt/newroot/`
+      ]
+    },
+    {
+      title: "4b. Parar os containers Docker — só agora começa o downtime de verdade",
+      commands: [
+        `# Salva a lista do que está rodando agora, pra religar exatamente os mesmos no passo 6b`,
+        `docker ps -q > /root/containers-parados.txt`,
+        `docker stop $(cat /root/containers-parados.txt)`,
         `# Confirme que não sobrou nada rodando:`,
         `docker ps`
       ]
     },
     {
-      title: "4b. Copiar o sistema atual pro array novo (com os containers parados)",
+      title: "4c. Segunda passada do rsync — só as diferenças desde a 4a, agora com tudo parado (consistência garantida)",
       commands: [
-        `mkdir -p /mnt/newroot`,
-        `mount /dev/md0 /mnt/newroot`,
-        `rsync -axHAWXS --numeric-ids --exclude=/dev --exclude=/proc --exclude=/sys --exclude=/tmp --exclude=/run --exclude=/mnt --exclude=/media --exclude=/lost+found ${systemMountPath} /mnt/newroot/`
+        `rsync -axHAWXS --numeric-ids --delete --exclude=/dev --exclude=/proc --exclude=/sys --exclude=/tmp --exclude=/run --exclude=/mnt --exclude=/media --exclude=/lost+found ${systemMountPath} /mnt/newroot/`
       ]
     },
     {
@@ -235,8 +255,8 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       commands: [`reboot`, `# depois de ligar: cat /proc/mdstat   (precisa mostrar md0 ativo)`]
     },
     {
-      title: "6b. Religar os containers Docker que foram parados no passo 4a",
-      commands: [`docker compose -f /caminho/docker-compose.yml up -d`, `docker ps   # confirme que tudo voltou`]
+      title: "6b. Religar os containers Docker que foram parados no passo 4b",
+      commands: [`docker start $(cat /root/containers-parados.txt)`, `docker ps   # confirme que tudo voltou`]
     },
     {
       title: "7. Só depois de confirmado o boot: apagar o disco original e adicioná-lo ao array",
