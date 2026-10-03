@@ -440,10 +440,14 @@ confiar em produção.
 ### Espelhar disco do sistema (RAID1) — só gera roteiro, nunca executa
 
 Painel "Espelhar disco do sistema (RAID1)" (admin): detecta um disco do
-mesmo tamanho do disco do sistema (dentro de 2% de tolerância, já que
-discos "idênticos" variam um pouco entre fabricantes) sem nenhuma
-partição montada, e gera o roteiro exato de comandos (`sgdisk`, `mdadm`,
-`rsync`, `grub-install`, etc.) pra espelhar o sistema manualmente.
+mesmo tamanho do disco do sistema (ou **maior**) sem nenhuma partição
+montada, e gera o roteiro exato de comandos (`sgdisk`, `mdadm`, `rsync`,
+`grub-install`, etc.) pra espelhar o sistema manualmente. Se o disco
+escolhido for maior que o disco do sistema (ex.: sistema de 120GB num
+disco novo de 240GB), o espaço que sobra vira automaticamente uma 3ª
+partição formatada, **fora do RAID**, pra usar como área de backup
+independente — o roteiro já inclui os comandos pra criar e formatar essa
+partição extra.
 
 **Essa é a única ação deste painel que deliberadamente nunca vira um
 botão "executar"** — diferente de particionar um disco de dados (ação

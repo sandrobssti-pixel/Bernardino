@@ -17,7 +17,10 @@ const si = require("systeminformation");
 // comando possivelmente errado.
 
 const isLinux = process.platform === "linux";
-const SIZE_TOLERANCE = 0.02; // discos "idênticos" variam um pouco entre fabricantes/firmware
+// Disco candidato pode ser do mesmo tamanho do disco do sistema (espelho
+// simples, disco inteiro) OU maior (sobra vira uma 3ª partição livre,
+// formatada como área de backup independente — não entra no RAID).
+const MIN_LEFTOVER_FOR_BACKUP_BYTES = 1024 * 1024 * 1024; // 1GiB — abaixo disso não vale a pena criar a partição extra
 
 function parentDiskName(blockDeviceName) {
   if (!blockDeviceName) return null;
@@ -46,13 +49,21 @@ async function findMirrorCandidates(systemMountPath) {
   const blockDevices = await si.blockDevices().catch(() => []);
   const disks = blockDevices.filter(bd => bd.type === "disk" && `/dev/${bd.name}` !== sysDisk.device);
 
+  // Tolerância pra baixo (discos "do mesmo tamanho" variam ~1-2% entre
+  // fabricantes) — pra cima não tem limite, o que sobrar vira partição
+  // de backup.
+  const minAcceptableSize = sysDisk.sizeBytes * 0.98;
+
   const candidates = disks
-    .filter(d => sysDisk.sizeBytes > 0 && Math.abs((d.size || 0) - sysDisk.sizeBytes) / sysDisk.sizeBytes <= SIZE_TOLERANCE)
+    .filter(d => sysDisk.sizeBytes > 0 && (d.size || 0) >= minAcceptableSize)
     .map(d => {
       const mountedPartition = blockDevices.find(bd => parentDiskName(bd.name) === d.name && bd.mount);
+      const leftoverBytes = Math.max(0, (d.size || 0) - sysDisk.sizeBytes);
       return {
         device: `/dev/${d.name}`,
         sizeBytes: d.size || 0,
+        leftoverBytes,
+        willHaveBackupPartition: leftoverBytes >= MIN_LEFTOVER_FOR_BACKUP_BYTES,
         eligible: !mountedPartition,
         reason: mountedPartition ? `Tem uma partição montada em "${mountedPartition.mount}" — desmonte antes.` : null
       };
@@ -98,12 +109,25 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
   const sysRootPart = `${sysDevice}2`;
   const newEfiPart = `${targetDevice}1`;
   const newRootPart = `${targetDevice}2`;
+  const newBackupPart = `${targetDevice}3`;
+  const leftoverBytes = Math.max(0, candidate.sizeBytes - found.systemDisk.sizeBytes);
+  const willHaveBackupPartition = leftoverBytes >= MIN_LEFTOVER_FOR_BACKUP_BYTES;
 
   const steps = [
     {
-      title: "1. Clonar a tabela de partições pro disco novo",
+      title: "1. Clonar a tabela de partições pro disco novo (EFI + raiz, mesmo tamanho do disco do sistema)",
       commands: [`sgdisk ${sysDevice} -R ${targetDevice}`, `sgdisk -G ${targetDevice}`]
-    },
+    }
+  ];
+
+  if (willHaveBackupPartition) {
+    steps.push({
+      title: "1b. Criar uma 3ª partição com o espaço que sobrou, pra usar como área de backup (fora do RAID)",
+      commands: [`sgdisk -N 3 ${targetDevice}`, `mkfs.ext4 ${newBackupPart}`]
+    });
+  }
+
+  steps.push(
     {
       title: "2. Formatar a partição EFI do disco novo",
       commands: [`mkfs.fat -F32 ${newEfiPart}`]
@@ -140,15 +164,26 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
     {
       title: "7. Só depois de confirmado o boot: apagar o disco original e adicioná-lo ao array",
       commands: [`mdadm --manage /dev/md0 --add ${sysRootPart}`, `watch cat /proc/mdstat   # acompanhar a sincronização`]
+    },
+    {
+      title: "8. (Opcional) Montar a partição de backup",
+      commands: willHaveBackupPartition
+        ? [`mkdir -p /mnt/backup`, `echo "${newBackupPart}  /mnt/backup  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab`, `mount -a`]
+        : [`# Esse disco não sobrou espaço suficiente pra partição de backup extra — pulado.`]
     }
-  ];
+  );
 
   return {
     systemDisk: sysDevice,
     targetDisk: targetDevice,
+    willHaveBackupPartition,
+    backupPartition: willHaveBackupPartition ? newBackupPart : null,
     warning:
       "Procedimento de múltiplas etapas com reinicialização no meio. Execute manualmente, " +
-      "um passo de cada vez, com mídia de resgate (live USB) disponível. O painel NUNCA executa isso sozinho.",
+      "um passo de cada vez, com mídia de resgate (live USB) disponível. O painel NUNCA executa isso sozinho. " +
+      "Depois que os dois discos estiverem sincronizados no array (passo 7), eles ficam EQUIVALENTES dentro do " +
+      "RAID1 — não existe uma etapa separada de 'tornar um principal e o outro secundário', os dois já funcionam " +
+      "como espelho um do outro a partir daí.",
     steps
   };
 }

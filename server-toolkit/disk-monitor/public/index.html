@@ -654,6 +654,8 @@ const translations = {
     raidMirrorWarningBanner: "⚠️ NÃO execute isso num clique só. Siga cada passo manualmente, confirme o reinício antes de continuar pro passo 7, e tenha uma mídia de resgate (live USB) disponível.",
     raidMirrorCopyBtn: "Copiar",
     raidMirrorCopiedLabel: "Copiado!",
+    raidMirrorLeftoverLabel: extra => `sobra ${extra} pra partição de backup`,
+    raidMirrorBackupPartitionNote: part => `Esse disco tem espaço sobrando — o roteiro já inclui criar e formatar ${part} como partição de backup separada (fora do RAID).`,
     recentCleanups: "Últimas limpezas",
     thWhen: "Quando", thType: "Tipo", thBefore: "Antes", thAfter: "Depois", thFreed: "Liberado", thDetails: "Detalhes",
     noCleanups: "Nenhuma limpeza registrada ainda.",
@@ -813,6 +815,8 @@ const translations = {
     raidMirrorWarningBanner: "⚠️ NO ejecute esto de una sola vez. Siga cada paso manualmente, confirme el reinicio antes de pasar al paso 7, y tenga un medio de rescate (live USB) disponible.",
     raidMirrorCopyBtn: "Copiar",
     raidMirrorCopiedLabel: "¡Copiado!",
+    raidMirrorLeftoverLabel: extra => `sobran ${extra} para partición de respaldo`,
+    raidMirrorBackupPartitionNote: part => `Este disco tiene espacio sobrante — el guión ya incluye crear y formatear ${part} como partición de respaldo separada (fuera del RAID).`,
     recentCleanups: "Últimas limpiezas",
     thWhen: "Cuándo", thType: "Tipo", thBefore: "Antes", thAfter: "Después", thFreed: "Liberado", thDetails: "Detalles",
     noCleanups: "Ninguna limpieza registrada todavía.",
@@ -972,6 +976,8 @@ const translations = {
     raidMirrorWarningBanner: "⚠️ Do NOT run this in one go. Follow each step manually, confirm the reboot before moving to step 7, and keep rescue media (live USB) on hand.",
     raidMirrorCopyBtn: "Copy",
     raidMirrorCopiedLabel: "Copied!",
+    raidMirrorLeftoverLabel: extra => `${extra} left over for backup partition`,
+    raidMirrorBackupPartitionNote: part => `This disk has leftover space — the runbook already includes creating and formatting ${part} as a separate backup partition (outside the RAID).`,
     recentCleanups: "Recent cleanups",
     thWhen: "When", thType: "Type", thBefore: "Before", thAfter: "After", thFreed: "Freed", thDetails: "Details",
     noCleanups: "No cleanup recorded yet.",
@@ -1698,7 +1704,7 @@ function renderRaidMirrorCandidates(data) {
   resultEl.innerHTML = candidates.map(c => `
     <div class="physical-disk-card" data-device="${c.device}">
       <div class="pd-header"><div class="pd-title">${PD_DISK_ICON_SVG}<span class="pd-name">${c.device}</span></div></div>
-      <div class="pd-meta">${formatBytes(c.sizeBytes)}</div>
+      <div class="pd-meta">${formatBytes(c.sizeBytes)}${c.willHaveBackupPartition ? ` — ${t("raidMirrorLeftoverLabel", formatBytes(c.leftoverBytes))}` : ""}</div>
       ${c.eligible
         ? `<button class="secondary raid-mirror-generate-btn" type="button">${t("raidMirrorGenerateBtn")}</button>`
         : `<div class="pd-partition-danger">${c.reason}</div>`}
@@ -1723,9 +1729,13 @@ function renderRaidMirrorRunbook(data) {
       <button class="secondary raid-mirror-copy-btn" type="button" data-commands="${commandsText.replace(/"/g, "&quot;")}">${t("raidMirrorCopyBtn")}</button>
     `;
   }).join("");
+  const backupNote = data.willHaveBackupPartition
+    ? `<div class="pd-empty">${t("raidMirrorBackupPartitionNote", data.backupPartition)}</div>`
+    : "";
   return `
     <div class="pd-partition-danger">${data.warning}</div>
     <div class="pd-partition-danger">${t("raidMirrorWarningBanner")}</div>
+    ${backupNote}
     ${stepsHtml}
   `;
 }
