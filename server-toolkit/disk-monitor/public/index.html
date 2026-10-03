@@ -610,7 +610,7 @@ const translations = {
     rootRoot: "Início",
     dsmTitle: "Discos do NAS e desligamento (Synology)",
     thDisk: "Disco", thStatus: "Status", thTemp: "Temperatura", thCapacity: "Capacidade",
-    diskHealthy: "Normal", diskUnhealthy: "Atenção",
+    diskHealthy: "Normal", diskUnhealthy: "Atenção", diskStatusUnknown: "Não configurado",
     shutdownOpenBtn: "Desligar o NAS",
     shutdownWarning: "Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.",
     shutdownTypeLabel: "Digite DESLIGAR pra confirmar:",
@@ -769,7 +769,7 @@ const translations = {
     rootRoot: "Inicio",
     dsmTitle: "Discos del NAS y apagado (Synology)",
     thDisk: "Disco", thStatus: "Estado", thTemp: "Temperatura", thCapacity: "Capacidad",
-    diskHealthy: "Normal", diskUnhealthy: "Atención",
+    diskHealthy: "Normal", diskUnhealthy: "Atención", diskStatusUnknown: "No configurado",
     shutdownOpenBtn: "Apagar el NAS",
     shutdownWarning: "Esto apaga el NAS de verdad. Sin Wake-on-LAN configurado, solo se enciende de nuevo con el botón físico del equipo. Esta acción no se puede deshacer remotamente.",
     shutdownTypeLabel: "Escriba DESLIGAR para confirmar:",
@@ -928,7 +928,7 @@ const translations = {
     rootRoot: "Home",
     dsmTitle: "NAS disks and shutdown (Synology)",
     thDisk: "Disk", thStatus: "Status", thTemp: "Temperature", thCapacity: "Capacity",
-    diskHealthy: "Normal", diskUnhealthy: "Attention",
+    diskHealthy: "Normal", diskUnhealthy: "Attention", diskStatusUnknown: "Not configured",
     shutdownOpenBtn: "Shut down the NAS",
     shutdownWarning: "This actually shuts down the NAS. Without Wake-on-LAN configured, it can only be turned back on by pressing the physical button on the device. This action cannot be undone remotely.",
     shutdownTypeLabel: "Type DESLIGAR to confirm:",
@@ -2032,7 +2032,9 @@ function renderDsmDisksTable(disks) {
   body.innerHTML = disks.map(d => `
     <tr>
       <td>${d.id ? `${d.id} — ` : ""}${d.model || "—"}${d.vendor ? " (" + d.vendor + ")" : ""}</td>
-      <td style="color:${d.healthy ? "var(--ok)" : "var(--crit)"}">${d.healthy ? t("diskHealthy") : (t("diskUnhealthy") + " — " + d.status)}</td>
+      <td style="color:${d.healthy === true ? "var(--ok)" : d.healthy === false ? "var(--crit)" : "var(--text-muted)"}">${
+        d.healthy === true ? t("diskHealthy") : d.healthy === false ? (t("diskUnhealthy") + " — " + d.status) : (t("diskStatusUnknown") + " — " + d.status)
+      }</td>
       <td>${d.tempCelsius !== null ? d.tempCelsius + "°C" : "—"}</td>
       <td>${d.sizeBytes ? formatBytes(d.sizeBytes) : "—"}</td>
     </tr>

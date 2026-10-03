@@ -89,24 +89,36 @@ function createSynologyClient({ host, port, useHttps, user, password, allowSelfS
     return cachedSid;
   }
 
-  // `size_total` da API do Synology vem em KB — convertido aqui pra
-  // bytes, mesma unidade usada no resto do painel (formatBytes no
-  // frontend).
+  // Status conhecidos de falha real do disco — qualquer outra coisa
+  // (incluindo "not_use", que só significa "disco presente mas ainda
+  // fora de qualquer pool/volume", o caso normal de um disco recém-
+  // colocado) fica "unknown" (neutro) em vez de soar alarme falso. Mesmo
+  // princípio já usado no badge de SMART dos discos locais: nunca
+  // assumir falha a partir de dado ambíguo.
+  const KNOWN_BAD_STATUSES = new Set(["crashed", "system_partition_fail", "partition_fail"]);
+
   async function getDisks() {
     const sid = await login();
     const data = await request(`/webapi/entry.cgi?api=SYNO.Storage.CGI.Storage&version=1&method=load_info&_sid=${sid}`);
     if (!data.success) {
       throw new Error(`Falha ao ler informações de disco (código de erro ${data.error?.code}).`);
     }
-    return (data.data?.disks || []).map(d => ({
-      id: d.id,
-      model: d.model || "",
-      vendor: d.vendor || "",
-      status: d.status || "unknown",
-      healthy: d.status === "normal",
-      tempCelsius: typeof d.temp === "number" ? d.temp : null,
-      sizeBytes: d.size_total ? Number(d.size_total) * 1024 : null
-    }));
+    return (data.data?.disks || []).map(d => {
+      const status = d.status || "unknown";
+      const healthy = status === "normal" ? true : (KNOWN_BAD_STATUSES.has(status) ? false : null);
+      return {
+        id: d.id,
+        model: d.model || "",
+        vendor: d.vendor || "",
+        status,
+        healthy,
+        tempCelsius: typeof d.temp === "number" ? d.temp : null,
+        // `size_total` já vem em bytes nesta versão da API do DSM (validado
+        // contra hardware real) — versões antigas deste código multiplicavam
+        // por 1024 achando que vinha em KB, inflando o tamanho em 1024x.
+        sizeBytes: d.size_total ? Number(d.size_total) : null
+      };
+    });
   }
 
   async function shutdown() {
