@@ -25,6 +25,7 @@
     "toolkit-auth": "file:../shared/auth"
   },
   "devDependencies": {
+    "electron": "^44.5.1",
     "pkg": "^5.8.1"
   },
   "pkg": {
