@@ -28,6 +28,22 @@ function parentDiskName(blockDeviceName) {
   return match ? match[1] : blockDeviceName.replace(/\d+$/, "");
 }
 
+function toolExists(tool) {
+  try {
+    execFileSync("which", [tool], { stdio: "pipe" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Ferramentas que o roteiro inteiro vai precisar — conferidas ANTES de
+// gerar o texto, não no meio da execução manual. `mdadm` em especial
+// raramente vem instalado por padrão numa VPS (RAID não é uso comum),
+// e descobrir isso no passo 3, já com a tabela de partições do disco
+// novo reescrita, é pior do que descobrir antes de começar.
+const REQUIRED_TOOLS = ["sgdisk", "partprobe", "udevadm", "mkfs.fat", "mkfs.ext4", "mdadm", "rsync", "blkid", "chroot"];
+
 async function getSystemDisk(systemMountPath) {
   const blockDevices = await si.blockDevices().catch(() => []);
   const rootPartition = blockDevices.find(bd => bd.mount === systemMountPath);
@@ -125,6 +141,15 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
     throw new Error("Não foi possível confirmar a partição EFI na posição esperada (1ª partição) — layout não reconhecido.");
   }
 
+  const missingTools = REQUIRED_TOOLS.filter(tool => !toolExists(tool));
+  if (missingTools.length) {
+    throw new Error(
+      `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pro roteiro inteiro: ${missingTools.join(", ")}. ` +
+      `Instale antes de gerar o roteiro (ex.: "apt install mdadm gdisk rsync dosfstools parted") — ` +
+      `melhor descobrir isso agora do que no meio do procedimento, já com o disco novo reparticionado.`
+    );
+  }
+
   const sysRootPart = `${sysDevice}2`;
   const newEfiPart = `${targetDevice}1`;
   const newRootPart = `${targetDevice}2`;
@@ -134,15 +159,29 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
 
   const steps = [
     {
+      // sgdisk -e corrige o cabeçalho de backup do GPT quando o disco
+      // novo tem um número de setores levemente diferente do disco de
+      // origem (comum até entre discos do "mesmo tamanho" — fabricantes
+      // variam uns poucos setores); partprobe+udevadm settle garantem
+      // que o kernel reconheça as partições novas antes do próximo
+      // passo tentar usá-las — sem isso, o mkfs seguinte pode falhar ou
+      // mexer no nó errado (mesmo problema já visto na ferramenta de
+      // particionar comum).
       title: "1. Clonar a tabela de partições pro disco novo (EFI + raiz, mesmo tamanho do disco do sistema)",
-      commands: [`sgdisk ${sysDevice} -R ${targetDevice}`, `sgdisk -G ${targetDevice}`]
+      commands: [
+        `sgdisk ${sysDevice} -R ${targetDevice}`,
+        `sgdisk -G ${targetDevice}`,
+        `sgdisk -e ${targetDevice}`,
+        `partprobe ${targetDevice}`,
+        `udevadm settle`
+      ]
     }
   ];
 
   if (willHaveBackupPartition) {
     steps.push({
       title: "1b. Criar uma 3ª partição com o espaço que sobrou, pra usar como área de backup (fora do RAID)",
-      commands: [`sgdisk -N 3 ${targetDevice}`, `mkfs.ext4 ${newBackupPart}`]
+      commands: [`sgdisk -N 3 ${targetDevice}`, `partprobe ${targetDevice}`, `udevadm settle`, `mkfs.ext4 ${newBackupPart}`]
     });
   }
 
@@ -153,7 +192,13 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
     },
     {
       title: "3. Criar o array RAID1 incompleto, só com o disco novo",
-      commands: [`mdadm --create /dev/md0 --level=1 --raid-devices=2 missing ${newRootPart}`, `mkfs.ext4 /dev/md0`]
+      commands: [
+        `# Se a partição já tiver sido formatada antes (ex.: teste anterior), o mdadm pergunta`,
+        `# algo como "appears to contain an ext4 filesystem... Continue creating array? y" — responda "y",`,
+        `# é esperado, estamos substituindo por uma partição RAID de verdade.`,
+        `mdadm --create /dev/md0 --level=1 --raid-devices=2 missing ${newRootPart}`,
+        `mkfs.ext4 /dev/md0`
+      ]
     },
     {
       title: "4a. Parar os containers Docker antes de copiar (evita cópia inconsistente de dados sendo escritos agora)",

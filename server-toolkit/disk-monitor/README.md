@@ -724,6 +724,43 @@ suporte a MBR precisaria de outra lógica inteira (`sfdisk` em vez de
 `sgdisk`, `grub-install --target=i386-pc` em vez de UEFI, sem partição
 EFI no layout) — não implementado.
 
+**Aprendido executando o roteiro de verdade contra um servidor real do
+usuário** (primeira vez que esse roteiro foi seguido passo a passo, ao
+vivo) — três ajustes:
+
+1. **Checagem de ferramentas instaladas, antes de gerar o roteiro.**
+   `mdadm` não veio instalado por padrão nesse servidor (comum — RAID
+   não é uso frequente numa VPS), e só foi descoberto no passo 3,
+   depois do disco já estar reparticionado pelos passos 1/1b/2. Agora
+   `buildMirrorRunbook()` confere `sgdisk`, `partprobe`, `udevadm`,
+   `mkfs.fat`, `mkfs.ext4`, `mdadm`, `rsync`, `blkid` e `chroot` logo no
+   início, e recusa gerar o roteiro (com a lista exata do que falta e
+   sugestão de `apt install`) em vez de deixar o técnico descobrir no
+   meio do procedimento.
+2. **`partprobe`/`udevadm settle` depois do `sgdisk` no passo 1/1b** —
+   mesmo problema já corrigido na ferramenta de particionar comum
+   (`lib/diskPartition.js`): sem isso, o kernel pode continuar
+   enxergando a tabela de partições antiga por mais alguns instantes
+   depois do `sgdisk` escrever a nova, e o `mkfs` seguinte falhar ou
+   mexer no nó errado. Também passou a incluir `sgdisk -e` (recomendado
+   pelo próprio `sgdisk` depois de clonar tabela com `-R` entre dois
+   discos — reposiciona o cabeçalho de backup do GPT pro fim de
+   verdade do disco, corrigindo um aviso real visto em produção quando
+   os dois discos, mesmo "do mesmo tamanho", tinham contagem de setores
+   levemente diferente).
+3. **Aviso embutido no passo 3** sobre o `mdadm --create` perguntar
+   interativamente "Continue creating array?" quando a partição alvo já
+   teve um sistema de arquivos formatado nela antes (ex.: o técnico
+   particionou o disco pelo painel antes de começar o roteiro de RAID,
+   como no caso real que motivou isso) — responder "y" é o esperado,
+   mas sem o aviso o técnico fica sem saber se deve confirmar.
+
+**Honestidade**: os três ajustes acima vieram de uma execução real,
+completa até o passo 3, contra o servidor de produção do usuário — não
+é mais só teoria/documentação padrão. Os passos 4 em diante (cópia
+rsync, chroot, bootloader, reinicialização) ainda não foram confirmados
+executando de ponta a ponta.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,
