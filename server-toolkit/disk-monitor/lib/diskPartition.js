@@ -1,4 +1,5 @@
 const { execFileSync } = require("child_process");
+const crypto = require("crypto");
 const si = require("systeminformation");
 
 // Particionar/formatar um disco inteiro — a ação mais destrutiva e
@@ -30,6 +31,7 @@ const si = require("systeminformation");
 
 const isLinux = process.platform === "linux";
 const CONFIRM_PHRASE = "FORMATAR";
+const MIB = 1024 * 1024;
 
 function partName(device, n) {
   const shortName = device.replace(/^\/dev\//, "");
@@ -57,17 +59,21 @@ const SCHEMES = new Set(["single", "linux-uefi", "windows-uefi"]);
 // Cada esquema devolve a lista de partições (rótulo, tamanho, comando de
 // parted, comando de mkfs) — separado do "montar os comandos de verdade"
 // pra poder checar ferramenta faltando e montar um resumo legível antes
-// de qualquer coisa ser executada.
+// de qualquer coisa ser executada. `approxBytes`/`fixedSize` servem só
+// pro desenho visual da barra de partições (não precisam ser exatos ao
+// byte, só proporcionais).
 function describeScheme(device, scheme, fsType) {
   const rootType = FS_TYPES.has(fsType) ? fsType : "ext4";
+  const EFI_BYTES = 512 * MIB;
+  const SWAP_BYTES = 4096 * MIB;
 
   if (scheme === "linux-uefi") {
     return {
       schemeLabel: "Linux com UEFI (EFI + swap + raiz)",
       partitions: [
-        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1) },
-        { label: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2) },
-        { label: `raiz (${rootType})`, partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3) }
+        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2), fixedBytes: SWAP_BYTES },
+        { label: `raiz (${rootType})`, partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3), fixedBytes: null }
       ]
     };
   }
@@ -76,8 +82,8 @@ function describeScheme(device, scheme, fsType) {
     return {
       schemeLabel: "Windows com UEFI (EFI + principal NTFS)",
       partitions: [
-        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1) },
-        { label: "principal (NTFS)", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2) }
+        { label: "EFI (boot)", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "principal (NTFS)", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2), fixedBytes: null }
       ]
     };
   }
@@ -87,9 +93,22 @@ function describeScheme(device, scheme, fsType) {
   return {
     schemeLabel: "Volume único (dados)",
     partitions: [
-      { label: `dado (${rootType})`, partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1) }
+      { label: `dado (${rootType})`, partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1), fixedBytes: null }
     ]
   };
+}
+
+// Preenche a % de cada partição em relação ao disco inteiro, só pro
+// desenho visual (barra proporcional) — partição sem `fixedBytes` (a
+// "raiz"/"principal"/"dado") fica com o que sobrar.
+function withVisualPercent(partitions, diskSizeBytes) {
+  if (!diskSizeBytes) return partitions.map(p => ({ ...p, percentOfDisk: null }));
+  const fixedTotal = partitions.reduce((sum, p) => sum + (p.fixedBytes || 0), 0);
+  const remainderBytes = Math.max(0, diskSizeBytes - fixedTotal);
+  return partitions.map(p => ({
+    ...p,
+    percentOfDisk: Math.max(1, Math.round(((p.fixedBytes || remainderBytes) / diskSizeBytes) * 100))
+  }));
 }
 
 function buildPlan(device, scheme, fsType) {
@@ -97,13 +116,13 @@ function buildPlan(device, scheme, fsType) {
   const described = describeScheme(device, normalizedScheme, fsType);
 
   const commands = [
-    { cmd: "wipefs", args: ["-a", device] },
-    { cmd: "parted", args: ["-s", device, "mklabel", "gpt"] }
+    { cmd: "wipefs", args: ["-a", device], label: "Apagando assinaturas antigas" },
+    { cmd: "parted", args: ["-s", device, "mklabel", "gpt"], label: "Criando tabela de partições GPT" }
   ];
   described.partitions.forEach((p, i) => {
-    commands.push({ cmd: "parted", args: ["-s", device, "mkpart", "primary", p.partedFsType, p.start, p.end] });
+    commands.push({ cmd: "parted", args: ["-s", device, "mkpart", "primary", p.partedFsType, p.start, p.end], label: `Criando partição "${p.label}"` });
     if (p.espFlag) {
-      commands.push({ cmd: "parted", args: ["-s", device, "set", String(i + 1), "esp", "on"] });
+      commands.push({ cmd: "parted", args: ["-s", device, "set", String(i + 1), "esp", "on"], label: `Marcando "${p.label}" como partição de boot EFI` });
     }
   });
   // Sem isso, o kernel às vezes continua enxergando a tabela de partições
@@ -111,10 +130,10 @@ function buildPlan(device, scheme, fsType) {
   // abaixo tanto podem falhar quanto formatar o nó errado — validado
   // contra hardware real: sem o partprobe, o disco ficava "formatado" só
   // no parted, mas o painel continuava lendo as partições antigas.
-  commands.push({ cmd: "partprobe", args: [device] });
-  commands.push({ cmd: "udevadm", args: ["settle", "--timeout=10"] });
+  commands.push({ cmd: "partprobe", args: [device], label: "Avisando o sistema sobre as partições novas" });
+  commands.push({ cmd: "udevadm", args: ["settle", "--timeout=10"], label: "Aguardando o sistema reconhecer os discos novos" });
   described.partitions.forEach(p => {
-    commands.push({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device] });
+    commands.push({ cmd: p.mkfsCmd, args: [...p.mkfsArgs, p.device], label: `Formatando "${p.label}" (${p.device})` });
   });
 
   return { device, scheme: normalizedScheme, schemeLabel: described.schemeLabel, partitions: described.partitions, commands };
@@ -133,73 +152,137 @@ function requiredTools(plan) {
 // Reconfere na hora se o disco está livre pra mexer, E se as ferramentas
 // que o esquema escolhido precisa estão instaladas — chamado tanto no
 // preview (só informativo) quanto, de novo, bem antes de executar.
+// Também devolve o tamanho do disco (pro desenho visual da barra).
 async function checkEligibility(device, plan) {
   if (!isLinux) {
     return {
       eligible: false,
-      reason: `Particionamento ainda não implementado em ${process.platform === "darwin" ? "macOS" : "Windows"} — os comandos usados aqui (wipefs/parted/mkfs) são específicos do Linux.`
+      reason: `Particionamento ainda não implementado em ${process.platform === "darwin" ? "macOS" : "Windows"} — os comandos usados aqui (wipefs/parted/mkfs) são específicos do Linux.`,
+      diskSizeBytes: null
     };
   }
   const shortName = (device || "").replace(/^\/dev\//, "");
   if (!shortName) {
-    return { eligible: false, reason: "Disco não informado." };
+    return { eligible: false, reason: "Disco não informado.", diskSizeBytes: null };
   }
   const blockDevices = await si.blockDevices().catch(() => []);
-  const exists = blockDevices.some(bd => bd.name === shortName || parentDiskName(bd.name) === shortName);
+  const diskEntry = blockDevices.find(bd => bd.name === shortName && bd.type === "disk");
+  const exists = diskEntry || blockDevices.some(bd => parentDiskName(bd.name) === shortName);
   if (!exists) {
-    return { eligible: false, reason: "Disco não encontrado no servidor." };
+    return { eligible: false, reason: "Disco não encontrado no servidor.", diskSizeBytes: null };
   }
+  const diskSizeBytes = diskEntry?.size || null;
   const mountedPartition = blockDevices.find(
     bd => parentDiskName(bd.name) === shortName && bd.mount
   );
   if (mountedPartition) {
     return {
       eligible: false,
-      reason: `O disco tem uma partição montada em "${mountedPartition.mount}" — desmonte tudo antes (isso nunca é feito automaticamente).`
+      reason: `O disco tem uma partição montada em "${mountedPartition.mount}" — desmonte tudo antes (isso nunca é feito automaticamente).`,
+      diskSizeBytes
     };
   }
   const missingTools = requiredTools(plan).filter(tool => !toolExists(tool));
   if (missingTools.length) {
     return {
       eligible: false,
-      reason: `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pra esse esquema: ${missingTools.join(", ")}. Instale antes de continuar (ex.: pacotes "parted", "dosfstools", "ntfs-3g", "util-linux", conforme a ferramenta faltando).`
+      reason: `Ferramenta(s) não instalada(s) neste servidor, necessária(s) pra esse esquema: ${missingTools.join(", ")}. Instale antes de continuar (ex.: pacotes "parted", "dosfstools", "ntfs-3g", "util-linux", conforme a ferramenta faltando).`,
+      diskSizeBytes
     };
   }
-  return { eligible: true, reason: null };
+  return { eligible: true, reason: null, diskSizeBytes };
 }
 
 async function previewPartition(device, scheme, fsType) {
   const plan = buildPlan(device, scheme, fsType);
   const eligibility = await checkEligibility(device, plan);
+  const partitionsWithPercent = withVisualPercent(plan.partitions, eligibility.diskSizeBytes);
   return {
-    ...eligibility,
+    eligible: eligibility.eligible,
+    reason: eligibility.reason,
     device,
     scheme: plan.scheme,
     schemeLabel: plan.schemeLabel,
-    partitions: plan.partitions.map(p => ({ label: p.label, device: p.device })),
+    partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk })),
     commands: planToPreviewLines(plan)
   };
 }
 
-async function executePartition(device, scheme, fsType) {
+// --- Execução assíncrona com progresso ---------------------------------
+// Formatar um disco de centenas de GB demora (sobretudo o mkfs da
+// partição principal) — em vez de deixar o cliente esperando uma
+// resposta HTTP travada sem feedback, o execute dispara o trabalho em
+// segundo plano e devolve um jobId na hora; o painel consulta o
+// progresso (passo atual / total, % concluído) a cada poucos segundos
+// até terminar. O job fica só em memória (reiniciar o disk-monitor
+// durante uma formatação perde o acompanhamento, mas o comando que
+// já tiver sido disparado continua rodando no sistema operacional).
+const jobs = new Map();
+const JOB_TTL_MS = 30 * 60 * 1000;
+
+function cleanupOldJobs() {
+  const now = Date.now();
+  for (const [id, job] of jobs) {
+    if (job.finishedAt && now - job.finishedAt > JOB_TTL_MS) jobs.delete(id);
+  }
+}
+
+async function startPartitionExecution(device, scheme, fsType) {
   const plan = buildPlan(device, scheme, fsType);
   const eligibility = await checkEligibility(device, plan);
   if (!eligibility.eligible) {
     throw new Error(eligibility.reason || "Disco não elegível pra particionar.");
   }
-  const log = [];
-  for (const step of plan.commands) {
-    try {
-      execFileSync(step.cmd, step.args, { encoding: "utf8", timeout: 60000 });
-      log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: true });
-    } catch (err) {
-      log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: false, error: String(err.message || err) });
-      // Para na primeira falha — nunca tenta o próximo passo (ex.: formatar)
-      // se o passo anterior (ex.: criar a partição) não funcionou.
-      throw Object.assign(new Error(`Falhou em "${step.cmd}" — veja o log.`), { log });
+
+  cleanupOldJobs();
+  const jobId = crypto.randomUUID();
+  const job = {
+    jobId,
+    device,
+    scheme: plan.scheme,
+    status: "running",
+    currentStep: 0,
+    totalSteps: plan.commands.length,
+    currentLabel: plan.commands[0]?.label || "",
+    percent: 0,
+    log: [],
+    error: null,
+    finishedAt: null
+  };
+  jobs.set(jobId, job);
+
+  // Roda em segundo plano — a função que chamou já recebeu o jobId e
+  // devolveu a resposta HTTP antes disso terminar.
+  (async () => {
+    for (const step of plan.commands) {
+      job.currentLabel = step.label;
+      try {
+        execFileSync(step.cmd, step.args, { encoding: "utf8", timeout: 120000 });
+        job.log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: true });
+      } catch (err) {
+        job.log.push({ command: `${step.cmd} ${step.args.join(" ")}`, ok: false, error: String(err.message || err) });
+        job.status = "error";
+        job.error = `Falhou em "${step.cmd}" — veja o log.`;
+        job.finishedAt = Date.now();
+        return;
+      }
+      job.currentStep++;
+      job.percent = Math.round((job.currentStep / job.totalSteps) * 100);
     }
-  }
-  return { ok: true, device, scheme: plan.scheme, partitions: plan.partitions.map(p => ({ label: p.label, device: p.device })), log };
+    job.status = "done";
+    job.percent = 100;
+    job.currentLabel = "Concluído";
+    job.finishedAt = Date.now();
+  })();
+
+  return { jobId, totalSteps: job.totalSteps };
 }
 
-module.exports = { previewPartition, executePartition, CONFIRM_PHRASE };
+function getPartitionJobStatus(jobId) {
+  const job = jobs.get(jobId);
+  if (!job) return null;
+  const { jobId: id, device, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error } = job;
+  return { jobId: id, device, scheme, status, currentStep, totalSteps, currentLabel, percent, log, error };
+}
+
+module.exports = { previewPartition, startPartitionExecution, getPartitionJobStatus, CONFIRM_PHRASE };

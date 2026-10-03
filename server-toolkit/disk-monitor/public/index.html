@@ -1307,6 +1307,20 @@ async function runDiskHealthCheck(device, card) {
   }
 }
 
+// Desenho visual proporcional do disco sendo dividido — cor fixa por
+// posição (EFI/swap/raiz, nunca mais de 3 segmentos nos esquemas atuais),
+// nunca ciclada, pra bater sempre a mesma cor com o mesmo tipo de
+// partição entre as execuções.
+const PD_PARTITION_COLORS = ["#f59e0b", "#7c5cf5", "#22d3ee", "#10b981"];
+function renderPartitionVisualBar(partitions) {
+  const segments = partitions.map((p, i) => {
+    const width = p.percentOfDisk || Math.round(100 / partitions.length);
+    const color = PD_PARTITION_COLORS[i % PD_PARTITION_COLORS.length];
+    return `<div style="width:${width}%; background:${color}; display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap; font-size:11px; color:#0b1020; font-weight:600; min-width:0" title="${p.label} (${p.device})">${p.label}</div>`;
+  }).join("");
+  return `<div style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
+}
+
 // Só monta o texto da prévia — nunca executa nada aqui. O botão de
 // executar só aparece DEPOIS da prévia, e só fica clicável quando as
 // duas confirmações (caminho exato do disco + frase) baterem.
@@ -1331,6 +1345,7 @@ async function runPartitionPreview(device, card) {
     previewEl.innerHTML = `
       <div class="pd-partition-danger">${t("partitionWarning")}</div>
       <div class="pd-partition-tool-label">${data.schemeLabel} — ${t("partitionsToCreate")}</div>
+      ${renderPartitionVisualBar(data.partitions)}
       <ul class="pd-partition-list">${partitionsList}</ul>
       <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
       <label class="pd-partition-tool-label">${t("confirmDeviceLabel", device)}</label>
@@ -1363,7 +1378,10 @@ async function runPartitionExecute(device, card) {
   const execBtn = previewEl.querySelector(".pd-execute-partition-btn");
   const resultEl = previewEl.querySelector(".pd-partition-result");
   execBtn.disabled = true;
-  resultEl.innerHTML = `<div class="pd-empty">${t("partitionRunning")}</div>`;
+  resultEl.innerHTML = `
+    <div class="pd-partition-tool-label" data-progress-label>${t("partitionRunning")}</div>
+    <div class="bar-track" style="margin-top:6px"><div class="bar-fill" data-progress-bar style="width:0%"></div></div>
+  `;
   try {
     const res = await apiFetch("/api/disk-partition/execute", {
       method: "POST",
@@ -1380,13 +1398,58 @@ async function runPartitionExecute(device, card) {
       execBtn.disabled = false;
       return;
     }
-    resultEl.innerHTML = `<div class="pd-empty">${t("partitionDone")}</div>`;
-    toast(t("partitionDone"));
-    loadDiskTopology();
+    await pollPartitionJob(data.jobId, resultEl, execBtn);
   } catch (err) {
     resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
     execBtn.disabled = false;
   }
+}
+
+// Acompanha o job em segundo plano (ver startPartitionExecution no
+// backend) até terminar — é isso que dá a barra de % de verdade em vez
+// de só uma mensagem estática de "rodando".
+function pollPartitionJob(jobId, resultEl, execBtn) {
+  return new Promise(resolve => {
+    const tick = async () => {
+      let job;
+      try {
+        const res = await apiFetch(`/api/disk-partition/execute/status?jobId=${encodeURIComponent(jobId)}`);
+        job = await res.json();
+        if (!res.ok) {
+          resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", job.error)}</div>`;
+          execBtn.disabled = false;
+          resolve();
+          return;
+        }
+      } catch (err) {
+        resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
+        execBtn.disabled = false;
+        resolve();
+        return;
+      }
+
+      const barEl = resultEl.querySelector("[data-progress-bar]");
+      const labelEl = resultEl.querySelector("[data-progress-label]");
+      if (barEl) barEl.style.width = job.percent + "%";
+      if (labelEl) labelEl.textContent = `${job.currentLabel} (${job.currentStep}/${job.totalSteps} — ${job.percent}%)`;
+
+      if (job.status === "done") {
+        resultEl.innerHTML = `<div class="pd-empty">${t("partitionDone")}</div>`;
+        toast(t("partitionDone"));
+        loadDiskTopology();
+        resolve();
+        return;
+      }
+      if (job.status === "error") {
+        resultEl.innerHTML = `<div class="pd-partition-danger">${t("partitionFailed")}: ${job.error}</div>`;
+        execBtn.disabled = false;
+        resolve();
+        return;
+      }
+      setTimeout(tick, 1500);
+    };
+    tick();
+  });
 }
 
 // Delegação de clique: os cards são recriados a cada atualização (60s), então

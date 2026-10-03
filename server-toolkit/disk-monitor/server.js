@@ -14,7 +14,7 @@ const multer = require("multer");
 const { readDiskUsage } = require("./lib/diskUsage");
 const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
-const { previewPartition, executePartition, CONFIRM_PHRASE } = require("./lib/diskPartition");
+const { previewPartition, startPartitionExecution, getPartitionJobStatus, CONFIRM_PHRASE } = require("./lib/diskPartition");
 const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
 const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
 const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
@@ -301,12 +301,22 @@ app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, r
     console.log(
       `[disk-monitor] Particionamento/formatação de "${device}" disparado por "${req.session.user.username}" em ${new Date().toISOString()}`
     );
-    const result = await executePartition(device, scheme, fsType);
-    res.json(result);
+    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType);
+    res.json({ jobId, totalSteps });
   } catch (err) {
-    console.error("[disk-monitor] Falha ao particionar/formatar disco:", err.message, err.log || "");
-    res.status(500).json({ error: err.message, log: err.log || [] });
+    console.error("[disk-monitor] Falha ao iniciar particionamento/formatação:", err.message);
+    res.status(500).json({ error: err.message });
   }
+});
+
+// Progresso da formatação em andamento — o painel consulta isso a cada
+// poucos segundos pra mostrar a barra de % (ver lib/diskPartition.js).
+app.get("/api/disk-partition/execute/status", auth.requireRole("admin"), (req, res) => {
+  const job = getPartitionJobStatus(req.query.jobId);
+  if (!job) {
+    return res.status(404).json({ error: "Job não encontrado (pode já ter expirado)." });
+  }
+  res.json(job);
 });
 
 // Montar uma partição existente (ex.: HD extra plugado sem ponto de

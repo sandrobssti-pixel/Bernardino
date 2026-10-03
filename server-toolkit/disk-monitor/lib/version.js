@@ -1,3 +1,3 @@
 // Versionamento próprio deste módulo (independente do versionamento do
 // AtendeFlow) — sobe a cada mudança relevante no disk-monitor.
-module.exports = { version: "1.16.2" };
+module.exports = { version: "1.17.0" };

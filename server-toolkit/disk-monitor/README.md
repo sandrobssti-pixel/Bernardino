@@ -406,6 +406,16 @@ cada uma. **Só Linux** por enquanto — no Windows e no macOS a
 integração ainda não existe (retorna erro claro em vez de tentar algo
 não testado).
 
+**Progresso em tempo real e desenho visual**: a prévia agora mostra uma
+barra colorida proporcional ao tamanho de cada partição antes de
+confirmar (cor fixa por posição — EFI/swap/raiz, nunca ciclada). A
+execução deixou de ser uma chamada HTTP única e bloqueante: o `execute`
+dispara o trabalho em segundo plano (`POST .../execute` devolve um
+`jobId` na hora) e o painel consulta o progresso a cada 1.5s
+(`GET .../execute/status?jobId=...`), mostrando o passo atual, "X de Y"
+e % concluído numa barra de verdade — em vez de uma mensagem estática de
+"rodando" sem noção de quanto falta.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):
