@@ -437,6 +437,37 @@ com base na documentação oficial de cada sistema, não testados ao vivo.
 Teste com cautela a primeira vez em cada plataforma nova antes de
 confiar em produção.
 
+### Espelhar disco do sistema (RAID1) — só gera roteiro, nunca executa
+
+Painel "Espelhar disco do sistema (RAID1)" (admin): detecta um disco do
+mesmo tamanho do disco do sistema (dentro de 2% de tolerância, já que
+discos "idênticos" variam um pouco entre fabricantes) sem nenhuma
+partição montada, e gera o roteiro exato de comandos (`sgdisk`, `mdadm`,
+`rsync`, `grub-install`, etc.) pra espelhar o sistema manualmente.
+
+**Essa é a única ação deste painel que deliberadamente nunca vira um
+botão "executar"** — diferente de particionar um disco de dados (ação
+isolada, reversível ao trocar o disco), espelhar o disco do sistema
+envolve copiar o sistema de arquivo por arquivo, reconfigurar o
+bootloader (GRUB), reiniciar no meio do processo e só então apagar o
+disco original — um erro em qualquer passo pode deixar o servidor **sem
+conseguir ligar**, sem desfazer fácil. O roteiro gerado precisa ser
+executado manualmente, passo a passo, com mídia de resgate (live USB)
+disponível, confirmando o boot do RAID antes do último passo (que apaga
+o disco original).
+
+Só cobre o layout mais comum (GPT + partição EFI + raiz ext4, sem LVM,
+sem swap separado) — qualquer outro layout recusa a gerar o roteiro em
+vez de arriscar um comando errado.
+
+**Honestidade sobre o que foi testado**: a detecção de disco candidato
+(leitura de tamanho/montagem) foi testada nesta sessão. A geração do
+roteiro foi escrita com base no procedimento padrão documentado pra
+Debian/Ubuntu (`mdadm` + `grub-install` + `chroot`), mas **o roteiro em
+si não foi executado contra uma máquina real** — não há como testar
+isso com segurança sem um servidor descartável. Revise cada comando
+antes de rodar, e tenha certeza de entender o que cada passo faz.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,

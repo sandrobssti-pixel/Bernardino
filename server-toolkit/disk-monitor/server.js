@@ -17,6 +17,7 @@ const { checkDiskHealth } = require("./lib/diskHealth");
 const { previewPartition, executePartition, CONFIRM_PHRASE } = require("./lib/diskPartition");
 const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
 const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
+const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { runCleanup } = require("./lib/cleanup");
@@ -378,6 +379,33 @@ app.post("/api/disk-cleanup-scan/execute", auth.requireRole("admin"), async (req
     res.json(result);
   } catch (err) {
     console.error("[disk-monitor] Falha na limpeza avançada:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Espelhamento RAID1 do disco do SISTEMA — só leitura e geração de texto,
+// NUNCA executa nada (ver lib/raidMirror.js pro porquê: é a única ação
+// deste painel que não vira botão automático, por risco de deixar o
+// servidor sem conseguir ligar).
+app.get("/api/raid-mirror/candidates", auth.requireRole("admin"), async (req, res) => {
+  try {
+    const result = await findMirrorCandidates(MOUNT_PATH);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao buscar candidatos a espelhamento:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/raid-mirror/runbook", auth.requireRole("admin"), async (req, res) => {
+  if (!req.query.targetDevice) {
+    return res.status(400).json({ error: "Parâmetro 'targetDevice' obrigatório." });
+  }
+  try {
+    const runbook = await buildMirrorRunbook(req.query.targetDevice, MOUNT_PATH);
+    res.json(runbook);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao gerar roteiro de espelhamento:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
