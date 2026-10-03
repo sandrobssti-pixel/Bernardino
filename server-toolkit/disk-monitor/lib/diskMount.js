@@ -38,6 +38,22 @@ function isAllowedMountPoint(mountPoint) {
   return typeof mountPoint === "string" && ALLOWED_MOUNT_PREFIXES.some(prefix => mountPoint.startsWith(prefix));
 }
 
+const EFI_LIKE_FS = new Set(["vfat", "fat", "fat16", "fat32"]);
+const EFI_LIKE_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GiB — EFI de verdade é 512MiB-1GiB
+
+// Só um palpite, nunca uma certeza: uma partição FAT pequena geralmente é
+// a de boot/EFI, "swap" é sempre swap, e o resto é dado — serve só pra
+// explicar na tela o PORQUÊ de cada partição existir (ex.: distinguir a
+// partição de boot/memória virtual, que o particionador cria sozinha,
+// da partição principal que o técnico realmente vai usar), nunca pra
+// decidir nada sozinho.
+function inferPartitionRole(fsType, sizeBytes) {
+  const normalized = (fsType || "").toLowerCase();
+  if (normalized === "swap") return "swap";
+  if (EFI_LIKE_FS.has(normalized) && sizeBytes > 0 && sizeBytes <= EFI_LIKE_MAX_BYTES) return "boot";
+  return "data";
+}
+
 // Lista as partições que existem no servidor mas não estão montadas em
 // lugar nenhum agora — candidatas a "montar" pelo painel.
 async function listMountablePartitions() {
@@ -49,6 +65,7 @@ async function listMountablePartitions() {
       device: `/dev/${bd.name}`,
       label: bd.label || "",
       fsType: bd.fsType || "",
+      role: inferPartitionRole(bd.fsType, bd.size || 0),
       uuid: bd.uuid || "",
       sizeBytes: bd.size || 0,
       parentDisk: parentDiskName(bd.name)

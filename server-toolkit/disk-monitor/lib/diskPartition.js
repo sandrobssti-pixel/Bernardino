@@ -119,6 +119,7 @@ function describeScheme(device, scheme, fsType, partitionCount) {
       const endPct = i === n - 1 ? 100 : Math.round(((i + 1) * 100) / n);
       partitions.push({
         label: `partição ${i + 1} (${rootType})`,
+        role: "data",
         displayFsType: rootType.toUpperCase(),
         partedFsType,
         start: `${startPct}%`,
@@ -141,9 +142,9 @@ function describeScheme(device, scheme, fsType, partitionCount) {
     return {
       schemeLabel: "Linux com UEFI (EFI + swap + raiz)",
       partitions: [
-        { label: "EFI (boot)", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
-        { label: "swap", displayFsType: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2), fixedBytes: SWAP_BYTES },
-        { label: `raiz (${rootType})`, displayFsType: rootType.toUpperCase(), partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3), fixedBytes: null }
+        { label: "EFI (boot)", role: "boot", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "swap", role: "swap", displayFsType: "swap", partedFsType: "linux-swap", start: "513MiB", end: "4609MiB", mkfsCmd: "mkswap", mkfsArgs: [], device: partName(device, 2), fixedBytes: SWAP_BYTES },
+        { label: `raiz (${rootType})`, role: "data", displayFsType: rootType.toUpperCase(), partedFsType: rootType, start: "4609MiB", end: "100%", mkfsCmd: rootType === "ext4" ? "mkfs.ext4" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 3), fixedBytes: null }
       ]
     };
   }
@@ -152,8 +153,8 @@ function describeScheme(device, scheme, fsType, partitionCount) {
     return {
       schemeLabel: "Windows com UEFI (EFI + principal NTFS)",
       partitions: [
-        { label: "EFI (boot)", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
-        { label: "principal (NTFS)", displayFsType: "NTFS", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2), fixedBytes: null }
+        { label: "EFI (boot)", role: "boot", displayFsType: "FAT32", partedFsType: "fat32", start: "1MiB", end: "513MiB", mkfsCmd: "mkfs.fat", mkfsArgs: ["-F32"], espFlag: true, device: partName(device, 1), fixedBytes: EFI_BYTES },
+        { label: "principal (NTFS)", role: "data", displayFsType: "NTFS", partedFsType: "ntfs", start: "513MiB", end: "100%", mkfsCmd: "mkfs.ntfs", mkfsArgs: ["-f"], device: partName(device, 2), fixedBytes: null }
       ]
     };
   }
@@ -163,7 +164,7 @@ function describeScheme(device, scheme, fsType, partitionCount) {
   return {
     schemeLabel: "Volume único (dados)",
     partitions: [
-      { label: `dado (${rootType})`, displayFsType: rootType.toUpperCase(), partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1), fixedBytes: null }
+      { label: `dado (${rootType})`, role: "data", displayFsType: rootType.toUpperCase(), partedFsType: rootType === "exfat" ? "ntfs" : rootType, start: "0%", end: "100%", mkfsCmd: rootType === "exfat" ? "mkfs.exfat" : `mkfs.${rootType}`, mkfsArgs: rootType === "ext4" ? ["-F"] : [], device: partName(device, 1), fixedBytes: null }
     ]
   };
 }
@@ -362,7 +363,12 @@ async function previewPartition(device, scheme, fsType, phase, partitionCount) {
     // está vazio (sem nenhuma, disco novo/já limpo), sem precisar adivinhar.
     existingPartitions: eligibility.existingPartitions || [],
     diskSizeBytes: eligibility.diskSizeBytes,
-    partitions: partitionsWithPercent.map(p => ({ label: p.label, device: p.device, percentOfDisk: p.percentOfDisk, sizeBytes: p.sizeBytes, fsType: p.displayFsType })),
+    partitions: partitionsWithPercent.map(p => ({ label: p.label, role: p.role, device: p.device, percentOfDisk: p.percentOfDisk, sizeBytes: p.sizeBytes, fsType: p.displayFsType })),
+    // "install": o esquema deixa a estrutura que um instalador de SO
+    // espera (ainda precisa rodar o instalador de verdade depois).
+    // "storage": o disco fica pronto pra usar direto — como dado de
+    // aplicação específica ou só backup, sem nenhum SO envolvido.
+    purpose: (plan.scheme === "linux-uefi" || plan.scheme === "windows-uefi") ? "install" : "storage",
     commands: planToPreviewLines(plan)
   };
 }

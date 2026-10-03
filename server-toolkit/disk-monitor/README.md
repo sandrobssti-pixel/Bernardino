@@ -516,6 +516,49 @@ travamento em 8) contra um disco do ambiente de desenvolvimento — ainda
 não foi confirmado criando/formatando de verdade N partições custom
 contra hardware físico real.
 
+**Papel de cada partição (boot/memória/dado) e resultado visual final**:
+cada partição dos esquemas (inclusive o personalizado) agora carrega um
+`role` — `boot` (EFI), `swap` (memória virtual) ou `data` (a partição
+que o técnico realmente vai usar). Isso aparece em dois lugares que
+antes tratavam tudo igual:
+- Na lista "Partições sem montar" dentro do card do disco, que agora
+  separa visualmente a "Partição principal" (o `ext4`/`NTFS`/etc. de
+  verdade) das "Partições padrão (boot/memória)" — antes era uma pilha
+  só de `/dev/sdbN` sem distinção, o que gerava a dúvida de qual delas
+  era "o HD" de fato.
+- Depois que a etapa "Formatar" termina, em vez de só uma frase de
+  texto, a tela mostra a mesma barra proporcional + legenda da prévia
+  (reaproveitada de `_phaseData`, guardado no próprio elemento durante a
+  prévia — não busca nada de novo no servidor) representando o
+  resultado final de verdade, seguida de uma frase dizendo pra que esse
+  layout serve: **"install"** (esquemas Linux/Windows UEFI — pronto pra
+  rodar um instalador de sistema operacional depois) ou **"storage"**
+  (volume único/personalizado — pronto pra usar direto como dado de uma
+  aplicação específica ou só backup). Isso responde diretamente à
+  pergunta "esse HD vai servir pra instalar sistema, rodar uma aplicação
+  específica, ou só backup?" sem o técnico precisar adivinhar pelo
+  esquema escolhido.
+- `role` em partição detectada como "sem montar" (fora do fluxo desta
+  ferramenta, ex.: disco que já veio particionado de outro lugar) é só
+  um palpite por tipo de sistema de arquivos + tamanho (FAT pequeno ≈
+  boot, `swap` ≈ swap, resto ≈ dado) — nunca uma certeza, só pra
+  explicar visualmente o que provavelmente é cada partição.
+
+**Corrigido: atualização automática apagava trabalho em andamento**. A
+tela de discos físicos se atualiza sozinha a cada 60s (pra pegar disco
+novo plugado, etc.) recriando os cards do zero — e como a ferramenta de
+particionar/montar vive dentro desses cards, se o técnico estivesse no
+meio de preencher a frase de confirmação, olhando uma prévia, ou
+esperando uma etapa rodar, a atualização automática apagava tudo sem
+aviso nenhum, obrigando a recomeçar do zero. `loadDiskTopology()` agora
+confere antes (`hasOpenDiskTool()`) se alguma ferramenta de particionar
+ou montar está aberta em qualquer card, e se estiver, a atualização
+*periódica* é pulada inteira — só uma ação explícita do usuário (trocar
+o idioma, por exemplo, via `loadDiskTopology(true)`) força a atualização
+mesmo com algo aberto. CPU/RAM/processos continuam atualizando normal
+nesse meio tempo, só a grade de discos físicos fica parada enquanto
+houver algo aberto.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

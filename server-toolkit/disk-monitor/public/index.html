@@ -636,6 +636,14 @@ const translations = {
     partitionCountLabel: "Quantas partições?",
     partitionCountHint: "De 2 a 8 — o espaço do disco é dividido em partes iguais entre elas.",
     diskPartitionCount: n => n === 1 ? "1 partição" : `${n} partições`,
+    roleBoot: "boot/EFI", roleSwap: "memória virtual (swap)", roleData: "dados",
+    roleBootDesc: "Partição padrão que o sistema precisa pra dar boot — não é onde seus arquivos ficam.",
+    roleSwapDesc: "Partição padrão usada como memória virtual — também não é onde seus arquivos ficam.",
+    standardPartitionsTitle: "Partições padrão (boot/memória)",
+    mainPartitionTitle: "Partição principal",
+    resultSummaryTitle: "✅ Resultado final",
+    purposeInstall: "Estrutura pronta pra instalar um sistema operacional — ainda falta rodar o instalador de verdade (pendrive bootável, PXE, etc.) apontando pra este disco.",
+    purposeStorage: "Disco pronto pra usar direto — como dado de uma aplicação específica ou só para backup/armazenamento. Não serve pra instalar sistema operacional.",
     schemeOsNote: "Isso só prepara a estrutura de partições — instalar o sistema operacional em si ainda precisa do instalador oficial (pendrive bootável, etc).",
     partitionsToCreate: "partições que serão criadas",
     diskModelLabel: "Modelo", diskSerialLabel: "Número de série",
@@ -827,6 +835,14 @@ const translations = {
     partitionCountLabel: "¿Cuántas particiones?",
     partitionCountHint: "De 2 a 8 — el espacio del disco se divide en partes iguales entre ellas.",
     diskPartitionCount: n => n === 1 ? "1 partición" : `${n} particiones`,
+    roleBoot: "boot/EFI", roleSwap: "memoria virtual (swap)", roleData: "datos",
+    roleBootDesc: "Partición estándar que el sistema necesita para arrancar — no es donde quedan sus archivos.",
+    roleSwapDesc: "Partición estándar usada como memoria virtual — tampoco es donde quedan sus archivos.",
+    standardPartitionsTitle: "Particiones estándar (boot/memoria)",
+    mainPartitionTitle: "Partición principal",
+    resultSummaryTitle: "✅ Resultado final",
+    purposeInstall: "Estructura lista para instalar un sistema operativo — todavía falta correr el instalador de verdad (USB de arranque, PXE, etc.) apuntando a este disco.",
+    purposeStorage: "Disco listo para usar directo — como dato de una aplicación específica o solo para backup/almacenamiento. No sirve para instalar sistema operativo.",
     schemeOsNote: "Esto solo prepara la estructura de particiones — instalar el sistema operativo en sí todavía necesita el instalador oficial (USB de arranque, etc).",
     partitionsToCreate: "particiones que se crearán",
     diskModelLabel: "Modelo", diskSerialLabel: "Número de serie",
@@ -1018,6 +1034,14 @@ const translations = {
     partitionCountLabel: "How many partitions?",
     partitionCountHint: "From 2 to 8 — the disk space is split evenly between them.",
     diskPartitionCount: n => n === 1 ? "1 partition" : `${n} partitions`,
+    roleBoot: "boot/EFI", roleSwap: "virtual memory (swap)", roleData: "data",
+    roleBootDesc: "Standard partition the system needs to boot — not where your files live.",
+    roleSwapDesc: "Standard partition used as virtual memory — also not where your files live.",
+    standardPartitionsTitle: "Standard partitions (boot/memory)",
+    mainPartitionTitle: "Main partition",
+    resultSummaryTitle: "✅ Final result",
+    purposeInstall: "Structure ready to install an operating system — you still need to run the actual installer (bootable USB, PXE, etc.) pointed at this disk.",
+    purposeStorage: "Disk ready to use directly — as data for a specific application or just for backup/storage. Not meant for installing an operating system.",
     schemeOsNote: "This only prepares the partition structure — actually installing the operating system still needs the official installer (bootable USB, etc).",
     partitionsToCreate: "partitions that will be created",
     diskModelLabel: "Model", diskSerialLabel: "Serial number",
@@ -1177,7 +1201,10 @@ function setLang(lang) {
   loadProcesses();
   loadLive();
   loadMachineProfile();
-  loadDiskTopology();
+  // Troca de idioma é ação explícita do usuário — atualiza mesmo que
+  // tenha alguma ferramenta de disco aberta (ao contrário do refresh
+  // periódico automático, que nunca deve fazer isso).
+  loadDiskTopology(true);
   if (nasConfigured) {
     renderNasRoots();
     loadNasFolder();
@@ -1466,25 +1493,51 @@ function renderPartitionVisualBar(partitions) {
   return `<div class="pd-partition-visual-bar" style="display:flex; width:100%; height:34px; border-radius:6px; overflow:hidden; margin:8px 0; border:1px solid var(--panel-border)">${segments}</div>`;
 }
 
+const PD_ROLE_LABEL_KEY = { boot: "roleBoot", swap: "roleSwap", data: "roleData" };
+
 // Legenda embaixo da barra, duas linhas por partição (número + tipo de
 // sistema de arquivos / tamanho e caminho do dispositivo) — igual ao
 // jeito que o GNOME Disks rotula cada pedaço da barra proporcional.
 // data-idx bate com o segmento da barra — clicar num destaca o outro.
+// Quando a partição tem `role` (boot/swap/data), mostra também pra que
+// ela serve — é o que diferencia visualmente "partição padrão do
+// sistema" (boot/swap) da "partição principal" que o técnico vai usar.
 function renderPartitionBarLegend(partitions) {
   const items = partitions.map((p, i) => {
     const color = PD_PARTITION_COLORS[i % PD_PARTITION_COLORS.length];
     const sizeText = p.sizeBytes ? formatBytes(p.sizeBytes) : "";
     const fsText = p.fsType || "";
+    const roleText = p.role && PD_ROLE_LABEL_KEY[p.role] ? ` (${t(PD_ROLE_LABEL_KEY[p.role])})` : "";
     return `
       <div class="pd-partition-bar-legend-item" data-idx="${i}">
         <span class="pd-partition-bar-legend-swatch" style="background:${color}"></span>
         <span class="pd-partition-bar-legend-text">
-          <b>${t("partitionLabel", i + 1)}</b> — ${[sizeText, fsText].filter(Boolean).join(" ")} — <code>${p.device}</code>
+          <b>${t("partitionLabel", i + 1)}</b>${roleText} — ${[sizeText, fsText].filter(Boolean).join(" ")} — <code>${p.device}</code>
         </span>
       </div>
     `;
   }).join("");
   return `<div class="pd-partition-bar-legend">${items}</div>`;
+}
+
+// Resumo visual do RESULTADO final, mostrado depois que a etapa
+// "formatar" termina — barra + legenda (iguais às da prévia, só que
+// agora representando o estado de verdade do disco) mais uma frase
+// dizendo pra que esse layout serve: instalar sistema operacional, ou
+// usar como dado de uma aplicação específica/backup. Não inventa nada
+// novo — reaproveita exatamente os dados que a prévia da etapa
+// "formatar" já tinha calculado (capturados em `_phaseData`).
+function renderPartitionResultSummary(phaseData) {
+  if (!phaseData || !phaseData.partitions || !phaseData.partitions.length) {
+    return `<div class="pd-empty">${t("partitionDone")}</div>`;
+  }
+  const purposeText = phaseData.purpose === "install" ? t("purposeInstall") : t("purposeStorage");
+  return `
+    <div class="pd-partition-tool-label">${t("resultSummaryTitle")}</div>
+    ${renderPartitionVisualBar(phaseData.partitions)}
+    ${renderPartitionBarLegend(phaseData.partitions)}
+    <div class="pd-empty">${purposeText}</div>
+  `;
 }
 
 // Clicar num segmento da barra ou numa linha da legenda destaca os dois
@@ -1595,14 +1648,20 @@ async function runPartitionPhasePreview(phase, device, card) {
       previewEl.innerHTML = `<div class="pd-partition-danger">${t("partitionNotEligible")}: ${data.reason}</div>`;
       return;
     }
+    const purposeText = data.purpose === "install" ? t("purposeInstall") : t("purposeStorage");
     previewEl.innerHTML = `
       <div class="pd-partition-tool-label">${data.schemeLabel} — ${t("partitionsToCreate")}</div>
       ${renderPartitionVisualBar(data.partitions)}
       ${renderPartitionBarLegend(data.partitions)}
+      <div class="pd-empty">${purposeText}</div>
       <pre class="pd-partition-commands">${data.commands.join("\n")}</pre>
       <button class="pd-phase-execute-btn" type="button" data-phase="${phase}">${t(PHASE_EXECUTE_BTN_KEY[phase])}</button>
       <div class="pd-phase-result" data-phase="${phase}"></div>
     `;
+    // Guarda o resultado dessa prévia no próprio elemento — é o que o
+    // resumo final (renderPartitionResultSummary) usa depois que a
+    // execução termina, sem precisar buscar tudo de novo no servidor.
+    previewEl._phaseData = data;
   } catch (err) {
     previewEl.innerHTML = `<div class="pd-empty">${t("toastError", err.message)}</div>`;
   }
@@ -1638,7 +1697,7 @@ async function runPartitionPhaseExecute(phase, device, card) {
       execBtn.disabled = false;
       return;
     }
-    await pollPartitionJob(phase, data.jobId, resultEl, execBtn);
+    await pollPartitionJob(phase, data.jobId, resultEl, execBtn, previewEl._phaseData);
   } catch (err) {
     resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
     execBtn.disabled = false;
@@ -1647,9 +1706,13 @@ async function runPartitionPhaseExecute(phase, device, card) {
 
 // Acompanha o job em segundo plano (ver startPartitionExecution no
 // backend) até terminar — é isso que dá a barra de % de verdade em vez
-// de só uma mensagem estática de "rodando". Só atualiza a topologia no
-// final (etapa "formatar") pra não fechar o card no meio das três etapas.
-function pollPartitionJob(phase, jobId, resultEl, execBtn) {
+// de só uma mensagem estática de "rodando". `phaseData` é a prévia já
+// calculada (ver runPartitionPhasePreview) — reaproveitada aqui pra
+// montar o resumo visual do resultado final sem precisar buscar nada de
+// novo. A topologia geral só é pedida pra se atualizar (não forçado —
+// respeita ferramenta aberta em outro card, ver loadDiskTopology) na
+// etapa "formatar"; as outras duas não mexem no resto da tela.
+function pollPartitionJob(phase, jobId, resultEl, execBtn, phaseData) {
   return new Promise(resolve => {
     const tick = async () => {
       let job;
@@ -1675,10 +1738,15 @@ function pollPartitionJob(phase, jobId, resultEl, execBtn) {
       if (labelEl) labelEl.textContent = `${job.currentLabel} (${job.currentStep}/${job.totalSteps} — ${job.percent}%)`;
 
       if (job.status === "done") {
-        const doneText = t(PHASE_DONE_KEY[phase]);
-        resultEl.innerHTML = `<div class="pd-empty">${doneText}</div>`;
-        toast(doneText);
-        if (phase === "format") loadDiskTopology();
+        if (phase === "format") {
+          resultEl.innerHTML = renderPartitionResultSummary(phaseData);
+          toast(t("resultSummaryTitle"));
+          loadDiskTopology();
+        } else {
+          const doneText = t(PHASE_DONE_KEY[phase]);
+          resultEl.innerHTML = `<div class="pd-empty">${doneText}</div>`;
+          toast(doneText);
+        }
         resolve();
         return;
       }
@@ -1747,12 +1815,14 @@ function bindDiskCardActions(containerId) {
 // agora fica dentro do próprio card do disco, tudo num lugar só.
 function renderUnmountedPartitionBlock(p) {
   const meta = [p.fsType || "?", formatBytes(p.sizeBytes)].filter(Boolean).join(" · ");
+  const roleDesc = p.role === "boot" ? t("roleBootDesc") : p.role === "swap" ? t("roleSwapDesc") : "";
   return `
     <div class="pd-unmounted-row" data-partition-device="${p.device}">
       <div class="pd-partition-row">
         <span class="pd-partition-mount"><code>${p.device}</code></span>
         <span class="pd-partition-detail">${meta}</span>
       </div>
+      ${roleDesc ? `<div class="pd-partition-detail">${roleDesc}</div>` : ""}
       <div class="pd-actions">
         <button class="secondary pd-mount-toggle-btn" type="button">${t("mountBtn")}</button>
       </div>
@@ -1783,11 +1853,25 @@ function renderDiskCard(disk, unmountedPartitions) {
   const hasSystemMount = disk.partitions.some(p => p.isSystemMount);
   const isAdmin = currentUserInfo?.role === "admin";
 
+  // Separa a(s) partição(ões) principal(is) (dado/raiz) das partições
+  // padrão de sistema (boot/EFI, swap) — antes a lista era só uma pilha
+  // plana de /dev/sdbN idênticos, sem deixar claro qual é o HD "de
+  // verdade" e quais são só infraestrutura que o particionador cria
+  // sozinho (memória virtual, boot).
+  const mainUnmounted = (unmountedPartitions || []).filter(p => p.role !== "boot" && p.role !== "swap");
+  const standardUnmounted = (unmountedPartitions || []).filter(p => p.role === "boot" || p.role === "swap");
   const unmountedHtml = (isAdmin && unmountedPartitions && unmountedPartitions.length)
     ? `
       <div class="pd-unmounted-block">
         <div class="pd-health-title">${t("unmountedPartitionsTitle")}</div>
-        ${unmountedPartitions.map(renderUnmountedPartitionBlock).join("")}
+        ${mainUnmounted.length ? `
+          <div class="pd-partition-tool-label" style="margin-top:6px">${t("mainPartitionTitle")}</div>
+          ${mainUnmounted.map(renderUnmountedPartitionBlock).join("")}
+        ` : ""}
+        ${standardUnmounted.length ? `
+          <div class="pd-partition-tool-label" style="margin-top:6px">${t("standardPartitionsTitle")}</div>
+          ${standardUnmounted.map(renderUnmountedPartitionBlock).join("")}
+        ` : ""}
       </div>
     `
     : "";
@@ -1948,7 +2032,24 @@ async function loadMountableByDisk() {
   }
 }
 
-async function loadDiskTopology() {
+// Os cards de disco são recriados do zero a cada atualização de
+// topologia — se isso acontecer enquanto o técnico está no meio de
+// particionar/montar algo (ferramenta aberta, frase de confirmação
+// digitada, prévia na tela), tudo aquilo some sem aviso e precisa ser
+// refeito do início. Essa checagem impede a atualização PERIÓDICA (não
+// pedida pelo usuário) de apagar um trabalho em andamento; uma ação que
+// o próprio usuário disparou (trocar idioma, por exemplo) pode pedir
+// `force: true` pra atualizar mesmo assim.
+function hasOpenDiskTool() {
+  const openTools = document.querySelectorAll(
+    "#physicalDisksGrid .pd-partition-tool, #usbDisksGrid .pd-partition-tool, " +
+    "#physicalDisksGrid .pd-mount-tool, #usbDisksGrid .pd-mount-tool"
+  );
+  return Array.from(openTools).some(el => el.style.display === "block");
+}
+
+async function loadDiskTopology(force) {
+  if (!force && hasOpenDiskTool()) return;
   try {
     const [res, mountableByDisk] = await Promise.all([apiFetch("/api/disk-topology"), loadMountableByDisk()]);
     if (!res.ok) return;
