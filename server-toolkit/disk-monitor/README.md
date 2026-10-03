@@ -494,6 +494,28 @@ o sintoma original relatado. Ainda só Linux; Windows e macOS continuam
 retornando erro claro de "não implementado" em qualquer uma das três
 etapas.
 
+**Esquema personalizado (escolher quantas partições) e contador visível
+de partições**: o seletor de esquema ganhou uma 4ª opção, "Personalizado
+— escolher quantas partições" — ao escolher, aparece um campo numérico
+(2 a 8) e o espaço do disco é dividido em partes iguais entre essa
+quantidade, todas com o mesmo sistema de arquivos escolhido na lista de
+rádio. Implementado como um esquema a mais em `describeScheme()`
+(`lib/diskPartition.js`), reaproveitando o mesmo fluxo de três etapas —
+"criar" e "formatar" funcionam exatamente igual aos esquemas prontos, só
+que com N partições em vez de 1–3 fixas. `withVisualPercent()` foi
+ajustado pra aceitar um `percentHint` por partição (a fatia exata que o
+esquema personalizado já sabe, em vez do cálculo de "o que sobrar"
+usado pelos esquemas de tamanho fixo). Também foi adicionado um contador
+("N partições") visível no topo de cada card de disco físico, somando
+partições montadas e sem montar — antes só dava pra saber a quantidade
+contando as linhas na tela.
+
+**Honestidade**: o esquema personalizado foi validado só por execução em
+modo de prévia (2, 3, 5, 8 e um valor fora do limite confirmando o
+travamento em 8) contra um disco do ambiente de desenvolvimento — ainda
+não foi confirmado criando/formatando de verdade N partições custom
+contra hardware físico real.
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

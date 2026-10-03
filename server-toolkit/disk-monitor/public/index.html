@@ -211,10 +211,11 @@
     margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--panel-border);
   }
   .pd-partition-tool-label { font-size: 0.75rem; color: var(--text-muted); margin: 8px 0 3px; display: block; }
-  .pd-partition-tool select, .pd-partition-tool input[type="text"] {
+  .pd-partition-tool select, .pd-partition-tool input[type="text"], .pd-partition-tool input[type="number"] {
     width: 100%; background: rgba(148,163,184,0.08); border: 1px solid var(--panel-border);
     border-radius: 6px; padding: 6px 8px; color: var(--text); font-size: 0.82rem;
   }
+  .pd-partition-count-row { margin-top: 2px; }
   .pd-preview-btn { margin-top: 10px; }
   /* Inspirado no painel nativo "Discos" do Ubuntu (GNOME Disks) — ficha
      técnica do disco (Modelo/Número de série/Tamanho/Interface) em cima
@@ -631,6 +632,10 @@ const translations = {
     schemeSingle: "Volume único (dados)",
     schemeLinuxUefi: "Linux com UEFI (EFI + swap + raiz)",
     schemeWindowsUefi: "Windows com UEFI (EFI + principal NTFS)",
+    schemeCustom: "Personalizado — escolher quantas partições",
+    partitionCountLabel: "Quantas partições?",
+    partitionCountHint: "De 2 a 8 — o espaço do disco é dividido em partes iguais entre elas.",
+    diskPartitionCount: n => n === 1 ? "1 partição" : `${n} partições`,
     schemeOsNote: "Isso só prepara a estrutura de partições — instalar o sistema operacional em si ainda precisa do instalador oficial (pendrive bootável, etc).",
     partitionsToCreate: "partições que serão criadas",
     diskModelLabel: "Modelo", diskSerialLabel: "Número de série",
@@ -818,6 +823,10 @@ const translations = {
     schemeSingle: "Volumen único (datos)",
     schemeLinuxUefi: "Linux con UEFI (EFI + swap + raíz)",
     schemeWindowsUefi: "Windows con UEFI (EFI + principal NTFS)",
+    schemeCustom: "Personalizado — elegir cuántas particiones",
+    partitionCountLabel: "¿Cuántas particiones?",
+    partitionCountHint: "De 2 a 8 — el espacio del disco se divide en partes iguales entre ellas.",
+    diskPartitionCount: n => n === 1 ? "1 partición" : `${n} particiones`,
     schemeOsNote: "Esto solo prepara la estructura de particiones — instalar el sistema operativo en sí todavía necesita el instalador oficial (USB de arranque, etc).",
     partitionsToCreate: "particiones que se crearán",
     diskModelLabel: "Modelo", diskSerialLabel: "Número de serie",
@@ -1005,6 +1014,10 @@ const translations = {
     schemeSingle: "Single volume (data)",
     schemeLinuxUefi: "Linux with UEFI (EFI + swap + root)",
     schemeWindowsUefi: "Windows with UEFI (EFI + primary NTFS)",
+    schemeCustom: "Custom — choose how many partitions",
+    partitionCountLabel: "How many partitions?",
+    partitionCountHint: "From 2 to 8 — the disk space is split evenly between them.",
+    diskPartitionCount: n => n === 1 ? "1 partition" : `${n} partitions`,
     schemeOsNote: "This only prepares the partition structure — actually installing the operating system still needs the official installer (bootable USB, etc).",
     partitionsToCreate: "partitions that will be created",
     diskModelLabel: "Model", diskSerialLabel: "Serial number",
@@ -1525,10 +1538,11 @@ async function runPartitionPhasePreview(phase, device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
+  const partitionCount = scheme === "custom" ? tool.querySelector(".pd-partition-count-input").value : "";
   const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
   previewEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
   try {
-    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}&phase=${phase}`);
+    const res = await apiFetch(`/api/disk-partition/preview?device=${encodeURIComponent(device)}&scheme=${encodeURIComponent(scheme)}&fsType=${encodeURIComponent(fsType)}&phase=${phase}&partitionCount=${encodeURIComponent(partitionCount)}`);
     const data = await res.json();
     if (!res.ok) {
       previewEl.innerHTML = `<div class="pd-empty">${t("usersErrorGeneric", data.error)}</div>`;
@@ -1598,10 +1612,11 @@ async function runPartitionPhaseExecute(phase, device, card) {
   const tool = card.querySelector(".pd-partition-tool");
   const scheme = tool.querySelector(".pd-scheme-select").value;
   const fsType = tool.querySelector(".pd-fstype-radio:checked").value;
+  const partitionCount = scheme === "custom" ? tool.querySelector(".pd-partition-count-input").value : "";
   const previewEl = tool.querySelector(`.pd-phase-preview[data-phase="${phase}"]`);
   const execBtn = previewEl.querySelector(".pd-phase-execute-btn");
   const resultEl = previewEl.querySelector(".pd-phase-result");
-  const body = { device, scheme, fsType, phase };
+  const body = { device, scheme, fsType, phase, partitionCount };
   if (phase === "delete") {
     body.confirmDevice = previewEl.querySelector(".pd-confirm-device").value;
     body.confirmPhrase = previewEl.querySelector(".pd-confirm-phrase").value;
@@ -1715,12 +1730,15 @@ function bindDiskCardActions(containerId) {
     }
   });
   // Windows (NTFS) não usa o seletor de sistema de arquivos — só faz
-  // sentido pra "volume único" e "Linux UEFI" (raiz ext4/xfs/exfat).
+  // sentido pra "volume único", "Linux UEFI" e "personalizado" (ext4/
+  // xfs/exfat). O campo "quantas partições" só aparece no personalizado.
   container.addEventListener("change", e => {
     if (!e.target.classList.contains("pd-scheme-select")) return;
     const card = e.target.closest(".physical-disk-card");
     const fsRow = card.querySelector(".pd-fstype-row");
+    const countRow = card.querySelector(".pd-partition-count-row");
     fsRow.style.display = e.target.value === "windows-uefi" ? "none" : "block";
+    countRow.style.display = e.target.value === "custom" ? "block" : "none";
   });
 }
 
@@ -1755,6 +1773,13 @@ function renderDiskCard(disk, unmountedPartitions) {
     ? disk.partitions.map(renderPartitionRow).join("")
     : `<div class="pd-empty">${t("noPartitions")}</div>`;
 
+  // Contagem visível de quantas partições esse disco tem AGORA (montadas
+  // + sem montar) — antes só dava pra saber contando as linhas na mão.
+  const totalPartitionCount = disk.partitions.length + (unmountedPartitions ? unmountedPartitions.length : 0);
+  const partitionCountHtml = totalPartitionCount > 0
+    ? `<div class="pd-health-title" style="margin-bottom:4px">${t("diskPartitionCount", totalPartitionCount)}</div>`
+    : "";
+
   const hasSystemMount = disk.partitions.some(p => p.isSystemMount);
   const isAdmin = currentUserInfo?.role === "admin";
 
@@ -1777,6 +1802,7 @@ function renderDiskCard(disk, unmountedPartitions) {
         ${smartBadge(disk)}
       </div>
       <div class="pd-meta">${meta || "—"}</div>
+      ${partitionCountHtml}
       ${partitionsHtml}
       ${unmountedHtml}
       <div class="pd-actions">
@@ -1862,7 +1888,13 @@ function renderPartitionTool(disk) {
           <option value="single">${t("schemeSingle")}</option>
           <option value="linux-uefi">${t("schemeLinuxUefi")}</option>
           <option value="windows-uefi">${t("schemeWindowsUefi")}</option>
+          <option value="custom">${t("schemeCustom")}</option>
         </select>
+        <div class="pd-partition-count-row" style="display:none">
+          <label class="pd-partition-tool-label">${t("partitionCountLabel")}</label>
+          <input type="number" class="pd-partition-count-input" min="2" max="8" value="2" step="1">
+          <div class="pd-empty" style="margin-top:3px">${t("partitionCountHint")}</div>
+        </div>
         <div class="pd-fstype-row">
           <label class="pd-partition-tool-label">${t("fsTypeLabel")}</label>
           ${renderFsTypeRadioList()}

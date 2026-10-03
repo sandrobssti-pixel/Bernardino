@@ -285,7 +285,7 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
   }
   const phase = PARTITION_PHASES.has(req.query.phase) ? req.query.phase : "delete";
   try {
-    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType, phase);
+    const preview = await previewPartition(req.query.device, req.query.scheme, req.query.fsType, phase, req.query.partitionCount);
     res.json({ ...preview, confirmPhrase: CONFIRM_PHRASE });
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar prévia de particionamento:", err.message);
@@ -294,7 +294,7 @@ app.get("/api/disk-partition/preview", auth.requireRole("admin"), async (req, re
 });
 
 app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, res) => {
-  const { device, scheme, fsType, phase, confirmDevice, confirmPhrase } = req.body || {};
+  const { device, scheme, fsType, phase, partitionCount, confirmDevice, confirmPhrase } = req.body || {};
   if (!device) {
     return res.status(400).json({ error: "Parâmetro 'device' obrigatório." });
   }
@@ -314,7 +314,7 @@ app.post("/api/disk-partition/execute", auth.requireRole("admin"), async (req, r
     console.log(
       `[disk-monitor] Etapa "${normalizedPhase}" de particionamento de "${device}" disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
     );
-    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType, normalizedPhase);
+    const { jobId, totalSteps } = await startPartitionExecution(device, scheme, fsType, normalizedPhase, partitionCount);
     res.json({ jobId, totalSteps });
   } catch (err) {
     console.error("[disk-monitor] Falha ao iniciar etapa de particionamento:", err.message);
