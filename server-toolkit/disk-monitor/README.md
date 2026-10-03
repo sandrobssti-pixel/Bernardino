@@ -577,6 +577,66 @@ nenhum tamanho preenchido pra confirmar que cai na divisão igual) contra
 um disco do ambiente de desenvolvimento — ainda não confirmado criando
 partições de tamanho customizado de verdade contra hardware físico real.
 
+### Pra que serve essa partição — rótulo + autounattend.xml (Windows)
+
+Pedido do usuário: depois de formatar, apontar automaticamente a
+instalação do sistema operacional pra uma partição específica — "o
+técnico coloca o pendrive e o sistema já sabe pra qual partição
+instalar". **Isso tem um limite técnico real, explicado ao usuário antes
+de implementar** (não dava pra simplesmente fazer o que foi pedido ao
+pé da letra): o instalador que roda do pendrive (Windows Setup, Ubuntu,
+etc.) é um sistema operacional totalmente à parte, e o disk-monitor já
+não está mais rodando no momento em que ele inicia — os dois nunca se
+encontram, então não existe como "avisar" o instalador em tempo real.
+
+Duas coisas reais foram implementadas em vez disso (usuário escolheu as
+duas, entre as opções apresentadas):
+
+**1. Rotular a partição (`lib/osInstallTarget.js`, `applyPartitionLabel`)**
+— depois que a etapa "Formatar" termina, aparece a pergunta "pra que
+essa partição vai servir?" (instalar SO vs. backup/aplicação/dado). A
+resposta rotula a partição de verdade, na hora, com `e2label` (ext4),
+`ntfslabel` (NTFS), `xfs_admin -L` (XFS), `exfatlabel` (exFAT) ou
+`fatlabel` (FAT) — rótulo "OSINSTALL" ou "DADOS". Isso faz a partição
+aparecer destacada, por nome, na tela de particionamento de qualquer
+instalador que o técnico rodar manualmente depois — baixo risco (só
+muda o rótulo de uma partição que o próprio técnico acabou de formatar
+segundos antes), ação imediata (não é job em segundo plano).
+
+**2. Gerar `autounattend.xml` pro Windows (`buildWindowsAutounattendXml`)**
+— só aparece quando o esquema é "Windows com UEFI" e a escolha foi
+"instalar sistema operacional". Gera (nunca executa, nunca escreve em
+disco nem em pendrive nenhum) o texto de um arquivo de resposta do
+Windows Setup, pro técnico baixar e copiar manualmente pra raiz do
+MESMO pendrive do instalador. Isso sim faz o Windows Setup pular a
+pergunta de "em qual partição instalar" e instalar direto na partição
+já criada/formatada.
+
+**Risco real, não hipotético, documentado dentro do próprio arquivo
+gerado**: o `DiskID` que o Windows PE usa pra identificar o disco (0,
+1, 2...) é a ordem de enumeração NAQUELE boot específico — pode mudar
+por cabo SATA, ordem de boot na BIOS/UEFI, modo do controlador
+(AHCI/RAID). Não tem garantia de bater com o que este servidor via
+Linux considera "o disco". Por isso o arquivo sempre vem com um aviso
+grande no topo mandando o técnico confirmar o disco certo (por modelo/
+número de série/tamanho, todos informados no aviso) via
+`Shift+F10 → diskpart → list disk` ANTES de deixar a instalação
+prosseguir, e editar o `DiskID` se não bater. O arquivo também só cuida
+do alvo da instalação — não configura conta de usuário, chave de
+produto, idioma/região nem pula outras telas do instalador.
+
+**Honestidade**: o módulo de rotulagem foi validado só com o caminho de
+erro (partição inexistente) — nenhuma das ferramentas de rótulo
+(`e2label`/`ntfslabel`/`xfs_admin`/`exfatlabel`/`fatlabel`) foi
+exercitada contra uma partição real ainda. O `autounattend.xml` gerado
+tem a estrutura XML conferida visualmente (bem formado, segue o schema
+de unattend do Windows pelas tags documentadas pela Microsoft), mas
+**nunca foi testado rodando de verdade contra um Windows Setup real** —
+o usuário foi avisado desse risco (DiskID instável) antes de pedir a
+implementação, e o arquivo gerado carrega o mesmo aviso. Trate como um
+rascunho que precisa de verificação manual, não como "pronto pra
+confiar cegamente", igual ao roteiro de RAID1 (`lib/raidMirror.js`).
+
 ### Limpeza avançada por categorias
 
 Painel "Limpeza avançada de disco" (admin, dentro da seção de Limpeza):

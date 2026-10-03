@@ -300,6 +300,7 @@
   .pd-unmounted-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--panel-border); }
   .pd-unmounted-row { margin-top: 6px; }
   .pd-unmounted-row .pd-partition-row { align-items: center; }
+  .pd-install-choice-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--panel-border); }
   #toast {
     position: fixed; bottom: 16px; right: 16px;
     background: var(--panel); border: 1px solid var(--panel-border);
@@ -644,6 +645,14 @@ const translations = {
     partitionCountHint: "De 2 a 8 — o espaço do disco é dividido em partes iguais entre elas, a não ser que você defina um tamanho pra cada uma abaixo.",
     customSizeLabel: n => `Partição ${n} (GB)`,
     customSizeRemainder: n => `Partição ${n}: resto do disco (automático)`,
+    installChoiceTitle: "Pra que essa partição vai servir?",
+    installChoiceOsBtn: "🖥️ Vou instalar sistema operacional",
+    installChoiceStorageBtn: "💾 Backup / aplicação / dados",
+    installChoiceStorageDone: label => `✅ Processo finalizado — partição rotulada "${label}", pronta pra uso.`,
+    installChoiceOsDone: (label, sizeGB) => `✅ Partição rotulada "${label}" (~${sizeGB} GB). No instalador, procure por esse nome e esse tamanho na tela de particionamento pra confirmar que é essa partição antes de prosseguir.`,
+    genAutounattendBtn: "Gerar autounattend.xml (instalação automática do Windows)",
+    autounattendWarning: "⚠️ CONFIRA o disco certo pelo modelo/série/tamanho (instruções dentro do arquivo, via Shift+F10 → diskpart → list disk) ANTES de deixar a instalação rodar — o número do disco é um palpite, pode mudar conforme o cabo/ordem de boot.",
+    autounattendDownloadBtn: "⬇️ Baixar autounattend.xml",
     diskPartitionCount: n => n === 1 ? "1 partição" : `${n} partições`,
     roleBoot: "boot/EFI", roleSwap: "memória virtual (swap)", roleData: "dados",
     roleBootDesc: "Partição padrão que o sistema precisa pra dar boot — não é onde seus arquivos ficam.",
@@ -845,6 +854,14 @@ const translations = {
     partitionCountHint: "De 2 a 8 — el espacio del disco se divide en partes iguales entre ellas, a menos que defina un tamaño para cada una abajo.",
     customSizeLabel: n => `Partición ${n} (GB)`,
     customSizeRemainder: n => `Partición ${n}: resto del disco (automático)`,
+    installChoiceTitle: "¿Para qué va a servir esta partición?",
+    installChoiceOsBtn: "🖥️ Voy a instalar sistema operativo",
+    installChoiceStorageBtn: "💾 Backup / aplicación / datos",
+    installChoiceStorageDone: label => `✅ Proceso finalizado — partición rotulada "${label}", lista para usar.`,
+    installChoiceOsDone: (label, sizeGB) => `✅ Partición rotulada "${label}" (~${sizeGB} GB). En el instalador, busque ese nombre y ese tamaño en la pantalla de particionado para confirmar que es esa partición antes de continuar.`,
+    genAutounattendBtn: "Generar autounattend.xml (instalación automática de Windows)",
+    autounattendWarning: "⚠️ CONFIRME el disco correcto por modelo/serie/tamaño (instrucciones dentro del archivo, vía Shift+F10 → diskpart → list disk) ANTES de dejar correr la instalación — el número de disco es un supuesto, puede cambiar según el cable/orden de arranque.",
+    autounattendDownloadBtn: "⬇️ Descargar autounattend.xml",
     diskPartitionCount: n => n === 1 ? "1 partición" : `${n} particiones`,
     roleBoot: "boot/EFI", roleSwap: "memoria virtual (swap)", roleData: "datos",
     roleBootDesc: "Partición estándar que el sistema necesita para arrancar — no es donde quedan sus archivos.",
@@ -1046,6 +1063,14 @@ const translations = {
     partitionCountHint: "From 2 to 8 — the disk space is split evenly between them, unless you set a size for each one below.",
     customSizeLabel: n => `Partition ${n} (GB)`,
     customSizeRemainder: n => `Partition ${n}: rest of the disk (automatic)`,
+    installChoiceTitle: "What's this partition going to be used for?",
+    installChoiceOsBtn: "🖥️ I'm going to install an operating system",
+    installChoiceStorageBtn: "💾 Backup / application / data",
+    installChoiceStorageDone: label => `✅ Done — partition labeled "${label}", ready to use.`,
+    installChoiceOsDone: (label, sizeGB) => `✅ Partition labeled "${label}" (~${sizeGB} GB). In the installer, look for that name and size on the partitioning screen to confirm it's the right partition before continuing.`,
+    genAutounattendBtn: "Generate autounattend.xml (automatic Windows install)",
+    autounattendWarning: "⚠️ VERIFY the correct disk by model/serial/size (instructions inside the file, via Shift+F10 → diskpart → list disk) BEFORE letting the install run — the disk number is a guess and can change depending on the cable/boot order.",
+    autounattendDownloadBtn: "⬇️ Download autounattend.xml",
     diskPartitionCount: n => n === 1 ? "1 partition" : `${n} partitions`,
     roleBoot: "boot/EFI", roleSwap: "virtual memory (swap)", roleData: "data",
     roleBootDesc: "Standard partition the system needs to boot — not where your files live.",
@@ -1545,12 +1570,120 @@ function renderPartitionResultSummary(phaseData) {
     return `<div class="pd-empty">${t("partitionDone")}</div>`;
   }
   const purposeText = phaseData.purpose === "install" ? t("purposeInstall") : t("purposeStorage");
+  // A escolha "vai instalar SO ou é só backup/app/dado" só faz sentido
+  // quando existe UMA partição "principal" clara — esquema personalizado
+  // com várias partições de dado fica ambíguo demais pra perguntar isso
+  // (qual delas seria "a" partição de instalação?), então nesse caso só
+  // mostra o resultado, sem a escolha.
+  const dataPartitions = phaseData.partitions.filter(p => p.role === "data");
+  const target = dataPartitions.length === 1 ? dataPartitions[0] : null;
+  const choiceHtml = target ? `
+    <div class="pd-install-choice-block">
+      <div class="pd-partition-tool-label" style="margin-top:10px">${t("installChoiceTitle")}</div>
+      <div class="pd-actions">
+        <button class="secondary pd-mark-install-btn" type="button"
+          data-device="${target.device}" data-fstype="${target.fsType}" data-scheme="${phaseData.scheme}">${t("installChoiceOsBtn")}</button>
+        <button class="secondary pd-mark-storage-btn" type="button"
+          data-device="${target.device}" data-fstype="${target.fsType}">${t("installChoiceStorageBtn")}</button>
+      </div>
+      <div class="pd-install-target-result"></div>
+    </div>
+  ` : "";
   return `
     <div class="pd-partition-tool-label">${t("resultSummaryTitle")}</div>
     ${renderPartitionVisualBar(phaseData.partitions)}
     ${renderPartitionBarLegend(phaseData.partitions)}
     <div class="pd-empty">${purposeText}</div>
+    ${choiceHtml}
   `;
+}
+
+// Clique em "vou instalar sistema operacional" ou "backup/app/dado" —
+// SEMPRE rotula a partição de verdade (ação imediata, baixo risco: só
+// muda o rótulo do sistema de arquivos que o próprio técnico acabou de
+// formatar). Só quando é "instalar SO" é que aparece, em seguida, a
+// opção de gerar o autounattend.xml (só faz sentido pro esquema Windows
+// com UEFI — os outros não têm instalador unattended gerado aqui).
+async function runMarkPartitionPurpose(btn, card) {
+  const isInstall = btn.classList.contains("pd-mark-install-btn");
+  const device = btn.dataset.device;
+  const fsType = btn.dataset.fstype;
+  const scheme = btn.dataset.scheme;
+  const label = isInstall ? "OSINSTALL" : "DADOS";
+  const block = btn.closest(".pd-install-choice-block");
+  const resultEl = block.querySelector(".pd-install-target-result");
+  const buttons = block.querySelectorAll("button");
+  buttons.forEach(b => b.disabled = true);
+  resultEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
+  try {
+    const res = await apiFetch("/api/disk-partition/label", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device, fsType, label })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", data.error)}</div>`;
+      buttons.forEach(b => b.disabled = false);
+      return;
+    }
+    if (!isInstall) {
+      resultEl.innerHTML = `<div class="pd-empty">${t("installChoiceStorageDone", label)}</div>`;
+      return;
+    }
+    const sidebar = card.querySelector(".pd-disk-sidebar");
+    const diskSizeBytes = Number(sidebar?.dataset.diskSizeBytes || 0);
+    const diskSizeGB = diskSizeBytes ? (diskSizeBytes / (1024 ** 3)).toFixed(1) : "?";
+    const autounattendHtml = scheme === "windows-uefi" ? `
+      <button class="secondary pd-gen-autounattend-btn" type="button"
+        data-disk-model="${sidebar?.dataset.diskModel || ""}" data-disk-serial="${sidebar?.dataset.diskSerial || ""}" data-disk-size-gb="${diskSizeGB}">
+        ${t("genAutounattendBtn")}
+      </button>
+      <div class="pd-autounattend-result"></div>
+    ` : "";
+    resultEl.innerHTML = `
+      <div class="pd-empty">${t("installChoiceOsDone", label, diskSizeGB)}</div>
+      ${autounattendHtml}
+    `;
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
+    buttons.forEach(b => b.disabled = false);
+  }
+}
+
+// Só MONTA o texto do autounattend.xml pro técnico copiar manualmente
+// pro pendrive do instalador — nunca escreve em disco nenhum, nunca
+// toca em pendrive nenhum (ver lib/osInstallTarget.js pros avisos de
+// segurança completos, repetidos também dentro do próprio arquivo).
+async function runGenerateAutounattend(btn) {
+  const resultEl = btn.nextElementSibling;
+  btn.disabled = true;
+  resultEl.innerHTML = `<div class="pd-empty">${t("checkingHealth")}</div>`;
+  const params = new URLSearchParams({
+    diskModel: btn.dataset.diskModel || "",
+    diskSerial: btn.dataset.diskSerial || "",
+    diskSizeGB: btn.dataset.diskSizeGb || "",
+    partitionLabel: "OSINSTALL"
+  });
+  try {
+    const res = await apiFetch(`/api/disk-partition/autounattend?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) {
+      resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", data.error)}</div>`;
+      btn.disabled = false;
+      return;
+    }
+    const escaped = data.xml.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const blobUrl = URL.createObjectURL(new Blob([data.xml], { type: "application/xml" }));
+    resultEl.innerHTML = `
+      <div class="pd-partition-danger">${t("autounattendWarning")}</div>
+      <a href="${blobUrl}" download="autounattend.xml" class="secondary" style="display:inline-block; margin:8px 0; padding:6px 12px; border-radius:6px; text-decoration:none">${t("autounattendDownloadBtn")}</a>
+      <pre class="pd-partition-commands">${escaped}</pre>
+    `;
+  } catch (err) {
+    resultEl.innerHTML = `<div class="pd-partition-danger">${t("toastError", err.message)}</div>`;
+    btn.disabled = false;
+  }
 }
 
 // Clicar num segmento da barra ou numa linha da legenda destaca os dois
@@ -1822,6 +1955,10 @@ function bindDiskCardActions(containerId) {
     } else if (e.target.classList.contains("pd-execute-mount-btn")) {
       const row = e.target.closest("[data-partition-device]");
       runMountExecute(row.dataset.partitionDevice, row);
+    } else if (e.target.classList.contains("pd-mark-install-btn") || e.target.classList.contains("pd-mark-storage-btn")) {
+      runMarkPartitionPurpose(e.target, card);
+    } else if (e.target.classList.contains("pd-gen-autounattend-btn")) {
+      runGenerateAutounattend(e.target);
     }
   });
   // Windows (NTFS) não usa o seletor de sistema de arquivos — só faz
@@ -1974,8 +2111,10 @@ function renderDiskSidebar(disk) {
     [t("diskSizeLabel"), formatBytes(disk.sizeBytes)],
     [t("diskInterfaceLabel"), disk.interfaceType || "—"]
   ];
+  // Atributos crus (não formatados) pra reaproveitar depois na geração
+  // do autounattend.xml, sem precisar re-buscar o disco no servidor.
   return `
-    <div class="pd-disk-sidebar">
+    <div class="pd-disk-sidebar" data-disk-model="${disk.name || ""}" data-disk-serial="${disk.serialNum || ""}" data-disk-size-bytes="${disk.sizeBytes || 0}">
       ${rows.map(([label, value]) => `
         <span class="pd-disk-sidebar-label">${label}</span>
         <span class="pd-disk-sidebar-value">${value}</span>

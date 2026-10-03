@@ -16,6 +16,7 @@ const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
 const { previewPartition, startPartitionExecution, getPartitionJobStatus, CONFIRM_PHRASE } = require("./lib/diskPartition");
 const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
+const { applyPartitionLabel, buildWindowsAutounattendXml } = require("./lib/osInstallTarget");
 const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
 const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
 const { createFileManager } = require("./lib/fileManager");
@@ -345,6 +346,44 @@ app.get("/api/disk-partition/execute/status", auth.requireRole("admin"), (req, r
     return res.status(404).json({ error: "Job não encontrado (pode já ter expirado)." });
   }
   res.json(job);
+});
+
+// Depois de formatar, o técnico marca pra que a partição vai servir —
+// ver lib/osInstallTarget.js pro porquê disso não conseguir "apontar o
+// instalador" automaticamente, só rotular a partição pra identificação
+// manual rápida. Ação imediata (não é job em segundo plano), de baixo
+// risco — só muda o rótulo de uma partição que o próprio técnico acabou
+// de formatar.
+app.post("/api/disk-partition/label", auth.requireRole("admin"), async (req, res) => {
+  const { device, fsType, label } = req.body || {};
+  if (!device || !fsType || !label) {
+    return res.status(400).json({ error: "Parâmetros 'device', 'fsType' e 'label' obrigatórios." });
+  }
+  try {
+    const result = await applyPartitionLabel(device, fsType, label);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao rotular partição:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Só MONTA o texto do autounattend.xml — nunca escreve em nenhum disco
+// nem toca em pendrive nenhum (ver aviso de segurança completo em
+// lib/osInstallTarget.js). O técnico copia esse conteúdo manualmente
+// pro pendrive do instalador do Windows.
+app.get("/api/disk-partition/autounattend", auth.requireRole("admin"), (req, res) => {
+  const { diskModel, diskSizeGB, diskSerial, partitionLabel } = req.query;
+  if (!partitionLabel) {
+    return res.status(400).json({ error: "Parâmetro 'partitionLabel' obrigatório." });
+  }
+  try {
+    const xml = buildWindowsAutounattendXml({ diskModel, diskSizeGB, diskSerial, partitionLabel });
+    res.json({ xml });
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao gerar autounattend.xml:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Montar uma partição existente (ex.: HD extra plugado sem ponto de
