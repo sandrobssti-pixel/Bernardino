@@ -1236,6 +1236,36 @@ se origem e destino são o mesmo caminho ANTES de tentar copiar, e
 explica exatamente o que fazer (`git pull` no checkout + rodar o script
 de lá) em vez de deixar o `cp` falhar com uma mensagem técnica.
 
+### Ícone no desktop (modo aplicativo)
+
+Faltava a última parte do pedido do cliente: ter o Electron funcionando
+(`npm run desktop`) não adianta nada se o técnico ainda precisa abrir
+terminal e digitar o comando — o objetivo era zero linha de comando.
+Agora `install.sh` e `update.sh` chamam
+`installers/linux/create-desktop-icon.sh` no final, que:
+
+- Gera `$INSTALL_DIR/desktop-launcher.sh` (um wrapper que entra na
+  pasta certa e chama `./node_modules/.bin/electron electron-main.js`
+  — não depende de `npm` estar no `PATH` de quem clicar no ícone).
+- Cria um arquivo `.desktop` (padrão freedesktop.org) apontando pro
+  launcher e usando `public/favicon.png` como ícone, copiado tanto pro
+  menu de aplicativos (`~/.local/share/applications/`) quanto pro
+  Desktop de verdade (`~/Desktop/`) do usuário.
+- Descobre o usuário certo via `$SUDO_USER` (o instalador roda como
+  root via `sudo`, mas o ícone precisa ir pra quem tem sessão gráfica,
+  não pro `/root`) — se não detectar (ex.: instalado logado direto como
+  root, sem `sudo`), avisa e pula sem quebrar o resto da
+  instalação/atualização.
+- Tenta marcar o atalho como "confiável" via `gio` (evita o aviso
+  padrão do GNOME de "launcher não confiável" na primeira vez) — se
+  `gio` não existir, só avisa, não é erro.
+
+**Honestidade**: a lógica foi validada por leitura de código e
+checagem de sintaxe (`bash -n`) nos três scripts — ainda não foi
+confirmada rodando de verdade (criando o ícone, clicando nele, vendo o
+app abrir) contra um servidor real. Só Linux (GNOME) considerado até
+aqui — Windows/macOS ficam pra depois, se vier pedido.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

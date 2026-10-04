@@ -95,6 +95,10 @@ else
 fi
 
 echo ""
+echo "--- Atalho no desktop (modo aplicativo, Electron) ---"
+"$SCRIPT_DIR/create-desktop-icon.sh" "$INSTALL_DIR" || true
+
+echo ""
 echo "Reiniciando o serviço..."
 systemctl restart disk-monitor
 

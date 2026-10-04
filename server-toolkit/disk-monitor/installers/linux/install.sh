@@ -137,6 +137,10 @@ systemctl daemon-reload
 systemctl enable --now disk-monitor
 
 echo ""
+echo "--- Atalho no desktop (modo aplicativo, Electron) ---"
+"$SCRIPT_DIR/create-desktop-icon.sh" "$INSTALL_DIR" || true
+
+echo ""
 echo "=== Instalado! ==="
 echo "Painel em: http://$(hostname -I 2>/dev/null | awk '{print $1}' || echo SEU_IP):8091"
 echo "(lembre: nunca exponha essa porta direto na internet — use túnel SSH ou Nginx com allowlist)"
