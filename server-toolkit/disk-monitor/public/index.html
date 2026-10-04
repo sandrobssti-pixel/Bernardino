@@ -704,6 +704,10 @@ const translations = {
     unmountedPartitionsTitle: "Partições sem montar",
     noUnmountedPartitions: "Nenhuma partição sem montar encontrada.",
     mountBtn: "Montar",
+    unmountBtn: "Desmontar",
+    unmountConfirm: mp => `Desmontar "${mp}"? Os arquivos continuam no disco, só ficam inacessíveis por esse caminho até remontar.`,
+    toastUnmountOk: mp => `"${mp}" desmontado.`,
+    toastUnmountErr: msg => `Erro ao desmontar: ${msg}`,
     mountPointLabel: "Ponto de montagem (dentro de /mnt ou /media)",
     persistFstabLabel: "Montar sempre no boot (adiciona ao /etc/fstab)",
     previewMountBtn: "Ver comando",
@@ -921,6 +925,10 @@ const translations = {
     unmountedPartitionsTitle: "Particiones sin montar",
     noUnmountedPartitions: "No se encontraron particiones sin montar.",
     mountBtn: "Montar",
+    unmountBtn: "Desmontar",
+    unmountConfirm: mp => `¿Desmontar "${mp}"? Los archivos siguen en el disco, solo quedan inaccesibles por esa ruta hasta volver a montar.`,
+    toastUnmountOk: mp => `"${mp}" desmontado.`,
+    toastUnmountErr: msg => `Error al desmontar: ${msg}`,
     mountPointLabel: "Punto de montaje (dentro de /mnt o /media)",
     persistFstabLabel: "Montar siempre al iniciar (agrega a /etc/fstab)",
     previewMountBtn: "Ver comando",
@@ -1138,6 +1146,10 @@ const translations = {
     unmountedPartitionsTitle: "Unmounted partitions",
     noUnmountedPartitions: "No unmounted partitions found.",
     mountBtn: "Mount",
+    unmountBtn: "Unmount",
+    unmountConfirm: mp => `Unmount "${mp}"? The files stay on disk, just inaccessible from that path until mounted again.`,
+    toastUnmountOk: mp => `"${mp}" unmounted.`,
+    toastUnmountErr: msg => `Error unmounting: ${msg}`,
     mountPointLabel: "Mount point (inside /mnt or /media)",
     persistFstabLabel: "Always mount on boot (adds to /etc/fstab)",
     previewMountBtn: "Show command",
@@ -1492,16 +1504,48 @@ function smartBadge(disk) {
 }
 
 function renderPartitionRow(p) {
+  const isAdmin = currentUserInfo?.role === "admin";
+  // Nunca mostra o botão de desmontar pra montagem do próprio sistema
+  // operacional (`isSystemMount`) — o servidor também recusa isso do
+  // lado de lá (lista fixa de pontos de montagem essenciais), mas nem
+  // vale mostrar a opção na tela pra algo que nunca vai funcionar.
+  const unmountBtn = (isAdmin && !p.isSystemMount)
+    ? `<button class="secondary pd-unmount-btn" type="button" data-mount="${p.mount}">${t("unmountBtn")}</button>`
+    : "";
   return `
-    <div class="pd-partition">
+    <div class="pd-partition" data-mount="${p.mount}">
       <div class="pd-partition-row">
         <span class="pd-partition-mount">${p.mount}</span>
         <span style="color:${barColor(p.percent)}">${p.percent}%</span>
       </div>
       <div class="bar-track"><div class="bar-fill" style="width:${p.percent}%; background:${barColor(p.percent)}"></div></div>
       <div class="pd-partition-detail">${t("diskDetail", formatBytes(p.usedBytes), formatBytes(p.sizeBytes), formatBytes(p.availBytes))}</div>
+      ${unmountBtn}
     </div>
   `;
+}
+
+async function runUnmount(mountPoint, btn) {
+  if (!window.confirm(t("unmountConfirm", mountPoint))) return;
+  if (btn) btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/disk-mount/unmount", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mountPoint })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastUnmountErr", data.error));
+      if (btn) btn.disabled = false;
+      return;
+    }
+    toast(t("toastUnmountOk", mountPoint));
+    loadDiskTopology();
+  } catch (err) {
+    toast(t("toastUnmountErr", err.message));
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderHealthReport(data) {
@@ -1997,6 +2041,8 @@ function bindDiskCardActions(containerId) {
       runMarkPartitionPurpose(e.target, card);
     } else if (e.target.classList.contains("pd-gen-autounattend-btn")) {
       runGenerateAutounattend(e.target);
+    } else if (e.target.classList.contains("pd-unmount-btn")) {
+      runUnmount(e.target.dataset.mount, e.target);
     }
   });
   // Windows (NTFS) não usa o seletor de sistema de arquivos — só faz

@@ -1132,6 +1132,37 @@ não confirmados contra o servidor rodando de verdade (não tive motivo
 pra simular um array degradado de propósito só pra testar isso, já que
 o servidor de produção está saudável agora).
 
+### Desmontar disco pelo painel (sem terminal)
+
+Até aqui, o painel sabia MONTAR uma partição sem ponto de montagem
+(`lib/diskMount.js`), mas não tinha o inverso — desmontar algo que já
+está montado só dava pra fazer via `umount` direto no terminal. Isso
+quebrava o objetivo do produto (técnico de campo sem precisar de linha
+de comando pra nada), e também bloqueava um passo real necessário:
+antes de apagar/reparticionar um disco com conteúdo, ele precisa estar
+desmontado primeiro.
+
+Agora cada partição montada (card de disco físico) ganha um botão
+"Desmontar", com confirmação (`window.confirm`, igual já usado pra
+apagar usuário). Duas proteções:
+
+- **Lista fixa de pontos de montagem essenciais do SO** (`/`, `/boot`,
+  `/boot/efi`, `/usr`, `/var`, `/etc`, `/proc`, `/sys`, `/dev`, `/run`,
+  `/home`) — nunca aceita desmontar nenhum desses, nem que o cliente
+  mande (checado no servidor, não só escondido na tela).
+- Busca por `bd.mount === mountPoint` em vez de filtrar por tipo de
+  dispositivo — mesma lição do bug crítico já corrigido na checagem de
+  particionamento: um disco com sistema de arquivos gravado DIRETO nele
+  (sem partição) precisa ser encontrado igual a um normal.
+
+**Honestidade**: a lógica (`previewUnmount`/`executeUnmount`) foi
+testada com `si.blockDevices()` simulado cobrindo os três casos que
+importam — desmontar um disco sem partição (tipo `/mnt/disco03`),
+recusar a raiz do sistema, e recusar um ponto de montagem inexistente
+— os três corretos. A integração com o painel (botão, confirmação,
+toast) foi validada só por leitura de código/sintaxe, ainda não
+confirmada clicando de verdade contra um servidor rodando.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

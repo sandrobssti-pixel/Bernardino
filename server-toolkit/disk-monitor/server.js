@@ -15,7 +15,7 @@ const { readDiskUsage } = require("./lib/diskUsage");
 const { readDiskTopology } = require("./lib/diskTopology");
 const { checkDiskHealth } = require("./lib/diskHealth");
 const { previewPartition, startPartitionExecution, getPartitionJobStatus, CONFIRM_PHRASE } = require("./lib/diskPartition");
-const { listMountablePartitions, previewMount, executeMount } = require("./lib/diskMount");
+const { listMountablePartitions, previewMount, executeMount, previewUnmount, executeUnmount } = require("./lib/diskMount");
 const { applyPartitionLabel, buildWindowsAutounattendXml } = require("./lib/osInstallTarget");
 const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
 const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
@@ -472,6 +472,36 @@ app.post("/api/disk-mount/execute", auth.requireRole("admin"), async (req, res) 
   } catch (err) {
     console.error("[disk-monitor] Falha ao montar disco:", err.message, err.log || "");
     res.status(500).json({ error: err.message, log: err.log || [] });
+  }
+});
+
+app.get("/api/disk-mount/unmount-preview", auth.requireRole("admin"), async (req, res) => {
+  if (!req.query.mountPoint) {
+    return res.status(400).json({ error: "Parâmetro 'mountPoint' obrigatório." });
+  }
+  try {
+    const preview = await previewUnmount(req.query.mountPoint);
+    res.json(preview);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao montar prévia de desmontagem de disco:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/disk-mount/unmount", auth.requireRole("admin"), async (req, res) => {
+  const { mountPoint } = req.body || {};
+  if (!mountPoint) {
+    return res.status(400).json({ error: "Parâmetro 'mountPoint' obrigatório." });
+  }
+  try {
+    console.log(
+      `[disk-monitor] Desmontagem de "${mountPoint}" disparada por "${req.session.user.username}" em ${new Date().toISOString()}`
+    );
+    const result = await executeUnmount(mountPoint);
+    res.json(result);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao desmontar disco:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -192,4 +192,80 @@ async function executeMount(device, mountPoint, persist) {
   return { ok: true, device, mountPoint, uuid: partition.uuid, fstabUpdated, log };
 }
 
-module.exports = { listMountablePartitions, previewMount, executeMount };
+// Desmontar uma partição (ou disco inteiro sem partição, ver nota
+// abaixo) que já está montada agora — caso de uso real: antes de poder
+// apagar/reparticionar um disco pelo painel, ele precisa estar
+// desmontado primeiro, e sem isso o único jeito era abrir terminal e
+// rodar `umount` na mão.
+//
+// Por PONTO DE MONTAGEM, não por device — é o que a tela de partições
+// montadas já tem à mão (o card de cada disco mostra o `mount`, não o
+// `/dev/sdX` da partição por trás dele), e "desmontar" é conceitualmente
+// uma ação sobre o PONTO DE MONTAGEM mesmo (`umount` aceita os dois,
+// device ou ponto de montagem — aqui usamos ponto de montagem).
+//
+// `bd.mount === mountPoint` (sem filtrar por `type`) de propósito —
+// mesma lição do bug crítico já corrigido em diskPartition.js: alguns
+// discos de dados têm o sistema de arquivos gravado DIRETO no disco
+// inteiro (type "disk"), sem nenhuma partição (type "part"). Um disco
+// assim nunca apareceria aqui se a busca só olhasse partições.
+const CRITICAL_MOUNT_POINTS = new Set(["/", "/boot", "/boot/efi", "/usr", "/var", "/etc", "/proc", "/sys", "/dev", "/run", "/home"]);
+
+async function findMountedByMountPoint(mountPoint) {
+  if (!mountPoint) return null;
+  const blockDevices = await si.blockDevices().catch(() => []);
+  return blockDevices.find(bd => bd.mount === mountPoint) || null;
+}
+
+async function checkUnmountEligibility(mountPoint) {
+  if (!isLinux) {
+    return { eligible: false, reason: "Desmontar disco ainda só implementado em Linux." };
+  }
+  if (CRITICAL_MOUNT_POINTS.has(mountPoint)) {
+    return {
+      eligible: false,
+      reason: `"${mountPoint}" é um ponto de montagem essencial do próprio sistema operacional — nunca pode ser desmontado por aqui (desmontar isso travaria o servidor).`
+    };
+  }
+  const found = await findMountedByMountPoint(mountPoint);
+  if (!found) {
+    return { eligible: false, reason: "Esse ponto de montagem não está montado agora (ou não foi encontrado)." };
+  }
+  return { eligible: true, reason: null, partition: found };
+}
+
+async function previewUnmount(mountPoint) {
+  const eligibility = await checkUnmountEligibility(mountPoint);
+  if (!eligibility.eligible) {
+    return { eligible: false, reason: eligibility.reason, mountPoint };
+  }
+  const { partition } = eligibility;
+  return {
+    eligible: true,
+    reason: null,
+    mountPoint,
+    device: `/dev/${partition.name}`,
+    fsType: partition.fsType || "",
+    commands: [`umount ${mountPoint}`]
+  };
+}
+
+async function executeUnmount(mountPoint) {
+  const eligibility = await checkUnmountEligibility(mountPoint);
+  if (!eligibility.eligible) {
+    throw new Error(eligibility.reason || "Não elegível pra desmontar.");
+  }
+  try {
+    execFileSync("umount", [mountPoint], { encoding: "utf8", timeout: 30000 });
+  } catch (err) {
+    // Causa mais comum de falha aqui: algum processo ainda com arquivo
+    // aberto dentro do ponto de montagem (ex.: um container Docker com
+    // bind mount, um terminal com `cd` dentro da pasta) — mostra o erro
+    // de verdade (geralmente "target is busy") em vez de só "falhou".
+    const detail = String(err.stderr || err.stdout || err.message || err).trim();
+    throw new Error(`Falhou ao desmontar "${mountPoint}": ${detail}`);
+  }
+  return { ok: true, mountPoint };
+}
+
+module.exports = { listMountablePartitions, previewMount, executeMount, previewUnmount, executeUnmount };
