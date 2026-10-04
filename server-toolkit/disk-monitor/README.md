@@ -1163,6 +1163,53 @@ recusar a raiz do sistema, e recusar um ponto de montagem inexistente
 toast) foi validada só por leitura de código/sintaxe, ainda não
 confirmada clicando de verdade contra um servidor rodando.
 
+### App desktop (Electron) — sem abrir pelo navegador
+
+Pedido do cliente: o técnico não deve precisar abrir um navegador e
+digitar `http://localhost:8091` — a instalação tem que parecer um
+programa de verdade, com janela própria, não "um site". `electron` já
+estava como devDependency no `package.json` (preparação que tinha
+ficado pela metade, sem nenhum arquivo usando ele) — agora tem
+`electron-main.js` na raiz do módulo, que abre uma `BrowserWindow`
+(sem barra de menu, sem nada de cara de navegador) carregando o mesmo
+servidor Express de sempre (`require("./server.js")` — zero duplicação
+de lógica, é o mesmo `server.js` usado na instalação como serviço
+systemd).
+
+Rodar: `npm run desktop` (roda `electron electron-main.js`) dentro da
+pasta do módulo.
+
+**Modelo de acesso, confirmado com o cliente antes de implementar**: é
+um app local — roda DIRETO na máquina/servidor onde foi instalado, o
+técnico abre e usa na tela daquela máquina (local ou por acesso remoto
+tipo RDP/VNC). Não é um cliente separado rodando no computador do
+técnico conectando por rede num servidor remoto — isso ficou
+explicitamente descartado nessa conversa.
+
+**Ainda falta, fora do escopo desta mudança**:
+- **Empacotamento num instalador de verdade** (`.exe`/`.AppImage`/
+  `.dmg` com ícone, sem precisar de `npm`/`node_modules` instalado na
+  máquina do cliente) — isso precisa de `electron-builder` ou
+  `electron-packager` (nenhum dos dois está configurado ainda). Hoje
+  `npm run desktop` só funciona rodando de dentro do projeto com as
+  dependências instaladas — não é o instalador final que vai pra mão
+  do técnico.
+- Decidir se a distribuição por `pkg` (binário CLI/serviço, usada pelo
+  systemd) continua existindo em paralelo pra quem quiser rodar sem
+  interface nenhuma (ex.: servidor sem monitor físico conectado), ou
+  se o Electron substitui de vez esse caminho.
+
+**Honestidade**: o binário do Electron foi confirmado funcionando
+(`electron --version`, baixou e executou de verdade) — mas **a janela
+em si nunca foi vista abrindo**, porque este ambiente de
+desenvolvimento roda como root e sem tela (display), e o Chromium
+embutido no Electron recusa rodar como root sem a flag
+`--no-sandbox` (trava de segurança esperada, não é bug do código).
+`electron-main.js` foi validado só por leitura/sintaxe. Preciso que
+você rode `npm run desktop` numa máquina de verdade (com tela, usuário
+normal) e confirme se a janela abre e carrega o painel certinho antes
+de eu considerar isso confirmado.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em
