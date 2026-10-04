@@ -241,6 +241,15 @@ function buildDeleteCommands(device) {
 
 function buildCreateCommands(device, described) {
   const commands = [];
+  // Garante uma tabela GPT antes do primeiro `mkpart` — sem isso, um
+  // disco nunca particionado (sem nenhuma tabela, nem GPT nem MBR) faz o
+  // `parted mkpart` falhar com "token inválido: primary" (ele não sabe em
+  // que esquema criar a partição). Essa etapa só é alcançável com o disco
+  // já tendo zero partições (checado em checkEligibility), então recriar
+  // a tabela aqui nunca apaga dado nenhum — seja porque o disco é mesmo
+  // novo, seja porque a tabela já ficou vazia pela etapa "apagar"
+  // anterior (nesse caso é um no-op, mklabel numa GPT já vazia).
+  commands.push({ cmd: "parted", args: ["-s", device, "mklabel", "gpt"], label: "Garantindo tabela de partições GPT" });
   described.partitions.forEach((p, i) => {
     commands.push({ cmd: "parted", args: ["-s", device, "mkpart", "primary", p.partedFsType, p.start, p.end], label: `Criando partição "${p.label}"` });
     if (p.espFlag) {

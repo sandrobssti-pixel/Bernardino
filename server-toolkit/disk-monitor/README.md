@@ -494,6 +494,28 @@ o sintoma original relatado. Ainda só Linux; Windows e macOS continuam
 retornando erro claro de "não implementado" em qualquer uma das três
 etapas.
 
+**Corrigido: "criar partição" falhando em disco nunca particionado
+antes** — bug real, batido em produção: um disco de fábrica, zero
+partições, mostra "Disco novo/vazio" no painel e nenhum motivo óbvio
+pra rodar a etapa "apagar partições existentes" (não tem nada pra
+apagar) — então o técnico pula direto pra "criar partição(ões)". Só que
+`buildCreateCommands()` ia direto pro `parted mkpart`, presumindo que já
+existia uma tabela GPT (criada normalmente pela etapa "apagar", via
+`mklabel gpt`) — um disco nunca particionado não tem tabela nenhuma, e
+o `parted` falhava com `token inválido: primary` / `Error: Se esperaba
+un tipo de sistema de ficheros`. Corrigido adicionando um
+`parted mklabel gpt` como primeiro comando da própria etapa "criar" —
+seguro mesmo quando chamado depois da etapa "apagar" (que já deixou uma
+tabela GPT vazia): `checkEligibility()` da etapa "criar" já exige zero
+partições existentes antes de liberar, então recriar a tabela GPT nesse
+ponto nunca tem dado nenhum pra perder, seja porque o disco é mesmo
+novo, seja porque já estava vazio. **Honestidade**: o erro real e a
+causa raiz foram confirmados contra produção (mensagem de erro exata
+reproduzida); a correção em si (rodar `mklabel gpt` como passo 0 da
+etapa "criar") foi validada só gerando o comando via `previewPartition()`
+— ainda não foi confirmada executando de ponta a ponta contra o disco
+que gerou o erro original.
+
 **Esquema personalizado (escolher quantas partições) e contador visível
 de partições**: o seletor de esquema ganhou uma 4ª opção, "Personalizado
 — escolher quantas partições" — ao escolher, aparece um campo numérico
