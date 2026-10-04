@@ -169,9 +169,9 @@ cd ~/atendeflow/server-toolkit/disk-monitor
 ./package-for-new-server.sh
 ```
 
-Isso cria `server-toolkit/dist/linux/` (executável `disk-monitor-linux`,
+Isso cria `dist/linux/` (executável `disk-monitor-linux`,
 `public/`, `.env.example`, `installers/`) e
-`server-toolkit/dist/windows/` (executável `disk-monitor.exe`, `public/`,
+`dist/windows/` (executável `disk-monitor.exe`, `public/`,
 `.env.example`, `installers/`) — cada um já com Node.js embutido
 (~40-80MB), pronto pra copiar.
 
@@ -1398,3 +1398,12 @@ seguintes do `server-toolkit`:
   desta máquina num servidor novo (Docker, Coolify, montagem do NAS,
   crontab dos backups) — hoje esse conhecimento está documentado no
   `docs/MANUAL_TECNICO.md` do AtendeFlow, ainda não virou automação.
+
+**Honestidade (reorganização v1.31.0)**: o `shared/` (toolkit-auth) e o
+`TOOLKIT.md` (antigo README do server-toolkit) passaram a viver dentro de
+`disk-monitor/`; o `package.json` aponta `file:./shared/auth`. Validado: o
+`npm install` resolve o `toolkit-auth` local e `require("toolkit-auth")`
+carrega; sintaxe dos instaladores `.sh` (Linux/macOS) checada com `bash -n`.
+**Não validado**: execução real dos instaladores Linux/macOS e do pacote de
+`package-for-new-server.sh` numa máquina nova depois da mudança — teste
+um `install.sh`/`update.sh` antes de usar num cliente.

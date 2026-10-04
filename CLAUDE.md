@@ -22,8 +22,8 @@ padrões de código, validação, etc.) em vez de redescobrir ou inventar de
 novo a cada pedido. Isso evita que a mesma informação fique espalhada em
 conversas antigas sem registro.
 
-- **`server-toolkit/disk-monitor/`** → skill `disk-monitor-dev`
-  (`.claude/skills/disk-monitor-dev/SKILL.md`)
+- **`server-toolkit/disk-monitor/`** → skill `disk-monitor`
+  (`.claude/skills/disk-monitor/SKILL.md`)
 - **`backend/` e `frontend/`** (CRM AtendeFlow) → skill `atendeflow-dev`
   (`.claude/skills/atendeflow-dev/SKILL.md`)
 - **`api_oficial/`** (API Oficial do WhatsApp da Meta) → skill

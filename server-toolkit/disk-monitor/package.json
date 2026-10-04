@@ -1,6 +1,6 @@
 {
   "name": "disk-monitor",
-  "version": "1.30.1",
+  "version": "1.31.0",
   "private": true,
   "description": "Monitor de disco e limpeza automática — módulo do server-toolkit, reaproveitável em qualquer servidor novo de cliente",
   "main": "server.js",
@@ -24,7 +24,7 @@
     "multer": "^2.4.0",
     "node-cron": "^3.0.3",
     "systeminformation": "^5.33.13",
-    "toolkit-auth": "file:../shared/auth"
+    "toolkit-auth": "file:./shared/auth"
   },
   "devDependencies": {
     "pkg": "^5.8.1"

@@ -11,7 +11,7 @@ instalador gráfico), e tem seu próprio README com o passo a passo.
 
 ## Módulos
 
-- **[`disk-monitor/`](disk-monitor/README.md)** — monitor de disco (todos
+- **[`README.md`](README.md)** — monitor de disco (todos
   os discos detectados automaticamente), CPU, memória RAM e processos em
   tempo real, com painel visual (gráficos, tema claro/escuro, português/
   espanhol/inglês, com login admin/visualizador) e limpeza automática
@@ -40,7 +40,7 @@ instalador gráfico), e tem seu próprio README com o passo a passo.
 - **[`shared/auth/`](shared/auth/index.js)** (pacote local `toolkit-auth`)
   — login com dois papéis (administrador / visualizador), reaproveitável
   por qualquer módulo novo. Cada módulo que quiser login/permissões
-  adiciona `"toolkit-auth": "file:../shared/auth"` no seu
+  adiciona `"toolkit-auth": "file:./shared/auth"` no seu
   `package.json` (junto com `bcryptjs` e `cookie-session` como
   dependências diretas, e um `.npmrc` com `install-links=true` — ver
   o de `disk-monitor/` como referência) e monta as rotas de
