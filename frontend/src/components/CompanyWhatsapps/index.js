@@ -456,9 +456,15 @@ const WhatsAppModalCompany = ({ open, onClose, whatsAppId, filteredWhatsapps, co
         </Button>
       )}
       {whatsApp.status === "OPENING" && (
-        <Button className={classes.btnAction} size="small" variant="outlined" disabled color="default">
-          {i18n.t("connections.buttons.connecting")}
-        </Button>
+        <Box display="flex" style={{ gap: 4 }}>
+          <Button className={classes.btnAction} size="small" variant="outlined" disabled color="default">
+            {i18n.t("connections.buttons.connecting")}
+          </Button>
+          <Button className={classes.btnAction} size="small" variant="outlined" color="secondary"
+            onClick={() => handleRequestNewQrCode(whatsApp.id)}>
+            {i18n.t("connections.buttons.newQr")}
+          </Button>
+        </Box>
       )}
     </div>
   );

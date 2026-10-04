@@ -1151,9 +1151,29 @@ const Connections = () => {
           />
         )}
         {status === "OPENING" && (
-          <Button className={classes.btnAction} size="small" variant="outlined" disabled color="default">
-            {i18n.t("connections.buttons.connecting")}
-          </Button>
+          <Can
+            role={user.profile === "user" && user.allowConnections === "enabled" ? "admin" : user.profile}
+            perform="connections-page:addConnection"
+            yes={() => (
+              <Box display="flex" style={{ gap: 4 }}>
+                <Button className={classes.btnAction} size="small" variant="outlined" disabled color="default">
+                  {i18n.t("connections.buttons.connecting")}
+                </Button>
+                {/* Sessão pode ficar presa em "Conectando" (ex.: Baileys
+                    nunca recebeu open/qr do WhatsApp) sem nunca voltar
+                    pra "DISCONNECTED" sozinha — sem este botão, a única
+                    saída pro usuário era excluir a conexão e criar outra.
+                    O backend (WhatsAppSessionController.update) só
+                    reinicia de verdade se a tentativa atual já passou de
+                    125s; dentro desse prazo, clicar aqui é inofensivo
+                    (só reabre o modal ouvindo a sessão que já está
+                    tentando). */}
+                <Button className={classes.btnAction} size="small" variant="outlined" color="secondary" startIcon={<CropFree style={{ fontSize: 14 }} />} onClick={() => handleOpenDisconnectedQrFlow(whatsApp)}>
+                  {i18n.t("connections.buttons.newQr")}
+                </Button>
+              </Box>
+            )}
+          />
         )}
       </>
     );
