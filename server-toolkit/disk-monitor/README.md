@@ -1356,6 +1356,37 @@ também não foi vista abrindo uma janela de verdade contra um servidor
 real — só por leitura/sintaxe, mesma limitação já registrada na seção
 "Ícone no desktop" acima.
 
+### CRÍTICO — Corrigido: Electron travava com erro de sandbox (`chrome-sandbox` precisa ser setuid root)
+
+Bug real, batido em produção depois de corrigir os dois de cima:
+`npm install electron` rodado como root recria `node_modules/electron/
+dist/chrome-sandbox` com dono `root` e bit setuid (modo `4755`) — exigido
+pelo sandbox do Chromium quando quem abre o processo não é root. Mas o
+`chown -R` que acabei de adicionar em `create-desktop-icon.sh` (pra
+corrigir o bug anterior) troca TODO `node_modules/electron`, incluindo
+esse arquivo, pro usuário real — quebrando exatamente essa exigência.
+Erro visto em produção: `FATAL: ... setuid_sandbox_host.cc ... The SUID
+sandbox helper binary was found, but is not configured correctly ...`,
+processo morre com `SIGTRAP`.
+
+Corrigido: em vez de proteger só `chrome-sandbox` do `chown -R` (frágil
+— qualquer reinstalação futura do pacote `electron` via sudo recria o
+arquivo com o dono certo de novo, e um próximo `chown -R` sem exceção
+quebraria tudo outra vez), o launcher agora roda com a flag
+`--no-sandbox` (em `desktop-launcher.sh` e no script `npm run desktop`).
+Essa janela só carrega conteúdo nosso mesmo (`http://localhost:PORT`,
+nunca site/HTML de terceiros nem conteúdo digitado por outra pessoa),
+então não existe conteúdo não confiável que o sandbox do Chromium
+precisasse isolar — a troca é segura nesse caso específico.
+
+**Honestidade**: confirmado contra produção — essa foi exatamente a
+sequência de erros reportada pelo cliente (permissão → depois de
+corrigida, sandbox) rodando no servidor real dele. A flag `--no-sandbox`
+ainda não foi reconfirmada abrindo a janela de verdade depois dessa
+última correção (aguardando o próximo teste do cliente) — só o
+diagnóstico da causa raiz (mode/dono exigido pelo `setuid_sandbox_host.cc`)
+está confirmado.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

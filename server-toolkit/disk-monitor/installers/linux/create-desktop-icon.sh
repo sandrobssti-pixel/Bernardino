@@ -54,7 +54,17 @@ rm -f "$REAL_HOME/Desktop/disk-monitor.desktop" 2>/dev/null || true
 
 cat > "$LAUNCHER" <<EOF
 #!/bin/bash
-cd "$INSTALL_DIR" && exec ./node_modules/.bin/electron electron-main.js
+# --no-sandbox: o sandbox do Chromium (setuid) exige que
+# node_modules/electron/dist/chrome-sandbox seja dono root com modo
+# 4755 — mas esse chown acima já trocou node_modules/electron inteiro
+# pro usuário real (necessário pro resto do pacote, já que quem abre
+# esse launcher nunca é root). Em vez de proteger só esse arquivo
+# específico contra o chown -R (frágil — qualquer reinstalação futura
+# do Electron via sudo recria o arquivo e perde a proteção de novo),
+# desativa o sandbox: essa janela só carrega conteúdo nosso mesmo
+# (http://localhost, nunca site/HTML de terceiros), então não há
+# conteúdo não-confiável pro sandbox precisar isolar.
+cd "$INSTALL_DIR" && exec ./node_modules/.bin/electron --no-sandbox electron-main.js
 EOF
 chmod +x "$LAUNCHER"
 chown "$REAL_USER":"$REAL_USER" "$LAUNCHER"
