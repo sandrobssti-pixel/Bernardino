@@ -101,6 +101,14 @@ const badMacState = new Map<number, { count: number; last: number }>();
 const reconnectAttemptMap = new Map<number, number>();
 const reconnectLock = new Map<number, boolean>();
 const reconnectTimers = new Map<number, NodeJS.Timeout>();
+// Mapa separado do reconnectTimers: antes os dois usavam o MESMO mapa
+// (chave = whatsapp id), e um "scheduleReconnect" (backoff de erro)
+// cancelava silenciosamente o timer de expiração do QR em andamento, e
+// vice-versa — um novo QR cancelava um reconnect-backoff pendente sem
+// querer. Bug real, batido em produção (reconectar/regenerar QR às
+// vezes simplesmente não acontecia porque o outro timer tinha
+// clobberado o primeiro).
+const qrExpiryTimers = new Map<number, NodeJS.Timeout>();
 const startingSessions = new Set<number>();
 const retriesQrCodeMap = new Map<number, number>();
 
@@ -125,6 +133,17 @@ const clearReconnectTimer = (wid: number) => {
   const t = reconnectTimers.get(wid);
   if (t) clearTimeout(t);
   reconnectTimers.delete(wid);
+
+  // Antes do qrExpiryTimers ser separado do reconnectTimers, limpar o
+  // reconnect aqui também limpava (por acaso) um timer de expiração de
+  // QR pendente — mantém esse mesmo efeito agora que são mapas
+  // diferentes, senão um teardown de sessão deixaria um timer de QR
+  // órfão rodando, tentando "regenerar" uma sessão que já foi encerrada
+  // de propósito.
+  const qrTimer = qrExpiryTimers.get(wid);
+  if (qrTimer) clearTimeout(qrTimer);
+  qrExpiryTimers.delete(wid);
+
   reconnectLock.set(wid, false);
   reconnectAttemptMap.set(wid, 0);
 };
@@ -322,6 +341,60 @@ const scheduleReconnect = (what: Whatsapp, delayMs = 0, reasonText = "") => {
 
 export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
   return new Promise((resolve, reject) => {
+    // Usa os dados do parâmetro (já em memória, sem precisar de await) pro
+    // timeout de segurança abaixo — precisa existir ANTES de qualquer
+    // await, não depois.
+    const id = whatsapp.id;
+    const name = whatsapp.name;
+    const companyId = whatsapp.companyId;
+
+    let settled = false;
+    const settleResolve = (value: Session) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(initTimeout);
+      resolve(value);
+    };
+    const settleReject = (error: any) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(initTimeout);
+      reject(error);
+    };
+
+    // CRÍTICO: este timeout tem que ser armado antes de qualquer await,
+    // não depois. Bug real batido em produção: a versão anterior só
+    // criava esse setTimeout depois de três awaits (getBaileys(),
+    // getBaileysLogger(), Whatsapp.findOne()) — se qualquer um deles
+    // travasse (ex.: Whatsapp.findOne presa num lock de linha do
+    // Postgres, que não tem statement_timeout configurado em
+    // config/database.ts) em vez de rejeitar, não existia timer nenhum
+    // ainda rodando pra resgatar a sessão, e o status ficava preso em
+    // "OPENING" ("Conectando" na tela) pra sempre — sem nunca cair em
+    // "DISCONNECTED", nenhum botão da tela conseguia reiniciar nada de
+    // verdade (o endpoint via a sessão como "ainda sem runtime" e não
+    // tinha como saber que estava travada).
+    const initTimeout = setTimeout(async () => {
+      logger.error(
+        `Session ${name} init timeout: não recebeu open/qr dentro do prazo`
+      );
+      try {
+        const io = getIO();
+        const current = await Whatsapp.findByPk(id);
+        if (current?.status === "OPENING") {
+          await current.update({ status: "DISCONNECTED", qrcode: "" });
+          io.of(String(companyId)).emit(
+            `company-${companyId}-whatsappSession`,
+            { action: "update", session: current }
+          );
+        }
+        await removeWbot(id, false);
+      } catch (timeoutErr) {
+        logger.error(timeoutErr);
+      }
+      settleReject(new Error(`ERR_WAPP_INIT_TIMEOUT: ${id}`));
+    }, 90_000);
+
     try {
       void (async () => {
         const io = getIO();
@@ -339,43 +412,11 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
 
         const whatsappUpdate = await Whatsapp.findOne({ where: { id: whatsapp.id } });
         if (!whatsappUpdate) {
-          reject(new Error(`ERR_WAPP_NOT_FOUND: ${whatsapp.id}`));
+          settleReject(new Error(`ERR_WAPP_NOT_FOUND: ${whatsapp.id}`));
           return;
         }
 
-        const { id, name, allowGroup, companyId, proxyUrl } = whatsappUpdate;
-        let settled = false;
-        const settleResolve = (value: Session) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(initTimeout);
-          resolve(value);
-        };
-        const settleReject = (error: any) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(initTimeout);
-          reject(error);
-        };
-        const initTimeout = setTimeout(async () => {
-          logger.error(
-            `Session ${name} init timeout: não recebeu open/qr dentro do prazo`
-          );
-          try {
-            const current = await Whatsapp.findByPk(id);
-            if (current?.status === "OPENING") {
-              await current.update({ status: "DISCONNECTED", qrcode: "" });
-              io.of(String(companyId)).emit(
-                `company-${companyId}-whatsappSession`,
-                { action: "update", session: current }
-              );
-            }
-            await removeWbot(id, false);
-          } catch (timeoutErr) {
-            logger.error(timeoutErr);
-          }
-          settleReject(new Error(`ERR_WAPP_INIT_TIMEOUT: ${id}`));
-        }, 90_000);
+        const { allowGroup, proxyUrl } = whatsappUpdate;
 
         // 1) Obter versão RECOMENDADA pelo Baileys v7 (com fallback seguro)
         let waVersion: [number, number, number] | undefined;
@@ -1066,12 +1107,14 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
             );
             settleResolve(wsocket);
 
-            // CORREÇÃO: timer de expiração do QR
-            const oldQrTimer = reconnectTimers.get(id);
+            // CORREÇÃO: timer de expiração do QR — usa qrExpiryTimers,
+            // nunca reconnectTimers, pra não clobberar/ser clobberado
+            // pelo backoff de reconexão (mesma chave, mapas diferentes).
+            const oldQrTimer = qrExpiryTimers.get(id);
             if (oldQrTimer) clearTimeout(oldQrTimer);
 
             const qrTimer = setTimeout(async () => {
-              reconnectTimers.delete(id);
+              qrExpiryTimers.delete(id);
 
               const current = await Whatsapp.findByPk(whatsapp.id);
               if (current?.status === "qrcode") {
@@ -1081,7 +1124,7 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
               }
             }, 120_000);
 
-            reconnectTimers.set(id, qrTimer);
+            qrExpiryTimers.set(id, qrTimer);
           }
         });
 
@@ -1141,11 +1184,11 @@ export const initWASocket = async (whatsapp: Whatsapp): Promise<Session> => {
             `Session ${name}: WebSocket error: ${error?.message}`
           );
         });
-      })().catch(err => reject(err));
+      })().catch(err => settleReject(err));
     } catch (error) {
       Sentry.captureException(error);
       console.log(error);
-      reject(error);
+      settleReject(error);
     }
   });
 };
