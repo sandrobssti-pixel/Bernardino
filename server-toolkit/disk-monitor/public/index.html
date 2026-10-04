@@ -423,6 +423,11 @@
     <div id="networkSharesGrid" class="physical-disks-grid"></div>
   </div>
 
+  <div class="panel" id="raidHealthPanel" style="display:none; margin-bottom:16px">
+    <h2 data-i18n="raidHealthTitle">Saúde do RAID1</h2>
+    <div id="raidHealthBody"></div>
+  </div>
+
   <div class="panel" id="raidMirrorPanel" style="display:none; margin-bottom:16px">
     <h2 data-i18n="raidMirrorTitle">Espelhar disco do sistema (RAID1)</h2>
     <div class="sub" style="margin-bottom:12px" data-i18n="raidMirrorDesc">
@@ -763,6 +768,12 @@ const translations = {
     chartDiskCategoriesTitle: "Uso de disco por categoria",
     freeSpaceLabel: "Espaço livre",
     otherUsedLabel: "Outros arquivos (sistema/usuário)",
+    raidHealthTitle: "Saúde do RAID1",
+    raidHealthy: "Saudável — sincronizado",
+    raidResyncing: pct => `Sincronizando — ${pct}%`,
+    raidDegraded: active => `Degradado — ${active} discos ativos`,
+    raidMemberFaulty: "falho",
+    raidMemberSpare: "reserva",
     raidMirrorTitle: "Espelhar disco do sistema (RAID1)",
     raidMirrorDesc: "Detecta um disco do mesmo tamanho do disco do sistema e gera o roteiro de comandos exato pra espelhar manualmente — este painel nunca executa esse processo sozinho (envolve reinicialização e reconfiguração do bootloader; um erro pode deixar o servidor sem ligar).",
     raidMirrorScanBtn: "Buscar discos candidatos",
@@ -974,6 +985,12 @@ const translations = {
     chartDiskCategoriesTitle: "Uso de disco por categoría",
     freeSpaceLabel: "Espacio libre",
     otherUsedLabel: "Otros archivos (sistema/usuario)",
+    raidHealthTitle: "Salud del RAID1",
+    raidHealthy: "Saludable — sincronizado",
+    raidResyncing: pct => `Sincronizando — ${pct}%`,
+    raidDegraded: active => `Degradado — ${active} discos activos`,
+    raidMemberFaulty: "fallido",
+    raidMemberSpare: "repuesto",
     raidMirrorTitle: "Espejar disco del sistema (RAID1)",
     raidMirrorDesc: "Detecta un disco del mismo tamaño que el disco del sistema y genera el guión de comandos exacto para espejar manualmente — este panel nunca ejecuta ese proceso solo (implica reinicio y reconfiguración del bootloader; un error puede dejar el servidor sin arrancar).",
     raidMirrorScanBtn: "Buscar discos candidatos",
@@ -1185,6 +1202,12 @@ const translations = {
     chartDiskCategoriesTitle: "Disk usage by category",
     freeSpaceLabel: "Free space",
     otherUsedLabel: "Other files (system/user)",
+    raidHealthTitle: "RAID1 health",
+    raidHealthy: "Healthy — in sync",
+    raidResyncing: pct => `Syncing — ${pct}%`,
+    raidDegraded: active => `Degraded — ${active} active disks`,
+    raidMemberFaulty: "faulty",
+    raidMemberSpare: "spare",
     raidMirrorTitle: "Mirror system disk (RAID1)",
     raidMirrorDesc: "Detects a disk the same size as the system disk and generates the exact command runbook to mirror it manually — this panel never runs that process on its own (it involves a reboot and bootloader reconfiguration; a mistake can leave the server unable to boot).",
     raidMirrorScanBtn: "Find candidate disks",
@@ -3005,6 +3028,50 @@ async function loadStatus() {
   }
 }
 
+// Saúde do(s) array(s) RAID1 do próprio servidor (/proc/mdstat, via
+// lib/raidHealth.js) — painel some sozinho se o servidor não tiver
+// nenhum array (ex.: cliente sem RAID configurado), não é erro.
+function renderRaidHealth(status) {
+  const panel = document.getElementById("raidHealthPanel");
+  const body = document.getElementById("raidHealthBody");
+  if (!status.supported || !status.arrays.length) {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "block";
+  body.innerHTML = status.arrays.map(a => {
+    const color = a.healthy ? "var(--ok)" : "var(--crit)";
+    const label = a.healthy
+      ? t("raidHealthy")
+      : a.resyncing
+        ? t("raidResyncing", a.resyncPercent)
+        : t("raidDegraded", `${a.activeDevices}/${a.raidDevices}`);
+    const membersLine = a.members
+      .map(m => `${m.device}${m.faulty ? " (" + t("raidMemberFaulty") + ")" : m.spare ? " (" + t("raidMemberSpare") + ")" : ""}`)
+      .join(", ");
+    return `
+      <div style="padding:12px; border:1px solid var(--panel-border); border-radius:10px; margin-bottom:10px">
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <strong>${a.name} (${a.level})</strong>
+          <span style="color:${color}; font-weight:600">${label}</span>
+        </div>
+        <div class="sub" style="margin-top:4px">${membersLine}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function loadRaidHealth() {
+  try {
+    const res = await apiFetch("/api/raid/status");
+    const data = await res.json();
+    if (!res.ok) return;
+    renderRaidHealth(data);
+  } catch (err) {
+    console.error("Falha ao carregar saúde do RAID:", err);
+  }
+}
+
 // CPU e RAM são "ao vivo" de verdade: janela em memória amostrada a cada
 // 5s no servidor (lib/systemStats.js), não o histórico mais espaçado
 // usado pelo gráfico de disco acima (esse aciona a limpeza automática e
@@ -3227,6 +3294,7 @@ bindDiskCardActions("usbDisksGrid");
   await loadUsers();
   await loadMachineProfile();
   await loadStatus();
+  await loadRaidHealth();
   // Não espera terminar (pode demorar mais que o resto — lê SMART de cada
   // disco físico) pra não travar o carregamento de CPU/RAM/processos
   // enquanto isso não volta. Partições sem montar vêm junto (ver
@@ -3240,6 +3308,7 @@ bindDiskCardActions("usbDisksGrid");
     await loadDsmDisks();
   }
   setInterval(loadStatus, 30000);
+  setInterval(loadRaidHealth, 30000);
   // Processos e CPU/RAM/discos mudam rápido — intervalo mais curto pra dar
   // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.
   setInterval(loadProcesses, 5000);

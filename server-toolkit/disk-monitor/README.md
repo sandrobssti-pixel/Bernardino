@@ -1103,6 +1103,35 @@ ainda vale conferir no seu DSM se os nomes de tela ("Storage Pool",
 cegamente — telas do DSM mudam nome ocasionalmente entre versões
 maiores.
 
+### Saúde do RAID1 (card com alerta visual)
+
+Novo card "Saúde do RAID1" no painel principal (`lib/raidHealth.js`),
+lendo `/proc/mdstat` (arquivo de kernel, leitura liberada pra qualquer
+usuário — não precisa de root, diferente de `mdadm --detail`) a cada
+minuto. Mostra, por array: saudável/sincronizando/degradado, quantos
+discos ativos de quantos esperados, e qual membro específico está
+falho (se houver). O card some sozinho se o servidor não tiver nenhum
+array RAID configurado.
+
+**Sobre o "aviso"**: este painel não tem nenhum mecanismo de e-mail/
+webhook implementado ainda (nada no disk-monitor tem, hoje) — o aviso é
+visual, no próprio painel. Quando o estado de um array muda (fica
+degradado, ou volta a sincronizar), isso também fica registrado no log
+do serviço (`journalctl -u disk-monitor`), pra aparecer mesmo se
+ninguém estiver com o painel aberto no momento. Alertas por e-mail
+ficam pra uma fase futura (teria que entrar numa lista com as outras
+integrações já listadas abaixo, tipo backup pra nuvem).
+
+**Honestidade**: o parser de `/proc/mdstat` (`parseMdstat`) foi testado
+contra três formatos reais capturados de uma execução real desta sessão
+(array saudável `[UU]`, degradado `[_U]`, e sincronizando com `%` de
+progresso) — os três interpretados corretamente. O endpoint
+(`/api/raid/status`) e a integração com o painel (card, cores, i18n)
+foram validados só por leitura de código e checagem de sintaxe — ainda
+não confirmados contra o servidor rodando de verdade (não tive motivo
+pra simular um array degradado de propósito só pra testar isso, já que
+o servidor de produção está saudável agora).
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

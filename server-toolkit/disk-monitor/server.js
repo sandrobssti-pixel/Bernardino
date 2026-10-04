@@ -19,6 +19,7 @@ const { listMountablePartitions, previewMount, executeMount } = require("./lib/d
 const { applyPartitionLabel, buildWindowsAutounattendXml } = require("./lib/osInstallTarget");
 const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskCleanupScan");
 const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
+const { readRaidStatus } = require("./lib/raidHealth");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { buildVolumePrepGuide } = require("./lib/nasVolumeGuide");
@@ -191,6 +192,49 @@ async function checkDiskAndMaybeClean() {
     await triggerCleanup("auto");
   }
 }
+
+// Saúde do(s) array(s) RAID1 — não tem histórico/gráfico (não precisa:
+// /proc/mdstat é leitura instantânea, sempre atual) nem envio por e-mail
+// (esse painel não tem esse mecanismo ainda pra nada) — o "aviso" aqui é
+// visual no painel, igual todo o resto do disk-monitor: guardamos só o
+// ÚLTIMO estado conhecido de cada array em memória pra detectar MUDANÇA
+// (ficou degradado, ou voltou a sincronizar) e destacar isso com mais
+// força na tela na próxima vez que o painel carregar, em vez de só
+// mostrar "degradado" sem dar a entender que é uma mudança recente.
+let lastRaidArraysByName = new Map();
+
+function checkRaidHealth() {
+  const status = readRaidStatus();
+  if (!status.supported) return status;
+
+  for (const array of status.arrays) {
+    const previous = lastRaidArraysByName.get(array.name);
+    if (previous && previous.healthy && !array.healthy) {
+      console.error(
+        `[disk-monitor] ALERTA: array RAID ${array.name} (${array.level}) ficou degradado — ` +
+        `${array.activeDevices}/${array.raidDevices} discos ativos` +
+        (array.faultyMembers.length ? `, falho(s): ${array.faultyMembers.join(", ")}` : "") + "."
+      );
+    } else if (previous && !previous.healthy && array.healthy) {
+      console.log(`[disk-monitor] Array RAID ${array.name} voltou ao estado saudável (sincronização concluída).`);
+    }
+    lastRaidArraysByName.set(array.name, array);
+  }
+  return status;
+}
+
+// Saúde do(s) array(s) RAID1 do próprio servidor (/proc/mdstat) —
+// independente do painel do NAS (aquele é sobre discos de DENTRO do
+// Synology, via API do DSM; este é sobre o mdadm local).
+app.get("/api/raid/status", auth.requireAuth, (req, res) => {
+  try {
+    const status = checkRaidHealth();
+    res.json(status);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao ler saúde do RAID:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get("/api/status", auth.requireAuth, async (req, res) => {
   const config = getConfig();
@@ -686,4 +730,20 @@ cron.schedule("* * * * *", () => {
       console.error("Falha na checagem periódica de disco:", err)
     );
   }
+  // Saúde do RAID1 checada todo minuto, sempre — não amarrada no
+  // `checkIntervalMinutes` (que é sobre o THRESHOLD de disco cheio/
+  // limpeza automática, outro assunto). Ler /proc/mdstat é instantâneo,
+  // não tem custo que justifique esperar um intervalo configurável.
+  try {
+    checkRaidHealth();
+  } catch (err) {
+    console.error("Falha na checagem periódica de saúde do RAID:", err);
+  }
 });
+// Checagem inicial na subida, pra já ter o estado em memória sem
+// esperar o primeiro tick do cron (até 1 minuto de espera senão).
+try {
+  checkRaidHealth();
+} catch (err) {
+  console.error("Falha na checagem inicial de saúde do RAID:", err);
+}
