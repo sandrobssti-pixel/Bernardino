@@ -24,6 +24,10 @@ conversas antigas sem registro.
 
 - **`server-toolkit/disk-monitor/`** → skill `disk-monitor-dev`
   (`.claude/skills/disk-monitor-dev/SKILL.md`)
+- **`backend/` e `frontend/`** (CRM AtendeFlow) → skill `atendeflow-dev`
+  (`.claude/skills/atendeflow-dev/SKILL.md`)
+- **`api_oficial/`** (API Oficial do WhatsApp da Meta) → skill
+  `api-oficial-dev` (`.claude/skills/api-oficial-dev/SKILL.md`)
 
 Se um módulo novo ganhar procedimentos próprios que valha a pena
 reaproveitar (padrão de versionamento, de i18n, de validação, de
