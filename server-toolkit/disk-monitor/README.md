@@ -1300,6 +1300,62 @@ foi confirmado clicando de verdade no painel contra o servidor real
 (nenhuma ação foi executada nesse disco durante a investigação,
 intencionalmente).
 
+### CRÍTICO — Corrigido: app desktop (Electron) subia um segundo servidor e brigava de porta com o serviço systemd
+
+Bug real de arquitetura, batido em produção: `electron-main.js` fazia
+`require("./server.js")` pra ter "tudo num processo só" — mas o serviço
+systemd (`disk-monitor`, roda como root, 24/7, é quem faz os checks
+automáticos de RAID/disco mesmo sem ninguém logado) **já está rodando
+esse mesmo `server.js` na mesma porta**. Abrir o app desktop com o
+serviço no ar faz o segundo `app.listen()` falhar (porta ocupada) — e
+mascarava o erro de permissão real (abaixo) porque o travamento do
+Electron acontecia antes mesmo de chegar nessa parte do código.
+
+Corrigido: `electron-main.js` não sobe mais servidor nenhum — só abre a
+janela apontando pro `http://localhost:PORT` de sempre, com uma
+checagem prévia (`waitForServer`, até 5s de tentativas) que mostra uma
+caixa de erro clara ("serviço não está respondendo, verifique `systemctl
+status disk-monitor`") em vez de uma tela em branco ou travamento
+silencioso se o serviço estiver parado.
+
+### CRÍTICO — Corrigido: ícone do desktop falhava com "Permission denied" em `node_modules/electron/dist`
+
+Bug real, batido em produção: `node_modules` inteiro é criado por `npm
+install` rodado via `sudo` (dono `root`), mas quem executa o
+`desktop-launcher.sh` é o usuário comum, sem `sudo` — tem que ser assim,
+Electron precisa da sessão gráfica do usuário, não abre janela como
+root. O pacote `electron` tem lógica própria de reinstalar seu binário
+(`dist/`) se perceber que está ausente/incompleto (ex.: depois de um
+`rsync --delete` acidental tocando em `node_modules`, que não devia
+nunca ser alvo de sync vindo do repositório — `node_modules` nem existe
+lá, é gerado local) — e essa reinstalação falha com "Permission denied"
+porque o usuário comum não tem permissão de escrita dentro de
+`node_modules/electron` (dono `root`).
+
+Corrigido em `create-desktop-icon.sh` (chamado no fim de `install.sh` e
+`update.sh`, então toda instalação/atualização a partir daqui já
+aplica): `chown -R` de `node_modules/electron` pro usuário real
+(`$SUDO_USER`) antes de gerar o launcher. Também, antes de gerar
+ícone/launcher novos, o script agora remove explicitamente os arquivos
+antigos (`desktop-launcher.sh`, os dois `.desktop`) em vez de só confiar
+no "sobrescrever por cima" — garante que uma atualização nunca deixa
+ícone/launcher desatualizado largado por aí.
+
+**Honestidade**: as duas correções foram validadas por leitura de
+código e checagem de sintaxe (`node --check electron-main.js`, `bash -n
+create-desktop-icon.sh`). O `chown` foi raciocinado contra o erro real
+reportado em produção (mensagem exata de "Permission denied" em
+`node_modules/electron/dist`), mas **não foi confirmado rodando de novo
+no servidor afetado** — numa instalação já quebrada (ex.: depois de um
+`rsync --delete` acidental como o que causou isso), pode ser necessário
+reinstalar o pacote Electron do zero (`rm -rf node_modules/electron &&
+npm install electron --no-save` dentro de `$INSTALL_DIR`, como root) além
+de rodar o `chown`, porque o `dist/` pode estar faltando de verdade, não
+só com dono errado. A checagem de servidor já rodando (`waitForServer`)
+também não foi vista abrindo uma janela de verdade contra um servidor
+real — só por leitura/sintaxe, mesma limitação já registrada na seção
+"Ícone no desktop" acima.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

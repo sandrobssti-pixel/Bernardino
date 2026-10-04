@@ -1,24 +1,39 @@
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, dialog } = require("electron");
+const http = require("http");
 
-// Janela própria do app, em vez de abrir pelo navegador — reaproveita o
-// mesmo servidor Express de sempre (server.js, com todas as rotas/lib
-// intactas) só trocando "acessar http://localhost:8091 pelo navegador"
-// por "o técnico abre um aplicativo e já cai direto no painel", sem ver
-// barra de endereço, URL nem nada que pareça site.
-//
-// `require("./server.js")` sobe o servidor de verdade (mesmo processo,
-// mesma porta) — nada foi duplicado nem reimplementado; é o MESMO
-// server.js usado na instalação como serviço systemd (ver
-// disk-monitor.service), só chamado de um jeito diferente.
-require("./server.js");
+// Janela própria do app, em vez de abrir pelo navegador — mas este
+// processo NUNCA sobe seu próprio server.js. O serviço systemd
+// (disk-monitor, roda como root, 24/7, inclusive sem ninguém logado —
+// é ele que faz os checks automáticos de RAID/disco por cron) já está
+// ocupando a porta. Subir um segundo Express aqui (como esta versão
+// fazia antes) bateria EADDRINUSE contra o serviço já rodando. Esta
+// janela só se conecta nele, do mesmo jeito que um navegador faria, só
+// sem parecer navegador.
 
 const PORT = process.env.PORT || 8091;
-// Tempo de folga pro Express terminar de subir (ler config, montar
-// rotas) antes da janela tentar carregar a página — não tem callback
-// exposto pelo server.js pra saber "pronto" com certeza (ele só chama
-// app.listen() no final do arquivo), então uma folga curta é o jeito
-// simples de evitar a primeira tentativa de carregamento falhar.
-const SERVER_READY_DELAY_MS = 800;
+const SERVER_URL = `http://localhost:${PORT}`;
+const CHECK_TIMEOUT_MS = 5000;
+const CHECK_RETRY_DELAY_MS = 300;
+
+function waitForServer(url, timeoutMs) {
+  return new Promise(resolve => {
+    const deadline = Date.now() + timeoutMs;
+    (function attempt() {
+      const req = http.get(url, res => {
+        res.resume();
+        resolve(true);
+      });
+      req.setTimeout(1000, () => req.destroy());
+      req.on("error", () => {
+        if (Date.now() >= deadline) {
+          resolve(false);
+        } else {
+          setTimeout(attempt, CHECK_RETRY_DELAY_MS);
+        }
+      });
+    })();
+  });
+}
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -37,11 +52,24 @@ function createWindow() {
       nodeIntegration: false
     }
   });
-  win.loadURL(`http://localhost:${PORT}`);
+  win.loadURL(SERVER_URL);
 }
 
-app.whenReady().then(() => {
-  setTimeout(createWindow, SERVER_READY_DELAY_MS);
+app.whenReady().then(async () => {
+  const up = await waitForServer(SERVER_URL, CHECK_TIMEOUT_MS);
+  if (!up) {
+    dialog.showErrorBox(
+      "disk-monitor não está respondendo",
+      `Não consegui falar com o serviço em ${SERVER_URL} depois de ${CHECK_TIMEOUT_MS / 1000}s.\n\n` +
+        "O serviço disk-monitor (systemd) provavelmente está parado. Verifique no terminal:\n\n" +
+        "  sudo systemctl status disk-monitor\n" +
+        "  sudo systemctl restart disk-monitor"
+    );
+    app.quit();
+    return;
+  }
+
+  createWindow();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

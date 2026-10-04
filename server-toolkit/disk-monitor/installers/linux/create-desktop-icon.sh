@@ -32,12 +32,32 @@ if [ ! -f "$INSTALL_DIR/electron-main.js" ] || [ ! -x "$INSTALL_DIR/node_modules
   exit 0
 fi
 
+# node_modules inteiro foi criado por "npm install" rodado via sudo (dono
+# root), mas quem executa o desktop-launcher.sh é o usuário comum, sem
+# sudo (tem que ser assim — Electron precisa da sessão gráfica do
+# usuário, não dá pra abrir janela como root). O pacote "electron" tem
+# lógica própria de reinstalar seu binário (dist/) se perceber que está
+# ausente/incompleto, e isso falha com "Permission denied" se dist/ não
+# existir e o usuário comum não puder escrever dentro de node_modules/
+# electron (dono root) — já aconteceu em produção. Dono certo evita o
+# problema de novo, mesmo que o reinstall do pacote não seja acionado.
+chown -R "$REAL_USER":"$REAL_USER" "$INSTALL_DIR/node_modules/electron" 2>/dev/null || true
+
+# Remove ícone/launcher de uma instalação anterior antes de gerar os
+# novos — nunca confia só no "sobrescrever por cima" (ex.: se o caminho
+# do ícone ou o nome do arquivo mudar numa versão futura, o antigo
+# ficaria largado, clicável, apontando pra um launcher desatualizado).
 LAUNCHER="$INSTALL_DIR/desktop-launcher.sh"
+rm -f "$LAUNCHER" 2>/dev/null || true
+rm -f "$REAL_HOME/.local/share/applications/disk-monitor.desktop" 2>/dev/null || true
+rm -f "$REAL_HOME/Desktop/disk-monitor.desktop" 2>/dev/null || true
+
 cat > "$LAUNCHER" <<EOF
 #!/bin/bash
 cd "$INSTALL_DIR" && exec ./node_modules/.bin/electron electron-main.js
 EOF
 chmod +x "$LAUNCHER"
+chown "$REAL_USER":"$REAL_USER" "$LAUNCHER"
 
 ICON_PATH="$INSTALL_DIR/public/favicon.png"
 DESKTOP_ENTRY="[Desktop Entry]
