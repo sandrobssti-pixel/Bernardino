@@ -38,6 +38,29 @@ function isAllowedMountPoint(mountPoint) {
   return typeof mountPoint === "string" && ALLOWED_MOUNT_PREFIXES.some(prefix => mountPoint.startsWith(prefix));
 }
 
+// Se essa partição está "segurada" por outro dispositivo do kernel (um
+// array RAID mdadm montado através dela, um mapeamento dm-crypt/LUKS
+// aberto, um grupo LVM) — o /sys é a fonte mais confiável disso, sem
+// depender de nenhuma ferramenta extra instalada. Mesma função usada em
+// diskPartition.js (duplicada aqui de propósito, mesmo padrão já usado
+// pra `parentDiskName` nos outros módulos deste painel — cada lib fica
+// independente, sem importar uma da outra).
+//
+// Bug real que isso corrige: uma partição membro de RAID ativo (ex.:
+// `/dev/sdb2`, tipo "linux_raid_member", parte do array de sistema)
+// nunca aparece como "montada" num sentido tradicional — quem está
+// montado é o ARRAY (`/dev/md0`), não a partição membro — então sem
+// essa checagem ela aparecia na lista de "partições sem montar",
+// oferecendo o botão "Montar" pra uma partição que na verdade está
+// ativamente em uso, segurando o sistema rodando.
+function partitionHolders(partitionShortName) {
+  try {
+    return fs.readdirSync(`/sys/class/block/${partitionShortName}/holders`);
+  } catch {
+    return [];
+  }
+}
+
 const EFI_LIKE_FS = new Set(["vfat", "fat", "fat16", "fat32"]);
 const EFI_LIKE_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GiB — EFI de verdade é 512MiB-1GiB
 
@@ -60,7 +83,7 @@ async function listMountablePartitions() {
   if (!isLinux) return [];
   const blockDevices = await si.blockDevices().catch(() => []);
   return blockDevices
-    .filter(bd => bd.type === "part" && !bd.mount)
+    .filter(bd => bd.type === "part" && !bd.mount && partitionHolders(bd.name).length === 0)
     .map(bd => ({
       device: `/dev/${bd.name}`,
       label: bd.label || "",
@@ -107,6 +130,13 @@ async function checkEligibility(device, mountPoint) {
   }
   if (partition.mount) {
     return { eligible: false, reason: `Essa partição já está montada em "${partition.mount}".` };
+  }
+  const holders = partitionHolders(partition.name);
+  if (holders.length > 0) {
+    return {
+      eligible: false,
+      reason: `Essa partição está em uso por outro dispositivo do kernel (${holders.join(", ")}) — provavelmente membro ativo de um array RAID ou mapeamento LUKS/LVM. Não é uma partição livre, mesmo sem aparecer "montada" diretamente — nunca deve ser montada por aqui.`
+    };
   }
   if (!partition.uuid) {
     return { eligible: false, reason: "Não foi possível identificar o UUID dessa partição (necessário pra montar de forma estável)." };

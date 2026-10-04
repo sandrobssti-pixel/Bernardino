@@ -1266,6 +1266,40 @@ confirmada rodando de verdade (criando o ícone, clicando nele, vendo o
 app abrir) contra um servidor real. Só Linux (GNOME) considerado até
 aqui — Windows/macOS ficam pra depois, se vier pedido.
 
+### CRÍTICO — Corrigido: "Montar" oferecia partição membro de RAID ativo
+
+Bug real, batido em produção no pior disco possível: o próprio disco do
+sistema (RAID1). `/dev/sdb2` (tipo `linux_raid_member`, membro ativo do
+array `/dev/md0` que segura a raiz do servidor) aparecia na seção
+"Partições sem montar", com o botão "Montar" disponível — porque quem
+fica "montado" num RAID é o ARRAY (`/dev/md0`), nunca a partição membro
+diretamente, então `listMountablePartitions()` (que só olhava
+`!bd.mount`) via essa partição como livre. A etapa de apagar/criar/
+formatar já tinha proteção contra isso por acaso (checagem de
+`holders` em `/sys/class/block`, implementada antes pro caso de LUKS/
+RAID aberto de formatações antigas) — mas o "Montar" nunca tinha essa
+checagem.
+
+Corrigido: `listMountablePartitions()` agora exclui qualquer partição
+com um `holder` ativo no kernel (RAID, LUKS, LVM — não só RAID
+especificamente), e `checkEligibility()` do mount ganhou a mesma
+checagem como segunda camada de defesa, caso alguém tente montar uma
+partição com holder passando o device direto (sem passar pela lista).
+Mesma função `partitionHolders()` já usada em `diskPartition.js`,
+duplicada aqui (mesmo padrão de módulos independentes já usado nesse
+painel).
+
+**Honestidade**: a causa raiz foi confirmada contra produção (captura
+de tela real mostrando `/dev/sdb2` com botão "Montar" disponível). A
+correção foi validada com `si.blockDevices()` simulado reproduzindo
+exatamente esse cenário (partição RAID sem mount + holder `md0`) contra
+as duas funções (`listMountablePartitions` e `previewMount`) — as duas
+corretas: a partição RAID sumiu da lista, e uma tentativa direta de
+montar o device foi recusada com a mensagem explicando o motivo. Não
+foi confirmado clicando de verdade no painel contra o servidor real
+(nenhuma ação foi executada nesse disco durante a investigação,
+intencionalmente).
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em
