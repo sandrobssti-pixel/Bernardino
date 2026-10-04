@@ -21,6 +21,7 @@ const { scanCleanupCategories, executeCleanupCategories } = require("./lib/diskC
 const { findMirrorCandidates, buildMirrorRunbook } = require("./lib/raidMirror");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
+const { buildVolumePrepGuide } = require("./lib/nasVolumeGuide");
 const { runCleanup } = require("./lib/cleanup");
 const { getConfig, updateConfig } = require("./lib/configStore");
 const {
@@ -574,6 +575,31 @@ app.get("/api/nas/disks", auth.requireAuth, async (req, res) => {
   } catch (err) {
     console.error("[disk-monitor] Falha ao ler discos do DSM:", err.message);
     res.status(502).json({ error: err.message });
+  }
+});
+
+// Roteiro manual (não executa nada no NAS) pra preparar um disco ainda
+// "not_use" (fora de qualquer pool/volume) — ver nasVolumeGuide.js pro
+// motivo de ser roteiro em vez de chamada automática à API do DSM.
+// Reconfere o disco de novo contra o DSM na hora (nunca confia só no id
+// que o cliente mandou), pra nunca gerar instrução em cima de um disco
+// que já tem dado.
+app.get("/api/nas/disks/:id/prepare-volume-guide", auth.requireAuth, async (req, res) => {
+  if (!synologyClient) {
+    return res.status(501).json({ error: "Integração com o DSM não configurada (ver .env.example)." });
+  }
+  const filesystem = req.query.filesystem === "ext4" ? "ext4" : "btrfs";
+  try {
+    const disks = await synologyClient.getDisks();
+    const disk = disks.find(d => d.id === req.params.id);
+    if (!disk) {
+      return res.status(404).json({ error: `Disco "${req.params.id}" não encontrado no NAS agora.` });
+    }
+    const guide = buildVolumePrepGuide(disk, filesystem);
+    res.json(guide);
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao montar roteiro de volume do NAS:", err.message);
+    res.status(400).json({ error: err.message });
   }
 });
 

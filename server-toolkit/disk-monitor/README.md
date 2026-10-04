@@ -1034,6 +1034,46 @@ confirmação por frase exata, erro de conexão tratado sem derrubar o
 resto do painel, e agora o login em si. Teste com cuidado antes de
 confiar o desligamento em produção — comece só pela leitura dos discos.
 
+### Preparar disco "not_use" (roteiro de volume, não automação)
+
+Cada disco do NAS com status `not_use` (presente, mas fora de qualquer
+pool/volume — o caso normal de um disco recém-colocado) ganhou um botão
+"Preparar volume" na tabela de discos. Ele **não mexe no NAS** — gera um
+roteiro passo a passo (`lib/nasVolumeGuide.js`) pra seguir manualmente
+na própria tela do Storage Manager do DSM: criar o Storage Pool (tipo
+"Basic", só com aquele disco) e depois o Volume (Btrfs por padrão) em
+cima dele.
+
+**Por que roteiro em vez de criar o volume direto pela API do DSM**:
+diferente da leitura de discos e do desligamento (API já usada neste
+módulo, mesmo sem confirmação em produção ainda), criar Storage
+Pool/Volume usa uma parte da API do Synology cujos parâmetros exatos eu
+não tenho como validar sem acesso de teste ao DSM real — e essa é uma
+operação que formata um disco inteiro. Mesmo princípio já usado no
+espelhamento RAID1 do disco de sistema (`lib/raidMirror.js`): ação de
+risco alto sem como confirmar vira geração de roteiro pra execução
+manual, nunca automação às cegas. Aqui o "manual" é clicar na própria
+tela oficial do fabricante (Storage Manager), não digitar comando algum
+— então o risco de seguir o roteiro errado é bem menor do que inventar
+uma chamada de API não testada.
+
+O endpoint (`GET /api/nas/disks/:id/prepare-volume-guide`) reconfere o
+disco contra o DSM de novo na hora (nunca confia só no id que veio da
+tela) e recusa gerar o roteiro se o status não for mais `not_use` —
+evita montar instrução pra apagar um disco que passou a ter dado entre
+o carregamento da tabela e o clique no botão.
+
+**Honestidade**: essa funcionalidade (texto do roteiro, endpoint, botão
+na tabela) foi validada só por leitura de código e por chamar
+`buildVolumePrepGuide()` com dado de disco de exemplo — **nunca
+confirmada contra um Synology real nem seguindo o roteiro até o fim**.
+Como é um roteiro pra fazer na tela oficial do DSM (não um comando que
+o painel executa), o risco de dano por um texto impreciso é baixo, mas
+ainda vale conferir no seu DSM se os nomes de tela ("Storage Pool",
+"Create", "Basic") batem com a versão instalada antes de confiar
+cegamente — telas do DSM mudam nome ocasionalmente entre versões
+maiores.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

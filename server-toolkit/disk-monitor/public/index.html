@@ -501,10 +501,19 @@
             <th data-i18n="thStatus">Status</th>
             <th data-i18n="thTemp">Temperatura</th>
             <th data-i18n="thCapacity">Capacidade</th>
+            <th data-i18n="thActions">Ações</th>
           </tr>
         </thead>
         <tbody id="dsmDisksBody"></tbody>
       </table>
+
+      <div id="volumeGuideBox" style="display:none; margin-top:16px; padding:14px; border:1px solid var(--panel-border); border-radius:10px">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+          <strong data-i18n="prepareVolumeModalTitle">Roteiro pra preparar o disco no DSM</strong>
+          <button class="secondary" id="volumeGuideCloseBtn" data-i18n="prepareVolumeModalClose">Fechar</button>
+        </div>
+        <div id="volumeGuideContent"></div>
+      </div>
 
       <div id="shutdownArea" style="margin-top:20px; display:none">
         <button class="secondary" id="shutdownOpenBtn" style="background:rgba(239,68,68,0.15); color:var(--crit)" data-i18n="shutdownOpenBtn">Desligar o NAS</button>
@@ -717,8 +726,10 @@ const translations = {
     toastBrowseErr: msg => `Erro ao abrir pasta: ${msg}`,
     rootRoot: "Início",
     dsmTitle: "Discos do NAS e desligamento (Synology)",
-    thDisk: "Disco", thStatus: "Status", thTemp: "Temperatura", thCapacity: "Capacidade",
+    thDisk: "Disco", thStatus: "Status", thTemp: "Temperatura", thCapacity: "Capacidade", thActions: "Ações",
     diskHealthy: "Normal", diskUnhealthy: "Atenção", diskStatusUnknown: "Não configurado",
+    prepareVolumeBtn: "Preparar volume", prepareVolumeModalTitle: "Roteiro pra preparar o disco no DSM", prepareVolumeModalClose: "Fechar",
+    toastGuideErr: msg => `Erro ao gerar roteiro: ${msg}`,
     shutdownOpenBtn: "Desligar o NAS",
     shutdownWarning: "Isso desliga o NAS de verdade. Sem Wake-on-LAN configurado, só liga de novo apertando o botão físico no aparelho. Essa ação não pode ser desfeita remotamente.",
     shutdownTypeLabel: "Digite DESLIGAR pra confirmar:",
@@ -926,8 +937,10 @@ const translations = {
     toastBrowseErr: msg => `Error al abrir carpeta: ${msg}`,
     rootRoot: "Inicio",
     dsmTitle: "Discos del NAS y apagado (Synology)",
-    thDisk: "Disco", thStatus: "Estado", thTemp: "Temperatura", thCapacity: "Capacidad",
+    thDisk: "Disco", thStatus: "Estado", thTemp: "Temperatura", thCapacity: "Capacidad", thActions: "Acciones",
     diskHealthy: "Normal", diskUnhealthy: "Atención", diskStatusUnknown: "No configurado",
+    prepareVolumeBtn: "Preparar volumen", prepareVolumeModalTitle: "Guía para preparar el disco en el DSM", prepareVolumeModalClose: "Cerrar",
+    toastGuideErr: msg => `Error al generar la guía: ${msg}`,
     shutdownOpenBtn: "Apagar el NAS",
     shutdownWarning: "Esto apaga el NAS de verdad. Sin Wake-on-LAN configurado, solo se enciende de nuevo con el botón físico del equipo. Esta acción no se puede deshacer remotamente.",
     shutdownTypeLabel: "Escriba DESLIGAR para confirmar:",
@@ -1135,8 +1148,10 @@ const translations = {
     toastBrowseErr: msg => `Error opening folder: ${msg}`,
     rootRoot: "Home",
     dsmTitle: "NAS disks and shutdown (Synology)",
-    thDisk: "Disk", thStatus: "Status", thTemp: "Temperature", thCapacity: "Capacity",
+    thDisk: "Disk", thStatus: "Status", thTemp: "Temperature", thCapacity: "Capacity", thActions: "Actions",
     diskHealthy: "Normal", diskUnhealthy: "Attention", diskStatusUnknown: "Not configured",
+    prepareVolumeBtn: "Prepare volume", prepareVolumeModalTitle: "Guide to prepare the disk in DSM", prepareVolumeModalClose: "Close",
+    toastGuideErr: msg => `Error generating guide: ${msg}`,
     shutdownOpenBtn: "Shut down the NAS",
     shutdownWarning: "This actually shuts down the NAS. Without Wake-on-LAN configured, it can only be turned back on by pressing the physical button on the device. This action cannot be undone remotely.",
     shutdownTypeLabel: "Type DESLIGAR to confirm:",
@@ -2753,9 +2768,50 @@ function renderDsmDisksTable(disks) {
       }</td>
       <td>${d.tempCelsius !== null ? d.tempCelsius + "°C" : "—"}</td>
       <td>${d.sizeBytes ? formatBytes(d.sizeBytes) : "—"}</td>
+      <td>${
+        d.status === "not_use"
+          ? `<button class="secondary" data-prepare-volume="${encodeURIComponent(d.id)}" data-i18n="prepareVolumeBtn">Preparar volume</button>`
+          : "—"
+      }</td>
     </tr>
   `).join("");
+  body.querySelectorAll("[data-prepare-volume]").forEach(btn => {
+    btn.addEventListener("click", () => openVolumeGuide(decodeURIComponent(btn.dataset.prepareVolume)));
+  });
 }
+
+async function openVolumeGuide(diskId) {
+  const box = document.getElementById("volumeGuideBox");
+  const content = document.getElementById("volumeGuideContent");
+  content.innerHTML = "…";
+  box.style.display = "block";
+  try {
+    const res = await apiFetch(`/api/nas/disks/${encodeURIComponent(diskId)}/prepare-volume-guide?filesystem=btrfs`);
+    const data = await res.json();
+    if (!res.ok) {
+      toast(t("toastGuideErr", data.error));
+      box.style.display = "none";
+      return;
+    }
+    content.innerHTML = `
+      <div class="sub" style="color:var(--crit); margin-bottom:12px">${data.warning}</div>
+      ${data.steps.map(s => `
+        <div style="margin-bottom:10px">
+          <strong>${s.title}</strong>
+          <div class="sub">${s.detail}</div>
+        </div>
+      `).join("")}
+      <div class="sub" style="margin-top:10px">${data.note}</div>
+    `;
+  } catch (err) {
+    toast(t("toastGuideErr", err.message));
+    box.style.display = "none";
+  }
+}
+
+document.getElementById("volumeGuideCloseBtn").addEventListener("click", () => {
+  document.getElementById("volumeGuideBox").style.display = "none";
+});
 
 async function loadDsmDisks() {
   if (!dsmConfigured) return;
