@@ -245,6 +245,19 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
       // cada disco antes do grub-install correspondente, ele falha (ou,
       // pior, escreve num diretório comum do ext4 em vez da partição
       // EFI de verdade, deixando o disco não-bootável sem avisar).
+      //
+      // `--removable` em cada grub-install: o bind simples de /sys
+      // (`mount --bind`, não `--rbind`) não carrega o `efivarfs` montado
+      // dentro de `/sys/firmware/efi`, então o grub-install dentro do
+      // chroot normalmente NÃO consegue registrar a entrada de boot na
+      // NVRAM da UEFI ("EFI variables cannot be set on this system" —
+      // confirmado em execução real) — mesmo assim ele termina e grava
+      // os arquivos do bootloader certinho na ESP. `--removable` grava
+      // uma cópia extra no caminho padrão que a BIOS/UEFI procura
+      // sozinha mesmo sem nenhuma entrada NVRAM (`EFI/BOOT/BOOTX64.EFI`)
+      // — prática recomendada justamente pra RAID1 com dois discos EFI,
+      // já que entradas de NVRAM são por disco e nada confiáveis quando
+      // um disco pode sumir/trocar de posição.
       title: "5. Ajustar fstab, initramfs e instalar o bootloader nos dois discos (dentro de um chroot)",
       commands: [
         `mount --bind /dev /mnt/newroot/dev && mount --bind /proc /mnt/newroot/proc && mount --bind /sys /mnt/newroot/sys`,
@@ -253,12 +266,14 @@ async function buildMirrorRunbook(targetDevice, systemMountPath) {
         `mdadm --detail --scan >> /mnt/newroot/etc/mdadm/mdadm.conf`,
         `# Monta a ESP do disco ORIGINAL de verdade antes de instalar o bootloader nela`,
         `mount ${sysDevice}1 /mnt/newroot/boot/efi`,
+        `chroot /mnt/newroot grub-install --removable ${sysDevice}`,
         `chroot /mnt/newroot grub-install ${sysDevice}`,
         `chroot /mnt/newroot update-initramfs -u`,
         `chroot /mnt/newroot update-grub`,
         `umount /mnt/newroot/boot/efi`,
         `# Agora monta a ESP do disco NOVO e instala o bootloader nela também`,
         `mount ${targetDevice}1 /mnt/newroot/boot/efi`,
+        `chroot /mnt/newroot grub-install --removable ${targetDevice}`,
         `chroot /mnt/newroot grub-install ${targetDevice}`,
         `umount /mnt/newroot/boot/efi`,
         `# Deixa montada de novo a do disco original, que é a que bate com o fstab no próximo boot`,

@@ -818,6 +818,33 @@ ponta — a correção foi feita a partir do raciocínio sobre como
 os itens 1-5 acima. Reboot (passo 6) e o que vem depois continuam sem
 nenhuma confirmação real.
 
+7. **Adicionado `--removable` em cada `grub-install`**. Confirmado em
+   execução real: o `grub-install` dentro do chroot terminou sem erro
+   fatal nos dois discos ("Instalación terminada. No se notificó ningún
+   error."), mas avisou `"EFI variables cannot be set on this
+   system... You will have to complete the GRUB setup manually"` — a
+   causa é o `mount --bind /sys` (não `--rbind`) não carregar o
+   `efivarfs` que fica montado dentro de `/sys/firmware/efi` pro
+   chroot, então o grub-install não consegue registrar a entrada de
+   boot na NVRAM da UEFI de dentro do chroot (confirmado comparando:
+   `efivarfs` aparece montado no HOST via `mount | grep efi`, mas o
+   aviso só acontece pro `grub-install` de dentro do `chroot`). Isso
+   por si só não impede o boot (os arquivos do bootloader já foram
+   gravados certos na ESP), mas entradas de NVRAM são por disco e nada
+   confiáveis nesse cenário (RAID1, disco pode sumir/trocar de
+   posição) — `--removable` grava uma cópia extra no caminho padrão
+   (`EFI/BOOT/BOOTX64.EFI`) que a BIOS/UEFI acha sozinha mesmo sem
+   nenhuma entrada NVRAM, prática recomendada justamente pra esse
+   cenário. Rodado em cada disco **além** do `grub-install` normal (sem
+   `--removable`), não no lugar dele.
+
+**Honestidade (passo 5, versão final)**: a execução real confirmou que
+os dois `grub-install` terminam sem erro fatal e o aviso de EFI
+variables é esperado/não-bloqueante nesse contexto — mas o
+`grub-install --removable` adicional em si (a correção deste item) só
+foi orientado ao usuário, ainda não confirmado rodando. Reboot (passo
+6) em diante continua sem nenhuma confirmação real.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,
