@@ -310,9 +310,25 @@ async function checkEligibility(device, plan) {
   }
   const blockDevices = await si.blockDevices().catch(() => []);
   const diskEntry = blockDevices.find(bd => bd.name === shortName && bd.type === "disk");
-  const existingPartitions = blockDevices
-    .filter(bd => bd.type === "part" && parentDiskName(bd.name) === shortName)
-    .map(bd => ({ device: `/dev/${bd.name}`, name: bd.name, fsType: bd.fsType || "?", sizeBytes: bd.size || 0, mount: bd.mount || null }));
+  // Alguns discos de dados antigos têm o sistema de arquivos gravado
+  // DIRETO no disco inteiro (ex.: /dev/sdd como "ext4", sem nenhuma
+  // partição /dev/sdd1) — um padrão válido, sem tabela GPT/MBR nenhuma.
+  // Sem essa checagem, um disco assim passava como "disco novo/vazio"
+  // (só olhávamos partições filhas, tipo "part") mesmo tendo dado real
+  // montado — bug real, quase causou perda de dado em produção (disco
+  // de dados "disco03" quase foi formatado por engano). O disco inteiro
+  // entra na mesma lista de "existingPartitions" pra reusar as mesmas
+  // checagens de montagem/holder de baixo, sem duplicar lógica.
+  const wholeDiskFilesystem =
+    diskEntry && diskEntry.fsType
+      ? [{ device: `/dev/${shortName}`, name: shortName, fsType: diskEntry.fsType, sizeBytes: diskEntry.size || 0, mount: diskEntry.mount || null }]
+      : [];
+  const existingPartitions = [
+    ...wholeDiskFilesystem,
+    ...blockDevices
+      .filter(bd => bd.type === "part" && parentDiskName(bd.name) === shortName)
+      .map(bd => ({ device: `/dev/${bd.name}`, name: bd.name, fsType: bd.fsType || "?", sizeBytes: bd.size || 0, mount: bd.mount || null }))
+  ];
   const exists = diskEntry || existingPartitions.length > 0;
   if (!exists) {
     return { eligible: false, reason: "Disco não encontrado no servidor.", diskSizeBytes: null, existingPartitions: [] };

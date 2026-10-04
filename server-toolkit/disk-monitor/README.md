@@ -516,6 +516,35 @@ etapa "criar") foi validada só gerando o comando via `previewPartition()`
 — ainda não foi confirmada executando de ponta a ponta contra o disco
 que gerou o erro original.
 
+**CRÍTICO — Corrigido: checagem de "disco vazio" não detectava sistema
+de arquivos gravado direto no disco inteiro (sem partição)**. Achado
+batido em produção, quase causando perda de dado real: ao tentar o
+`mklabel gpt` do item acima contra um disco de dados que JÁ tinha
+`ext4` gravado direto nele (`/dev/sdd`, sem nenhuma partição `/dev/sdd1`
+— um padrão válido e nada incomum pra disco de dados simples, sem
+GPT/MBR), o painel mostrou "Disco novo/vazio" (`checkEligibility()` só
+procurava partições filhas, tipo `"part"`, nunca olhava se o PRÓPRIO
+disco já tinha um sistema de arquivos) — e deixou o técnico avançar até
+a etapa "Criar partições agora" contra um disco com 439GB de dado real
+montado em produção (`/mnt/disco03`). **O que impediu a perda de dado
+de fato foi o próprio `parted`**, que recusou escrever a tabela nova
+porque o kernel reportou a partição como "em uso" (montada) — não a
+checagem de elegibilidade do painel, que é quem deveria ter barrado
+isso antes de chegar perto do `parted`. Corrigido: `checkEligibility()`
+agora também verifica se o disco inteiro (não só suas partições) tem um
+`fsType`, e trata isso como "disco não está vazio" nas duas etapas
+("apagar" recusa com a mensagem de partição montada, "criar" recusa
+pedindo pra apagar antes) — mesmo tratamento dado a qualquer partição
+normal, sem duplicar lógica. **Honestidade**: causa raiz confirmada
+contra produção com certeza absoluta (`lsblk -f` mostrando `sdd` — sem
+número — com `ext4` e `/mnt/disco03` montado, exatamente o disco que
+quase foi apagado); a correção foi validada simulando esse cenário
+exato (disco sem partição, com `fsType`/`mount` preenchidos direto na
+entrada do disco) contra as duas etapas via `previewPartition()`, com
+resultado correto nas duas — ainda não foi reexecutada contra o disco
+real que gerou o incidente (ele já está fora de perigo, não há motivo
+pra testar destrutivamente de novo nele).
+
 **Esquema personalizado (escolher quantas partições) e contador visível
 de partições**: o seletor de esquema ganhou uma 4ª opção, "Personalizado
 — escolher quantas partições" — ao escolher, aparece um campo numérico
