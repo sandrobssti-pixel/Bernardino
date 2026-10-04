@@ -885,6 +885,38 @@ manualmente nesse mesmo formato, a edição resolve o fstab corretamente
 (testado isoladamente contra um fstab de exemplo, não dentro do roteiro
 completo).
 
+**Honestidade (item 8, verificação pós-correção — IMPORTANTE, não
+confirmado)**: depois do incidente, rodamos `update-initramfs -u -k all`
+no servidor real já com o `/etc/fstab` corrigido (`nofail` no
+`/boot/efi`), e inspecionamos o initramfs gerado
+(`lsinitramfs`/`unmkinitramfs`). Dois achados, um bom e um inconclusivo:
+
+- **Bom**: a unidade `systemd` do dispositivo da ESP antiga passou a
+  aparecer em `initrd.target.wants/` (dependência opcional), não mais
+  em `initrd.target.requires/` (obrigatória) — sinal de que o `nofail`
+  foi reconhecido pelo gerador do dracut.
+- **Inconclusivo/preocupante**: o drop-in de timeout dessa mesma
+  unidade (`.device.d/timeout.conf`) mostra `JobTimeoutSec=infinity` e
+  `JobRunningTimeoutSec=infinity` — ou seja, o job de esperar aquele
+  dispositivo não expira sozinho nunca, só vira "opcional" no sentido
+  de não derrubar o boot inteiro se *falhar*, mas não há garantia,
+  confirmada por leitura estática do initramfs, de que algum mecanismo
+  do dracut cancele esse job sozinho dentro de um tempo razoável. No
+  incidente real, foi precisamente isso que travou o boot por mais de
+  5 minutos até cancelarmos o job manualmente
+  (`systemctl cancel <job>`) — e não foi possível confirmar, só lendo
+  arquivos, se esse comportamento mudou de fato com o `nofail` ou se o
+  mesmo travamento aconteceria de novo numa queda real do disco.
+
+**Conclusão honesta**: o `nofail` resolve a causa raiz identificada
+(dependência deixa de ser obrigatória), mas **não foi validado com um
+teste físico real pós-correção** (desconectar um dos discos e bootar
+só com o outro). Até esse teste acontecer, a correção deve ser tratada
+como "aplicada e logicamente correta, mas não comprovada na prática".
+Recomendação registrada: fazer esse teste físico num momento planejado,
+de baixo risco — não em seguida de um incidente já exaustivo como o de
+hoje.
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,
