@@ -1210,6 +1210,21 @@ você rode `npm run desktop` numa máquina de verdade (com tela, usuário
 normal) e confirme se a janela abre e carrega o painel certinho antes
 de eu considerar isso confirmado.
 
+**Corrigido: `electron` estava em `devDependencies`, nunca ia pra
+produção**. Bug real, pego na primeira tentativa de testar em
+produção: o `update.sh` (instalador/atualizador usado no servidor de
+verdade) roda `npm install --omit=dev` — ou seja, o Electron nunca era
+instalado na cópia que o servidor realmente usa, só no ambiente de
+desenvolvimento. `npm run desktop` ia falhar (binário do Electron
+inexistente) em qualquer instalação real. Corrigido: `electron` movido
+pra `dependencies`. **Efeito colateral a saber**: o Electron é um
+download grande (~100MB+) — toda instalação/atualização a partir daqui
+baixa isso, mesmo em servidores que nunca vão rodar o modo desktop (ex.:
+quem continuar usando só o serviço systemd sem interface). Isso é uma
+troca consciente dado o pedido explícito do cliente pelo app desktop;
+se algum dia fizer sentido tornar isso opcional (ex.: um pacote
+separado só pra quem quer o modo desktop), fica pra decisão futura.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em
