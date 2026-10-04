@@ -18,6 +18,26 @@ import {
 } from "../services/WuzapiServices/wuzapiClient";
 import ShowWhatsAppServiceAdmin from "../services/WhatsappService/ShowWhatsAppServiceAdmin";
 
+// Quanto tempo uma sessão pode ficar presa em "qrcode"/"OPENING" antes
+// de um novo clique em "gerar novo QR code" ser tratado como pedido de
+// restart de verdade, em vez de um no-op silencioso. Mesma margem do
+// timeout de segurança do frontend (QrcodeModal HARD_TIMEOUT_MS) — sem
+// isso, uma sessão travada (ex.: wbot "vivo" na memória mas sem receber
+// open/qr do WhatsApp) fazia o botão responder 200 "já iniciando" pra
+// sempre, sem nunca reiniciar nada.
+const STALE_SESSION_MS = 125000;
+
+const isStillStarting = (whatsapp: any, hasRuntime: boolean): boolean => {
+  if (!hasRuntime) return false;
+  if (whatsapp.status !== "qrcode" && whatsapp.status !== "OPENING") {
+    return false;
+  }
+  const lastUpdate = whatsapp.updatedAt
+    ? new Date(whatsapp.updatedAt).getTime()
+    : 0;
+  return Date.now() - lastUpdate < STALE_SESSION_MS;
+};
+
 const getAuthorizedWhatsapp = async (
   whatsappId: string,
   companyId: number,
@@ -38,7 +58,7 @@ const store = async (req: Request, res: Response): Promise<Response> => {
   const targetCompanyId = whatsapp.companyId;
   if (!isWuzapiProvider(whatsapp)) {
     const hasRuntime = Boolean(tryGetWbot(whatsapp.id, targetCompanyId));
-    if (hasRuntime && (whatsapp.status === "qrcode" || whatsapp.status === "OPENING")) {
+    if (isStillStarting(whatsapp, hasRuntime)) {
       return res.status(200).json({ message: "Session already starting." });
     }
   }
@@ -57,7 +77,7 @@ const update = async (req: Request, res: Response): Promise<Response> => {
   if (whatsapp.channel === "whatsapp") {
     if (!isWuzapiProvider(whatsapp)) {
       const hasRuntime = Boolean(tryGetWbot(whatsapp.id, targetCompanyId));
-      if (hasRuntime && (whatsapp.status === "qrcode" || whatsapp.status === "OPENING")) {
+      if (isStillStarting(whatsapp, hasRuntime)) {
         return res.status(200).json({ message: "Session already starting." });
       }
     }

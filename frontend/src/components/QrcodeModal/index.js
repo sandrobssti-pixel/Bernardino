@@ -13,7 +13,8 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  CircularProgress
+  CircularProgress,
+  Button
 } from "@material-ui/core";
 import {
   Smartphone,
@@ -162,13 +163,25 @@ const serializeWebAuthnAssertion = (credential) => ({
   },
 });
 
+// Prazo de segurança no próprio frontend: cobre os casos em que o
+// backend nem chega a emitir um update (ex.: trava de sessão já em
+// andamento, sessionStartLocks com TTL de 120s em
+// StartWhatsAppSession.ts) — sem isso, o modal spinner fica girando
+// pra sempre sem nenhum sinal de erro. 125s dá margem acima tanto do
+// timeout de inicialização do backend (90s, wbot.ts) quanto da trava
+// de concorrência (120s).
+const HARD_TIMEOUT_MS = 125000;
+
 const QrcodeModal = ({ open, onClose, whatsAppId }) => {
   const classes = useStyles();
   const [qrCode, setQrCode] = useState("");
   const [timeLeft, setTimeLeft] = useState(60);
+  const [errorMessage, setErrorMessage] = useState("");
   const [passkeyState, setPasskeyState] = useState("idle"); // idle | waiting | error
+  const [retryTick, setRetryTick] = useState(0);
   const qrDeadlineRef = useRef(0);
   const lastQrCodeRef = useRef("");
+  const sawActiveRef = useRef(false);
   const passkeyInFlightRef = useRef(false);
   const { user, socket } = useContext(AuthContext);
 
@@ -217,7 +230,64 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
     qrDeadlineRef.current = Date.now() + 60 * 1000;
     setQrCode(normalized);
     setTimeLeft(60);
+    setErrorMessage("");
   }, []);
+
+  // O backend volta pra "DISCONNECTED" tanto no início normal (antes de
+  // tentar abrir a sessão) quanto quando a tentativa falha/expira (ex.:
+  // ERR_WAPP_INIT_TIMEOUT em wbot.ts). Só tratamos como falha de verdade
+  // se já vimos a sessão em "OPENING"/"qrcode" antes — senão um
+  // DISCONNECTED inicial (corrida normal, sessão ainda nem começou a
+  // tentar) ia disparar erro na cara do usuário sem motivo.
+  const handleStatusUpdate = useCallback((status) => {
+    const normalized = String(status || "").toUpperCase();
+    if (normalized === "OPENING" || normalized === "QRCODE") {
+      sawActiveRef.current = true;
+      return;
+    }
+    if (normalized === "DISCONNECTED" && sawActiveRef.current) {
+      setErrorMessage(
+        "A sessão do WhatsApp caiu antes de conectar. Tente gerar o QR Code novamente."
+      );
+    }
+  }, []);
+
+  const handleRetry = useCallback(async () => {
+    if (!whatsAppId) return;
+    setErrorMessage("");
+    setQrCode("");
+    setTimeLeft(60);
+    sawActiveRef.current = false;
+    lastQrCodeRef.current = "";
+    qrDeadlineRef.current = 0;
+    setRetryTick((tick) => tick + 1);
+    try {
+      await api.put(`/whatsappsession/${whatsAppId}`);
+    } catch (err) {
+      toastError(err);
+    }
+  }, [whatsAppId]);
+
+  useEffect(() => {
+    if (!open || !whatsAppId) return;
+
+    setErrorMessage("");
+    setQrCode("");
+    setTimeLeft(60);
+    sawActiveRef.current = false;
+    lastQrCodeRef.current = "";
+    qrDeadlineRef.current = 0;
+
+    const hardTimeout = setTimeout(() => {
+      if (!lastQrCodeRef.current) {
+        setErrorMessage(
+          "Não foi possível gerar o QR Code a tempo. Tente novamente."
+        );
+      }
+    }, HARD_TIMEOUT_MS);
+
+    return () => clearTimeout(hardTimeout);
+  }, [open, whatsAppId, retryTick]);
 
   useEffect(() => {
     if (!open || !whatsAppId) return;
@@ -228,12 +298,14 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
         const { data } = await api.get(`/whatsapp/${whatsAppId}`);
         if (!mounted) return;
 
-        if (String(data?.status || "").toUpperCase() === "CONNECTED") {
+        const status = String(data?.status || "").toUpperCase();
+        if (status === "CONNECTED") {
           onClose();
           return;
         }
 
         if (data?.qrcode) applyIncomingQrCode(data.qrcode);
+        handleStatusUpdate(status);
       } catch (err) {
         toastError(err);
       }
@@ -248,7 +320,7 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
       mounted = false;
       clearInterval(timer);
     };
-  }, [open, whatsAppId, onClose, applyIncomingQrCode]);
+  }, [open, whatsAppId, onClose, applyIncomingQrCode, handleStatusUpdate, retryTick]);
 
   useEffect(() => {
     if (!qrCode) return;
@@ -297,9 +369,13 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
         applyIncomingQrCode(data.session.qrcode);
       }
 
-      if (String(data.session.status || "").toUpperCase() === "CONNECTED") {
+      const status = String(data.session.status || "").toUpperCase();
+      if (status === "CONNECTED") {
         onClose();
+        return;
       }
+
+      handleStatusUpdate(status);
     };
 
     socket.on(`company-${companyId}-whatsappSession`, onWhatsappData);
@@ -307,7 +383,14 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
     return () => {
       socket.off(`company-${companyId}-whatsappSession`, onWhatsappData);
     };
-  }, [whatsAppId, onClose, user.companyId, socket, applyIncomingQrCode]);
+  }, [
+    whatsAppId,
+    onClose,
+    user.companyId,
+    socket,
+    applyIncomingQrCode,
+    handleStatusUpdate
+  ]);
 
   useEffect(() => {
     if (!whatsAppId) return;
@@ -373,7 +456,20 @@ const QrcodeModal = ({ open, onClose, whatsAppId }) => {
               Escaneie o QR Code para vincular sua conta do WhatsApp
             </Typography>
 
-            {qrCode ? (
+            {errorMessage ? (
+              <div className={classes.loadingContainer}>
+                <Typography variant="body1" color="error" align="center">
+                  {errorMessage}
+                </Typography>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  onClick={handleRetry}
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : qrCode ? (
               <>
                 <div className={classes.qrContainer}>
                   {String(qrCode).startsWith("data:image/") ? (
