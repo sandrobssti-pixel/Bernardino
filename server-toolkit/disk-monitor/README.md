@@ -1341,20 +1341,14 @@ antigos (`desktop-launcher.sh`, os dois `.desktop`) em vez de só confiar
 no "sobrescrever por cima" — garante que uma atualização nunca deixa
 ícone/launcher desatualizado largado por aí.
 
-**Honestidade**: as duas correções foram validadas por leitura de
-código e checagem de sintaxe (`node --check electron-main.js`, `bash -n
-create-desktop-icon.sh`). O `chown` foi raciocinado contra o erro real
-reportado em produção (mensagem exata de "Permission denied" em
-`node_modules/electron/dist`), mas **não foi confirmado rodando de novo
-no servidor afetado** — numa instalação já quebrada (ex.: depois de um
-`rsync --delete` acidental como o que causou isso), pode ser necessário
-reinstalar o pacote Electron do zero (`rm -rf node_modules/electron &&
-npm install electron --no-save` dentro de `$INSTALL_DIR`, como root) além
-de rodar o `chown`, porque o `dist/` pode estar faltando de verdade, não
-só com dono errado. A checagem de servidor já rodando (`waitForServer`)
-também não foi vista abrindo uma janela de verdade contra um servidor
-real — só por leitura/sintaxe, mesma limitação já registrada na seção
-"Ícone no desktop" acima.
+**Honestidade**: confirmado em produção, no servidor real do cliente —
+numa instalação que já estava quebrada pelo `rsync --delete` acidental,
+foi necessário reinstalar o pacote Electron do zero (`rm -rf
+node_modules/electron && npm install electron --no-save`, como root)
+além do `chown` entrar em vigor pela atualização normal; depois disso o
+`desktop-launcher.sh` reconheceu o serviço já rodando (`waitForServer`)
+sem problema. Isso revelou o bug de sandbox documentado na seção
+seguinte, só visível depois dessa correção funcionar.
 
 ### CRÍTICO — Corrigido: Electron travava com erro de sandbox (`chrome-sandbox` precisa ser setuid root)
 
@@ -1379,13 +1373,12 @@ nunca site/HTML de terceiros nem conteúdo digitado por outra pessoa),
 então não existe conteúdo não confiável que o sandbox do Chromium
 precisasse isolar — a troca é segura nesse caso específico.
 
-**Honestidade**: confirmado contra produção — essa foi exatamente a
-sequência de erros reportada pelo cliente (permissão → depois de
-corrigida, sandbox) rodando no servidor real dele. A flag `--no-sandbox`
-ainda não foi reconfirmada abrindo a janela de verdade depois dessa
-última correção (aguardando o próximo teste do cliente) — só o
-diagnóstico da causa raiz (mode/dono exigido pelo `setuid_sandbox_host.cc`)
-está confirmado.
+**Honestidade**: confirmado em produção, no servidor real do cliente —
+depois da atualização pra essa versão, o ícone abriu a janela do
+disk-monitor normalmente, sem erro de sandbox nem de permissão. É a
+primeira vez, nessa saga de três bugs (porta/permissão/sandbox), que o
+modo desktop foi visto funcionando de ponta a ponta contra hardware
+real, não só por leitura de código.
 
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
