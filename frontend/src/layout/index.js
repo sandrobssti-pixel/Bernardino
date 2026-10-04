@@ -32,6 +32,7 @@ import CachedIcon from "@material-ui/icons/Cached";
 import MainListItems from "./MainListItems";
 import NotificationsPopOver from "../components/NotificationsPopOver";
 import SupervisorAlertsBell from "../components/SupervisorAlertsBell";
+import InstallAppButton from "../components/InstallAppButton";
 import NotificationsVolume from "../components/NotificationsVolume";
 import UserModal from "../components/UserModal";
 import { AuthContext } from "../context/Auth/AuthContext";
@@ -816,6 +817,10 @@ const LoggedInLayout = ({ children }) => {
               >
                 <CachedIcon />
               </IconButton>
+
+              <div className={classes.topbarActionWrapper}>
+                <InstallAppButton />
+              </div>
 
               {user.id && (
                 <div className={classes.topbarActionWrapper}>

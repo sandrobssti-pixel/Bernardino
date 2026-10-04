@@ -967,7 +967,8 @@ const messages = {
             contact: "Contacto"
           },
           notRegister: "Ningún registro",
-          refresh: "Actualizar"
+          refresh: "Actualizar",
+          installApp: "Instalar aplicación"
         }
       },
       languages: {

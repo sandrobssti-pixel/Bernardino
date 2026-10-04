@@ -990,6 +990,7 @@ const messages = {
           },
           notRegister: "No record",
           refresh: "Refresh",
+          installApp: "Install app",
         },
       },
       languages: {

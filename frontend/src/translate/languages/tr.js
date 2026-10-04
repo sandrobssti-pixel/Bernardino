@@ -980,6 +980,7 @@ const messages = {
           },
           notRegister: "Kayıt Yok",
           refresh: "Yenile",
+          installApp: "Uygulamayı yükle",
         },
       },
       languages: {

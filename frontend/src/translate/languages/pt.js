@@ -1035,6 +1035,7 @@ const messages = {
           },
           notRegister: "Nenhum registro",
           refresh: "Atualizar",
+          installApp: "Instalar aplicativo",
         },
       },
       languages: {
