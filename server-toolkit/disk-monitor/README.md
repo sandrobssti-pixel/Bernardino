@@ -1225,6 +1225,17 @@ troca consciente dado o pedido explícito do cliente pelo app desktop;
 se algum dia fizer sentido tornar isso opcional (ex.: um pacote
 separado só pra quem quer o modo desktop), fica pra decisão futura.
 
+**Corrigido: `update.sh` falhava com erro confuso rodado de dentro da
+própria instalação**. Bug real, pego em produção na mesma tentativa:
+rodar `installers/linux/update.sh` de dentro de `/opt/disk-monitor`
+(em vez de um checkout do repositório) fazia a detecção de origem do
+script apontar pra ele mesmo, e o `cp -r` subsequente tentava copiar a
+pasta por cima dela mesma — `cp: '...' y '...' son el mismo fichero`,
+sem nenhuma explicação do motivo real. Corrigido: o script agora checa
+se origem e destino são o mesmo caminho ANTES de tentar copiar, e
+explica exatamente o que fazer (`git pull` no checkout + rodar o script
+de lá) em vez de deixar o `cp` falhar com uma mensagem técnica.
+
 ## Próximas etapas planejadas (fora do escopo desta primeira versão)
 
 Combinado com o cliente que essa primeira versão foca só em

@@ -37,6 +37,20 @@ fi
 
 INSTALL_DIR="${1:-/opt/disk-monitor}"
 
+# Rodar este script de dentro da PRÓPRIA instalação já instalada (em vez
+# de um checkout separado do repositório) faz a detecção de origem acima
+# apontar pra ele mesmo — o cp subsequente tentaria copiar a pasta por
+# cima dela mesma, falhando com um erro confuso ("são o mesmo arquivo").
+# Erro real já visto em produção — detectado aqui com uma mensagem clara
+# em vez de deixar o cp falhar.
+if [ "$(cd "$SOURCE_DIR" && pwd)" = "$(cd "$INSTALL_DIR" && pwd)" ]; then
+  echo "Este script foi rodado de dentro da própria instalação já instalada ($INSTALL_DIR)." >&2
+  echo "Rode a partir de um checkout do repositório (ex.: /opt/bernardino-repo), não da pasta instalada:" >&2
+  echo "  cd /opt/bernardino-repo && git pull" >&2
+  echo "  sudo /opt/bernardino-repo/server-toolkit/disk-monitor/installers/linux/update.sh" >&2
+  exit 1
+fi
+
 if [ ! -f "$INSTALL_DIR/.env" ]; then
   echo "Não achei uma instalação em $INSTALL_DIR (sem .env)." >&2
   echo "Essa pasta ainda não foi instalada — use o install.sh, não o update.sh." >&2
