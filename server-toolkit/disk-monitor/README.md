@@ -845,6 +845,46 @@ variables é esperado/não-bloqueante nesse contexto — mas o
 foi orientado ao usuário, ainda não confirmado rodando. Reboot (passo
 6) em diante continua sem nenhuma confirmação real.
 
+8. **Corrigido: boot travando em emergency mode se um dos dois discos
+   do RAID sair do ar**. Bug real, batido em produção numa execução
+   completa: depois do passo 7 (array sincronizado, `[2/2] [UU]`,
+   confirmado por reboot real), o usuário desconectou o disco original
+   do sistema por um motivo à parte (fazer espaço físico pra reconectar
+   um terceiro disco, de dados, que havia sido removido antes de
+   começar o RAID) — e o servidor não voltou a bootar, caindo em
+   `dracut` emergency mode. Causa raiz: a linha do `/boot/efi` no
+   `/etc/fstab` aponta pra UUID da ESP de **um disco só** (os dois
+   discos de um RAID1 EFI têm ESPs separadas — não fazem parte do
+   array, não são espelhadas) e **não tinha `nofail`**, diferente de
+   toda outra linha extra do fstab. Sem `nofail`, essa é uma montagem
+   obrigatória: se a UUID dela não existir nesse boot (porque o disco
+   dono daquela ESP está desconectado), o systemd trava esperando
+   indefinidamente (confirmado via `systemctl list-jobs` dentro do
+   `dracut`: o job do device ficava em `running` sem nunca resolver, e
+   todos os outros 13 jobs atrás dele em `waiting`). Pior: como o
+   `update-initramfs -u` do passo 5 roda DEPOIS da edição do fstab, essa
+   exigência fica "fotografada" dentro do próprio initramfs — corrigir
+   o `/etc/fstab` manualmente depois (o que foi tentado durante o
+   incidente, editando direto de dentro do shell de emergência) **não
+   teve efeito nenhum**, porque o initramfs carregado pelo GRUB já
+   tinha a versão antiga congelada dentro dele. A única saída real foi
+   reconectar o disco original (restaurando a UUID que faltava) e
+   deixar bootar normal de novo. Corrigido na fonte: o passo 5 agora
+   roda um `sed` que adiciona `nofail` na linha do `/boot/efi` logo
+   depois da edição da linha da raiz e **antes** do
+   `update-initramfs -u`, pra essa exigência nunca mais ser gravada
+   dentro do initramfs.
+
+**Honestidade (item 8)**: a causa raiz e o comportamento de trava foram
+confirmados numa execução real completa (não é suposição) — inclusive
+o detalhe de que corrigir só o `/etc/fstab` sem regenerar o initramfs
+depois não resolve. A correção em si (o `sed` automático, rodando antes
+do `update-initramfs -u`) ainda não foi testada executando o roteiro
+inteiro de novo do zero; o que foi confirmado é que, aplicada
+manualmente nesse mesmo formato, a edição resolve o fstab corretamente
+(testado isoladamente contra um fstab de exemplo, não dentro do roteiro
+completo).
+
 ## Painel do NAS (opcional)
 
 Módulo embutido no próprio disk-monitor — sem instalar nada a mais,
