@@ -2,7 +2,7 @@
   "name": "toolkit-auth",
   "version": "1.0.0",
   "private": true,
-  "description": "Login com admin/usuário limitado, reaproveitável por qualquer módulo do server-toolkit",
+  "description": "Login com admin/usuário limitado, reaproveitável por o Disk Monitor (ou módulo futuro)",
   "main": "index.js",
   "dependencies": {
     "bcryptjs": "^2.4.3",

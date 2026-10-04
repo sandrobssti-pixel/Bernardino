@@ -9,31 +9,13 @@ modelo do VPS atual: cada módulo roda sozinho, pode virar um executável
 instala por terminal nos três sistemas (Linux e Windows também têm
 instalador gráfico), e tem seu próprio README com o passo a passo.
 
-## Módulos
+## Módulo
 
-- **[`README.md`](README.md)** — monitor de disco (todos
-  os discos detectados automaticamente), CPU, memória RAM e processos em
-  tempo real, com painel visual (gráficos, tema claro/escuro, português/
-  espanhol/inglês, com login admin/visualizador) e limpeza automática
-  quando passar de um limite configurável (remove imagem/container
-  Docker não usado, trunca log gigante, compacta log do sistema, limpa
-  pasta temporária — nunca mexe em volume nem em dado de cliente).
-  Faz uma varredura de hardware/SO na instalação (perfil da máquina, fixo
-  no painel). Instala no Linux (`installers/linux/install.sh` ou
-  `install-gui.sh`), no Windows (`installers/windows/install.ps1` ou o
-  assistente `DiskMonitorSetup.exe`) e no macOS
-  (`installers/macos/install.sh`, assina o executável sozinho) — e
-  atualiza (`update.sh`/`update.ps1`) sem repetir o passo a passo de
-  instalação inteiro. Também tem particionar/formatar disco (novo ou com
-  tabela de partições corrompida), com prévia do comando e confirmação
-  dupla antes de executar — só Linux por enquanto.
-  Inclui também, embutido (opcional — só liga configurando `.env`), um
-  **painel do NAS**: navega/baixa/envia arquivo nas pastas do NAS já
-  montadas no servidor, e mostra discos/desliga o NAS via API do
-  Synology DSM (admin-only, com confirmação por frase exata). Vem
-  pronto em qualquer servidor novo — não precisa instalar módulo
-  separado nem repetir instalação, só configurar quando aquele cliente
-  tiver um NAS de verdade (ver README do disk-monitor).
+Hoje o toolkit tem um único módulo: o **Disk Monitor**, que é esta
+pasta (`server-toolkit/disk-monitor/`). Veja o [`README.md`](README.md)
+pra funcionalidades (monitor de disco/CPU/RAM, limpeza automática,
+particionar/formatar, painel do NAS), instalação e atualização nos três
+sistemas.
 
 ## Bibliotecas compartilhadas
 
@@ -43,14 +25,14 @@ instalador gráfico), e tem seu próprio README com o passo a passo.
   adiciona `"toolkit-auth": "file:./shared/auth"` no seu
   `package.json` (junto com `bcryptjs` e `cookie-session` como
   dependências diretas, e um `.npmrc` com `install-links=true` — ver
-  o de `disk-monitor/` como referência) e monta as rotas de
+  o deste módulo como referência) e monta as rotas de
   `/api/login`, `/api/logout`, `/api/me` e `/api/users` que o pacote já
   expõe prontas.
 
 ## Planejado (ainda não implementado)
 
-Conversado com o cliente que o `server-toolkit` vai crescer aos poucos.
-Próximos módulos previstos:
+Conversado com o cliente que o toolkit pode crescer aos poucos.
+Próximos módulos previstos (ainda sem pasta própria):
 
 - **Painel de backup pra nuvem**: configuração visual (gráficos e
   botões) pra ligar o backup do NAS já existente
