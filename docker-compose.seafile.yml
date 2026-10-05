@@ -62,6 +62,24 @@ services:
     image: seafileltd/seafile-mc:12.0-latest
     container_name: confianza-seafile
     restart: unless-stopped
+    # Espera o MariaDB aceitar conexão TCP ANTES de iniciar o init do
+    # Seafile. O depends_on abaixo só vale em "docker compose up"; num
+    # reboot da VPS o Docker reinicia os containers sem ordem, e o Seahub
+    # chegou a falhar por subir antes do banco (502). O servidor temporário
+    # do entrypoint do MariaDB roda sem rede, então porta aberta = banco
+    # real pronto. Passado o limite (~120s) segue mesmo assim, em vez de
+    # travar o container pra sempre. O comando final replica o CMD padrão
+    # da imagem (/sbin/my_init -- /scripts/enterpoint.sh).
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        for i in $$(seq 1 60); do
+          (echo > /dev/tcp/$$DB_HOST/3306) 2>/dev/null && break
+          echo "Aguardando MariaDB em $$DB_HOST:3306 ($$i/60)..."
+          sleep 2
+        done
+        exec /sbin/my_init -- /scripts/enterpoint.sh
     depends_on:
       seafile-db:
         condition: service_healthy

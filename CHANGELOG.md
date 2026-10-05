@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.88] — Seafile: espera o MariaDB no entrypoint (cobre reboot da VPS) — 2026-10-05
+
+### Corrigido
+- Complemento da v2.3.87: o `depends_on: service_healthy` só vale em
+  `docker compose up`, não quando o Docker reinicia os containers após
+  reboot da VPS. `docker-compose.seafile.yml` agora tem um `entrypoint` no
+  serviço `seafile` que espera a porta 3306 do banco abrir (até ~120s)
+  antes de iniciar o `my_init` da imagem. Passado o limite, segue mesmo
+  assim em vez de travar.
+- Não testado com Docker real (sem acesso à VPS) — ver riscos no manual.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 72.
+
 ## [2.3.87] — Seafile: Seahub falhava no boot por subir antes do banco (502) — 2026-10-05
 
 ### Corrigido

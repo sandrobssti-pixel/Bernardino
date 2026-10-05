@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.58
-**Etapa:** 6.23 — Seafile: healthcheck do banco (502 após reinício)
+**Versão do documento:** 2.3.59
+**Etapa:** 6.24 — Seafile: wait-for-db no entrypoint
 **Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5332,3 +5332,39 @@ usa as antigas):
 - YAML do compose validado (`yaml.safe_load`). Não testado com Docker
   real (sem acesso à VPS) — conferir `docker ps` mostrando
   `confianza-seafile-db` como `(healthy)` após o `up -d`.
+
+## 72. Seafile — wait-for-db no entrypoint, cobrindo reboot da VPS (v2.3.88)
+
+### Por quê
+
+A seção 71 (v2.3.87) adicionou `healthcheck` no banco +
+`depends_on: service_healthy`, mas isso só é respeitado por
+`docker compose up`. Num reboot da VPS o Docker reinicia os containers
+(`restart: unless-stopped`) sem ordem — exatamente o cenário do 502 original.
+
+### O que mudou (`docker-compose.seafile.yml`, serviço `seafile`)
+
+`entrypoint` próprio (`/bin/bash -c`) com um loop de até 60 tentativas de 2s
+(`echo > /dev/tcp/$DB_HOST/3306`) e, depois, `exec /sbin/my_init --
+/scripts/enterpoint.sh` (o mesmo comando padrão da imagem, visto em
+`docker ps`/logs). Porta aberta basta como sinal de "banco pronto": o
+servidor temporário do entrypoint do MariaDB roda sem rede. Se o limite
+passar, o Seafile inicia mesmo assim (melhor tentar do que travar para
+sempre). Mensagens "Aguardando MariaDB..." aparecem no `docker logs`.
+
+### Riscos / não verificado
+
+- Não testado com Docker real. Premissas: a imagem
+  `seafileltd/seafile-mc:12.0-latest` tem `/bin/bash` e usa
+  `/sbin/my_init -- /scripts/enterpoint.sh` como comando padrão (baseado nos
+  logs/`docker ps` da VPS; não inspecionei a imagem). Se a imagem mudar
+  esse comando, o entrypoint fixo precisa acompanhar.
+- Porta aberta não prova que a senha/DB estão certos — só que o banco subiu.
+
+### Para aplicar e validar
+
+Recriar o stack (`-p seafile`, mesmo `.env.seafile` original — localizar
+antes, nunca gerar senhas novas) e conferir: `docker logs confianza-seafile`
+deve mostrar o init normal do Seafile (e, no reboot, linhas "Aguardando
+MariaDB" enquanto o banco sobe). Se o container não subir, reverter este
+bloco `entrypoint` — o resto do compose funciona sem ele.
