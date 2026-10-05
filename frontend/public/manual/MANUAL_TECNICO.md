@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.56
-**Etapa:** 6.21 — Removido o gate de token do /public-settings (causa raiz do 403 crônico na logo da tela de login)
+**Versão do documento:** 2.3.57
+**Etapa:** 6.22 — Upload de capa/logo do login não persistia no banco (Painel Master)
 **Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5216,3 +5216,63 @@ aparecer antes do login) — faz sentido deixá-la pública de fato.
   login carrega a logo/nome sem 403 (requer rebuild do frontend via
   Coolify — variável de ambiente removida não tem efeito até o próximo
   build).
+
+## 70. Upload de capa/logo do login não persistia no banco — Painel Master (v2.3.86)
+
+### Relato do cliente
+
+Logado como Master, em Configurações → "Login / capa": enviou a imagem
+de fundo (capa do login) e a logomarca nova, o sistema mostrou como
+salvo, mas depois de um F5 o salvamento não se mantinha — voltava pro
+estado anterior.
+
+### Causa raiz
+
+Esse bloco ("Login / capa", componente `Whitelabel.js` com
+`loginOnly`, renderizado em `Options.js`) tem dois pontos de entrada
+de dados, e nenhum dos dois de fato persistia no banco:
+
+- **Upload de imagem** (`handleLoginBrandingUpload` em `Options.js`):
+  chama `POST /global-config/upload`
+  (`GlobalConfigController.uploadBrandingImage`), que só salva o
+  arquivo em disco via multer e devolve a URL — **nunca grava nada em
+  `Setting`**. Quem persiste a associação `LOGIN_BACKGROUND_URL`/
+  `LOGIN_LOGO_URL` no banco é o `PUT /global-config`
+  (`GlobalConfigController.update`, via `persistSettingValue`), usado
+  pela página separada `pages/GlobalConfig/index.js` (Painel SaaS) —
+  mas essa chamada nunca acontecia a partir da tela de Configurações.
+  O upload só atualizava o estado React local (`loginBrandingConfig`),
+  que é o que fazia a prévia aparecer "salva" na hora — e se perde ao
+  recarregar, porque o GET seguinte (`/global-config`) lê do banco, que
+  nunca foi escrito.
+- **Campo "Link do WhatsApp do login"**: nunca teve nenhum gatilho de
+  salvamento — só um `onChange` que atualiza o estado local, sem
+  `onBlur` nem botão "Salvar" nenhum.
+
+Import a notar: `removeBrandingImage` (botão "Remover") **já** persistia
+corretamente (`persistSettingValue(..., "")`) — só o caminho de upload
+e o de edição de texto estavam quebrados, o que explica por que
+"remover" sempre funcionou mas "enviar"/"editar" não.
+
+### Correção
+
+- `Options.js`: nova função `persistLoginBrandingField(field, value)`
+  que chama `PUT /global-config` com só o campo mudado (o backend já
+  ignora campos `undefined` no corpo, graças ao early-return de
+  `persistSettingValue` — então mandar só um campo não apaga os
+  outros). Chamada depois do upload ter sucesso, e num novo
+  `onBlur` do campo de WhatsApp (`handleLoginBrandingBlur`).
+- `Whitelabel.js`: recebe a nova prop `onLoginBrandingBlur` e conecta
+  no `onBlur` do `TextField` de "Link do WhatsApp do login".
+- Mesmo padrão já usado pelos outros sete slots de logo/ícone na seção
+  "Identidade" (favicon, apple-touch-icon, PWA, etc.) — esses sempre
+  persistiram direto no upload, sem precisar de botão "Salvar"
+  separado; a seção "Login / capa" só tinha ficado pra trás nesse
+  ponto.
+
+### Testado
+
+- `eslint` limpo em `Options.js` e `Whitelabel.js` (só os mesmos avisos
+  pré-existentes de sempre, não relacionados a esta mudança).
+- Pendente: confirmar em produção, depois do deploy, que enviar a capa
+  e editar o link do WhatsApp sobrevivem a um F5.

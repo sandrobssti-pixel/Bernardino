@@ -208,6 +208,19 @@ export default function Options(props) {
     setLoginBrandingConfig((prev) => ({ ...prev, [name]: value }));
   };
 
+  // O upload (/global-config/upload) só grava o arquivo em disco e devolve a
+  // URL — quem persiste a associação no banco é o PUT /global-config (mesmo
+  // endpoint usado pelo Painel SaaS). Sem esse PUT aqui, a prévia aparecia
+  // atualizada na tela (estado local em memória) e sumia no F5 seguinte,
+  // porque nada tinha sido salvo de verdade.
+  const persistLoginBrandingField = async (field, value) => {
+    try {
+      await api.put("/global-config", { [field]: value });
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
   const handleLoginBrandingUpload = async (field, file) => {
     if (!file) return;
     const formData = new FormData();
@@ -219,6 +232,7 @@ export default function Options(props) {
       const url = data?.url || data?.[field];
       if (url) {
         setLoginBrandingConfig((prev) => ({ ...prev, [field]: url }));
+        await persistLoginBrandingField(field, url);
       }
       toast.success("Imagem atualizada com sucesso.");
     } catch (err) {
@@ -226,6 +240,13 @@ export default function Options(props) {
     } finally {
       setLoginBrandingUploading((prev) => ({ ...prev, [field]: false }));
     }
+  };
+
+  // O campo de texto (link do WhatsApp) nunca tinha nenhum gatilho de
+  // salvamento — só atualizava o estado local em memória no onChange.
+  const handleLoginBrandingBlur = (e) => {
+    const { name, value } = e.target;
+    persistLoginBrandingField(name, value);
   };
 
   const handleLoginBrandingRemove = async (field) => {
@@ -971,6 +992,7 @@ export default function Options(props) {
               loginOnly
               loginBrandingConfig={loginBrandingConfig}
               onLoginBrandingChange={handleLoginBrandingChange}
+              onLoginBrandingBlur={handleLoginBrandingBlur}
               onLoginBrandingUpload={handleLoginBrandingUpload}
               onLoginBrandingRemove={handleLoginBrandingRemove}
               resolveBrandingImageUrl={resolveBrandingImageUrl}

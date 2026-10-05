@@ -227,6 +227,7 @@ export default function Whitelabel(props) {
     loginOnly = false,
     loginBrandingConfig,
     onLoginBrandingChange,
+    onLoginBrandingBlur,
     onLoginBrandingUpload,
     onLoginBrandingRemove,
     resolveBrandingImageUrl,
@@ -702,6 +703,7 @@ export default function Whitelabel(props) {
                         name="loginWhatsapp"
                         value={loginBrandingConfig.loginWhatsapp || ""}
                         onChange={onLoginBrandingChange}
+                        onBlur={onLoginBrandingBlur}
                         variant="outlined"
                         fullWidth
                         className={classes.textField}

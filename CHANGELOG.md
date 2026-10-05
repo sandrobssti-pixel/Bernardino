@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.86] — Upload de capa/logo do login não persistia no banco — 2026-10-05
+
+### Corrigido
+- Painel Master → Configurações → "Login / capa": o upload da imagem de
+  fundo (capa do login) mostrava sucesso na hora, mas sumia depois de um
+  F5. Causa: o endpoint de upload (`POST /global-config/upload`) só
+  grava o arquivo em disco e devolve a URL — quem de fato persiste a
+  associação no banco é o `PUT /global-config` (usado pelo Painel SaaS),
+  e essa chamada nunca acontecia nessa tela — só atualizava estado local
+  em memória do React, que se perde ao recarregar a página.
+- Mesmo bug, mesma causa, no campo "Link do WhatsApp do login": nunca
+  teve nenhum gatilho de salvamento, nem botão nem `onBlur`.
+- Corrigido fazendo upload e a troca de foco do campo de WhatsApp
+  chamarem `PUT /global-config` imediatamente (mesmo padrão já usado
+  pelos outros uploads de logo/favicon/ícones nesta mesma tela, que já
+  persistiam direto sem precisar de botão "Salvar" separado).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 70.
+
 ## [2.3.85] — Remove o gate de token do `/public-settings` (causa raiz do 403 crônico na logo/nome da tela de login) — 2026-10-05
 
 ### Corrigido
