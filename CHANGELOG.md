@@ -3,6 +3,54 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.89] — Backup do Seafile: arquivos truncados e sudo no cron — 2026-10-05
+
+### Corrigido
+- `backup-seafile.sh` gravava o `tar.gz` direto no nome final; uma
+  execução interrompida deixava um arquivo truncado com cara de backup
+  válido (5 dos 6 arquivos de hoje estavam assim). Agora grava em
+  `.partial`, valida com `gzip -t` e só então renomeia; um `trap` apaga o
+  `.partial` se o script for interrompido. Vale também pro dump do banco.
+- O script usava `sudo` (`tar` e `chown`), que pede senha: no cron (sem
+  terminal) falhava com "sudo: A terminal is required to authenticate",
+  e em segundo plano o processo era pausado. Agora, rodando como root
+  (cron do root), não usa sudo; como usuário comum continua usando.
+  Removido o `chown` (o share SMB já mapeia o dono pelo mount).
+- Migrar o cron pra o do root: ver manual, seção 73.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 73.
+
+## [2.3.88] — Seafile: espera o MariaDB no entrypoint (cobre reboot da VPS) — 2026-10-05
+
+### Corrigido
+- Complemento da v2.3.87: o `depends_on: service_healthy` só vale em
+  `docker compose up`, não quando o Docker reinicia os containers após
+  reboot da VPS. `docker-compose.seafile.yml` agora tem um `entrypoint` no
+  serviço `seafile` que espera a porta 3306 do banco abrir (até ~120s)
+  antes de iniciar o `my_init` da imagem. Passado o limite, segue mesmo
+  assim em vez de travar.
+- Não testado com Docker real (sem acesso à VPS) — ver riscos no manual.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 72.
+
+## [2.3.87] — Seafile: Seahub falhava no boot por subir antes do banco (502) — 2026-10-05
+
+### Corrigido
+- `https://arquivos.confiancatechnologies.com` dava 502 (Cloudflare) após
+  reinício da VPS: o container `confianza-seafile` subia, mas o Seahub
+  falhava com "Seahub failed to start" e o Nginx ficava sem nada atrás.
+  Causa provável (o `seahub.log` não registrou a falha): o `depends_on`
+  só esperava o container do MariaDB existir, não aceitar conexões.
+- `docker-compose.seafile.yml`: `seafile-db` ganhou `healthcheck`
+  (login real via TCP) e o `seafile` agora usa
+  `depends_on: seafile-db: condition: service_healthy`.
+- Limitação: o `depends_on` só vale em `docker compose up`; num reboot da
+  VPS o Docker reinicia os containers por `restart: unless-stopped` sem
+  respeitar essa ordem. Se o 502 voltar após reboot:
+  `docker restart confianza-seafile`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 71.
+
 ## [2.3.86] — Upload de capa/logo do login não persistia no banco — 2026-10-05
 
 ### Corrigido

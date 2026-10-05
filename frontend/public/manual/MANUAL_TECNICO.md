@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.57
-**Etapa:** 6.22 — Upload de capa/logo do login não persistia no banco (Painel Master)
+**Versão do documento:** 2.3.60
+**Etapa:** 6.25 — Backup do Seafile: .partial e sudo no cron
 **Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5276,3 +5276,176 @@ e o de edição de texto estavam quebrados, o que explica por que
   pré-existentes de sempre, não relacionados a esta mudança).
 - Pendente: confirmar em produção, depois do deploy, que enviar a capa
   e editar o link do WhatsApp sobrevivem a um F5.
+
+## 71. Seafile — 502 após reinício: Seahub subia antes do banco (v2.3.87)
+
+### Sintoma
+
+`https://arquivos.confiancatechnologies.com` retornou "Bad gateway, Error
+code 502". `docker ps` mostrava os 3 containers (`confianza-seafile`,
+`-db`, `-memcached`) "Up", a partição `/srv/seafile-data` montada e o
+container na rede `coolify`. O `docker logs confianza-seafile` mostrava,
+no boot das 02:14, `Error:Seahub failed to start` (`seahub.sh start`
+retornou 1), com o container continuando de pé (Nginx no ar, sem Seahub
+atrás — daí o 502).
+
+### Resolução imediata
+
+`docker restart confianza-seafile` e `seahub.sh start` dentro do
+container: o Seahub subiu e o acesso voltou. Nada de dado foi tocado.
+
+### Causa (provável, não confirmada)
+
+O `seahub.log` não registrou a falha das 02:14 (o Seahub caiu antes de
+logar), então a causa não foi provada. A hipótese que bate com o quadro:
+o `depends_on` do compose só garante que o container do MariaDB foi
+*criado*, não que o banco aceita conexões; no boot o Seahub subiu antes.
+
+### Correção (`docker-compose.seafile.yml`)
+
+- `seafile-db`: `healthcheck` que faz `SELECT 1` como root via TCP
+  (`127.0.0.1`, para não contar o servidor temporário só-socket do
+  entrypoint), `start_period: 20s`, até 30 tentativas de 5s.
+- `seafile`: `depends_on` com `condition: service_healthy` no banco e
+  `service_started` no memcached.
+
+### Limitação
+
+`depends_on` só é respeitado por `docker compose up`. Num reboot da VPS o
+Docker reinicia os containers via `restart: unless-stopped`, sem ordem
+entre eles — então essa mudança reduz, mas não elimina o risco naquele
+cenário. Se o 502 reaparecer após reboot: `docker restart confianza-seafile`.
+Eliminar de vez exigiria um wait-for-db no entrypoint do Seafile ou um
+healthcheck + autoheal, não feitos aqui por não poderem ser testados
+sem acesso à VPS.
+
+### Para aplicar
+
+Recriar só o stack do Seafile, sempre com `-p seafile` e o mesmo
+`.env.seafile` usado na criação (não existia em `~/atendeflow` na
+verificação — localizar antes; nunca gerar senhas novas, o banco existente
+usa as antigas):
+`docker compose -p seafile -f docker-compose.seafile.yml --env-file <env> up -d`.
+
+### Testado
+
+- YAML do compose validado (`yaml.safe_load`). Não testado com Docker
+  real (sem acesso à VPS) — conferir `docker ps` mostrando
+  `confianza-seafile-db` como `(healthy)` após o `up -d`.
+
+## 72. Seafile — wait-for-db no entrypoint, cobrindo reboot da VPS (v2.3.88)
+
+### Por quê
+
+A seção 71 (v2.3.87) adicionou `healthcheck` no banco +
+`depends_on: service_healthy`, mas isso só é respeitado por
+`docker compose up`. Num reboot da VPS o Docker reinicia os containers
+(`restart: unless-stopped`) sem ordem — exatamente o cenário do 502 original.
+
+### O que mudou (`docker-compose.seafile.yml`, serviço `seafile`)
+
+`entrypoint` próprio (`/bin/bash -c`) com um loop de até 60 tentativas de 2s
+(`echo > /dev/tcp/$DB_HOST/3306`) e, depois, `exec /sbin/my_init --
+/scripts/enterpoint.sh` (o mesmo comando padrão da imagem, visto em
+`docker ps`/logs). Porta aberta basta como sinal de "banco pronto": o
+servidor temporário do entrypoint do MariaDB roda sem rede. Se o limite
+passar, o Seafile inicia mesmo assim (melhor tentar do que travar para
+sempre). Mensagens "Aguardando MariaDB..." aparecem no `docker logs`.
+
+### Riscos / não verificado
+
+- Não testado com Docker real. Premissas: a imagem
+  `seafileltd/seafile-mc:12.0-latest` tem `/bin/bash` e usa
+  `/sbin/my_init -- /scripts/enterpoint.sh` como comando padrão (baseado nos
+  logs/`docker ps` da VPS; não inspecionei a imagem). Se a imagem mudar
+  esse comando, o entrypoint fixo precisa acompanhar.
+- Porta aberta não prova que a senha/DB estão certos — só que o banco subiu.
+
+### Para aplicar e validar
+
+Recriar o stack (`-p seafile`, mesmo `.env.seafile` original — localizar
+antes, nunca gerar senhas novas) e conferir: `docker logs confianza-seafile`
+deve mostrar o init normal do Seafile (e, no reboot, linhas "Aguardando
+MariaDB" enquanto o banco sobe). Se o container não subir, reverter este
+bloco `entrypoint` — o resto do compose funciona sem ele.
+
+### Estado real após investigação na VPS (2026-10-05)
+
+- A causa da falha do Seahub no boot **continua desconhecida**. A hipótese
+  "Seahub sobe antes do banco" ficou enfraquecida: a falha das 02:29
+  aconteceu com o MariaDB já de pé há tempo (foi um `docker restart` só do
+  container `confianza-seafile`). O restart das 03:06 subiu normalmente,
+  sem intervenção; ou seja, a falha é **intermitente**.
+- `enterpoint.log` e `seahub.log` **não registram o erro** — o log do
+  container só mostra `Seahub failed to start` sem motivo. O `seahub.log`
+  nem chegou a ser escrito (o Seahub cai antes de logar).
+- `docker inspect ... .Config.Entrypoint` retornou `null`: o container em
+  produção **nunca foi recriado** com o compose das seções 71/72 (v2.3.87 e
+  v2.3.88). Healthcheck, `depends_on: service_healthy` e o entrypoint novo
+  **não estão em vigor na VPS** — estão só no repositório. Todas as falhas
+  e restarts observados foram com o container antigo.
+- O `.env.seafile` não existe em `~/atendeflow` (só `.env` e os
+  `.example`), embora o `working_dir` do container seja essa pasta. Localizar
+  o arquivo original antes de recriar o stack; não gerar senhas novas.
+
+### Se o 502 voltar (roteiro)
+
+1. Antes de reiniciar, coletar:
+   `docker exec confianza-seafile tail -40 /shared/seafile/logs/enterpoint.log`,
+   `... tail -20 /shared/seafile/logs/seafile.log` e
+   `... ls -la /opt/seafile/pids` (pid velho?).
+2. Remédio imediato: `docker restart confianza-seafile`; se o Seahub não
+   subir, `docker exec confianza-seafile
+   /opt/seafile/seafile-server-12.0.14/seahub.sh start`.
+3. Só avaliar nova mudança no compose depois de ter o erro real do passo 1.
+
+## 73. Backup do Seafile — arquivos truncados e `sudo` no cron (v2.3.89)
+
+### Sintoma
+
+Ao conferir o backup (`tar -tzf`), o arquivo de 6,1G das 03:21 deu
+`unexpected end of file`. Dos arquivos gerados em ~1h, só o
+`seafile_files_2026-10-05_033433.tar.gz` passou (`integridade: 0`).
+
+### Causas
+
+1. O script gravava direto no nome final. Interrupções (Ctrl+C numa
+   etapa que parece travada — o `tar` de ~9+ GB pelo SMB leva vários
+   minutos sem imprimir nada, e o `sudo` perdendo o terminal) deixavam
+   arquivos truncados, sem aviso.
+2. `sudo tar`/`sudo chown` pedem senha. Em segundo plano o processo era
+   pausado (`Detenido`); depois do `tar` do `033433`, o cache do `sudo`
+   expirou e o `sudo chown` falhou ("A terminal is required"), parando o
+   script (`set -e`) sem a limpeza de 30 dias. **O cron das 03:30 não tem
+   terminal e falharia da mesma forma.**
+
+### Correção (`backup-seafile.sh`)
+
+`.partial` + `gzip -t` + `mv` (e `trap` pra limpar), `SUDO` vazio quando
+o usuário é root, `chown` removido.
+
+### Para aplicar na VPS (decisão: cron do root)
+
+```bash
+cp ~/atendeflow/Bernardino/backup-seafile.sh ~/scripts/backup-seafile.sh   # versão nova
+crontab -l | grep -v backup-seafile | crontab -                            # tira do cron do sandro
+sudo crontab -l 2>/dev/null; sudo crontab -e
+# adicionar no cron do root:
+# 30 3 * * * ATENDEFLOW_DEPLOY_DIR=/home/sandro/atendeflow /home/sandro/scripts/backup-seafile.sh >> /var/log/backup-seafile.cron.log 2>&1
+```
+
+Como root, `$HOME` é `/root`, por isso o `ATENDEFLOW_DEPLOY_DIR` (onde está o
+`.env.seafile`). O `/mnt/nas-seafile` precisa estar acessível ao root (o
+mount `cifs` com `uid=1000` continua acessível a ele).
+
+### Não testado
+
+Só `bash -n` (sintaxe) foi verificado, sem acesso ao NAS/Docker. Validar
+na VPS rodando uma vez à mão como root (`sudo ATENDEFLOW_DEPLOY_DIR=... ~/scripts/backup-seafile.sh`)
+antes de confiar no cron.
+
+### Limpeza manual
+
+Os arquivos de hoje exceto `seafile_files_2026-10-05_033433.tar.gz` (e o
+dump do mesmo horário) são parciais e podem ser apagados à mão depois de
+conferir.

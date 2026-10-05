@@ -29,6 +29,18 @@ services:
       - /srv/seafile-data/mysql:/var/lib/mysql
     networks:
       - seafile-internal
+    # Só fica "healthy" quando o MariaDB aceita login de verdade (não apenas
+    # quando o container existe). Usa TCP em 127.0.0.1 de propósito: durante
+    # a inicialização o entrypoint sobe um servidor temporário só por socket,
+    # que não deve contar como "pronto". O seafile espera por isso no
+    # depends_on abaixo — antes, o Seahub podia subir antes do banco e
+    # falhar com "Seahub failed to start" (502 na Cloudflare).
+    healthcheck:
+      test: ["CMD-SHELL", 'mariadb -h127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" -e "SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   seafile-memcached:
     image: memcached:1.6.29
@@ -50,9 +62,29 @@ services:
     image: seafileltd/seafile-mc:12.0-latest
     container_name: confianza-seafile
     restart: unless-stopped
+    # Espera o MariaDB aceitar conexão TCP ANTES de iniciar o init do
+    # Seafile. O depends_on abaixo só vale em "docker compose up"; num
+    # reboot da VPS o Docker reinicia os containers sem ordem, e o Seahub
+    # chegou a falhar por subir antes do banco (502). O servidor temporário
+    # do entrypoint do MariaDB roda sem rede, então porta aberta = banco
+    # real pronto. Passado o limite (~120s) segue mesmo assim, em vez de
+    # travar o container pra sempre. O comando final replica o CMD padrão
+    # da imagem (/sbin/my_init -- /scripts/enterpoint.sh).
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        for i in $$(seq 1 60); do
+          (echo > /dev/tcp/$$DB_HOST/3306) 2>/dev/null && break
+          echo "Aguardando MariaDB em $$DB_HOST:3306 ($$i/60)..."
+          sleep 2
+        done
+        exec /sbin/my_init -- /scripts/enterpoint.sh
     depends_on:
-      - seafile-db
-      - seafile-memcached
+      seafile-db:
+        condition: service_healthy
+      seafile-memcached:
+        condition: service_started
     environment:
       DB_HOST: confianza-seafile-db
       DB_ROOT_PASSWD: ${SEAFILE_DB_ROOT_PASSWORD}
