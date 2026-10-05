@@ -30,7 +30,7 @@ const useSettings = () => {
 
   const getPublicSetting = async (key) => {
     const params = {
-      token: "wtV"
+      token: process.env.REACT_APP_ENV_TOKEN
     }
 
     const { data } = await openApi.request({

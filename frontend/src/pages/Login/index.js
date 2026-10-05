@@ -368,7 +368,7 @@ const Login = () => {
           await Promise.all([
             api.get("/global-config/public-branding"),
             openApi.get("/public-settings/appName", {
-              params: { token: "wtV" },
+              params: { token: process.env.REACT_APP_ENV_TOKEN },
             }),
           ]);
 

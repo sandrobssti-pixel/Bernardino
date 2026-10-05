@@ -121,6 +121,10 @@ services:
         REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL}
         REACT_APP_NUMBER_SUPPORT: ${REACT_APP_NUMBER_SUPPORT:-}
         REACT_APP_WA_CONNECT_URL: ${REACT_APP_WA_CONNECT_URL:-}
+        # Mesmo valor do ENV_TOKEN do backend (linha acima) — precisa bater
+        # pro envTokenAuth aceitar as chamadas de /public-settings/:key
+        # (favicon/nome dinâmicos na tela de login, antes de autenticar).
+        REACT_APP_ENV_TOKEN: ${ENV_TOKEN:-}
     restart: unless-stopped
     networks:
       - coolify

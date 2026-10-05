@@ -593,7 +593,7 @@ const SignUp = () => {
           await Promise.all([
             openApi.get("/global-config/public-branding"),
             openApi.get("/public-settings/appName", {
-              params: { token: "wtV" },
+              params: { token: process.env.REACT_APP_ENV_TOKEN },
             }),
           ]);
 
