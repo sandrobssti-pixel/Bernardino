@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.87] — Seafile: Seahub falhava no boot por subir antes do banco (502) — 2026-10-05
+
+### Corrigido
+- `https://arquivos.confiancatechnologies.com` dava 502 (Cloudflare) após
+  reinício da VPS: o container `confianza-seafile` subia, mas o Seahub
+  falhava com "Seahub failed to start" e o Nginx ficava sem nada atrás.
+  Causa provável (o `seahub.log` não registrou a falha): o `depends_on`
+  só esperava o container do MariaDB existir, não aceitar conexões.
+- `docker-compose.seafile.yml`: `seafile-db` ganhou `healthcheck`
+  (login real via TCP) e o `seafile` agora usa
+  `depends_on: seafile-db: condition: service_healthy`.
+- Limitação: o `depends_on` só vale em `docker compose up`; num reboot da
+  VPS o Docker reinicia os containers por `restart: unless-stopped` sem
+  respeitar essa ordem. Se o 502 voltar após reboot:
+  `docker restart confianza-seafile`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 71.
+
 ## [2.3.86] — Upload de capa/logo do login não persistia no banco — 2026-10-05
 
 ### Corrigido

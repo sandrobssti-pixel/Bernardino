@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.57
-**Etapa:** 6.22 — Upload de capa/logo do login não persistia no banco (Painel Master)
+**Versão do documento:** 2.3.58
+**Etapa:** 6.23 — Seafile: healthcheck do banco (502 após reinício)
 **Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5276,3 +5276,59 @@ e o de edição de texto estavam quebrados, o que explica por que
   pré-existentes de sempre, não relacionados a esta mudança).
 - Pendente: confirmar em produção, depois do deploy, que enviar a capa
   e editar o link do WhatsApp sobrevivem a um F5.
+
+## 71. Seafile — 502 após reinício: Seahub subia antes do banco (v2.3.87)
+
+### Sintoma
+
+`https://arquivos.confiancatechnologies.com` retornou "Bad gateway, Error
+code 502". `docker ps` mostrava os 3 containers (`confianza-seafile`,
+`-db`, `-memcached`) "Up", a partição `/srv/seafile-data` montada e o
+container na rede `coolify`. O `docker logs confianza-seafile` mostrava,
+no boot das 02:14, `Error:Seahub failed to start` (`seahub.sh start`
+retornou 1), com o container continuando de pé (Nginx no ar, sem Seahub
+atrás — daí o 502).
+
+### Resolução imediata
+
+`docker restart confianza-seafile` e `seahub.sh start` dentro do
+container: o Seahub subiu e o acesso voltou. Nada de dado foi tocado.
+
+### Causa (provável, não confirmada)
+
+O `seahub.log` não registrou a falha das 02:14 (o Seahub caiu antes de
+logar), então a causa não foi provada. A hipótese que bate com o quadro:
+o `depends_on` do compose só garante que o container do MariaDB foi
+*criado*, não que o banco aceita conexões; no boot o Seahub subiu antes.
+
+### Correção (`docker-compose.seafile.yml`)
+
+- `seafile-db`: `healthcheck` que faz `SELECT 1` como root via TCP
+  (`127.0.0.1`, para não contar o servidor temporário só-socket do
+  entrypoint), `start_period: 20s`, até 30 tentativas de 5s.
+- `seafile`: `depends_on` com `condition: service_healthy` no banco e
+  `service_started` no memcached.
+
+### Limitação
+
+`depends_on` só é respeitado por `docker compose up`. Num reboot da VPS o
+Docker reinicia os containers via `restart: unless-stopped`, sem ordem
+entre eles — então essa mudança reduz, mas não elimina o risco naquele
+cenário. Se o 502 reaparecer após reboot: `docker restart confianza-seafile`.
+Eliminar de vez exigiria um wait-for-db no entrypoint do Seafile ou um
+healthcheck + autoheal, não feitos aqui por não poderem ser testados
+sem acesso à VPS.
+
+### Para aplicar
+
+Recriar só o stack do Seafile, sempre com `-p seafile` e o mesmo
+`.env.seafile` usado na criação (não existia em `~/atendeflow` na
+verificação — localizar antes; nunca gerar senhas novas, o banco existente
+usa as antigas):
+`docker compose -p seafile -f docker-compose.seafile.yml --env-file <env> up -d`.
+
+### Testado
+
+- YAML do compose validado (`yaml.safe_load`). Não testado com Docker
+  real (sem acesso à VPS) — conferir `docker ps` mostrando
+  `confianza-seafile-db` como `(healthy)` após o `up -d`.
