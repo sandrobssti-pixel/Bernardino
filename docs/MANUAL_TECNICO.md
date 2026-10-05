@@ -5368,3 +5368,33 @@ antes, nunca gerar senhas novas) e conferir: `docker logs confianza-seafile`
 deve mostrar o init normal do Seafile (e, no reboot, linhas "Aguardando
 MariaDB" enquanto o banco sobe). Se o container não subir, reverter este
 bloco `entrypoint` — o resto do compose funciona sem ele.
+
+### Estado real após investigação na VPS (2026-10-05)
+
+- A causa da falha do Seahub no boot **continua desconhecida**. A hipótese
+  "Seahub sobe antes do banco" ficou enfraquecida: a falha das 02:29
+  aconteceu com o MariaDB já de pé há tempo (foi um `docker restart` só do
+  container `confianza-seafile`). O restart das 03:06 subiu normalmente,
+  sem intervenção; ou seja, a falha é **intermitente**.
+- `enterpoint.log` e `seahub.log` **não registram o erro** — o log do
+  container só mostra `Seahub failed to start` sem motivo. O `seahub.log`
+  nem chegou a ser escrito (o Seahub cai antes de logar).
+- `docker inspect ... .Config.Entrypoint` retornou `null`: o container em
+  produção **nunca foi recriado** com o compose das seções 71/72 (v2.3.87 e
+  v2.3.88). Healthcheck, `depends_on: service_healthy` e o entrypoint novo
+  **não estão em vigor na VPS** — estão só no repositório. Todas as falhas
+  e restarts observados foram com o container antigo.
+- O `.env.seafile` não existe em `~/atendeflow` (só `.env` e os
+  `.example`), embora o `working_dir` do container seja essa pasta. Localizar
+  o arquivo original antes de recriar o stack; não gerar senhas novas.
+
+### Se o 502 voltar (roteiro)
+
+1. Antes de reiniciar, coletar:
+   `docker exec confianza-seafile tail -40 /shared/seafile/logs/enterpoint.log`,
+   `... tail -20 /shared/seafile/logs/seafile.log` e
+   `... ls -la /opt/seafile/pids` (pid velho?).
+2. Remédio imediato: `docker restart confianza-seafile`; se o Seahub não
+   subir, `docker exec confianza-seafile
+   /opt/seafile/seafile-server-12.0.14/seahub.sh start`.
+3. Só avaliar nova mudança no compose depois de ter o erro real do passo 1.
