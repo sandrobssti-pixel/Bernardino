@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.59
-**Etapa:** 6.24 — Seafile: wait-for-db no entrypoint
+**Versão do documento:** 2.3.60
+**Etapa:** 6.25 — Backup do Seafile: .partial e sudo no cron
 **Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5398,3 +5398,54 @@ bloco `entrypoint` — o resto do compose funciona sem ele.
    subir, `docker exec confianza-seafile
    /opt/seafile/seafile-server-12.0.14/seahub.sh start`.
 3. Só avaliar nova mudança no compose depois de ter o erro real do passo 1.
+
+## 73. Backup do Seafile — arquivos truncados e `sudo` no cron (v2.3.89)
+
+### Sintoma
+
+Ao conferir o backup (`tar -tzf`), o arquivo de 6,1G das 03:21 deu
+`unexpected end of file`. Dos arquivos gerados em ~1h, só o
+`seafile_files_2026-10-05_033433.tar.gz` passou (`integridade: 0`).
+
+### Causas
+
+1. O script gravava direto no nome final. Interrupções (Ctrl+C numa
+   etapa que parece travada — o `tar` de ~9+ GB pelo SMB leva vários
+   minutos sem imprimir nada, e o `sudo` perdendo o terminal) deixavam
+   arquivos truncados, sem aviso.
+2. `sudo tar`/`sudo chown` pedem senha. Em segundo plano o processo era
+   pausado (`Detenido`); depois do `tar` do `033433`, o cache do `sudo`
+   expirou e o `sudo chown` falhou ("A terminal is required"), parando o
+   script (`set -e`) sem a limpeza de 30 dias. **O cron das 03:30 não tem
+   terminal e falharia da mesma forma.**
+
+### Correção (`backup-seafile.sh`)
+
+`.partial` + `gzip -t` + `mv` (e `trap` pra limpar), `SUDO` vazio quando
+o usuário é root, `chown` removido.
+
+### Para aplicar na VPS (decisão: cron do root)
+
+```bash
+cp ~/atendeflow/Bernardino/backup-seafile.sh ~/scripts/backup-seafile.sh   # versão nova
+crontab -l | grep -v backup-seafile | crontab -                            # tira do cron do sandro
+sudo crontab -l 2>/dev/null; sudo crontab -e
+# adicionar no cron do root:
+# 30 3 * * * ATENDEFLOW_DEPLOY_DIR=/home/sandro/atendeflow /home/sandro/scripts/backup-seafile.sh >> /var/log/backup-seafile.cron.log 2>&1
+```
+
+Como root, `$HOME` é `/root`, por isso o `ATENDEFLOW_DEPLOY_DIR` (onde está o
+`.env.seafile`). O `/mnt/nas-seafile` precisa estar acessível ao root (o
+mount `cifs` com `uid=1000` continua acessível a ele).
+
+### Não testado
+
+Só `bash -n` (sintaxe) foi verificado, sem acesso ao NAS/Docker. Validar
+na VPS rodando uma vez à mão como root (`sudo ATENDEFLOW_DEPLOY_DIR=... ~/scripts/backup-seafile.sh`)
+antes de confiar no cron.
+
+### Limpeza manual
+
+Os arquivos de hoje exceto `seafile_files_2026-10-05_033433.tar.gz` (e o
+dump do mesmo horário) são parciais e podem ser apagados à mão depois de
+conferir.

@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.89] — Backup do Seafile: arquivos truncados e sudo no cron — 2026-10-05
+
+### Corrigido
+- `backup-seafile.sh` gravava o `tar.gz` direto no nome final; uma
+  execução interrompida deixava um arquivo truncado com cara de backup
+  válido (5 dos 6 arquivos de hoje estavam assim). Agora grava em
+  `.partial`, valida com `gzip -t` e só então renomeia; um `trap` apaga o
+  `.partial` se o script for interrompido. Vale também pro dump do banco.
+- O script usava `sudo` (`tar` e `chown`), que pede senha: no cron (sem
+  terminal) falhava com "sudo: A terminal is required to authenticate",
+  e em segundo plano o processo era pausado. Agora, rodando como root
+  (cron do root), não usa sudo; como usuário comum continua usando.
+  Removido o `chown` (o share SMB já mapeia o dono pelo mount).
+- Migrar o cron pra o do root: ver manual, seção 73.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 73.
+
 ## [2.3.88] — Seafile: espera o MariaDB no entrypoint (cobre reboot da VPS) — 2026-10-05
 
 ### Corrigido
