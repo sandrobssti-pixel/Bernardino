@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.55
-**Etapa:** 6.20 — Corrigido host do Redis no docker-compose.coolify.yml (colisão de nome com o Redis do Coolify)
-**Última atualização:** 2026-09-20
+**Versão do documento:** 2.3.56
+**Etapa:** 6.21 — Removido o gate de token do /public-settings (causa raiz do 403 crônico na logo da tela de login)
+**Última atualização:** 2026-10-05
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -5124,3 +5124,95 @@ Motivado por manutenção real na VPS de produção: adição de dois HDs de
 migrar o disco do sistema da VPS (120GB) pra um RAID1 num disco de
 240GB (partição espelhada + partição de backup), usando o próprio
 gerador de roteiro construído aqui.
+
+## 69. Remove o gate de token do `/public-settings` — causa raiz do 403 crônico na logo/nome da tela de login (v2.3.85)
+
+### Relato do cliente
+
+Depois de trocar a logo padrão do AtendeFlow pela da Confianza
+Technologies (seção anterior de rebranding), a tela de login continuou
+dando 403 ao buscar `/public-settings/appLogoLight` e
+`/public-settings/appName` — confirmado no DevTools com
+`?token=wtV` no final da URL.
+
+### Histórico: por que a correção anterior não resolveu
+
+Numa sessão anterior já tinha sido identificado que `"wtV"` era um
+valor hardcoded (provavelmente um placeholder esquecido da criação do
+projeto) comparado contra `process.env.ENV_TOKEN` pelo middleware
+`envTokenAuth` (`GET /public-settings/:settingKey`,
+`settingRoutes.ts`). A correção aplicada então trocou o literal
+`"wtV"` por `process.env.REACT_APP_ENV_TOKEN` em três arquivos
+(`useSettings/index.js`, `Login/index.js`, `Signup/index.js`) e
+encanou a variável `ENV_TOKEN` do backend até o build do frontend via
+`docker-compose.coolify.yml` → `Dockerfile` (`ARG`/`ENV
+REACT_APP_ENV_TOKEN`). Confirmado por múltiplos métodos independentes
+que a correção estava correta no bundle gerado pelo servidor — e ainda
+assim o navegador do cliente continuava recebendo 403 com
+`token=wtV`, sob o mesmo hash de arquivo, depois de rebuilds completos
+sem cache. Ficou como mistério não resolvido.
+
+### Causa raiz real
+
+Um **quarto lugar**, nunca tocado pela correção anterior:
+`frontend/public/index.html` tem um `<script>` inline (splash screen,
+mostra a logo cacheada em `localStorage` e busca a logo/nome
+atualizados antes do bundle React montar) com duas chamadas `fetch`
+hardcoded `?token=wtV` direto no texto do HTML. Arquivos em
+`frontend/public/` são copiados como estão pro build — não passam
+pelas variáveis `REACT_APP_*` do Create React App, que só afetam
+código dentro de `src/`. Por isso nenhum rebuild do bundle JS, por
+mais zerado que fosse o cache, jamais teria corrigido esse 403: o
+`token=wtV` não vinha do bundle.
+
+### Decisão: em vez de caçar o próximo lugar hardcoded, tirar o gate
+
+`ENV_TOKEN` é um valor único e global — não por usuário (não é JWT;
+isso é o middleware `isAuth`, separado, usado em `/settings/:settingKey`
+que exige login) nem por empresa/tenant (não existe esse conceito
+aqui). E esse valor único vai embutido em texto plano no bundle JS
+público, baixado por qualquer um que abra a tela de login — ou seja,
+nunca protegeu nada de verdade, só bloqueava um `curl` anônimo
+trivial. Mantê-lo era o que causava essa classe de bug (variável
+threading por 3-4 lugares, frágil, já rendeu um incidente de produção
+nesta sessão). A rota `/public-settings/:settingKey` já é
+semanticamente pública (nome do app, logo — dados pensados pra
+aparecer antes do login) — faz sentido deixá-la pública de fato.
+
+### Correção
+
+- Removido `backend/src/middleware/envTokenAuth.ts` e seu uso em
+  `settingRoutes.ts` (`GET /public-settings/:settingKey` sem
+  middleware agora). Import solto do mesmo middleware em
+  `authRoutes.ts` também removido (nunca tinha sido aplicado a
+  nenhuma rota ali).
+- Removida a variável `ENV_TOKEN`/`REACT_APP_ENV_TOKEN` de:
+  `docker-compose.coolify.yml` (env do backend + build arg do
+  frontend), `.env.coolify.example`, `backend/.env.example`,
+  `frontend/Dockerfile` (incluindo o bloco `RUN echo "DEBUG..."`
+  temporário deixado da investigação anterior, nunca removido).
+- Removido o parâmetro `token` das chamadas em `useSettings/index.js`,
+  `Login/index.js`, `Signup/index.js` e das duas chamadas `fetch` no
+  `<script>` inline de `frontend/public/index.html` — essa última é
+  o ponto que de fato causava o 403 em produção.
+- `frontend/server.js` (servidor leve alternativo, não é o usado pelo
+  `Dockerfile` atual — que usa `serve -s build`) também tinha um
+  fallback `SETTINGS_TOKEN = process.env.ENV_TOKEN || "wtV"`; removido
+  por consistência, já que a rota não exige mais token.
+- **Fora do escopo, deliberadamente não tocado**: existe uma chave de
+  settings no banco literalmente chamada `"wtV"` (usada em
+  `GetWhatsapp.ts`, `AddSettingService.ts`, no seed, e lida em
+  `frontend/src/layout/index.js`) — coincidência de nome com o antigo
+  token, não relacionada a ele. Renomear essa chave é mudança de dado
+  em produção, fora do escopo desta correção.
+
+### Testado
+
+- `tsc --noEmit` limpo no backend depois de remover o middleware e o
+  import solto.
+- `eslint` limpo nos três arquivos do frontend tocados
+  (`useSettings/index.js`, `Login/index.js`, `Signup/index.js`).
+- Pendente: confirmar em produção, depois do deploy, que a tela de
+  login carrega a logo/nome sem 403 (requer rebuild do frontend via
+  Coolify — variável de ambiente removida não tem efeito até o próximo
+  build).

@@ -439,7 +439,7 @@
         var backendUrl = "%REACT_APP_BACKEND_URL%".replace(/\/+$/, "");
         if (backendUrl) {
           var settingKey = isDark ? "appLogoDark" : "appLogoLight";
-          fetch(backendUrl + "/public-settings/" + settingKey + "?token=wtV")
+          fetch(backendUrl + "/public-settings/" + settingKey)
             .then(function (response) {
               return response.ok ? response.json() : null;
             })
@@ -453,7 +453,7 @@
             })
             .catch(function () {});
 
-          fetch(backendUrl + "/public-settings/appName?token=wtV")
+          fetch(backendUrl + "/public-settings/appName")
             .then(function (response) {
               return response.ok ? response.json() : null;
             })

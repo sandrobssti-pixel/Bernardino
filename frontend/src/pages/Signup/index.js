@@ -592,9 +592,7 @@ const SignUp = () => {
         const [{ data: brandingData }, { data: publicAppName }] =
           await Promise.all([
             openApi.get("/global-config/public-branding"),
-            openApi.get("/public-settings/appName", {
-              params: { token: process.env.REACT_APP_ENV_TOKEN },
-            }),
+            openApi.get("/public-settings/appName"),
           ]);
 
         setBranding({

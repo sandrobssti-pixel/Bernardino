@@ -29,14 +29,9 @@ const useSettings = () => {
   };
 
   const getPublicSetting = async (key) => {
-    const params = {
-      token: process.env.REACT_APP_ENV_TOKEN
-    }
-
     const { data } = await openApi.request({
         url: `/public-settings/${key}`,
-        method: 'GET',
-        params
+        method: 'GET'
     });
     return data;
   };

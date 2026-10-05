@@ -8,7 +8,6 @@ const buildDir = path.join(__dirname, "build");
 const indexPath = path.join(buildDir, "index.html");
 
 const DEFAULT_APP_NAME = process.env.REACT_APP_APP_NAME || "Whaticket";
-const SETTINGS_TOKEN = process.env.ENV_TOKEN || "wtV";
 const SETTINGS_TIMEOUT_MS = 3000;
 const APP_NAME_CACHE_TTL_MS = 60 * 1000;
 
@@ -67,7 +66,6 @@ const getPublicAppName = async () => {
 
   try {
     const response = await axios.get(`${backendUrl}/public-settings/appName`, {
-      params: { token: SETTINGS_TOKEN },
       timeout: SETTINGS_TIMEOUT_MS
     });
 

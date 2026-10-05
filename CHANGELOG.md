@@ -3,6 +3,37 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.85] — Remove o gate de token do `/public-settings` (causa raiz do 403 crônico na logo/nome da tela de login) — 2026-10-05
+
+### Corrigido
+- A tela de login/signup vinha dando 403 recorrente ao buscar a logo e o
+  nome do sistema antes do usuário logar (`GET /public-settings/...`),
+  mesmo depois de trocar o valor hardcoded `"wtV"` pela variável de
+  ambiente em três arquivos do frontend numa etapa anterior — o 403
+  persistia porque o `token=wtV` hardcoded de verdade estava num quarto
+  lugar nunca tocado: um `<script>` inline em `frontend/public/index.html`
+  (splash screen, roda antes do bundle React carregar), que não passa
+  pelas variáveis `REACT_APP_*` injetadas no build.
+- Causa raiz maior: esse "token" (`ENV_TOKEN`) nunca protegeu nada de
+  verdade — é um valor único e global (não por usuário, não por empresa)
+  que já ia embutido em texto plano no bundle JS público baixado por
+  qualquer um na tela de login. Em vez de continuar caçando o próximo
+  lugar hardcoded, a rota `GET /public-settings/:settingKey` (logo,
+  nome do app — dados já pensados pra serem públicos, usados antes de
+  autenticar) agora é pública de verdade, sem checagem de token.
+
+### Removido
+- Middleware `envTokenAuth` (`backend/src/middleware/envTokenAuth.ts`) e
+  seu uso em `settingRoutes.ts` (import solto em `authRoutes.ts` também
+  removido, nunca chegou a ser aplicado em nenhuma rota lá).
+- Variável `ENV_TOKEN`/`REACT_APP_ENV_TOKEN` de `docker-compose.coolify.yml`,
+  `.env.coolify.example`, `backend/.env.example`, `frontend/Dockerfile`
+  (incluindo o bloco de debug temporário deixado da investigação
+  anterior) e dos quatro pontos do frontend que mandavam
+  `?token=...` (`useSettings`, `Login`, `Signup`, `public/index.html`).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 69.
+
 ## [2.3.84] — Falso alarme no aviso de número de outro país — 2026-09-21
 
 ### Corrigido
