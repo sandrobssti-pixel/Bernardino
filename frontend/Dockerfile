@@ -29,6 +29,10 @@ ENV REACT_APP_ENV_TOKEN=$REACT_APP_ENV_TOKEN
 ENV GENERATE_SOURCEMAP=false
 ENV NODE_OPTIONS=--max-old-space-size=4096
 
+RUN echo "DEBUG ARG REACT_APP_ENV_TOKEN=[$REACT_APP_ENV_TOKEN]" \
+  && echo "DEBUG ENV REACT_APP_ENV_TOKEN=[$REACT_APP_ENV_TOKEN]" \
+  && grep -rn "REACT_APP_ENV_TOKEN\|\"wtV\"" src/hooks/useSettings/index.js src/pages/Login/index.js
+
 RUN npm run build
 
 FROM node:20-bookworm-slim
