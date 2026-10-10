@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.57
-**Etapa:** 6.22 — Upload de capa/logo do login não persistia no banco (Painel Master)
-**Última atualização:** 2026-10-05
+**Versão do documento:** 2.3.58
+**Etapa:** 6.23 — Indicador de carregamento ao enviar resposta rápida com anexo
+**Última atualização:** 2026-10-10
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -5276,3 +5276,56 @@ e o de edição de texto estavam quebrados, o que explica por que
   pré-existentes de sempre, não relacionados a esta mudança).
 - Pendente: confirmar em produção, depois do deploy, que enviar a capa
   e editar o link do WhatsApp sobrevivem a um F5.
+
+## 71. Indicador de carregamento ao enviar resposta rápida com anexo (v2.3.87)
+
+### Contexto
+
+Durante a migração de dados da Empresa 1 (zappro → AtendeFlow,
+companyId=3), depois de reimportar os arquivos físicos das respostas
+rápidas que tinham anexo (ver seção da migração, companyId=3), o
+cliente relatou que enviar uma resposta rápida com vídeo (~8MB)
+"travava" na hora de enviar — sem erro no console do navegador, sem
+erro no log do backend, só demora sem feedback visual.
+
+### Causa raiz
+
+`handleQuickAnswersClick` (`frontend/src/components/MessageInput/index.js`)
+faz duas viagens de rede quando a resposta rápida tem anexo:
+
+1. `axios.get(value.mediaPath, { responseType: "blob" })` — baixa o
+   arquivo do servidor pro navegador.
+2. `handleUploadQuickMessageMedia(blob, message)` — reenvia esse mesmo
+   arquivo como anexo da mensagem (`POST /messages/:ticketId`).
+
+O passo 2 já tinha `setLoading(true)`/`setLoading(false)` num
+`try/finally`, mas o passo 1 (o download) não tinha nenhum indicador —
+pra um anexo grande como vídeo, essa espera (download completo antes
+de sequer começar o upload) parecia travamento, mesmo o fluxo
+funcionando normalmente até o fim.
+
+Decisão de escopo: o pedido explícito era só adicionar indicador
+visual, não eliminar a viagem dupla (que exigiria mudar o fluxo de
+envio de mensagem/anexo no backend — área sinalizada como delicada por
+histórico de bugs no WhatsApp/Baileys, fora do escopo pedido).
+
+### O que foi feito
+
+- `handleQuickAnswersClick`: `setLoading(true)` logo antes do
+  `axios.get` do passo 1 (cobre a janela que antes ficava sem
+  feedback), e `setLoading(false)` explícito no `catch` (já que nesse
+  caminho de erro `handleUploadQuickMessageMedia` — que teria seu
+  próprio `finally` — nunca chega a ser chamado).
+- Botão de enviar mensagem (os dois, versão normal e versão
+  mensagem privada): mostra um `CircularProgress` pequeno no lugar do
+  ícone de enviar/encaminhar enquanto `loading` é `true`, reaproveitando
+  a classe `audioLoading` já existente (mesmo padrão visual já usado no
+  botão de enviar áudio gravado).
+
+### Testado
+
+- `eslint` limpo em `MessageInput/index.js` (só os mesmos avisos
+  pré-existentes de sempre — hooks de `useEffect` e uma variável não
+  usada, nada relacionado a esta mudança).
+- Pendente: confirmar em produção, depois do deploy, que o spinner
+  aparece durante o envio de uma resposta rápida com vídeo grande.

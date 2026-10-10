@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.87] — Indicador de carregamento ao enviar resposta rápida com anexo — 2026-10-10
+
+### Corrigido
+- Resposta rápida com arquivo anexado (imagem/vídeo) parecia travada ao
+  enviar: o clique dispara um download do arquivo do servidor pro
+  navegador (antes de reanexar e enviar a mensagem), e esse passo não
+  tinha nenhum indicador visual — pra anexos maiores (ex.: vídeo de
+  ~8MB), a demora de rede dava a impressão de erro/travamento sem
+  nenhum feedback na tela.
+- Agora o botão de enviar mostra um spinner durante todo o processo
+  (desde o download do anexo até o envio da mensagem), igual ao padrão
+  já usado no envio de áudio gravado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 71.
+
 ## [2.3.86] — Upload de capa/logo do login não persistia no banco — 2026-10-05
 
 ### Corrigido
