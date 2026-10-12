@@ -71,15 +71,8 @@ else
   cp -r "$SOURCE_DIR"/. "$INSTALL_DIR/"
   rm -rf "$INSTALL_DIR/node_modules" "$INSTALL_DIR/installers" "$INSTALL_DIR/package-lock.json"
 
-  # O package.json do disk-monitor depende de "toolkit-auth" por caminho
-  # relativo ("file:../shared/auth") — sem copiar server-toolkit/shared/
-  # pro mesmo nível relativo aqui, o npm install falha depois que os
-  # arquivos saem de dentro do repositório (bug real, encontrado testando
-  # este instalador).
-  SHARED_SOURCE_DIR="$(cd "$SOURCE_DIR/../shared" && pwd)"
-  SHARED_DEST_DIR="$(cd "$INSTALL_DIR/.." && pwd)/shared"
-  mkdir -p "$SHARED_DEST_DIR"
-  cp -r "$SHARED_SOURCE_DIR"/. "$SHARED_DEST_DIR/"
+  # O shared/ (toolkit-auth, "file:./shared/auth") agora vive dentro do
+  # próprio disk-monitor e já é copiado junto com o código-fonte acima.
 
   (cd "$INSTALL_DIR" && npm install --omit=dev --no-audit --no-fund)
   EXEC_LINE="ExecStart=/usr/bin/env node $INSTALL_DIR/server.js"

@@ -2,7 +2,7 @@ const cookieSession = require("cookie-session");
 const { createUserStore, ROLES } = require("./userStore");
 
 // Sistema de login (admin / usuário limitado) reaproveitável por
-// qualquer módulo do server-toolkit. Cada módulo:
+// o Disk Monitor (ou módulo futuro). Cada módulo:
 //   1. chama `createAuthSystem({ dataDir, sessionSecret, envBootstrap })`
 //   2. `app.use(auth.sessionMiddleware)`
 //   3. `app.use("/api", auth.router)` — expõe /api/login, /api/logout,

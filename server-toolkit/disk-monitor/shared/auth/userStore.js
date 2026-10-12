@@ -2,7 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const bcrypt = require("bcryptjs");
 
-// Papéis suportados por qualquer módulo do server-toolkit: "admin" (acesso
+// Papéis suportados por o Disk Monitor (ou módulo futuro): "admin" (acesso
 // completo) e "viewer" (só visualização — cada módulo decide, nas suas
 // próprias rotas, o que exatamente "só visualização" bloqueia).
 const ROLES = ["admin", "viewer"];

@@ -1,5 +1,5 @@
 ---
-name: disk-monitor-dev
+name: disk-monitor
 description: Use sempre que for mexer em server-toolkit/disk-monitor (ou em qualquer outro módulo do server-toolkit no mesmo estilo) — adicionar feature, corrigir bug, mudar a ferramenta de partição/formatação, integração com NAS, limpeza de disco, ou qualquer código do backend/frontend desse módulo. Reúne os procedimentos já estabelecidos neste projeto (versionamento, i18n, validação antes de commitar, seção de honestidade no README, padrão de segurança pra ação destrutiva) pra manter tudo consistente em vez de redescobrir ou espalhar a informação a cada pedido novo.
 ---
 

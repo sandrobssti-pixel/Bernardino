@@ -118,6 +118,7 @@ function createFileManager(rootsEnvValue) {
 
   return {
     listRoots,
+    rootPaths: () => roots.map(r => ({ key: r.key, rootPath: r.rootPath })),
     listDir,
     getFileForDownload,
     resolveUploadDestination
