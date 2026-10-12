@@ -23,6 +23,7 @@ const { readRaidStatus } = require("./lib/raidHealth");
 const { createFileManager } = require("./lib/fileManager");
 const { createSynologyClient } = require("./lib/synologyApi");
 const { buildVolumePrepGuide } = require("./lib/nasVolumeGuide");
+const { createNasStatus } = require("./lib/nasStatus");
 const { runCleanup } = require("./lib/cleanup");
 const { getConfig, updateConfig } = require("./lib/configStore");
 const {
@@ -99,6 +100,14 @@ const synologyClient = createSynologyClient({
   // DSM_ALLOW_SELF_SIGNED=false (caso tenha um certificado válido).
   allowSelfSigned: process.env.DSM_ALLOW_SELF_SIGNED !== "false",
   deviceId: process.env.DSM_DEVICE_ID
+});
+
+// IP + online/offline do NAS (somente leitura) — DSM_HOST e/ou servidor
+// das montagens de NAS_ROOTS.
+const nasStatus = createNasStatus({
+  fileManager,
+  dsmHost: process.env.DSM_HOST,
+  dsmPort: Number(process.env.DSM_PORT || 5001)
 });
 
 const app = express();
@@ -572,6 +581,18 @@ app.get("/api/processes", auth.requireAuth, async (req, res) => {
 // ---------- Painel do NAS (arquivos + Synology DSM) ----------
 // Tudo abaixo é opcional — sem NAS_ROOTS no .env, os endpoints respondem
 // 501 e a seção correspondente do painel fica escondida no frontend.
+
+app.get("/api/nas/status", auth.requireAuth, async (req, res) => {
+  if (!nasStatus.isConfigured()) {
+    return res.status(501).json({ error: "NAS não configurado (ver .env.example)." });
+  }
+  try {
+    res.json(await nasStatus.getStatus());
+  } catch (err) {
+    console.error("[disk-monitor] Falha ao checar status do NAS:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get("/api/nas/roots", auth.requireAuth, (req, res) => {
   if (!fileManager) {

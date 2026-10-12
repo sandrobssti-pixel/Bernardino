@@ -1407,3 +1407,20 @@ carrega; sintaxe dos instaladores `.sh` (Linux/macOS) checada com `bash -n`.
 **Não validado**: execução real dos instaladores Linux/macOS e do pacote de
 `package-for-new-server.sh` numa máquina nova depois da mudança — teste
 um `install.sh`/`update.sh` antes de usar num cliente.
+
+### Status e IP do NAS (v1.32.0)
+
+O painel mostra um card **Status do NAS** com uma bolinha (verde = online,
+vermelha = offline), o IP, a origem (`DSM` e/ou a pasta de `NAS_ROOTS`
+montada por SMB/NFS) e o botão **↻ Atualizar**, que apenas refaz a
+checagem na hora (não altera nada no NAS). Atualiza sozinho a cada 30 s.
+"Online" = a porta responde por TCP em até 2,5 s (`DSM_PORT` para o DSM,
+445 para SMB, 2049 para NFS). O IP vem de `DSM_HOST` e do servidor
+lido em `/proc/mounts` para cada pasta de `NAS_ROOTS`.
+
+**Honestidade (status do NAS)**: validado contra um servidor TCP local
+(online/offline), um `/proc/mounts` de exemplo (linhas CIFS e NFS) e o
+endpoint real com login. **Não validado** contra um Synology nem uma
+montagem CIFS/NFS reais. A detecção de IP pelas montagens só funciona em
+Linux; fora dele só aparece o IP do `DSM_HOST`. "Online" significa que a
+porta aceitou conexão, não que o compartilhamento está saudável.
