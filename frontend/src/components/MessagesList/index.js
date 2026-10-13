@@ -13,7 +13,8 @@ import {
   Divider,
   IconButton,
   makeStyles,
-  Badge
+  Badge,
+  Typography
 } from "@material-ui/core";
 
 import {
@@ -910,6 +911,12 @@ const MessagesList = ({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [docPreview, setDocPreview] = useState({
+    open: false,
+    href: "",
+    name: "Documento",
+    renderable: false
+  });
   const history = useHistory();
   const lastMessageRef = useRef();
 
@@ -1915,10 +1922,33 @@ const getDocumentLabel = (message) => {
   return "Documento";
 };
 
+const isInlineRenderableDocument = (message) => {
+  const label = getDocumentLabel(message);
+  const mediaUrl = String(message?.mediaUrl || "");
+  return (
+    /\.(pdf|txt)$/i.test(label) ||
+    /\.(pdf|txt)(?:$|\?)/i.test(mediaUrl)
+  );
+};
+
 const handleOpenDocumentPreview = (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return;
-  window.open(mediaHref, "_blank", "noopener,noreferrer");
+  setDocPreview({
+    open: true,
+    href: mediaHref,
+    name: getDocumentLabel(message),
+    renderable: isInlineRenderableDocument(message)
+  });
+};
+
+const handleCloseDocumentPreview = () => {
+  setDocPreview({
+    open: false,
+    href: "",
+    name: "Documento",
+    renderable: false
+  });
 };
 
 const renderDocumentPreview = (message) => {
@@ -2814,6 +2844,63 @@ return (
         </Button>
         <Button onClick={closeImageGallery} color="primary">
           Fechar
+        </Button>
+      </DialogActions>
+    </Dialog>
+
+    <Dialog
+      open={docPreview.open}
+      onClose={handleCloseDocumentPreview}
+      fullWidth
+      maxWidth="md"
+    >
+      <DialogTitle disableTypography>
+        <div className={classes.pdfDialogTitle}>
+          <span className={classes.pdfDialogName}>{docPreview.name}</span>
+        </div>
+      </DialogTitle>
+      <DialogContent dividers>
+        <div className={classes.pdfIframeWrap}>
+          {docPreview.href && docPreview.renderable ? (
+            <iframe
+              title={docPreview.name || "Visualização do documento"}
+              src={docPreview.href}
+              className={classes.pdfIframe}
+            />
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 380,
+                textAlign: "center",
+                padding: 16
+              }}
+            >
+              <Description fontSize="large" />
+              <Typography variant="body1">Visualização não disponível</Typography>
+              <Typography variant="body2" color="textSecondary">
+                {docPreview.name}
+              </Typography>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCloseDocumentPreview} color="default">
+          Fechar
+        </Button>
+        <Button
+          component="a"
+          href={docPreview.href}
+          color="primary"
+          startIcon={<GetApp />}
+          download={docPreview.name}
+        >
+          Baixar
         </Button>
       </DialogActions>
     </Dialog>
