@@ -35,7 +35,6 @@ import {
   RotateRight,
   WhatsApp,
   Reply,
-  Close,
   PersonOutline,
   BarChart,
   EventNote,
@@ -911,11 +910,6 @@ const MessagesList = ({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState({
-    open: false,
-    href: "",
-    name: "Documento"
-  });
   const history = useHistory();
   const lastMessageRef = useRef();
 
@@ -1930,19 +1924,7 @@ const isPdfDocument = (message) => {
 const handleOpenPdfPreview = (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return;
-  setPdfPreview({
-    open: true,
-    href: mediaHref,
-    name: getDocumentLabel(message)
-  });
-};
-
-const handleClosePdfPreview = () => {
-  setPdfPreview({
-    open: false,
-    href: "",
-    name: "Documento"
-  });
+  window.open(mediaHref, "_blank", "noopener,noreferrer");
 };
 
 const renderDocumentPreview = (message) => {
@@ -2860,56 +2842,6 @@ return (
         </span>
       </div>
     )}
-    <Dialog
-      open={pdfPreview.open}
-      onClose={handleClosePdfPreview}
-      fullWidth
-      maxWidth="md"
-    >
-      <DialogTitle disableTypography>
-        <div className={classes.pdfDialogTitle}>
-          <span className={classes.pdfDialogName}>{pdfPreview.name}</span>
-          <IconButton size="small" onClick={handleClosePdfPreview}>
-            <Close fontSize="small" />
-          </IconButton>
-        </div>
-      </DialogTitle>
-      <DialogContent dividers>
-        <div className={classes.pdfIframeWrap}>
-          {pdfPreview.href ? (
-            <iframe
-              title={pdfPreview.name || "Visualização PDF"}
-              src={pdfPreview.href}
-              className={classes.pdfIframe}
-            />
-          ) : null}
-        </div>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClosePdfPreview} color="default">
-          Fechar
-        </Button>
-        <Button
-          component="a"
-          href={pdfPreview.href}
-          target="_blank"
-          rel="noreferrer"
-          color="primary"
-          startIcon={<OpenInNew />}
-        >
-          Abrir em nova aba
-        </Button>
-        <Button
-          component="a"
-          href={pdfPreview.href}
-          color="primary"
-          startIcon={<GetApp />}
-          download={pdfPreview.name}
-        >
-          Baixar
-        </Button>
-      </DialogActions>
-    </Dialog>
     {loading && (
       <div>
         <CircularProgress className={classes.circleLoading} />
