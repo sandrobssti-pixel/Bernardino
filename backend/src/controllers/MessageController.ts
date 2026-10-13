@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import AppError from "../errors/AppError";
-import fs from "fs";
 import GetTicketWbot from "../helpers/GetTicketWbot";
 import formatBody from "../helpers/Mustache";
 import SetTicketMessagesAsRead from "../helpers/SetTicketMessagesAsRead";
@@ -1545,20 +1544,6 @@ export const store = async (
               messageData,
               companyId: ticket.companyId
             });
-          }
-
-          const filePath = path.resolve(
-            "public",
-            `company${companyId}`,
-            media.filename
-          );
-          if (
-            fs.existsSync(filePath) &&
-            isPrivate === "false" &&
-            !isWuzapiTicket &&
-            ticket.channel !== "webchat"
-          ) {
-            fs.unlinkSync(filePath);
           }
         })
       );

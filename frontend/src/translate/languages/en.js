@@ -1816,6 +1816,8 @@ const messages = {
           "Authentication error. Please try again.",
         ERR_SENDING_WAPP_MSG:
           "Error sending WhatsApp message. Check the connections page.",
+        ERR_MEDIA_FILE_NOT_FOUND:
+          "Could not forward: the original file is no longer available on the server.",
         ERR_DELETE_WAPP_MSG: "Could not delete the WhatsApp message.",
         ERR_OTHER_OPEN_TICKET: "There is already an open ticket for this contact.",
         ERR_SESSION_EXPIRED: "Session expired. Please log in.",

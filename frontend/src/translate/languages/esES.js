@@ -1792,6 +1792,7 @@ const messages = {
         ERR_WAPP_DOWNLOAD_MEDIA: "No fue posible descargar medios de WhatsApp. Verifique la página de conexiones.",
         ERR_INVALID_CREDENTIALS: "Error de autenticación. Por favor, intente nuevamente.",
         ERR_SENDING_WAPP_MSG: "Error al enviar mensaje de WhatsApp. Verifique la página de conexiones.",
+        ERR_MEDIA_FILE_NOT_FOUND: "No se pudo reenviar: el archivo original ya no está disponible en el servidor.",
         ERR_DELETE_WAPP_MSG: "No fue posible eliminar el mensaje de WhatsApp.",
         ERR_OTHER_OPEN_TICKET: "Ya existe un tíquete abierto para este contacto.",
         ERR_SESSION_EXPIRED: "Sesión expirada. Por favor, inicie sesión.",

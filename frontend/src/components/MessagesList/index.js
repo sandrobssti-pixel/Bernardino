@@ -1906,6 +1906,33 @@ const extractDocumentNameFromDataJson = (message) => {
   return "";
 };
 
+const extractDocumentMimeFromDataJson = (message) => {
+  const rawDataJson = message?.dataJson;
+  if (!rawDataJson || typeof rawDataJson !== "string") return "";
+
+  try {
+    const parsed = JSON.parse(rawDataJson);
+    const candidates = [
+      getNestedValue(parsed, ["Message", "documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["message", "documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["Info", "Media", "MimeType"]),
+      getNestedValue(parsed, ["info", "media", "mimetype"]),
+      getNestedValue(parsed, ["mimetype"]),
+      getNestedValue(parsed, ["mimeType"])
+    ];
+
+    for (const candidate of candidates) {
+      const value = String(candidate || "").trim();
+      if (value) return value.toLowerCase();
+    }
+  } catch (error) {
+    // Sem mimetype no dataJson — segue com checagem por extensão do nome.
+  }
+
+  return "";
+};
+
 const getDocumentLabel = (message) => {
   const dataJsonName = extractDocumentNameFromDataJson(message);
   if (dataJsonName) return dataJsonName;
@@ -1923,6 +1950,11 @@ const getDocumentLabel = (message) => {
 };
 
 const isInlineRenderableDocument = (message) => {
+  const mimetype = extractDocumentMimeFromDataJson(message);
+  if (mimetype) {
+    return mimetype === "application/pdf" || mimetype.startsWith("text/plain");
+  }
+
   const label = getDocumentLabel(message);
   const mediaUrl = String(message?.mediaUrl || "");
   return (
