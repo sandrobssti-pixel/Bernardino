@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.89] — Botão de visualizar (nova aba) em todo tipo de documento — 2026-10-13
+
+### Corrigido
+- O botão/card clicável de "visualizar" um documento recebido só
+  aparecia para PDF — anexos de Word, planilha ou texto não tinham
+  esse botão, nem o card inteiro era clicável (só o ícone "Abrir" ao
+  lado funcionava pra esses tipos).
+- Agora todo documento (txt, Word, Excel, PDF, etc.) tem o botão de
+  "olho" (Visualizar) e o card inteiro é clicável, abrindo em nova aba
+  do navegador — mesmo comportamento que já existia só para PDF.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 74.
+
 ## [2.3.88] — Documento/PDF recebido abre em nova aba, não mais em preview embutido — 2026-10-13
 
 ### Corrigido

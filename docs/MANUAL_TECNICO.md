@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.59
-**Etapa:** 6.24 — Documento/PDF recebido abre em nova aba, não mais em preview embutido
+**Versão do documento:** 2.3.60
+**Etapa:** 6.25 — Botão de visualizar (nova aba) em todo tipo de documento
 **Última atualização:** 2026-10-13
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5374,3 +5374,40 @@ tinha esse comportamento diferente.
   confirma que não sobrou import nem variável órfã do modal removido).
 - Pendente: confirmar em produção, depois do deploy, que o clique no
   documento abre nova aba em vez do preview embutido.
+
+## 74. Botão de visualizar (nova aba) em todo tipo de documento (v2.3.89)
+
+### Contexto
+
+Cliente (Compliance Sandro) testou o envio de Word (`.docx`) e PDF numa
+conversa real e reparou que o card do `.docx` recebido não tinha o
+botão de "olho" (Visualizar) que o card do PDF tinha — só o ícone
+"Abrir" (nova aba) funcionava pro Word, o card inteiro também não era
+clicável.
+
+### Causa raiz
+
+Na seção 72 (v2.3.88), o clique no card virou `window.open` em nova
+aba — mas a condição `isPdf` que decidia se o card era clicável e se
+mostrava o botão "Visualizar" não tinha sido removida, só o
+comportamento por trás dela mudou. Então o comportamento "melhor"
+(abrir em nova aba) continuava restrito a PDF por acidente, mesmo
+depois de deixar de ser uma limitação técnica real (não tinha mais
+iframe embutido pra justificar restringir a um tipo só).
+
+### O que foi feito
+
+- `isPdfDocument`/`isPdf` removidos de `renderDocumentPreview`
+  (`frontend/src/components/MessagesList/index.js`) — não faziam mais
+  sentido depois da seção 72.
+- `handleOpenPdfPreview` renomeado pra `handleOpenDocumentPreview`
+  (mais preciso, já que não é exclusivo de PDF).
+- Card do documento sempre clicável, e botão "Visualizar" sempre
+  presente, pra qualquer tipo (txt, Word, Excel, PDF, etc.) — mesmo
+  `window.open` em nova aba que já existia só pra PDF.
+
+### Testado
+
+- `eslint` limpo (só os mesmos avisos pré-existentes de sempre).
+- Pendente: confirmar em produção, depois do deploy no servidor, que o
+  botão de olho aparece em documentos Word/Excel/txt, não só PDF.
