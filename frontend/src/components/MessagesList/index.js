@@ -1915,13 +1915,7 @@ const getDocumentLabel = (message) => {
   return "Documento";
 };
 
-const isPdfDocument = (message) => {
-  const label = getDocumentLabel(message);
-  const mediaUrl = String(message?.mediaUrl || "");
-  return /\.pdf$/i.test(label) || /\.pdf(?:$|\?)/i.test(mediaUrl);
-};
-
-const handleOpenPdfPreview = (message) => {
+const handleOpenDocumentPreview = (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return;
   window.open(mediaHref, "_blank", "noopener,noreferrer");
@@ -1930,26 +1924,19 @@ const handleOpenPdfPreview = (message) => {
 const renderDocumentPreview = (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return null;
-  const isPdf = isPdfDocument(message);
 
   return (
     <div
-      className={clsx(classes.documentCard, {
-        [classes.documentCardClickable]: isPdf
-      })}
-      onClick={isPdf ? () => handleOpenPdfPreview(message) : undefined}
-      role={isPdf ? "button" : undefined}
-      tabIndex={isPdf ? 0 : undefined}
-      onKeyDown={
-        isPdf
-          ? (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              handleOpenPdfPreview(message);
-            }
-          }
-          : undefined
-      }
+      className={clsx(classes.documentCard, classes.documentCardClickable)}
+      onClick={() => handleOpenDocumentPreview(message)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleOpenDocumentPreview(message);
+        }
+      }}
     >
       <span className={classes.documentIconWrap}>
         <Description fontSize="small" />
@@ -1961,18 +1948,16 @@ const renderDocumentPreview = (message) => {
       </div>
 
       <div className={classes.documentActions}>
-        {isPdf && (
-          <IconButton
-            size="small"
-            title="Visualizar PDF"
-            onClick={(event) => {
-              event.stopPropagation();
-              handleOpenPdfPreview(message);
-            }}
-          >
-            <Visibility fontSize="small" />
-          </IconButton>
-        )}
+        <IconButton
+          size="small"
+          title="Visualizar"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleOpenDocumentPreview(message);
+          }}
+        >
+          <Visibility fontSize="small" />
+        </IconButton>
         <IconButton
           component="a"
           href={mediaHref}
