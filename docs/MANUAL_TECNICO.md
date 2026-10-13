@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.58
-**Etapa:** 6.23 — Indicador de carregamento ao enviar resposta rápida com anexo
-**Última atualização:** 2026-10-10
+**Versão do documento:** 2.3.59
+**Etapa:** 6.24 — Documento/PDF recebido abre em nova aba, não mais em preview embutido
+**Última atualização:** 2026-10-13
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -5329,3 +5329,48 @@ histórico de bugs no WhatsApp/Baileys, fora do escopo pedido).
   usada, nada relacionado a esta mudança).
 - Pendente: confirmar em produção, depois do deploy, que o spinner
   aparece durante o envio de uma resposta rápida com vídeo grande.
+
+## 72. Documento/PDF recebido abre em nova aba, não mais em preview embutido (v2.3.88)
+
+### Contexto
+
+Usuário reportou que, ao clicar num documento (PDF) recebido numa
+conversa, o arquivo abria dentro da própria tela do AtendeFlow (um
+modal com iframe), em vez de abrir como um arquivo normal numa aba
+separada do navegador — comportamento inesperado, já que o botão
+"Abrir" (ícone de nova janela) ao lado do card já abria em nova aba
+corretamente.
+
+### Causa raiz
+
+`frontend/src/components/MessagesList/index.js`: o card de documento
+(`renderDocumentPreview`) só tornava clicável o card inteiro e o botão
+"Visualizar PDF" quando `isPdf` era verdadeiro, e esse clique chamava
+`handleOpenPdfPreview`, que guardava `{ open: true, href, name }` no
+estado `pdfPreview` e abria um `<Dialog>` com um `<iframe src={href}>`
+— um visualizador embutido na própria página do sistema. O botão
+"Abrir" (ícone `OpenInNew`), ao lado, sempre usou `<a href target="_blank">`
+e abria corretamente em nova aba — só o clique no card/"Visualizar PDF"
+tinha esse comportamento diferente.
+
+### O que foi feito
+
+- `handleOpenPdfPreview` agora só faz `window.open(mediaHref, "_blank", "noopener,noreferrer")`,
+  em vez de popular o estado do modal.
+- Removido o estado `pdfPreview` (não usado mais em nenhum outro lugar),
+  `handleClosePdfPreview`, e o bloco `<Dialog>` com o `<iframe>` de
+  preview embutido (título, botões "Fechar"/"Abrir em nova aba"/"Baixar"
+  — os dois últimos já eram redundantes com os botões do próprio card).
+- Removida a importação do ícone `Close`, que só era usado nesse modal
+  removido (confirmado por lint — nenhum outro uso no arquivo).
+- `DialogTitle`/`Dialog`/`DialogContent`/`DialogActions` continuam
+  importados normalmente, pois ainda são usados por outro modal no
+  mesmo arquivo (galeria de imagens).
+
+### Testado
+
+- `eslint` limpo em `MessagesList/index.js` (só os mesmos avisos
+  pré-existentes de sempre, nenhum novo relacionado a esta mudança —
+  confirma que não sobrou import nem variável órfã do modal removido).
+- Pendente: confirmar em produção, depois do deploy, que o clique no
+  documento abre nova aba em vez do preview embutido.

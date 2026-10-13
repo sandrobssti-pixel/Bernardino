@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.88] — Documento/PDF recebido abre em nova aba, não mais em preview embutido — 2026-10-13
+
+### Corrigido
+- Ao clicar num documento (PDF) recebido numa conversa, o sistema abria
+  um modal com o arquivo num iframe dentro da própria tela do
+  AtendeFlow. Isso causava confusão — o usuário esperava um
+  comportamento de "abrir arquivo" normal (nova aba do navegador), não
+  um visualizador embutido no sistema.
+- Agora o clique no card do documento, e no botão "Visualizar PDF",
+  abrem o arquivo em uma aba nova do navegador — igual ao botão "Abrir"
+  (ícone de nova janela) que já existia ao lado. O modal de preview
+  embutido (iframe) foi removido, assim como o estado que só ele usava.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 72.
+
 ## [2.3.87] — Indicador de carregamento ao enviar resposta rápida com anexo — 2026-10-10
 
 ### Corrigido
