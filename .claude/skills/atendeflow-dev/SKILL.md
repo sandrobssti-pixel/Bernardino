@@ -50,6 +50,15 @@ Isso não é burocracia: é o único jeito de não re-investigar do zero um bug
 já resolvido há 40 versões (ex.: a história do número de telefone BR com
 12 vs. 13 dígitos, revisitada mais de uma vez).
 
+**Regra permanente**: toda atualização relevante do AtendeFlow atualiza os
+TRÊS juntos — versão do sistema (seção 1), `CHANGELOG.md` +
+`docs/MANUAL_TECNICO.md` (acima), e a skill `atendeflow-deploy` (ou outra
+skill de implantação afetada — `coolify-deploy`, `cloudflare-tunnel-deploy`,
+etc.) sempre que a mudança alterar algo que essas skills descrevem (passo de
+deploy, variável de ambiente nova, pré-requisito, pegadinha nova encontrada).
+Não fazer isso de cabeça a cada pedido — conferir esta lista antes de
+considerar a entrega concluída.
+
 ## 3. i18n — CINCO idiomas, sempre os cinco juntos
 
 `frontend/src/translate/languages/`: `pt.js`, `en.js`, `es.js`, `esES.js`,
