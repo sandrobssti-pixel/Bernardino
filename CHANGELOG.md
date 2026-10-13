@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.90] — "Visualizar" documento abre caixa, não salva/abre direto — 2026-10-13
+
+### Corrigido
+- Clicar no olho de "Visualizar" num documento recebido levava direto
+  pra nova aba — e pra Word/Excel isso significava o navegador sair
+  baixando o arquivo sozinho, sem o operador decidir antes.
+- Agora abre uma caixa (modal) dentro do sistema: PDF e `.txt` mostram
+  o conteúdo de verdade (navegador renderiza nativamente, sem serviço
+  externo tipo Google Docs Viewer); Word/Excel/outros mostram
+  "Visualização não disponível" + nome do arquivo, com botão de Baixar
+  só quando o operador decidir clicar. Os botões "Abrir" (nova aba) e
+  "Baixar" (link direto) no card continuam como estavam.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 75.
+
 ## [2.3.89] — Botão de visualizar (nova aba) em todo tipo de documento — 2026-10-13
 
 ### Corrigido

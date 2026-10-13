@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.60
-**Etapa:** 6.25 — Botão de visualizar (nova aba) em todo tipo de documento
+**Versão do documento:** 2.3.61
+**Etapa:** 6.26 — "Visualizar" documento abre caixa, não salva/abre direto
 **Última atualização:** 2026-10-13
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5411,3 +5411,58 @@ iframe embutido pra justificar restringir a um tipo só).
 - `eslint` limpo (só os mesmos avisos pré-existentes de sempre).
 - Pendente: confirmar em produção, depois do deploy no servidor, que o
   botão de olho aparece em documentos Word/Excel/txt, não só PDF.
+
+## 75. "Visualizar" documento abre caixa, não salva/abre direto (v2.3.90)
+
+### Contexto
+
+Depois da seção 74 (olho em todo tipo de documento), cliente testou
+com Word (`.docx`) e Excel (`.xlsx`) reais numa conversa e viu que
+clicar no olho fazia o navegador sair baixando o arquivo direto (sem
+nenhuma "espiada" antes) — porque `window.open` numa URL de
+`.docx`/`.xlsx` não tem como ser renderizado pelo navegador, então ele
+baixa sozinho, sem opção.
+
+Perguntei se a solução seria usar um visualizador externo (Google Docs
+Viewer/Microsoft Office Viewer), que mostra o conteúdo de verdade mas
+manda a URL do documento pros servidores do Google/Microsoft — cliente
+(Compliance Sandro) recusou essa opção por implicação de privacidade/
+compliance (documento sensível passando por terceiro só pra
+visualizar). Decisão: manter 100% local, sem serviço externo.
+
+### Causa raiz
+
+`handleOpenDocumentPreview` (seção 74) fazia `window.open` direto pra
+qualquer tipo de documento. Isso funciona bem pra PDF (navegador
+renderiza nativamente em nova aba) mas pra Word/Excel o navegador não
+tem visualizador embutido — o resultado prático é idêntico a clicar em
+"Baixar", só que sem avisar, e sem o operador decidir antes.
+
+### O que foi feito
+
+- `handleOpenDocumentPreview` agora abre uma caixa (estado `docPreview`
+  + `<Dialog>`) em vez de `window.open` direto.
+- Novo helper `isInlineRenderableDocument(message)`: `true` só pra
+  `.pdf`/`.txt` (os únicos tipos que o navegador consegue mostrar
+  sozinho, sem plugin nem serviço externo).
+- Conteúdo da caixa: `<iframe>` apontando pro arquivo quando
+  renderizável (PDF/txt — o próprio navegador desenha o conteúdo); card
+  "Visualização não disponível" + nome do arquivo quando não
+  (Word/Excel/outros) — mesmo padrão visual que já existe no modal de
+  ENVIO de arquivo (`MessageUploadMedias`, fallback pra tipos sem
+  preview).
+- Caixa tem botão "Baixar" explícito (só baixa se o operador clicar) e
+  "Fechar" — nenhum download acontece só por abrir a caixa.
+- Os botões de ícone "Abrir" (nova aba, raw) e "Baixar" (link direto)
+  que já existiam no card continuam exatamente como estavam — só o
+  botão/card "Visualizar" mudou de comportamento.
+- `Typography` adicionado ao import de `@material-ui/core` (precisa
+  pro texto do fallback).
+
+### Testado
+
+- `eslint` limpo em `MessagesList/index.js` (só os mesmos avisos
+  pré-existentes de sempre).
+- Pendente: confirmar em produção, depois do deploy no servidor, que a
+  caixa abre pra Word/Excel sem baixar sozinha, e que PDF/txt mostram
+  o conteúdo dentro da caixa.
