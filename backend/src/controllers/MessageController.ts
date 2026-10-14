@@ -2035,14 +2035,7 @@ export const forwardMessage = async (
       body = "";
     }
 
-    const publicFolder = path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "backend",
-      "public"
-    );
+    const publicFolder = path.join(__dirname, "..", "..", "public");
     const filePath = path.join(
       publicFolder,
       `company${createTicket.companyId}`,
