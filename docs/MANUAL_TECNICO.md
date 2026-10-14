@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.61
-**Etapa:** 6.26 — "Visualizar" documento abre caixa, não salva/abre direto
-**Última atualização:** 2026-10-13
+**Versão do documento:** 2.3.62
+**Etapa:** 6.27 — Corrige caminho errado do arquivo ao reencaminhar mídia
+**Última atualização:** 2026-10-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -5466,3 +5466,66 @@ tem visualizador embutido — o resultado prático é idêntico a clicar em
 - Pendente: confirmar em produção, depois do deploy no servidor, que a
   caixa abre pra Word/Excel sem baixar sozinha, e que PDF/txt mostram
   o conteúdo dentro da caixa.
+
+## 76. Corrige caminho errado do arquivo ao reencaminhar mídia (v2.3.91)
+
+### Contexto
+
+Depois da seção 74 (deixa de apagar mídia após enviar), cliente
+(Compliance Sandro) continuou testando "Reencaminhar" e o erro
+persistia — inclusive pra uma foto enviada na hora, nunca apagada.
+Isso indicava que a causa raiz não era (só) a exclusão do arquivo.
+
+### Causa raiz
+
+`forwardMessage` (`backend/src/controllers/MessageController.ts`)
+reconstrói o caminho físico do arquivo original a partir do
+`message.mediaUrl`, pra poder relê-lo e reenviar como anexo novo. A
+montagem da pasta pública estava assim:
+
+```ts
+const publicFolder = path.join(
+  __dirname, "..", "..", "..", "backend", "public"
+);
+```
+
+Em produção, o código compilado roda de `/app/dist/controllers/`
+(`WORKDIR /app` no Dockerfile). Subir três níveis (`../../../`) a
+partir daí chega na raiz do sistema de arquivos (`/`), e aí o código
+ainda concatenava mais `backend/public` — resultando em
+`/backend/public`, uma pasta que **nunca existiu** no container (os
+uploads reais ficam em `/app/public`, declarado como `VOLUME` no
+Dockerfile). Todo `readFileSync` dentro de `SendWhatsAppMedia`
+disparava `ENOENT` — sempre, pra qualquer arquivo, novo ou antigo,
+apagado ou não.
+
+Esse bug é anterior a qualquer mudança feita nesta sessão — sempre
+existiu desde que `forwardMessage` foi escrito. A exclusão
+pós-envio (seção 74) era um problema real, mas secundário: mesmo
+resolvendo ela sozinha, reencaminhar continuaria quebrado por causa
+deste caminho errado.
+
+`upload.ts` (fonte confiável de como montar esse caminho) usa:
+
+```ts
+const publicFolder = path.resolve(__dirname, "..", "..", "public");
+```
+
+Dois `".."` a partir de `dist/config/`, não três a partir de
+`dist/controllers/` mais um segmento `"backend"` extra.
+
+### O que foi feito
+
+- `forwardMessage`: `publicFolder` agora usa
+  `path.join(__dirname, "..", "..", "public")` — mesmo padrão de
+  `upload.ts`, resolve corretamente pra `/app/public`.
+- Confirmado por busca (`grep "backend"` em todo `backend/src`) que
+  essa era a única ocorrência desse padrão de caminho errado no
+  projeto.
+
+### Testado
+
+- `npx tsc --noEmit` limpo (só o aviso pré-existente de
+  `moduleResolution` deprecated, não relacionado).
+- Pendente: confirmar em produção, depois do deploy, que reencaminhar
+  uma mídia enviada após este fix funciona de ponta a ponta.

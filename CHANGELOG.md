@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.91] — Corrige caminho errado do arquivo ao reencaminhar mídia — 2026-10-14
+
+### Corrigido
+- Reencaminhar qualquer mídia (foto, documento, etc.) sempre falhava
+  com "Erro ao enviar mensagem do WhatsApp..." (ou, após a correção
+  anterior, "arquivo original não está mais disponível no servidor")
+  — mesmo pra mídia enviada na hora, nunca apagada. Causa raiz: o
+  `forwardMessage` montava o caminho da pasta pública errado
+  (`/backend/public`, uma pasta que nunca existiu no container) em vez
+  do caminho real (`/app/public`). Corrigido pra usar o mesmo padrão
+  de `upload.ts`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 76.
+
 ## [2.3.90] — "Visualizar" documento abre caixa, não salva/abre direto — 2026-10-13
 
 ### Corrigido
