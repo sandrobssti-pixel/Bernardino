@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.62
-**Etapa:** 6.27 — Corrige caminho errado do arquivo ao reencaminhar mídia
+**Versão do documento:** 2.3.63
+**Etapa:** 6.28 — Visualização real de Word/Excel/PowerPoint/OpenDocument via LibreOffice
 **Última atualização:** 2026-10-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5529,3 +5529,84 @@ Dois `".."` a partir de `dist/config/`, não três a partir de
   `moduleResolution` deprecated, não relacionado).
 - Pendente: confirmar em produção, depois do deploy, que reencaminhar
   uma mídia enviada após este fix funciona de ponta a ponta.
+
+## 77. Visualização real de Word/Excel/PowerPoint/OpenDocument via LibreOffice (v2.3.92)
+
+### Contexto
+
+Depois da seção 75 (botão de visualizar em todo documento), cliente
+testou com Word/Excel/`.odt` reais e viu que a caixa só mostrava
+"Visualização não disponível" — esperado até então (decisão da seção
+75: sem visualizador externo tipo Google Docs Viewer, por questão de
+privacidade/compliance de documentos sensíveis). Cliente pediu pra
+implementar visualização real mesmo assim, usando conversão local —
+confirmou explicitamente (pergunta feita antes de mexer, dado o peso
+de infraestrutura): "sim, pode começar", "manter para os dois
+libreOffice e para o Office da microsoft também" (ou seja, cobrir
+tanto arquivos nativos do LibreOffice/OpenDocument quanto do
+Microsoft Office).
+
+### Decisão de arquitetura
+
+Conversão **no próprio servidor**, via LibreOffice headless instalado
+no container do backend — nunca manda o arquivo pra um serviço
+externo. Trade-off aceito: imagem Docker do backend fica bem maior
+(LibreOffice + dependências, centenas de MB a mais), e cada conversão
+gasta CPU/alguns segundos — mitigado com cache em disco (converte uma
+vez só por arquivo).
+
+### O que foi feito
+
+**Backend:**
+- `backend/Dockerfile`: adiciona `libreoffice-writer`,
+  `libreoffice-calc`, `libreoffice-impress` e `fonts-liberation2` no
+  estágio final (runtime), com `--no-install-recommends` pra não
+  puxar pacote de ambiente gráfico/idiomas desnecessários.
+- `backend/src/services/DocumentServices/ConvertDocumentToPdfService.ts`
+  (novo): roda `soffice --headless --convert-to pdf`, com perfil de
+  usuário isolado por chamada (`-env:UserInstallation=file://...`) —
+  evita o erro clássico "soffice already running" quando duas
+  conversões acontecem perto uma da outra (dois atendentes clicando em
+  "Visualizar" ao mesmo tempo). Timeout de 45s. Resultado em cache na
+  pasta `company{id}/_previews/` — reaberturas seguintes não
+  reconvertem.
+- `backend/src/controllers/DocumentPreviewController.ts` (novo) +
+  rota `GET /messages/:messageId/document-preview`
+  (`messageRoutes.ts`): busca a mensagem, **reconfere
+  `message.companyId !== req.user.companyId`** (regra de multiempresa
+  da seção 4 da skill `atendeflow-dev` — nunca confiar só no id da
+  mensagem), resolve o nome do arquivo direto do valor bruto salvo no
+  banco (`message.getDataValue("mediaUrl")`, não precisa reparsear
+  URL como o `forwardMessage` fazia antes do fix da seção 76), chama o
+  serviço de conversão, devolve a URL pública do PDF convertido.
+- Tipos convertíveis: `.doc .docx .xls .xlsx .ppt .pptx .odt .ods .odp
+  .rtf` (cobre Microsoft Office e LibreOffice/OpenDocument).
+
+**Frontend:**
+- `MessagesList/index.js`: `isInlineRenderableDocument` virou
+  `isNativelyRenderableDocument` (PDF, `.txt`, **e agora `.xml`** —
+  navegador renderiza esses três sozinho, sem conversão) +
+  `isConvertibleDocument` (a lista acima, precisa chamar o backend).
+- `handleOpenDocumentPreview` agora é assíncrono: se renderizável
+  nativo, abre a caixa direto; se convertível, abre a caixa já com
+  spinner "Convertendo documento para visualização...", chama
+  `GET /messages/:id/document-preview`, e troca pro PDF convertido
+  quando a resposta chega; se a conversão falhar, mostra aviso
+  específico ("Não foi possível converter esse documento") em vez do
+  genérico "Visualização não disponível" — sempre com o botão
+  "Baixar" apontando pro arquivo **original** (não o convertido),
+  mesmo em erro.
+- Estado `docPreview` reestruturado: `originalHref` (sempre o arquivo
+  real, usado no botão Baixar) separado de `previewHref` (só setado
+  quando a conversão/renderização nativa está pronta) e `status`
+  (`idle`/`loading`/`ready`/`error`/`unsupported`).
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- `eslint` limpo em `MessagesList/index.js` (só avisos pré-existentes).
+- Pendente: confirmar em produção, depois do deploy (rebuild completo
+  do backend, mais demorado dessa vez por causa do `apt-get install`
+  do LibreOffice), que Word/Excel/PowerPoint/`.odt` abrem com conteúdo
+  real na caixa, e que o fallback de erro funciona (ex.: arquivo
+  corrompido).

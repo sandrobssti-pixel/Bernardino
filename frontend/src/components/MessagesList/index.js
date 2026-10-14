@@ -913,9 +913,10 @@ const MessagesList = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const [docPreview, setDocPreview] = useState({
     open: false,
-    href: "",
+    originalHref: "",
+    previewHref: "",
     name: "Documento",
-    renderable: false
+    status: "idle"
   });
   const history = useHistory();
   const lastMessageRef = useRef();
@@ -1949,37 +1950,97 @@ const getDocumentLabel = (message) => {
   return "Documento";
 };
 
-const isInlineRenderableDocument = (message) => {
+const CONVERTIBLE_DOC_EXTENSIONS_RE = /\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf)$/i;
+
+const isNativelyRenderableDocument = (message) => {
   const mimetype = extractDocumentMimeFromDataJson(message);
   if (mimetype) {
-    return mimetype === "application/pdf" || mimetype.startsWith("text/plain");
+    return (
+      mimetype === "application/pdf" ||
+      mimetype.startsWith("text/plain") ||
+      mimetype === "application/xml" ||
+      mimetype === "text/xml"
+    );
   }
 
   const label = getDocumentLabel(message);
   const mediaUrl = String(message?.mediaUrl || "");
   return (
-    /\.(pdf|txt)$/i.test(label) ||
-    /\.(pdf|txt)(?:$|\?)/i.test(mediaUrl)
+    /\.(pdf|txt|xml)$/i.test(label) ||
+    /\.(pdf|txt|xml)(?:$|\?)/i.test(mediaUrl)
   );
 };
 
-const handleOpenDocumentPreview = (message) => {
+const isConvertibleDocument = (message) => {
+  const label = getDocumentLabel(message);
+  const mediaUrl = String(message?.mediaUrl || "");
+  return (
+    CONVERTIBLE_DOC_EXTENSIONS_RE.test(label) ||
+    CONVERTIBLE_DOC_EXTENSIONS_RE.test(mediaUrl)
+  );
+};
+
+const handleOpenDocumentPreview = async (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return;
+  const name = getDocumentLabel(message);
+
+  if (isNativelyRenderableDocument(message)) {
+    setDocPreview({
+      open: true,
+      originalHref: mediaHref,
+      previewHref: mediaHref,
+      name,
+      status: "ready"
+    });
+    return;
+  }
+
+  if (isConvertibleDocument(message) && message?.id) {
+    setDocPreview({
+      open: true,
+      originalHref: mediaHref,
+      previewHref: "",
+      name,
+      status: "loading"
+    });
+    try {
+      const { data } = await api.get(`/messages/${message.id}/document-preview`);
+      setDocPreview({
+        open: true,
+        originalHref: mediaHref,
+        previewHref: resolveMediaUrl(data?.previewUrl),
+        name,
+        status: "ready"
+      });
+    } catch (err) {
+      setDocPreview({
+        open: true,
+        originalHref: mediaHref,
+        previewHref: "",
+        name,
+        status: "error"
+      });
+    }
+    return;
+  }
+
   setDocPreview({
     open: true,
-    href: mediaHref,
-    name: getDocumentLabel(message),
-    renderable: isInlineRenderableDocument(message)
+    originalHref: mediaHref,
+    previewHref: "",
+    name,
+    status: "unsupported"
   });
 };
 
 const handleCloseDocumentPreview = () => {
   setDocPreview({
     open: false,
-    href: "",
+    originalHref: "",
+    previewHref: "",
     name: "Documento",
-    renderable: false
+    status: "idle"
   });
 };
 
@@ -2893,12 +2954,30 @@ return (
       </DialogTitle>
       <DialogContent dividers>
         <div className={classes.pdfIframeWrap}>
-          {docPreview.href && docPreview.renderable ? (
+          {docPreview.status === "ready" && docPreview.previewHref ? (
             <iframe
               title={docPreview.name || "Visualização do documento"}
-              src={docPreview.href}
+              src={docPreview.previewHref}
               className={classes.pdfIframe}
             />
+          ) : docPreview.status === "loading" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 380,
+                textAlign: "center",
+                padding: 16
+              }}
+            >
+              <CircularProgress size={32} />
+              <Typography variant="body2" color="textSecondary">
+                Convertendo documento para visualização...
+              </Typography>
+            </div>
           ) : (
             <div
               style={{
@@ -2913,7 +2992,11 @@ return (
               }}
             >
               <Description fontSize="large" />
-              <Typography variant="body1">Visualização não disponível</Typography>
+              <Typography variant="body1">
+                {docPreview.status === "error"
+                  ? "Não foi possível converter esse documento"
+                  : "Visualização não disponível"}
+              </Typography>
               <Typography variant="body2" color="textSecondary">
                 {docPreview.name}
               </Typography>
@@ -2927,7 +3010,7 @@ return (
         </Button>
         <Button
           component="a"
-          href={docPreview.href}
+          href={docPreview.originalHref}
           color="primary"
           startIcon={<GetApp />}
           download={docPreview.name}

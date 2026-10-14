@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.92] — Visualização real de Word/Excel/PowerPoint/OpenDocument na caixa do chat — 2026-10-14
+
+### Adicionado
+- A caixa de "Visualizar" de um documento (Word, Excel, PowerPoint,
+  OpenDocument — `.doc/.docx/.xls/.xlsx/.ppt/.pptx/.odt/.ods/.odp/.rtf`)
+  agora mostra o conteúdo real, convertido pra PDF **no próprio servidor**
+  (LibreOffice headless) — sem mandar o arquivo pra nenhum serviço
+  externo (Google Docs Viewer, Microsoft Office Viewer), por decisão do
+  cliente sobre privacidade de documentos sensíveis.
+- Resultado fica em cache no servidor — a conversão só roda uma vez por
+  arquivo, reaberturas seguintes são instantâneas.
+- `.xml` passa a abrir com conteúdo direto (navegador renderiza
+  nativamente, igual já acontecia com `.txt`/PDF).
+- Se a conversão falhar (arquivo corrompido, timeout), a caixa mostra
+  aviso específico + botão de baixar o arquivo original — nunca trava
+  nem derruba o chat.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 77.
+
 ## [2.3.91] — Corrige caminho errado do arquivo ao reencaminhar mídia — 2026-10-14
 
 ### Corrigido
