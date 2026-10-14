@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.63
-**Etapa:** 6.28 — Visualização real de Word/Excel/PowerPoint/OpenDocument via LibreOffice
+**Versão do documento:** 2.3.64
+**Etapa:** 6.29 — Corrige nome de arquivo com caractere especial (º, ç, ã...)
 **Última atualização:** 2026-10-14
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5610,3 +5610,62 @@ vez só por arquivo).
   do LibreOffice), que Word/Excel/PowerPoint/`.odt` abrem com conteúdo
   real na caixa, e que o fallback de erro funciona (ex.: arquivo
   corrompido).
+
+## 78. Corrige nome de arquivo com caractere especial (º, ç, ã...) (v2.3.93)
+
+### Contexto
+
+Depois do deploy da seção 77, cliente testou abrir/baixar uma nota
+fiscal real (`NF_Nº_481-_MARCIO_BISPO_DOS_SANTOS_assinado.pdf` — o "º"
+de "Número") e deu `Cannot GET` tanto no "Visualizar" quanto no
+"Baixar". A URL que o navegador pedia era
+`.../1791991777504_NF_N%C2%BA_481-..._1791991777504.pdf`.
+
+### Causa raiz
+
+`backend/src/config/upload.ts`, função `filename()`, usava
+`file.originalname` direto, sem nenhum tratamento de encoding. O
+Busboy (biblioteca usada internamente pelo `multer` pra parsear
+multipart/form-data) decodifica o campo de nome de arquivo do upload
+como **Latin-1 (ISO-8859-1)** por padrão — é o que a especificação
+multipart tecnicamente permite — mesmo quando o navegador, na prática,
+manda os bytes em UTF-8 de verdade (como fazem Chrome/Firefox hoje).
+
+Resultado: um caractere especial como "º" (que em UTF-8 são os bytes
+`0xC2 0xBA`) chega interpretado como **dois caracteres Latin-1
+separados** (`0xC2` → "Â", `0xBA` → "º") — ou seja, a string em memória
+já nasce errada. Quando o Node grava essa string errada no disco (ele
+usa UTF-8 por padrão pra nomes de arquivo), grava os bytes UTF-8
+*desses dois caracteres errados* (4 bytes: `0xC3 0x82 0xC2 0xBA`), não
+os 2 bytes corretos de "º" sozinho. O nome salvo no banco (mesma
+string em memória) fica consistente com o arquivo no disco — o
+problema só aparece quando a URL é montada/percorrida em outro ponto
+do pipeline (navegador, `encodeURIComponent`/getter do Sequelize) que
+reinterpreta esses caracteres de forma diferente, produzindo uma URL
+que não bate mais, byte a byte, com o nome real gravado no disco.
+
+### O que foi feito
+
+- `upload.ts`: `file.originalname` passa por
+  `Buffer.from(file.originalname, "latin1").toString("utf8")` antes de
+  virar o nome salvo — reinterpreta corretamente os bytes que o
+  Busboy decodificou errado, prevenindo a mangling na origem.
+
+### Limitação importante — não é retroativo
+
+Esse fix só evita o problema em **uploads novos**, a partir de agora.
+Arquivos que já foram salvos com o nome corrompido antes dessa
+correção **continuam com o nome errado no disco** — não existe como
+"corrigir" isso por código depois do fato, os bytes errados já foram
+gravados no sistema de arquivos. Se um arquivo específico antigo com
+caractere especial no nome for crítico recuperar, a única saída é
+achar o arquivo físico no servidor (`ls` na pasta
+`public/company{id}/`, procurando pelo nome visualmente parecido) e
+renomear manualmente, ou pedir pro cliente reenviar o documento.
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- Pendente: confirmar em produção, depois do deploy, que um upload
+  novo com caractere especial no nome (ex.: outra nota fiscal com "Nº")
+  salva e abre corretamente.

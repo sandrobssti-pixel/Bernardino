@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.93] — Corrige nome de arquivo com caractere especial (º, ç, ã...) — 2026-10-14
+
+### Corrigido
+- Upload de arquivo com caractere especial no nome (ex.: "NF_Nº_481...")
+  gerava um nome de arquivo com bytes errados no disco — o navegador
+  manda o nome em UTF-8, mas o Node decodifica como Latin-1 por padrão.
+  Resultado: a URL salva no banco não batia mais com o arquivo real,
+  dando "Cannot GET" tanto ao visualizar quanto ao baixar.
+- Corrigido pra reinterpretar o nome corretamente antes de salvar.
+  **Atenção**: isso previne o problema em uploads novos — arquivos já
+  salvos com o nome corrompido antes dessa correção continuam com o
+  nome errado no disco (não há como recuperar isso por código, o byte
+  errado já foi gravado).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 78.
+
 ## [2.3.92] — Visualização real de Word/Excel/PowerPoint/OpenDocument na caixa do chat — 2026-10-14
 
 ### Adicionado
