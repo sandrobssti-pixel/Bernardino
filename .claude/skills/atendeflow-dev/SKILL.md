@@ -122,20 +122,73 @@ Pegadinhas já batidas em produção, pra não redescobrir:
   tratamento explícito ali também, senão o modal fica girando sem avisar
   nada (já aconteceu com `DISCONNECTED` depois de uma falha).
 
-## 6. Deploy — Coolify, não é SSH script
+## 6. Deploy — SSH + `docker compose` direto, NÃO o botão Redeploy do Coolify
 
-Diferente do `server-toolkit/disk-monitor` (que tem `update.sh` rodado via
-SSH), o AtendeFlow roda num VPS com **Coolify**, como um recurso Docker
-Compose (`docker-compose.coolify.yml`, não o `docker-compose.yml` da raiz —
-esse é só banco+redis de desenvolvimento local). Deploy de código novo
-precisa de um **Redeploy manual no painel do Coolify** (ou webhook
-configurado lá, se houver) — `git push` sozinho não implanta nada. Variáveis
-de ambiente ficam na aba de variáveis do recurso no Coolify, nunca direto no
-arquivo compose (ver `.env.coolify.example` como roteiro). Detalhes completos
-em `docs/MANUAL_TECNICO.md`, seção 32 ("Deploy do AtendeFlow via Coolify") e
-seção 33 (Cloudflare Tunnel).
+O AtendeFlow roda num VPS com Coolify instalado, mas (pelo menos na
+implantação real da Confiança Technologies) o recurso usado lá é do tipo
+"Service" (YAML colado direto, sem repositório Git conectado) — esse tipo
+**nunca clona o código-fonte**, só guarda o texto do compose. `backend` e
+`frontend` usam `build: context: ./backend`/`./frontend`, que exigem o
+código de verdade no disco — clicar em "Deploy" nessa tela SEMPRE falha com
+`unable to prepare context: path ".../backend" not found` (já aconteceu
+duas vezes, mesmo erro, ver `docs/MANUAL_TECNICO.md` seções 35 e — se
+existir — a mais recente). **Não perder tempo tentando usar essa tela de
+novo** — ela ficou órfã, os containers reais não são mais geridos por ela.
 
-## 7. Validação antes de commitar
+O fluxo real, direto por SSH na VPS, dentro de `~/atendeflow`:
+
+```bash
+cd ~/atendeflow
+git pull origin claude/tender-carson-h1zc86   # ver seção 9 antes — pode não ser tão simples
+sudo docker compose -f docker-compose.coolify.yml --env-file .env build --no-cache backend frontend
+sudo docker compose -f docker-compose.coolify.yml --env-file .env up -d --force-recreate backend frontend
+```
+
+Rebuildar só o que mudou (`backend` OU `frontend`) economiza ~2-3min. O
+Postgres continua gerido pelo Coolify normalmente — só `backend`,
+`frontend`, `redis`, `cloudflared` saíram do controle da interface.
+Variáveis de ambiente ficam no `.env` dessa pasta no servidor (não na aba
+do Coolify, que não se aplica mais aqui). Detalhes completos em
+`docs/MANUAL_TECNICO.md`, seção 32 ("Deploy do AtendeFlow via Coolify",
+histórico) e seções 35-36 (a migração real pra esse fluxo SSH).
+
+## 7. Antes de assumir que um fix "não pegou": confira se o servidor bate com o GitHub
+
+Já aconteceu (outubro/2026) do `~/atendeflow` do servidor ter **divergido**
+da branch do GitHub — commits só locais, nunca commitados nem enviados,
+misturados com customizações reais de produção (logo, favicon, PWA,
+integrações). Sintoma: `git pull` recusa ("branches diverged, X and Y
+commits"), e rebuildar não traz o fix mesmo depois de confirmado que o
+commit existe no GitHub.
+
+**Antes de instruir qualquer deploy**, rodar no servidor:
+
+```bash
+cd ~/atendeflow && git status && git log -1 --oneline
+```
+
+- Working tree limpo e commit batendo com o esperado → segue o fluxo normal
+  da seção 6.
+- Divergência ou mudanças locais não commitadas → **não fazer `git pull`
+  nem `git reset --hard` sem avisar o cliente** (risco real de apagar
+  customização de produção que só existe ali). Duas saídas seguras,
+  dependendo do arquivo:
+  - **Arquivo sem modificação local** (não aparece no `git status`):
+    seguro substituir o conteúdo inteiro, arquivo por arquivo —
+    `git fetch origin <branch>` seguido de
+    `git show origin/<branch>:<caminho> > <caminho>` (local no repo
+    clonado desta sessão, não no SSH) e rebuildar.
+  - **Arquivo com modificação local** (aparece como staged ou não-staged):
+    NÃO sobrescrever. Pedir `grep -n -A 2 "<âncora>"` do trecho relevante
+    no servidor, montar um `sed -i '<linha>a\<texto novo>'` cirúrgico que
+    só insere o necessário, e confirmar com `node --check`
+    (JS)/`npx tsc --noEmit` (TS) antes do rebuild.
+  Reconciliar de vez (commitar o que está solto no servidor + merge com o
+  GitHub) é trabalho maior, com conflito arquivo por arquivo — só fazer se
+  o cliente pedir explicitamente e confirmar que quer isso (ver pergunta
+  obrigatória da seção 0).
+
+## 8. Validação antes de commitar
 
 ```bash
 # Backend: typecheck é o check confiável (lint tem bug de config
@@ -151,7 +204,7 @@ cd frontend && npx eslint src/caminho/do/arquivo.js
 (`posttest`) contra o banco configurado em `NODE_ENV=test` — nunca rodar
 isso contra um banco de produção/desenvolvimento com dado real.
 
-## 8. Commit
+## 9. Commit
 
 Mensagem com o quê + por quê (nunca só "fix bug"), rodapé de atribuição
 conforme as instruções da sessão. Rodar a validação da seção 7 antes.
