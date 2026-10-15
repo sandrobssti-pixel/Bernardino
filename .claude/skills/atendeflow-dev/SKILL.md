@@ -374,3 +374,18 @@ que eram esquecimento:
     reconhecer marca pelo código do modelo) — a decisão de "o que conta
     como reconhecido" é do cliente, não do código; campo que não tem
     certeza fica em branco pra preenchimento manual, documentado como tal.
+- **Rota Express com segmento fixo (`/finance/customers/by-contact/:id`)
+  precisa vir ANTES da rota genérica (`/finance/customers/:id`) no mesmo
+  arquivo de rotas** — senão o Express casa `"by-contact"` como se fosse o
+  valor do parâmetro `:id` da rota genérica (que vem primeiro na ordem de
+  registro) e a rota específica nunca é alcançada. Vale pra qualquer rota
+  nova desse padrão (`/recurso/acao-fixa/:algo` convivendo com
+  `/recurso/:id`), não só a do vínculo Contato/Cliente.
+- **Gate de permissão num componente FORA do módulo Financeiro (ex.:
+  `ContactModal`, que é do Atendimento) que precisa saber se o usuário
+  logado tem acesso ao Financeiro**: chamar `finance.getAccess()` (o hook
+  `useFinance`, mesmo endpoint `GET /finance/access` que a própria tela do
+  Financeiro usa) em vez de replicar a regra Admin/Master/`Plan.useFinancial`/
+  `User.financialAccess` no frontend — essa regra já é a fonte da verdade
+  no backend (`EnsureFinancialAccess.ts`); duplicá-la no componente arrisca
+  os dois lados divergirem com o tempo.

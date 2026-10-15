@@ -21,6 +21,18 @@ const financeRoutes = Router();
 financeRoutes.get("/finance/access", isAuth, FinanceAccessController.show);
 
 financeRoutes.get("/finance/customers", isAuth, FinanceCustomerController.index);
+// Vínculo Contato <-> Cliente financeiro (antes das rotas /:id genéricas,
+// senão "by-contact"/"link-contact" seriam lidos como um :id numérico).
+financeRoutes.get(
+  "/finance/customers/by-contact/:contactId",
+  isAuth,
+  FinanceCustomerController.showByContact
+);
+financeRoutes.post(
+  "/finance/customers/link-contact/:contactId",
+  isAuth,
+  FinanceCustomerController.linkFromContact
+);
 financeRoutes.get("/finance/customers/:id", isAuth, FinanceCustomerController.show);
 financeRoutes.post("/finance/customers", isAuth, FinanceCustomerController.store);
 financeRoutes.put("/finance/customers/:id", isAuth, FinanceCustomerController.update);

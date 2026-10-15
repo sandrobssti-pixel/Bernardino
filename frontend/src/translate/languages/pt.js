@@ -554,6 +554,11 @@ const messages = {
           cancel: "Cancelar",
         },
         success: "Contato salvo com sucesso.",
+        finance: {
+          linkButton: "Cadastrar como cliente (Financeiro)",
+          linkedLabel: "Cliente financeiro vinculado",
+          linkSuccess: "Contato vinculado ao cadastro de Clientes do Financeiro.",
+        },
       },
       flowbuilder: {
         title: "Flowbuilder",

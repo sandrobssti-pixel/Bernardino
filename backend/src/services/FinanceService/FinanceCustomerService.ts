@@ -2,6 +2,7 @@ import { Op, Sequelize } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceCustomer from "../../models/FinanceCustomer";
+import Contact from "../../models/Contact";
 
 interface ListRequest {
   companyId: number;
@@ -119,4 +120,56 @@ export const remove = async (
 ): Promise<void> => {
   const record = await show(id, companyId);
   await record.destroy();
+};
+
+// Vínculo Contato (Atendimento) <-> Cliente (Financeiro) — pedido do
+// cliente pra virar "uma base só": o atendente marca um Contato existente
+// como cliente financeiro, em vez de cadastrar tudo de novo. Direção da
+// sincronia decidida com o cliente: o Contato manda (nome/telefone sempre
+// vêm de lá); CPF/CNPJ/endereço/demais campos fiscais só existem e só são
+// editáveis no FinanceCustomer. Sem atualização automática depois do
+// vínculo inicial nesses dois campos — ver docs/MANUAL_TECNICO.md.
+export const showByContact = async (
+  contactId: string | number,
+  companyId: number
+): Promise<FinanceCustomer> => {
+  const record = await FinanceCustomer.findOne({
+    where: { contactId, companyId }
+  });
+
+  if (!record) {
+    throw new AppError("ERR_FINANCE_CUSTOMER_NOT_FOUND", 404);
+  }
+
+  return record;
+};
+
+export const linkFromContact = async (
+  contactId: string | number,
+  companyId: number
+): Promise<FinanceCustomer> => {
+  const contact = await Contact.findOne({ where: { id: contactId, companyId } });
+  if (!contact) {
+    throw new AppError("ERR_NO_CONTACT_FOUND", 404);
+  }
+
+  const existing = await FinanceCustomer.findOne({
+    where: { contactId: contact.id, companyId }
+  });
+  if (existing) return existing;
+
+  const documentDigits = String(contact.document || "").replace(/\D/g, "");
+  const documentType = documentDigits.length === 14 ? "cnpj" : "cpf";
+
+  const record = await FinanceCustomer.create({
+    name: contact.name,
+    phone: contact.number,
+    email: contact.email || "",
+    document: contact.document || "",
+    documentType,
+    contactId: contact.id,
+    companyId
+  } as any);
+
+  return record;
 };

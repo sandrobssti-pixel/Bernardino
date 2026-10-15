@@ -61,3 +61,21 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
   await FinanceCustomerService.remove(id, companyId);
   return res.status(200).json({ message: "FinanceCustomer deleted" });
 };
+
+export const showByContact = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { contactId } = req.params;
+
+  const record = await FinanceCustomerService.showByContact(contactId, companyId);
+  return res.status(200).json(record);
+};
+
+export const linkFromContact = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { contactId } = req.params;
+
+  const record = await FinanceCustomerService.linkFromContact(contactId, companyId);
+  return res.status(200).json(record);
+};

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.98
-**Etapa:** 6.2 Fase 6 — Importação reconhece o Relatório de Produtos do ERP da loja de armas
+**Versão do documento:** 2.3.99
+**Etapa:** 6.2 Fase 6 — Vincula Contato do Atendimento a Cliente do Financeiro
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6129,3 +6129,65 @@ produto por linha. O relatório real enviado pelo cliente é completamente difer
 - **Pendente**: cliente rodar a importação de verdade (fluxo completo, upload → banco) em
   homologação/produção com esse arquivo, e revisar manualmente os produtos sem marca/calibre
   reconhecidos antes de considerar o catálogo completo.
+
+## 84. Vincula Contato do Atendimento a Cliente do Financeiro (v2.3.99)
+
+### Contexto
+
+Cliente pediu que o cadastro de cliente usado pelo Atendimento (`Contact`, quem fala com o
+atendente pelo WhatsApp) e o cadastro de cliente do Financeiro (`FinanceCustomer`, usado em
+vendas/contas a receber) "virem uma base só": o atendente cadastra o contato no Atendimento
+e isso deveria refletir no cadastro de Clientes do Financeiro; quem trabalha só no Financeiro
+continua podendo cadastrar um cliente direto por lá; tudo isso condicionado à permissão de
+acesso ao módulo Financeiro que o Admin já concede por usuário.
+
+Pedido admitia mais de um caminho (gatilho automático vs. manual; sincronia uni ou
+bidirecional depois do vínculo) — confirmado com o cliente antes de implementar: (1) o
+vínculo só acontece quando alguém marca explicitamente o Contato como cliente financeiro
+(não todo Contato vira Cliente automaticamente — evitaria encher a base financeira com todo
+contato de WhatsApp que nunca comprou nada); (2) depois de vinculado, o Contato manda
+nome/telefone (edição no Financeiro não volta pro Contato) — CPF/CNPJ/endereço só existem e
+só são editáveis no Financeiro.
+
+### O que foi feito
+
+- **`FinanceCustomer.contactId`** já existia desde a Fase 1 (FK opcional pro `Contact`), mas
+  sem nenhuma forma de usar isso pela interface — ficava um campo de banco sem uso real.
+  Nenhuma migration nova precisou ser criada nesta etapa.
+- **`FinanceCustomerService.ts`**, duas funções novas:
+  - `linkFromContact(contactId, companyId)`: busca o `Contact` (reconferindo `companyId`,
+    regra de multiempresa), e se já existir um `FinanceCustomer` com esse `contactId` pra
+    essa empresa, devolve ele (idempotente — clicar duas vezes não duplica). Senão, cria um
+    novo `FinanceCustomer` copiando `name`→`name`, `number`→`phone`, `email`→`email`,
+    `document`→`document` (inferindo `documentType` cpf/cnpj pela quantidade de dígitos,
+    mesma heurística já usada no importador de Excel da v2.3.98).
+  - `showByContact(contactId, companyId)`: busca o `FinanceCustomer` vinculado a um
+    `Contact`, usado pelo frontend só pra saber se já existe vínculo (mostrar o botão ou o
+    indicador "vinculado").
+- **Rotas** (`financeRoutes.ts`): `GET /finance/customers/by-contact/:contactId` e `POST
+  /finance/customers/link-contact/:contactId`, registradas ANTES da rota genérica `GET
+  /finance/customers/:id` — sem essa ordem, Express tentaria casar `"by-contact"`/
+  `"link-contact"` como se fossem o parâmetro `:id`.
+- **Frontend** (`ContactModal/index.js`): ao abrir o modal de um Contato já existente (não
+  aparece em "Adicionar contato", só em "Editar contato"), busca `finance.getAccess()` (o
+  MESMO endpoint que a tela do Financeiro usa — reaproveita a regra Admin/Master/plano já
+  correta no backend, em vez de replicar essa lógica no frontend) e, se tiver acesso, busca
+  se já existe vínculo (`getCustomerByContact`). Mostra um botão "Cadastrar como cliente
+  (Financeiro)" (chama `linkContactAsCustomer`) ou, se já vinculado, um `Chip` "Cliente
+  financeiro vinculado" — ação independente do formulário principal do Contato (Formik),
+  não interfere no salvar/editar normal do Contato.
+- **i18n**: `contactModal.finance.*` (botão, label do chip, mensagem de sucesso) — esse
+  componente (`ContactModal`, diferente do módulo Financeiro) já usa o catálogo de 5
+  idiomas normalmente, então as chaves novas entraram nos 5 (`pt.js`, `en.js`, `es.js`,
+  `esES.js`, `tr.js`), ao contrário dos textos do próprio módulo Financeiro (ver seção 11
+  da skill `atendeflow-dev` — convenção diferente, cada uma no seu lugar certo).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `eslint` limpo em `ContactModal/index.js` e `useFinance/index.js`.
+- `node --check` limpo nos 5 arquivos de tradução.
+- Não testado end-to-end (sem banco disponível nesta sessão). **Pendente**: cliente testar
+  em homologação/produção — abrir um Contato existente com usuário que tem acesso ao
+  Financeiro, clicar "Cadastrar como cliente (Financeiro)", e confirmar que aparece em
+  Financeiro > Clientes com nome/telefone corretos.

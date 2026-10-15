@@ -60,8 +60,30 @@ const useFinance = () => {
     },
   };
 
+  // Vínculo Contato (Atendimento) <-> Cliente (Financeiro), pra virar uma
+  // base só — o atendente marca um Contato já existente como cliente
+  // financeiro em vez de cadastrar tudo de novo. Nome/telefone sempre vêm
+  // do Contato; CPF/CNPJ/endereço só existem e só são editáveis aqui no
+  // Financeiro. Ver docs/MANUAL_TECNICO.md.
+  const getCustomerByContact = async (contactId) => {
+    try {
+      const { data } = await api.get(`/finance/customers/by-contact/${contactId}`);
+      return data;
+    } catch (err) {
+      if (err.response?.status === 404) return null;
+      throw err;
+    }
+  };
+
+  const linkContactAsCustomer = async (contactId) => {
+    const { data } = await api.post(`/finance/customers/link-contact/${contactId}`);
+    return data;
+  };
+
   return {
     getAccess,
+    getCustomerByContact,
+    linkContactAsCustomer,
     customers: makeResource("customers"),
     suppliers: makeResource("suppliers"),
     products: makeResource("products"),

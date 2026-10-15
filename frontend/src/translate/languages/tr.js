@@ -506,6 +506,11 @@ const messages = {
           cancel: "İptal",
         },
         success: "Kişi başarıyla kaydedildi.",
+        finance: {
+          linkButton: "Müşteri olarak kaydet (Finans)",
+          linkedLabel: "Finans müşterisi bağlandı",
+          linkSuccess: "Kişi, Finans modülünün Müşteriler kaydına bağlandı.",
+        },
       },
       flowbuilder: {
         title: "Flowbuilder",

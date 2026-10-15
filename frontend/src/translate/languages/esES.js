@@ -494,7 +494,12 @@ const messages = {
           okEditAndClose: "Guardar y cerrar atención",
           cancel: "Cancelar"
         },
-        success: "Contacto guardado con éxito."
+        success: "Contacto guardado con éxito.",
+        finance: {
+          linkButton: "Registrar como cliente (Financiero)",
+          linkedLabel: "Cliente financiero vinculado",
+          linkSuccess: "Contacto vinculado al registro de Clientes del Financiero."
+        }
         },
        flowbuilder: {
         title: "Flowbuilder",

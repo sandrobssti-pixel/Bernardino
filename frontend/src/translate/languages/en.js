@@ -511,6 +511,11 @@ const messages = {
           cancel: "Cancel",
         },
         success: "Contact saved successfully.",
+        finance: {
+          linkButton: "Register as customer (Finance)",
+          linkedLabel: "Linked finance customer",
+          linkSuccess: "Contact linked to the Finance module's Customers.",
+        },
       },
       flowbuilder: {
         title: "Flowbuilder",

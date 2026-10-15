@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.99] — Vincula Contato do Atendimento a Cliente do Financeiro — 2026-10-15
+
+### Adicionado
+- No cadastro de um Contato já existente (Atendimento), quem tem acesso ao
+  módulo Financeiro agora vê um botão "Cadastrar como cliente (Financeiro)"
+  — cria (ou reaproveita, se já existir) o Cliente correspondente no
+  Financeiro, copiando nome/telefone/e-mail do Contato, sem precisar
+  recadastrar tudo de novo.
+- Depois de vinculado, o Contato mostra um indicador "Cliente financeiro
+  vinculado" no lugar do botão.
+- Direção da sincronia (decidida com o cliente): nome/telefone sempre vêm
+  do Contato — editar isso no Financeiro não volta pro Contato. CPF/CNPJ,
+  endereço e os demais campos fiscais só existem e só são editáveis no
+  cadastro de Cliente do Financeiro.
+- Quem trabalha só no Financeiro continua podendo cadastrar um Cliente do
+  zero por lá, sem precisar de um Contato prévio — nada mudou nesse fluxo.
+- Visibilidade do botão segue a mesma permissão já existente do módulo
+  (`Plan.useFinancial` + `User.financialAccess`) — quem não tem acesso ao
+  Financeiro não vê a opção.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 84.
+
 ## [2.3.98] — Importação reconhece o Relatório de Produtos do ERP da loja de armas — 2026-10-15
 
 ### Adicionado
