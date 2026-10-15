@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.101] — Log de diagnóstico da v2.3.100 não aparecia (Pino sem efeito neste ambiente) — 2026-10-15
+
+### Corrigido (diagnóstico)
+- A v2.3.100 usou `logger.info` (Pino + `pino-pretty`) pro log de diagnóstico, mas ele nunca
+  apareceu nos logs do container mesmo depois de várias tentativas confirmadas pelo cliente
+  — diferente do `console.log`/`console.warn` usados em outras partes do sistema (`[WBOT]...`
+  etc.), que aparecem normalmente. Trocado pra `console.log` simples, e adicionados dois logs
+  a mais (início e fim de `importProducts`) pra confirmar, na pior hipótese, se a função
+  sequer está sendo chamada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 85.
+
 ## [2.3.100] — Diagnóstico: por que a importação de produtos não reconheceu o relatório em produção — 2026-10-15
 
 ### Corrigido (diagnóstico)

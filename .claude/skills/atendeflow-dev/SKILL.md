@@ -389,3 +389,18 @@ que eram esquecimento:
   `User.financialAccess` no frontend — essa regra já é a fonte da verdade
   no backend (`EnsureFinancialAccess.ts`); duplicá-la no componente arrisca
   os dois lados divergirem com o tempo.
+- **`logger.info`/`logger.warn` (Pino + transporte `pino-pretty`,
+  `backend/src/utils/logger.ts`) não é confiável pra log de diagnóstico
+  temporário neste ambiente de produção** — batido em produção (v2.3.100):
+  um `logger.info` novo, adicionado só pra investigar um bug, nunca
+  apareceu nos logs do container mesmo depois de várias tentativas
+  confirmadas pelo cliente, enquanto `console.log`/`console.warn` (usados
+  em todo o resto do sistema, ex. `[WBOT] upsert event...`) aparecem
+  normalmente. Causa provável: o transporte `pino-pretty` roda numa worker
+  thread separada que pode falhar silenciosamente nesse ambiente — sem
+  erro visível, sem nada no `stdout`. **Pra qualquer log de diagnóstico
+  temporário que precise aparecer com certeza, usar `console.log` direto,
+  não `logger.*`** — não vale a pena gastar um ciclo de deploy só pra
+  descobrir que o log não apareceu. (Isso não significa trocar todo uso
+  já existente de `logger.*` no sistema — só não confiar nele pra
+  diagnóstico novo sem testar primeiro.)

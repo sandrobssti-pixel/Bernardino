@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.100
-**Etapa:** 6.2 Fase 6 — Diagnóstico: importação de produtos não reconheceu o relatório em produção
+**Versão do documento:** 2.3.101
+**Etapa:** 6.2 Fase 6 — Log de diagnóstico da v2.3.100 não aparecia (Pino sem efeito neste ambiente)
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6237,3 +6237,30 @@ condições; ou algo específico do ambiente de produção ainda não mapeado.
   divergência com produção não é óbvia a partir do código sozinho.
 - **Pendente**: cliente rodar `docker compose logs -f backend` e tentar importar de novo —
   o log vai apontar a causa exata.
+
+### Atualização (v2.3.101) — o log da v2.3.100 nunca apareceu
+
+Cliente confirmou, em mais de uma tentativa, que o terminal com `logs -f backend | grep
+FinanceImportService` ficava completamente em branco mesmo depois de importar a planilha
+de novo — nem a linha de diagnóstico, nem nenhum erro. Isso por si só é uma pista: outras
+partes do sistema logam bastante (`[WBOT] upsert event`, `DADOS DO USUÁRIO...`) e aparecem
+normalmente — todas via `console.log`/`console.warn` direto, nunca via o utilitário
+`logger` (`backend/src/utils/logger.ts`, Pino + transporte `pino-pretty`).
+
+**Causa provável** (não confirmada com certeza absoluta, mas evidência forte): o transporte
+`pino-pretty` do Pino roda numa worker thread separada — se essa thread falhar silenciosamente
+nesse ambiente de produção (ex.: `pino-pretty` resolvido de um jeito diferente dentro do
+container Docker), o Pino engole a saída sem erro visível nenhum, e nada chega no `stdout`
+que o `docker compose logs` lê. Como nunca tinha existido um log de diagnóstico via `logger`
+testado em produção antes (só `console.log` espalhado pelo sistema), esse problema nunca
+tinha sido notado.
+
+**Correção**: trocado `logger.info` por `console.log` no log de diagnóstico de
+`parseGunStoreReport`, e adicionados dois logs a mais em `importProducts` (`console.log` no
+início, com o caminho do arquivo recebido, e no fim, com o resumo final) — isso serve tanto
+pra ver a causa raiz da planilha não ser reconhecida quanto, como fallback, confirmar se a
+função está sendo chamada de verdade.
+
+**Lição pro futuro, já registrada na skill `atendeflow-dev`**: não confiar que `logger.info`
+do Pino vai aparecer nos logs do Docker neste projeto sem antes confirmar — preferir
+`console.log` pra qualquer log de diagnóstico temporário que precise ser visto com certeza.

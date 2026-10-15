@@ -1,6 +1,5 @@
 import { head } from "lodash";
 import XLSX from "xlsx";
-import logger from "../../utils/logger";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceSupplier from "../../models/FinanceSupplier";
@@ -274,16 +273,22 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
   );
 
   if (headerRowIndex === -1) {
-    // Diagnóstico temporário (v2.3.100): se a detecção falhar, loga o que
+    // Diagnóstico temporário (v2.3.101): se a detecção falhar, loga o que
     // de fato está em cada uma das 15 primeiras linhas da coluna A, pra
     // achar a diferença exata (acento/espaço/encoding) em vez de adivinhar
     // — já aconteceu de bater em teste local e falhar em produção sem
-    // explicação aparente. Ver docs/MANUAL_TECNICO.md.
+    // explicação aparente. `console.log` de propósito, não `logger.info`
+    // (Pino + `pino-pretty`): a v2.3.100 usou `logger.info` aqui e a linha
+    // não apareceu nenhuma vez em produção mesmo com várias tentativas,
+    // enquanto `console.log`/`console.warn` usados em outras partes do
+    // sistema (`[WBOT]...` etc.) aparecem normalmente — sinal de que o
+    // transporte do Pino não está funcionando nesse ambiente. Ver
+    // docs/MANUAL_TECNICO.md.
     const firstColumnSample = rows.slice(0, 15).map((row, idx) => ({
       row: idx,
       value: row?.[GUN_STORE_REPORT_COL.SKU]
     }));
-    logger.info(
+    console.log(
       `[FinanceImportService] parseGunStoreReport: cabeçalho "Cód. Produto" não encontrado. ` +
         `xlsx version=${(XLSX as any).version}. Primeiras linhas da coluna A: ${JSON.stringify(firstColumnSample)}`
     );
@@ -369,15 +374,22 @@ export const importProducts = async (
   companyId: number,
   file: Express.Multer.File
 ): Promise<ImportSummary> => {
+  console.log(`[FinanceImportService] importProducts: iniciando, arquivo=${file.path}`);
+
   const summary: ImportSummary = { total: 0, created: 0, updated: 0, invalid: 0, errors: [] };
 
   const gunStoreRecords = parseGunStoreReport(file.path);
   const records = gunStoreRecords ?? readRows(file.path).map((row) => mapRow(row, PRODUCT_MAPPINGS));
 
+  console.log(
+    `[FinanceImportService] importProducts: formato "${gunStoreRecords ? "relatório de loja de armas" : "planilha genérica"}" usado, ${records.length} linha(s) lida(s).`
+  );
+
   for (const data of records) {
     await upsertProductRecord(data, companyId, summary);
   }
 
+  console.log(`[FinanceImportService] importProducts: concluído ${JSON.stringify(summary)}`);
   return summary;
 };
 
