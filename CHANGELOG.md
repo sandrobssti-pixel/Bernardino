@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.98] — Importação reconhece o Relatório de Produtos do ERP da loja de armas — 2026-10-15
+
+### Adicionado
+- A importação de Produtos agora detecta automaticamente o formato fixo do
+  "Relatório de Produtos" exportado pelo sistema atual da loja (cabeçalho
+  "Cód. Produto", células mescladas, cabeçalho repetido a cada página) —
+  antes só reconhecia planilha simples com cabeçalho na primeira linha.
+- Categoria do relatório (Pistola, Revólver, Carabina, Espingarda, Rifle,
+  Munição, Espoleta, Cartela, Pólvora...) mapeia automaticamente pro Tipo
+  do produto (Arma/Munição) e, quando aplicável, pro Tipo da arma.
+- Marca e calibre são reconhecidos a partir da descrição do produto quando
+  aparecem explícitos no texto (ex.: "MUN CBC 9MM...", "PISTOLA GLOCK
+  G25..."). Best-effort: quando não aparecem no texto (comum em modelos
+  Taurus, cuja descrição geralmente não repete a marca), o campo fica em
+  branco pra preencher manual — não tenta adivinhar.
+- Planilha de teste real da Confiança Technologies: 60 produtos, 36 armas e
+  24 munições/insumos reconhecidos, marca identificada em 35 e calibre em
+  43 deles.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 83.
+
 ## [2.3.97] — Corrige migration de armas/munições que travava em produção — 2026-10-15
 
 ### Corrigido

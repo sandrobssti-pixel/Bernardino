@@ -153,37 +153,212 @@ const PRODUCT_MAPPINGS: FieldMapping[] = [
   { field: "notes", aliases: ["observacoes", "obs", "notes"] }
 ];
 
+// ---------------------------------------------------------------------------
+// "Relatório de Produtos" de ERP de loja de armas (ex.: Procfy) — formato
+// FIXO e bem diferente de uma planilha comum: cabeçalho não é a primeira
+// linha (linhas acima têm nome/endereço da empresa e título do relatório),
+// usa células mescladas (o texto de "Nome Produto" fica deslocado uma
+// coluna em relação à célula de dado real), repete o cabeçalho a cada
+// página, e tem uma linha de rodapé ("Emissão:"/"Página:") entre blocos.
+// Detectado automaticamente pela presença do cabeçalho "Cód. Produto" —
+// se não achar, cai pro importador genérico por alias de cabeçalho.
+//
+// Mapeamento de colunas (fixo, por posição — índice 0 = coluna A):
+// A=Cód.Produto(SKU) D=Nome Produto L=Categoria P=Qtde. S=Tabela 1(preço)
+// V=Ativo(S/N) X=Controla Est.(S/N) AC=Un. AE=NCM AG=Cod.Forne. AM=Custo Un.
+// Ver docs/MANUAL_TECNICO.md.
+const GUN_STORE_REPORT_COL = {
+  SKU: 0,
+  NAME: 3,
+  CATEGORY: 11,
+  QTY: 15,
+  PRICE: 18,
+  ACTIVE: 21,
+  CONTROL_STOCK: 23,
+  UNIT: 28,
+  NCM: 30,
+  COST: 38
+};
+
+// Números em formato pt-BR ("3.000,00", "R$ 7,80") OU já em formato
+// programático com ponto decimal ("6797.64", a coluna "Custo Un." deste
+// relatório vem assim) — remove tudo que não é dígito/vírgula/ponto/sinal
+// primeiro, depois decide o separador decimal pela presença de vírgula.
+const parseBrazilianDecimal = (raw: any): number | undefined => {
+  const cleaned = String(raw ?? "").replace(/[^\d.,-]/g, "").trim();
+  if (!cleaned) return undefined;
+  let normalized = cleaned;
+  if (normalized.includes(",")) {
+    normalized = normalized.replace(/\./g, "").replace(",", ".");
+  }
+  const n = Number(normalized);
+  return Number.isNaN(n) ? undefined : n;
+};
+
+// Marca: busca textual simples (lista de marcas conhecidas no mercado
+// brasileiro de armas/munição) na descrição do produto — funciona bem
+// quando a marca aparece explícita (ex. "MUN CBC...", "PISTOLA GLOCK...").
+// NÃO tenta reconhecer por código de modelo (ex. "G2C" = Taurus) — fora do
+// escopo combinado com o cliente ("só se tiver no arquivo"); produto cuja
+// descrição não cita a marca fica em branco pra preencher manual.
+const KNOWN_BRANDS = [
+  "TAURUS", "CBC", "GLOCK", "IMBRAMUN", "IMBEL", "ROSSI", "BRAZTECH",
+  "BERETTA", "SIG SAUER", "SIG", "COLT", "SMITH & WESSON", "S&W",
+  "WALTHER", "MOSSBERG", "WINCHESTER", "REMINGTON", "SAVAGE", "RUGER",
+  "HECKLER & KOCH", "FN", "BOITO", "CZ"
+];
+
+const extractBrandFromName = (name: string): string | undefined => {
+  const upper = name.toUpperCase();
+  for (const brand of KNOWN_BRANDS) {
+    if (upper.includes(brand)) return brand === "S&W" ? "SMITH & WESSON" : brand;
+  }
+  return undefined;
+};
+
+// Calibre: só padrões de alta confiança (evita marcar um código de modelo
+// ou comprimento de cano como se fosse calibre) — notação com ponto
+// (".38TPC", ".380"), com X (handgun/rifle, "9X19"), bitola de espingarda
+// ("12/70"), "MM" explícito, ou sufixo de cartucho conhecido colado no
+// número ("380ACP", "38SPL", "22RL", "357MAG").
+const CALIBER_PATTERNS = [
+  /\.\d{2,3}\s?(?:ACP|TPC|SPL|MAG|AUTO|LUGER|S&W)?/,
+  /\b\d{1,2}X\d{1,2}\b/,
+  /\b\d{1,2}\/\d{2,3}\b/,
+  /\b\d{1,2}\s?MM\b/,
+  /\b\d{2,3}\s?(?:ACP|TPC|SPL|MAG|AUTO|LUGER|RL|LR|GA|S&W)\b/
+];
+
+const extractCaliberFromName = (name: string): string | undefined => {
+  const upper = name.toUpperCase();
+  for (const pattern of CALIBER_PATTERNS) {
+    const match = upper.match(pattern);
+    if (match) return match[0].trim();
+  }
+  return undefined;
+};
+
+// Categoria do relatório -> type/weaponType do FinanceProduct (Fase 6).
+const WEAPON_CATEGORY_MAP: Record<string, string> = {
+  pistola: "pistol",
+  revolver: "revolver",
+  fuzil: "rifle",
+  rifle: "rifle",
+  carabina: "carbine",
+  espingarda: "shotgun",
+  submetralhadora: "submachine_gun",
+  arma: ""
+};
+const AMMO_CATEGORIES = new Set(["municao", "espoleta", "cartela", "polvora", "insumo"]);
+
+const categorizeFromReportCategory = (rawCategory: string): { type: string; weaponType?: string } => {
+  const normalized = normalizeHeader(rawCategory);
+  if (normalized in WEAPON_CATEGORY_MAP) {
+    const weaponType = WEAPON_CATEGORY_MAP[normalized];
+    return weaponType ? { type: "weapon", weaponType } : { type: "weapon" };
+  }
+  if (AMMO_CATEGORIES.has(normalized)) {
+    return { type: "ammunition" };
+  }
+  return { type: "product" };
+};
+
+const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => {
+  const workbook = XLSX.readFile(filePath);
+  const worksheet = head(Object.values(workbook.Sheets)) as any;
+  const rows: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "", raw: true }) as any[][];
+
+  const headerRowIndex = rows.findIndex(
+    (row) => String(row[GUN_STORE_REPORT_COL.SKU] || "").trim() === "Cód. Produto"
+  );
+  if (headerRowIndex === -1) return null;
+
+  const records: Record<string, any>[] = [];
+
+  for (let i = headerRowIndex + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const sku = String(row[GUN_STORE_REPORT_COL.SKU] || "").trim();
+    // Pula linha em branco, cabeçalho repetido (próxima página) e rodapé
+    // ("Emissão: .../Página: ...") entre blocos de produto.
+    if (!sku || sku === "Cód. Produto" || /^emiss/i.test(sku)) continue;
+
+    const name = String(row[GUN_STORE_REPORT_COL.NAME] || "").trim();
+    if (!name) continue;
+
+    const category = String(row[GUN_STORE_REPORT_COL.CATEGORY] || "").trim();
+    const { type, weaponType } = categorizeFromReportCategory(category);
+
+    const data: Record<string, any> = {
+      name,
+      sku,
+      type,
+      unit: String(row[GUN_STORE_REPORT_COL.UNIT] || "UN").trim() || "UN",
+      ncm: String(row[GUN_STORE_REPORT_COL.NCM] || "").trim(),
+      active: String(row[GUN_STORE_REPORT_COL.ACTIVE] || "").trim().toUpperCase() !== "N",
+      controlStock: String(row[GUN_STORE_REPORT_COL.CONTROL_STOCK] || "").trim().toUpperCase() === "S"
+    };
+    if (weaponType) data.weaponType = weaponType;
+
+    const price = parseBrazilianDecimal(row[GUN_STORE_REPORT_COL.PRICE]);
+    if (price !== undefined) data.price = String(price);
+    const costPrice = parseBrazilianDecimal(row[GUN_STORE_REPORT_COL.COST]);
+    if (costPrice !== undefined) data.costPrice = String(costPrice);
+    const stockQuantity = parseBrazilianDecimal(row[GUN_STORE_REPORT_COL.QTY]);
+    if (stockQuantity !== undefined) data.stockQuantity = stockQuantity;
+
+    const brand = extractBrandFromName(name);
+    if (brand) data.brand = brand;
+    if (type === "weapon" || type === "ammunition") {
+      const caliber = extractCaliberFromName(name);
+      if (caliber) data.caliber = caliber;
+    }
+
+    records.push(data);
+  }
+
+  return records;
+};
+
+const upsertProductRecord = async (
+  data: Record<string, any>,
+  companyId: number,
+  summary: ImportSummary
+): Promise<void> => {
+  if (!data.name) {
+    summary.invalid += 1;
+    return;
+  }
+  summary.total += 1;
+
+  try {
+    const sku = data.sku ? String(data.sku).trim() : "";
+    const where: any = sku ? { companyId, sku } : { companyId, name: data.name };
+    const existing = await FinanceProduct.findOne({ where });
+
+    if (existing) {
+      await FinanceProductService.update(existing.id, data as any, companyId);
+      summary.updated += 1;
+    } else {
+      await FinanceProductService.create(data as any, companyId);
+      summary.created += 1;
+    }
+  } catch (err: any) {
+    summary.invalid += 1;
+    summary.errors.push(`${data.name}: ${err.message}`);
+  }
+};
+
 export const importProducts = async (
   companyId: number,
   file: Express.Multer.File
 ): Promise<ImportSummary> => {
-  const rows = readRows(file.path);
   const summary: ImportSummary = { total: 0, created: 0, updated: 0, invalid: 0, errors: [] };
 
-  for (const row of rows) {
-    const data = mapRow(row, PRODUCT_MAPPINGS);
-    if (!data.name) {
-      summary.invalid += 1;
-      continue;
-    }
-    summary.total += 1;
+  const gunStoreRecords = parseGunStoreReport(file.path);
+  const records = gunStoreRecords ?? readRows(file.path).map((row) => mapRow(row, PRODUCT_MAPPINGS));
 
-    try {
-      const sku = data.sku ? String(data.sku).trim() : "";
-      const where: any = sku ? { companyId, sku } : { companyId, name: data.name };
-      const existing = await FinanceProduct.findOne({ where });
-
-      if (existing) {
-        await FinanceProductService.update(existing.id, data as any, companyId);
-        summary.updated += 1;
-      } else {
-        await FinanceProductService.create(data as any, companyId);
-        summary.created += 1;
-      }
-    } catch (err: any) {
-      summary.invalid += 1;
-      summary.errors.push(`${data.name}: ${err.message}`);
-    }
+  for (const data of records) {
+    await upsertProductRecord(data, companyId, summary);
   }
 
   return summary;

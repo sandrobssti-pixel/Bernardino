@@ -344,3 +344,33 @@ que eram esquecimento:
     etc.) fica acessível por URL indefinidamente. O `ContactListController`
     existente **não** faz essa limpeza (débito pré-existente, não corrigido
     de passagem) — não copiar esse detalhe ao reaproveitar o padrão.
+- **Planilha "de verdade" que o cliente usa no dia a dia raramente é uma
+  planilha simples (cabeçalho na linha 1, um registro por linha)** — é um
+  relatório exportado de outro sistema (ERP do cliente), com título/dados da
+  empresa nas primeiras linhas, células mescladas, cabeçalho repetido a cada
+  página, linha de rodapé entre blocos. O importador genérico por alias de
+  cabeçalho (`PRODUCT_MAPPINGS` etc.) não reconhece esse formato — e tentar
+  forçar um alias a bater com a célula errada (por causa do deslocamento de
+  coluna que o merge causa) é pior que simplesmente não reconhecer. Padrão
+  usado em `parseGunStoreReport` (`FinanceImportService.ts`, v2.3.98):
+  detectar o formato específico procurando um texto de cabeçalho conhecido
+  em posição fixa (`"Cód. Produto"`), e se achar, usar mapeamento de coluna
+  **por posição absoluta** (índice numérico, lido com
+  `XLSX.utils.sheet_to_json(ws, {header:1})` — array de arrays, não objeto
+  por nome de coluna) em vez de alias — channel próprio, só ativado quando a
+  assinatura do relatório bate; se não bater, cai pro importador genérico
+  sem quebrar o caso padrão. Útil reaproveitar esse padrão (detecção por
+  assinatura + parser de posição fixa) pra qualquer relatório fixo de ERP
+  de cliente no futuro, em vez de tentar generalizar o importador por alias
+  pra cobrir cada formato de relatório.
+  - **Números pt-BR vs. decimal com ponto podem coexistir nas MESMAS
+    linhas de um relatório assim** (colunas diferentes, formatos
+    diferentes) — `parseBrazilianDecimal` em `FinanceImportService.ts`
+    decide pelo separador decimal encontrado (vírgula = pt-BR, remove ponto
+    de milhar antes; só ponto = já é decimal, não mexe) em vez de presumir
+    um formato fixo pra toda a planilha.
+  - **Extração de marca/calibre a partir de descrição em texto livre: só
+    best-effort, nunca adivinhar por inferência indireta** (ex.: não
+    reconhecer marca pelo código do modelo) — a decisão de "o que conta
+    como reconhecido" é do cliente, não do código; campo que não tem
+    certeza fica em branco pra preenchimento manual, documentado como tal.

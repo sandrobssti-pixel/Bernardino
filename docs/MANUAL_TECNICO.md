@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.97
-**Etapa:** 6.2 Fase 6 — Corrige migration de armas/munições que travava em produção
+**Versão do documento:** 2.3.98
+**Etapa:** 6.2 Fase 6 — Importação reconhece o Relatório de Produtos do ERP da loja de armas
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6047,3 +6047,85 @@ conseguiria progredir sem intervenção manual.
   resto faltando) nesta sessão — a lógica `IF NOT EXISTS` é padrão e bem estabelecida do
   Postgres, mas o cliente deve confirmar que `db:migrate` completa sem erro desta vez antes
   de considerar a v2.3.95/96/97 totalmente no ar.
+
+## 83. Importação reconhece o Relatório de Produtos do ERP da loja de armas (v2.3.98)
+
+### Contexto
+
+Depois de validar o cadastro manual de arma, o cliente pediu "vamos adequar uma tabela de
+produtos" — a princípio descrita como XML, mas o arquivo enviado foi na verdade um `.xlsx`:
+`RELATORIO_DE_PRODUTOS_GERAIS_DE_ARMAS...xlsx`, um relatório exportado do sistema atual da
+loja (cabeçalho "CONFIANCA COMERCIO DE ARMAS BAHIA LTDA" — ERP tipo Procfy, já mencionado
+antes nesta mesma etapa do roadmap). Pedido confirmado com o cliente antes de implementar
+(campos que vêm automático vs. os que ficam em branco pra preencher manual — "mantém o que
+tem no sistema pra preencher manual").
+
+### Causa raiz (por que o importador genérico da v2.3.96 não bastava)
+
+O importador da v2.3.96 assume uma planilha simples: cabeçalho na primeira linha, um
+produto por linha. O relatório real enviado pelo cliente é completamente diferente:
+
+- O cabeçalho de verdade ("Cód. Produto", "Nome Produto", "Categoria"...) está na **linha
+  10**, não na primeira — linhas acima têm nome/endereço da empresa e o título "Relatório de
+  Produtos".
+- Usa **células mescladas**: o texto do cabeçalho "Nome Produto" fica na coluna E, mas o
+  dado real de cada produto está um a coluna à esquerda, na D (os merges do cabeçalho e dos
+  dados começam em colunas diferentes no mesmo relatório — inconsistência do próprio
+  template do ERP de origem, não um padrão a generalizar).
+- O cabeçalho **se repete a cada página** do relatório (confirmado: reaparece na linha 65).
+- Existe uma **linha de rodapé** entre blocos de página ("Emissão: 15/10/2026" / "Página:
+  1") que não é produto nem cabeçalho.
+- Números vêm em **dois formatos diferentes na mesma planilha**: "Qtde." e "Tabela 1"
+  (preço) em formato pt-BR com separador de milhar ("3.000,00", "R$ 7,80"), enquanto "Custo
+  Un." já vem com ponto decimal direto ("6797.64") — um importador genérico que só troca
+  vírgula por ponto quebraria o primeiro formato.
+
+### O que foi feito
+
+- `FinanceImportService.ts`, nova função `parseGunStoreReport`: detecta esse formato
+  automaticamente (procura a célula com texto exato "Cód. Produto" pra achar a linha do
+  cabeçalho) e, se achar, usa um mapeamento de coluna **fixo por posição** (A=SKU, D=Nome,
+  L=Categoria, P=Qtde., S=Preço, V=Ativo, X=Controla Estoque, AC=Unidade, AE=NCM, AM=Custo)
+  em vez de alias de cabeçalho — essas colunas são fixas nesse template de relatório, então
+  buscar por nome de cabeçalho não funcionaria de qualquer forma (a célula de dado real não
+  fica embaixo do cabeçalho correspondente, por causa do merge). Se a planilha enviada não
+  tiver essa assinatura, `importProducts` cai pro importador genérico por alias (v2.3.96),
+  sem quebrar o caso já existente.
+- **Categoria → Tipo do produto**: "PISTOLA"/"REVÓLVER"/"CARABINA"/"ESPINGARDA"/"RIFLE"/
+  "ARMA" → `type: "weapon"` (+ `weaponType` quando a categoria for específica o bastante,
+  ex. "CARABINA" → `"carbine"`); "MUNIÇÃO"/"ESPOLETA"/"CARTELA"/"POLVORA" →
+  `type: "ammunition"`; qualquer outra categoria → `type: "product"` (fallback seguro).
+- **`parseBrazilianDecimal`**: remove tudo que não é dígito/vírgula/ponto/sinal (tira o
+  "R$ " de propósito), e só trata "." como separador de milhar quando a string também tem
+  vírgula — detecta e lida com os dois formatos vistos no mesmo arquivo sem precisar saber
+  de antemão qual coluna usa qual formato.
+- **Marca e calibre — best-effort, por decisão explícita do cliente** ("tentar também se
+  tiver no arquivo", não adivinhar): `extractBrandFromName`/`extractCaliberFromName`
+  procuram na descrição do produto (texto livre, abreviado, sem padrão fixo) por:
+  - Marca: lista de marcas conhecidas do mercado de armas/munição brasileiro (Taurus, CBC,
+    Glock, Imbramun, Beretta, Rossi, CZ, Sig Sauer, etc.), busca textual simples — **não**
+    tenta reconhecer marca por código de modelo (ex. "G2C" → Taurus), porque isso estaria
+    fora do que "tem no arquivo" e arriscaria adivinhar errado. Na prática, a maioria dos
+    produtos CBC e Glock testados teve marca reconhecida (a descrição cita a marca); a
+    maioria dos modelos Taurus (G2C, G3, GX4, TH380...) **não** cita "Taurus" na descrição
+    e fica com marca em branco — consistente com "mantém o que tem no sistema pra preencher
+    manual".
+  - Calibre: só padrões de alta confiança (notação com ponto ".38TPC", com X "9X19", bitola
+    de espingarda "12/70", "MM" explícito, ou sufixo de cartucho colado no número — "380ACP",
+    "38SPL", "357MAG", "40S&W") — de propósito NÃO tenta reconhecer número solto nenhum como
+    calibre (evitaria confundir código de modelo como "7022" ou comprimento de cano "76" com
+    calibre).
+- **Teste com o arquivo real** enviado pelo cliente (planilha de produtos da Confiança
+  Technologies/Cactus Clube de Tiro, 60 produtos): 36 reconhecidos como arma, 24 como
+  munição/insumo, 0 caiu no fallback genérico "product"; marca reconhecida em 35 e calibre
+  em 43 dos 60. Validado rodando o parser isolado (`ts-node --transpile-only`) contra o
+  arquivo real antes de considerar pronto — não só revisão de código.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Parser testado isoladamente (fora do fluxo HTTP completo, sem banco disponível nesta
+  sessão) contra o arquivo real do cliente — resultado em "O que foi feito" acima.
+- **Pendente**: cliente rodar a importação de verdade (fluxo completo, upload → banco) em
+  homologação/produção com esse arquivo, e revisar manualmente os produtos sem marca/calibre
+  reconhecidos antes de considerar o catálogo completo.
