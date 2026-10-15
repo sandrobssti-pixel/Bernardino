@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.97] — Corrige migration de armas/munições que travava em produção — 2026-10-15
+
+### Corrigido
+- A migration da v2.3.95 (`20261015120000-add-weapon-fields-to-finance-products`)
+  usava `addColumn` em sequência sem transação. Uma tentativa anterior que falhou
+  no meio deixava colunas já criadas no banco, mas a migration inteira ficava
+  marcada como "não executada" — rodar `db:migrate` de novo batia em "column
+  already exists" na primeira coluna e travava pra sempre, nunca completando
+  (reproduzido em produção).
+- Reescrita pra ser idempotente (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS`) — rodar de novo sempre completa, pulando
+  o que já existe e criando só o que falta.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 82.
+
 ## [2.3.96] — Módulo Financeiro: importação de produtos/clientes/fornecedores via Excel — 2026-10-15
 
 ### Adicionado

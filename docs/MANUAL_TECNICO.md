@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.96
-**Etapa:** 6.2 Fase 6 — Importação de produtos/clientes/fornecedores via Excel
+**Versão do documento:** 2.3.97
+**Etapa:** 6.2 Fase 6 — Corrige migration de armas/munições que travava em produção
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -5994,3 +5994,56 @@ Ver "Testado" no final da subseção correspondente, seção 6.2 Fase 6.
 - Validação em homologação com planilha real, incluindo reimportação da mesma
   planilha (deve atualizar, não duplicar).
 - Contas bancárias (próxima parte deste mesmo pedido, ainda não implementada).
+
+## 82. Migration de armas/munições travava em produção — corrigida pra idempotente (v2.3.97)
+
+### Contexto
+
+Ao rodar `db:migrate` em produção pra aplicar a v2.3.95, o cliente recebeu:
+
+```
+ERROR: column "weaponType" of relation "FinanceProducts" already exists
+```
+
+logo na primeira coluna da migration `20261015120000-add-weapon-fields-to-finance-products`,
+mesmo sendo (pelo histórico do deploy) a primeira vez que esse código realmente chegou no
+servidor — as duas tentativas anteriores tinham rodado com código antigo (sem essa
+migration), por causa da divergência git/GitHub descrita no acompanhamento do deploy desta
+versão.
+
+### Causa raiz
+
+A migration original fazia uma sequência de `queryInterface.addColumn(...)`, um por coluna,
+**sem nenhuma transação explícita envolvendo todos eles**. O runner do Sequelize só marca
+uma migration como concluída (`SequelizeMeta`) depois que a função `up` inteira termina sem
+erro — mas se ela falhar no meio (nesse caso, provavelmente numa corrida/timing entre o
+`docker compose up --force-recreate` ainda de pé da tentativa anterior e o `exec ... migrate`
+rodando contra o mesmo banco, ou qualquer outro erro transitório depois de já ter criado as
+primeiras colunas), as colunas já criadas **continuam no banco** — só a migration como um
+todo não fica registrada como aplicada. Rodar `db:migrate` de novo faz o Sequelize tentar
+executar a função `up` do zero, batendo em "already exists" na primeira coluna que já tinha
+sido criada da vez anterior, e travando ali pra sempre — nenhuma tentativa seguinte
+conseguiria progredir sem intervenção manual.
+
+### O que foi feito
+
+- Reescrita a migration inteira pra idempotente: cada coluna agora usa
+  `ALTER TABLE "FinanceProducts" ADD COLUMN IF NOT EXISTS "<coluna>" <tipo>;` via SQL puro
+  (`queryInterface.sequelize.query`) em vez de `queryInterface.addColumn`. O índice único
+  parcial também passou a usar `CREATE UNIQUE INDEX IF NOT EXISTS` (em vez de `CREATE UNIQUE
+  INDEX`). Rodar a migration de novo agora sempre completa — pula qualquer coluna/índice que
+  já exista e cria só o que falta, terminando sem erro e sendo corretamente registrada no
+  `SequelizeMeta`.
+- **Lição pro futuro**: qualquer migration nova com mais de um `addColumn`/`addIndex` em
+  sequência deveria preferir SQL com `IF NOT EXISTS` (Postgres aceita isso em `ALTER TABLE
+  ADD COLUMN`/`CREATE INDEX` desde a 9.5/9.6) em vez do `queryInterface.addColumn` padrão do
+  Sequelize, que não tem esse idempotência embutida — evita esse exato tipo de trava numa
+  tentativa futura que falhe no meio por qualquer motivo.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado contra um banco com o estado exato de produção (coluna `weaponType` já criada,
+  resto faltando) nesta sessão — a lógica `IF NOT EXISTS` é padrão e bem estabelecida do
+  Postgres, mas o cliente deve confirmar que `db:migrate` completa sem erro desta vez antes
+  de considerar a v2.3.95/96/97 totalmente no ar.

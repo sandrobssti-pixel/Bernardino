@@ -309,6 +309,22 @@ que eram esquecimento:
   O service faz um `findOne` prévio pra devolver erro amigável, e também
   captura `SequelizeUniqueConstraintError` no `create`/`update` como rede de
   segurança contra corrida entre duas requisições simultâneas.
+- **Migration com mais de um `addColumn`/`addIndex` em sequência: usar SQL
+  com `IF NOT EXISTS`, não o `queryInterface.addColumn` padrão.** Batido em
+  produção (v2.3.95/97): uma migration com várias colunas em `addColumn`
+  sequencial, sem transação, que falha no meio (qualquer motivo — corrida
+  com um container ainda de pé, erro transitório) deixa as colunas já
+  criadas no banco, mas o Sequelize NÃO marca a migration como concluída
+  (`SequelizeMeta`). Rodar `db:migrate` de novo tenta do zero e bate em
+  "column already exists" na primeira coluna que sobrou da vez anterior —
+  trava pra sempre, sem progredir, até alguém corrigir a migration (não dá
+  pra simplesmente rodar de novo). Prevenção: escrever a migration com
+  `ALTER TABLE "Tabela" ADD COLUMN IF NOT EXISTS "coluna" <tipo>;` e `CREATE
+  [UNIQUE] INDEX IF NOT EXISTS ...` via `queryInterface.sequelize.query(...)`
+  em vez de `addColumn`/`addIndex` — Postgres aceita `IF NOT EXISTS` nos dois
+  desde a 9.5/9.6, e assim qualquer nova tentativa sempre completa (pula o
+  que já existe, cria só o que falta). Ver migration
+  `20261015120000-add-weapon-fields-to-finance-products.ts` como exemplo.
 - **Importação por Excel com detecção automática de coluna**: já existia um
   padrão pra isso em `ContactListService/ImportContacts.ts` (normaliza
   cabeçalho — remove acento, minúsculo, só `[a-z0-9]` — e casa contra uma

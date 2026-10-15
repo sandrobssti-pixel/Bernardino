@@ -1,4 +1,4 @@
-import { QueryInterface, DataTypes } from "sequelize";
+import { QueryInterface } from "sequelize";
 
 // Extensão do cadastro de Produto do módulo Financeiro pra cobrir armas e
 // munições/insumos controlados (Taurus, CBC, Glock, Imbramun...), voltada
@@ -11,97 +11,50 @@ import { QueryInterface, DataTypes } from "sequelize";
 // `visibleWhen`, controla a exibição condicional no formulário). Produtos
 // já existentes (type "product"/"service") continuam com esses campos
 // vazios/nulos sem qualquer impacto.
+//
+// IDEMPOTENTE DE PROPÓSITO (`ADD COLUMN IF NOT EXISTS`/`CREATE ... IF NOT
+// EXISTS`, em vez do `queryInterface.addColumn` padrão): a primeira versão
+// desta migration usava `addColumn` em sequência, sem transação — uma
+// tentativa anterior que falhou no meio (ex.: índice único colidindo, ou
+// corrida com outro processo) deixava algumas colunas já criadas, mas a
+// migration inteira ficava marcada como "não executada" no SequelizeMeta.
+// Rodar `db:migrate` de novo batia em "column already exists" na primeira
+// coluna e travava pra sempre, nunca completando (visto em produção,
+// 2026-10-15). Com `IF NOT EXISTS`, rodar de novo sempre completa — pula o
+// que já existe e cria só o que falta.
 module.exports = {
   up: async (queryInterface: QueryInterface) => {
-    await queryInterface.addColumn("FinanceProducts", "weaponType", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "brand", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "model", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "caliber", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
+    const addColumnIfMissing = (column: string, definition: string) =>
+      queryInterface.sequelize.query(
+        `ALTER TABLE "FinanceProducts" ADD COLUMN IF NOT EXISTS "${column}" ${definition};`
+      );
+
+    await addColumnIfMissing("weaponType", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("brand", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("model", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("caliber", "VARCHAR(255) DEFAULT ''");
     // Número de série — identifica fisicamente a arma, único por empresa.
-    // Sem defaultValue de propósito: produtos que não são armas ficam NULL
-    // (não ""), pra não colidir no índice único parcial abaixo.
-    await queryInterface.addColumn("FinanceProducts", "serialNumber", {
-      type: DataTypes.STRING,
-      allowNull: true
-    });
-    await queryInterface.addColumn("FinanceProducts", "cartridgeCapacity", {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    });
-    await queryInterface.addColumn("FinanceProducts", "operatingMode", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "barrelCount", {
-      type: DataTypes.INTEGER,
-      allowNull: true
-    });
-    await queryInterface.addColumn("FinanceProducts", "barrelLength", {
-      type: DataTypes.FLOAT,
-      allowNull: true
-    });
-    await queryInterface.addColumn("FinanceProducts", "boreType", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "kineticEnergyJ", {
-      type: DataTypes.FLOAT,
-      allowNull: true
-    });
-    await queryInterface.addColumn("FinanceProducts", "useClassification", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "sigmaRegistrationNumber", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "origin", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "weaponStatus", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "manufacturingLotNumber", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
-    await queryInterface.addColumn("FinanceProducts", "packageBarcode", {
-      type: DataTypes.STRING,
-      allowNull: true,
-      defaultValue: ""
-    });
+    // Sem DEFAULT de propósito: produtos que não são armas ficam NULL (não
+    // ""), pra não colidir no índice único parcial abaixo.
+    await addColumnIfMissing("serialNumber", "VARCHAR(255)");
+    await addColumnIfMissing("cartridgeCapacity", "INTEGER");
+    await addColumnIfMissing("operatingMode", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("barrelCount", "INTEGER");
+    await addColumnIfMissing("barrelLength", "FLOAT");
+    await addColumnIfMissing("boreType", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("kineticEnergyJ", "FLOAT");
+    await addColumnIfMissing("useClassification", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("sigmaRegistrationNumber", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("origin", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("weaponStatus", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("manufacturingLotNumber", "VARCHAR(255) DEFAULT ''");
+    await addColumnIfMissing("packageBarcode", "VARCHAR(255) DEFAULT ''");
 
     // Índice único parcial: dois produtos da mesma empresa não podem ter o
     // mesmo número de série (ele é físico/único na arma real). Parcial pra
     // não afetar produtos/serviços comuns, que ficam com serialNumber NULL.
     await queryInterface.sequelize.query(`
-      CREATE UNIQUE INDEX idx_finance_products_company_serial_unique
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_finance_products_company_serial_unique
       ON "FinanceProducts" ("companyId", "serialNumber")
       WHERE "serialNumber" IS NOT NULL AND "serialNumber" <> '';
     `);
