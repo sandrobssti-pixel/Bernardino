@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.96] — Módulo Financeiro: importação de produtos/clientes/fornecedores via Excel — 2026-10-15
+
+### Adicionado
+- Botão "Importar planilha" nas abas Produtos, Clientes e Fornecedores do
+  Financeiro — sobe um `.xlsx`/`.xls`/`.csv` e o backend detecta
+  automaticamente qual coluna da planilha corresponde a cada campo do
+  sistema (nome, calibre, preço, CPF/CNPJ etc.), por nome de cabeçalho —
+  não é preciso mapear coluna por coluna na tela.
+- Linha cujo SKU (produto) ou CPF/CNPJ (cliente/fornecedor) já existe na
+  empresa **atualiza o registro existente** em vez de duplicar; sem esse
+  identificador, cai pro nome. Resumo ao final (criados/atualizados/
+  inválidos) via toast.
+- Endpoints novos: `POST /finance/products/import`,
+  `/finance/customers/import`, `/finance/suppliers/import`
+  (`FinanceImportService.ts`/`FinanceImportController.ts`).
+
+### Observação
+- Planilha enviada é removida do servidor depois de processada — não fica
+  acessível por URL (pode conter dado comercial sensível).
+- Produtos do tipo Arma/Munição reconhecem as mesmas colunas regulatórias
+  adicionadas na v2.3.95 (marca, calibre, número de série etc.).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 6.2 (Fase 6) e seção 81.
+
 ## [2.3.95] — Módulo Financeiro: cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria) — 2026-10-15
 
 ### Adicionado

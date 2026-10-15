@@ -191,6 +191,7 @@ const Financeiro = () => {
           resource={finance.customers}
           columns={financeCustomerColumns}
           fields={financeCustomerFields}
+          allowImport
         />
       );
     }
@@ -202,6 +203,7 @@ const Financeiro = () => {
           resource={finance.suppliers}
           columns={financeSupplierColumns}
           fields={financeSupplierFields}
+          allowImport
         />
       );
     }
@@ -213,6 +215,7 @@ const Financeiro = () => {
           resource={finance.products}
           columns={financeProductColumns}
           fields={financeProductFields}
+          allowImport
         />
       );
     }

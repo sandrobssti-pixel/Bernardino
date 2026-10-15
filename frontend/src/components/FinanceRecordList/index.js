@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 
 import { makeStyles } from "@material-ui/core/styles";
@@ -20,6 +20,7 @@ import SearchIcon from "@material-ui/icons/Search";
 import AddIcon from "@material-ui/icons/Add";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import EditIcon from "@material-ui/icons/Edit";
+import PublishIcon from "@material-ui/icons/Publish";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
@@ -56,7 +57,7 @@ const useStyles = makeStyles((theme) => ({
 // pro `resource.list(...)` (ex.: filtrar contas por status). `finance`
 // (opcional): o hook `useFinance()` inteiro, repassado ao modal só pra
 // resolver campos "asyncSelect" (ex.: escolher fornecedor/cliente).
-const FinanceRecordList = ({ title, resource, columns, fields, filters = [], finance }) => {
+const FinanceRecordList = ({ title, resource, columns, fields, filters = [], finance, allowImport = false }) => {
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
@@ -66,6 +67,8 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
@@ -131,6 +134,31 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
     setDeleteTarget(null);
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Importação via planilha Excel (detecção automática de coluna, feita no
+  // backend) — ver docs/MANUAL_TECNICO.md, seção 6.2 (Fase 6). Duplicata
+  // (SKU/nome ou CPF-CNPJ/nome) atualiza o registro já existente.
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const summary = await resource.importSpreadsheet(file);
+      const parts = [`${summary.created} criado(s)`, `${summary.updated} atualizado(s)`];
+      if (summary.invalid > 0) parts.push(`${summary.invalid} inválido(s)/ignorado(s)`);
+      toast.success(`Importação concluída: ${parts.join(", ")}.`);
+      fetchRecords();
+    } catch (err) {
+      toastError(err);
+    }
+    setImporting(false);
+  };
+
   return (
     <div className={classes.root}>
       <ConfirmationModal
@@ -194,14 +222,36 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
             </TextField>
           ))}
         </Box>
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddIcon />}
-          onClick={handleOpenNew}
-        >
-          Novo(a) {title}
-        </Button>
+        <Box display="flex" style={{ gap: 8 }}>
+          {allowImport && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: "none" }}
+                onChange={handleImportFile}
+              />
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PublishIcon />}
+                onClick={handleImportClick}
+                disabled={importing}
+              >
+                {importing ? "Importando..." : "Importar planilha"}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            onClick={handleOpenNew}
+          >
+            Novo(a) {title}
+          </Button>
+        </Box>
       </Box>
 
       <Paper className={classes.tablePaper} variant="outlined">

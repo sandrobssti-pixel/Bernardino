@@ -309,3 +309,22 @@ que eram esquecimento:
   O service faz um `findOne` prévio pra devolver erro amigável, e também
   captura `SequelizeUniqueConstraintError` no `create`/`update` como rede de
   segurança contra corrida entre duas requisições simultâneas.
+- **Importação por Excel com detecção automática de coluna**: já existia um
+  padrão pra isso em `ContactListService/ImportContacts.ts` (normaliza
+  cabeçalho — remove acento, minúsculo, só `[a-z0-9]` — e casa contra uma
+  lista de aliases por campo). `FinanceImportService.ts` reaproveitou a
+  mesma TÉCNICA, mas com helpers locais (não um util compartilhado) — os
+  campos/entidades do Financeiro não têm nada a ver com contato/campanha, e
+  o `ContactListService` original não foi tocado. Ao adicionar importação
+  em um cadastro novo, cada linha deve chamar o `create`/`update` do
+  próprio `Service` da entidade (não gravar direto no model) — reaproveita
+  a validação (Yup, checagem de duplicidade) já implementada ali, em vez de
+  duplicar a regra no importador.
+  - **Cuidado com `uploadConfig`** (`backend/src/config/upload.ts`): salva
+    o arquivo em `public/company{id}/`, servido estaticamente — qualquer
+    endpoint de import que use esse multer precisa remover o arquivo depois
+    de processar (`fs.unlink` no `finally` do controller), senão a planilha
+    enviada (que pode ter preço de custo, documento de cliente/fornecedor
+    etc.) fica acessível por URL indefinidamente. O `ContactListController`
+    existente **não** faz essa limpeza (débito pré-existente, não corrigido
+    de passagem) — não copiar esse detalhe ao reaproveitar o padrão.

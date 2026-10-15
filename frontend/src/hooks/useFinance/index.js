@@ -28,6 +28,19 @@ const useFinance = () => {
       const { data } = await api.delete(`/finance/${basePath}/${id}`);
       return data;
     },
+    // Importação via planilha Excel (Fase 6) — detecção automática de
+    // coluna no backend, duplicata (SKU/nome ou CPF-CNPJ/nome) atualiza o
+    // registro já existente. Só implementado pra customers/suppliers/
+    // products (`/finance/<basePath>/import`) — chamar em recursos sem
+    // esse endpoint (expenses/receivables) dá 404.
+    importSpreadsheet: async (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post(`/finance/${basePath}/import`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return data;
+    },
   });
 
   // Fase 2 (Financeiro operacional) — relatórios são só leitura, então não

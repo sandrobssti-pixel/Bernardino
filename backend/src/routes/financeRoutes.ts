@@ -1,5 +1,7 @@
 import { Router } from "express";
+import multer from "multer";
 import isAuth from "../middleware/isAuth";
+import uploadConfig from "../config/upload";
 
 import * as FinanceAccessController from "../controllers/FinanceAccessController";
 import * as FinanceCustomerController from "../controllers/FinanceCustomerController";
@@ -8,6 +10,9 @@ import * as FinanceProductController from "../controllers/FinanceProductControll
 import * as FinanceExpenseController from "../controllers/FinanceExpenseController";
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
+import * as FinanceImportController from "../controllers/FinanceImportController";
+
+const upload = multer(uploadConfig);
 
 const financeRoutes = Router();
 
@@ -45,6 +50,27 @@ financeRoutes.get("/finance/receivables/:id", isAuth, FinanceReceivableControlle
 financeRoutes.post("/finance/receivables", isAuth, FinanceReceivableController.store);
 financeRoutes.put("/finance/receivables/:id", isAuth, FinanceReceivableController.update);
 financeRoutes.delete("/finance/receivables/:id", isAuth, FinanceReceivableController.remove);
+
+// Importação via planilha Excel (detecção automática de coluna) — ver
+// docs/MANUAL_TECNICO.md, seção 6.2 (Fase 6).
+financeRoutes.post(
+  "/finance/products/import",
+  isAuth,
+  upload.array("file"),
+  FinanceImportController.importProducts
+);
+financeRoutes.post(
+  "/finance/customers/import",
+  isAuth,
+  upload.array("file"),
+  FinanceImportController.importCustomers
+);
+financeRoutes.post(
+  "/finance/suppliers/import",
+  isAuth,
+  upload.array("file"),
+  FinanceImportController.importSuppliers
+);
 
 financeRoutes.get("/finance/reports/summary", isAuth, FinanceReportController.summary);
 financeRoutes.get("/finance/reports/cashflow", isAuth, FinanceReportController.cashFlow);

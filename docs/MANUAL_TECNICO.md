@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.95
-**Etapa:** 6.2 Fase 6 — Cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria)
+**Versão do documento:** 2.3.96
+**Etapa:** 6.2 Fase 6 — Importação de produtos/clientes/fornecedores via Excel
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -743,6 +743,71 @@ etc.), é do cliente/especialista legal, não do sistema.
 - Pendente (próxima parte, "fazer por parte"): importação de produtos/clientes/
   fornecedores via Excel (detecção automática de coluna, atualiza registro existente
   em caso de duplicata por CPF/CNPJ ou SKU/nome) e contas bancárias.
+
+#### Importação via Excel (v2.3.96)
+
+Decisão confirmada com o cliente antes de implementar (outra pergunta com mais de um
+caminho razoável — detecção automática de coluna vs. tela de mapeamento manual, qual
+cadastro entra primeiro, o que fazer com duplicata): detecção automática por nome de
+cabeçalho, nos três cadastros (Produtos, Clientes, Fornecedores) desde já, e duplicata
+sempre atualiza o registro existente.
+
+- **`FinanceImportService.ts`** (`backend/src/services/FinanceService/`): lê a
+  planilha com a lib `xlsx` (mesma já usada por `ContactListService/ImportContacts.ts`,
+  dependência já existente no backend — não precisou instalar nada novo), normaliza
+  o nome de cada cabeçalho (remove acento, deixa minúsculo, só `[a-z0-9]`) e casa
+  contra uma lista de aliases por campo — ex.: a coluna de nome do produto reconhece
+  "nome", "name", "produto" ou "descricao", a de calibre reconhece "calibre" ou
+  "calibrenominal". Mesma técnica de normalização de cabeçalho do
+  `ContactListService/ImportContacts.ts`, reescrita localmente (helpers próprios, não
+  um util compartilhado) porque os campos/entidades são completamente diferentes —
+  ver seção 11 da skill `atendeflow-dev` antes de duplicar esse padrão de novo.
+  - **Produtos**: reconhece também todos os campos de arma/munição da Fase 6 acima
+    (marca, calibre, número de série, energia cinética...). A coluna "Tipo" aceita o
+    rótulo em português ("Produto"/"Serviço"/"Arma"/"Munição"/"Insumo") ou o valor
+    interno ("product"/"weapon"/...).
+  - Cada linha chama `FinanceProductService.create`/`update` (não grava direto no
+    model) — reaproveita a mesma validação Yup e o mesmo checque de número de série
+    único já implementados na Fase 6, em vez de duplicar a regra.
+  - **Dedup**: produto com SKU preenchido na planilha → casa por
+    `(companyId, sku)`; sem SKU → casa por `(companyId, name)`. Cliente/fornecedor
+    com CPF/CNPJ preenchido → casa por `(companyId, document)` (dígitos só, sem
+    máscara); sem documento → casa por `(companyId, name)`. Se achar, chama
+    `.update(...)`; se não, `.create(...)`.
+  - **Inferência de tipo de documento**: se a planilha não trouxer uma coluna de
+    tipo de documento, infere CPF (11 dígitos) x CNPJ (14 dígitos) pelo tamanho —
+    sem isso, toda importação de fornecedor cairia no default do modelo ("cpf"),
+    errado pra maioria dos fornecedores (pessoa jurídica).
+- **Rotas** (`backend/src/routes/financeRoutes.ts`): `POST
+  /finance/products|customers|suppliers/import`, `isAuth` + `multer`
+  (`upload.array("file")`, mesma config `uploadConfig` já usada por
+  `contactListRoutes.ts` pra importação de lista de contatos).
+- **Risco identificado e corrigido antes de expor o endpoint**: `uploadConfig` salva
+  o arquivo em `public/company{id}/`, servido estaticamente pelo Express — o mesmo
+  padrão usado por `ContactListController.upload` (que **não** remove o arquivo
+  depois, deixando a planilha de contato acessível por URL indefinidamente, debito
+  pré-existente não tocado aqui). Como a planilha do Financeiro pode ter dado
+  comercial mais sensível (preço de custo, documento de cliente/fornecedor),
+  `FinanceImportController.ts` remove o arquivo temporário no `finally` de cada
+  endpoint (sucesso ou erro), em vez de repetir o mesmo risco.
+- **Frontend**: `useFinance` (`makeResource`) ganhou `importSpreadsheet(file)`
+  (`FormData` + `POST /finance/<recurso>/import`). `FinanceRecordList` ganhou a prop
+  `allowImport` (só ligada nas abas Produtos/Clientes/Fornecedores em
+  `Financeiro/index.js` — Contas a Pagar/Receber não têm endpoint de import, não
+  ligar `allowImport` nelas) — mostra um botão "Importar planilha" que abre um
+  `<input type="file">` oculto, sobe o arquivo e mostra um toast-resumo
+  (criados/atualizados/inválidos) ao final, recarregando a lista.
+
+#### Testado
+- `npx tsc --noEmit` limpo no backend.
+- `eslint` limpo em `useFinance/index.js`, `FinanceRecordList/index.js`,
+  `Financeiro/index.js` (zero erros/avisos novos).
+- Endpoint não testado contra um banco/arquivo real nesta sessão (sem Postgres
+  disponível no ambiente) — revisão manual do fluxo de leitura/dedup/upsert.
+  **Pendente**: cliente testar em homologação com uma planilha real antes do deploy
+  em produção, incluindo o caso de reimportar a mesma planilha (deve atualizar, não
+  duplicar).
+- Pendente (próxima parte): contas bancárias.
 
 ### Decisões em aberto antes de iniciar a Fase 3+
 Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir
@@ -5900,3 +5965,32 @@ Ver "Testado" no final da seção 6.2, Fase 6.
   controlada (CPF do titular, nº do CRAF, chave de acesso da NF-e, status de entrega)
   ficam pro item de "documentação do comprador" já previsto no roadmap, ligado ao
   `Sale`/`SaleItem`.
+
+## 81. Importação de produtos/clientes/fornecedores via Excel (v2.3.96)
+
+### Contexto
+
+Segunda parte do pedido de atualização do módulo Financeiro ("vamos fazer por
+parte"): cliente pediu importação por Excel dos cadastros de produto/cliente/
+fornecedor, pra facilitar o cadastro inicial (principalmente de produtos — incluindo
+armas/munições recém-adicionadas na v2.3.95). Antes de implementar, confirmado com o
+cliente (pedido admitia mais de um caminho razoável): detecção automática de coluna
+por nome do cabeçalho (não tela de mapeamento manual), nos três cadastros desde já, e
+duplicata sempre atualiza o registro existente.
+
+### O que foi feito
+
+Ver detalhamento completo na seção 6.2, "Fase 6", subseção "Importação via Excel
+(v2.3.96)", mais acima — serviço de leitura/dedup/upsert, rotas, remoção do arquivo
+temporário depois de processado (diferente do import de lista de contatos existente,
+que não remove), e a UI (botão "Importar planilha" nas três abas).
+
+### Testado
+
+Ver "Testado" no final da subseção correspondente, seção 6.2 Fase 6.
+
+### Pendente
+
+- Validação em homologação com planilha real, incluindo reimportação da mesma
+  planilha (deve atualizar, não duplicar).
+- Contas bancárias (próxima parte deste mesmo pedido, ainda não implementada).
