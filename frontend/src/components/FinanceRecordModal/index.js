@@ -112,11 +112,41 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
     ? "description"
     : null;
 
-  const validationSchema = Yup.object().shape(
-    primaryFieldName
-      ? { [primaryFieldName]: Yup.string().min(2, "Muito curto").required("Obrigatório") }
-      : {}
-  );
+  // `requiredWhen` (opcional, ex.: número de série só obrigatório quando
+  // Tipo = Arma): recebe os valores atuais do form e devolve se o campo é
+  // obrigatório nesse momento — mesma lógica de `visibleWhen`, mas pra
+  // validação em vez de exibição.
+  const schemaShape = primaryFieldName
+    ? { [primaryFieldName]: Yup.string().min(2, "Muito curto").required("Obrigatório") }
+    : {};
+
+  fields.forEach((field) => {
+    if (!field.requiredWhen) return;
+    schemaShape[field.name] = Yup.string().test({
+      name: `${field.name}-required-when`,
+      message: "Obrigatório",
+      test: (value, context) => {
+        if (!field.requiredWhen(context.parent)) return true;
+        return !!value && String(value).trim().length > 0;
+      },
+    });
+  });
+
+  const validationSchema = Yup.object().shape(schemaShape);
+
+  // Campo some da tela (ex.: Tipo deixou de ser "Arma") mas o valor
+  // continua no estado do Formik — sem isso, trocar o Tipo e salvar
+  // mandaria dados de arma escondidos num produto comum. Limpa pro
+  // defaultValue (ou "/false") qualquer campo que ficou invisível antes
+  // de submeter.
+  const stripHiddenFieldValues = (values) => {
+    const cleaned = { ...values };
+    fields.forEach((field) => {
+      if (!field.visibleWhen || field.visibleWhen(values)) return;
+      cleaned[field.name] = field.type === "switch" ? false : field.defaultValue ?? "";
+    });
+    return cleaned;
+  };
 
   const handleClose = () => {
     onClose();
@@ -124,7 +154,7 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
-      await onSave(values);
+      await onSave(stripHiddenFieldValues(values));
       setSubmitting(false);
       handleClose();
     } catch (err) {
@@ -156,6 +186,10 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
             <DialogContent dividers={false} className={classes.dialogContent}>
               <Grid container spacing={2}>
                 {fields.map((field) => {
+                  if (field.visibleWhen && !field.visibleWhen(values)) {
+                    return null;
+                  }
+
                   const gridSize = field.gridSize || 6;
 
                   if (field.type === "switch") {

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.65
-**Etapa:** 6.30 — Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome
+**Versão do documento:** 2.3.95
+**Etapa:** 6.2 Fase 6 — Cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria)
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -258,7 +258,7 @@ personalizar por cima da identidade padrão sem mexer em código.
 
 ---
 
-## 6.2 Roadmap — módulo Financeiro completo (Etapa 4, planejado, ainda não iniciado)
+## 6.2 Roadmap — módulo Financeiro completo (Etapa 4 — Fases 1, 2 e 5 concluídas; Fase 3 iniciada e não validada contra gateway real; Fase 4 adiada; Fase 6 iniciada v2.3.95)
 
 O módulo "Financeiro" (hoje `frontend/src/pages/Financeiro/index.js`, rota `/financeiro`)
 vai deixar de ser só a tela de fatura/assinatura da empresa com o Master e virar um
@@ -642,6 +642,107 @@ Financeiro (cards de resumo + gráficos, `dataviz` do projeto).
   nome da empresa (novo — os endpoints públicos `listPublicOpen`/`showPublic` agora
   incluem `company.name` via `include`) e um badge com a contagem de vagas abertas.
   Cards de vaga com efeito de elevação/leve translação no hover.
+
+### Fase 6 — Cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria) — iniciada v2.3.95
+
+Pedido do cliente pra atender o segmento de clube de tiro/loja de armas/armaria
+(marcas citadas: Taurus, CBC, Glock, Imbramun — fabricante de espoletas/pólvoras),
+seguindo como referência regulatória o Decreto 11.615/2023, o Decreto 12.345/2024 e o
+Estatuto do Desarmamento (Lei 10.826/2003). **Decisão confirmada com o cliente antes de
+começar** (3 perguntas, ver histórico de decisão): (1) estender o `FinanceProduct`
+existente em vez de criar entidades dedicadas (`FinanceWeapon`/`FinanceAmmunition`);
+(2) contas bancárias entram "junto com o resto" (ver item em aberto abaixo, ainda não
+implementado nesta etapa); (3) prioridade de implementação: Cadastro de Armas primeiro.
+
+**⚠️ Aviso de responsabilidade, já comunicado ao cliente**: os campos abaixo foram
+levantados com base no livro de registro/SIGMA do Exército e nos decretos citados,
+mas **não há validação automática de conformidade legal** nesta versão (ex.: não se
+calcula automaticamente se uma combinação calibre/energia cinética é "permitida" ou
+"restrita" conforme os decretos). O campo "Classificação de uso" é preenchido
+manualmente — a responsabilidade por preenchê-lo corretamente, e por qualquer
+obrigação legal correlata (livro de registro físico, relatório ao Exército/SIGMA,
+etc.), é do cliente/especialista legal, não do sistema.
+
+- **`FinanceProduct` estendido** (`backend/src/models/FinanceProduct.ts`,
+  migration `20261015120000-add-weapon-fields-to-finance-products.ts`): novo `type`
+  pode ser `"weapon"` ou `"ammunition"` (além de `"product"`/`"service"` já
+  existentes). Campos novos, todos opcionais a nível de banco (só relevantes conforme
+  o `type`):
+  - **Arma**: `weaponType` (tipo — pistola/revólver/fuzil/carabina/espingarda/
+    submetralhadora/outro), `brand` (marca/fabricante, texto livre), `model`,
+    `caliber` (calibre nominal), `serialNumber` (número de série — **obrigatório e
+    único por empresa** quando `type = "weapon"`), `cartridgeCapacity` (capacidade de
+    cartuchos), `operatingMode` (regime de funcionamento), `barrelCount` (quantidade
+    de canos), `barrelLength` (comprimento do cano, cm), `boreType` (lisa/raiada),
+    `kineticEnergyJ` (energia cinética da munição, Joules), `useClassification`
+    (permitido/restrito), `sigmaRegistrationNumber` (nº de registro SIGMA/SINARM),
+    `origin` (nacional/importada), `weaponStatus` (em estoque/vendida/em manutenção/
+    baixada).
+  - **Munição/insumo** (reaproveita `brand`/`caliber`/`kineticEnergyJ`/
+    `useClassification`/`origin` da arma, mais dois campos próprios):
+    `manufacturingLotNumber` (número do lote de fabricação, rastreabilidade) e
+    `packageBarcode` (código de barras/código da embalagem).
+  - **Fora de escopo nesta fase, identificado durante o levantamento**: CPF do
+    titular, número do CRAF, quantidade vendida, chave de acesso da NF-e e status de
+    entrega ao cliente **não** são campos do cadastro de produto — são dados da
+    **venda** de um item controlado a um comprador específico (documentação do
+    comprador/CR, já prevista como item futuro do roadmap). Registrado aqui pra não
+    perder o levantamento feito com o cliente; a implementação liga ao `Sale`/
+    `SaleItem` já existentes (Fase 3), não ao `FinanceProduct`.
+  - **Número de série único**: índice único parcial no Postgres
+    (`idx_finance_products_company_serial_unique`, `WHERE "serialNumber" IS NOT NULL
+    AND "serialNumber" <> ''`) — não afeta produtos/serviços comuns (ficam com
+    `serialNumber` NULL). `FinanceProductService` faz um checque amigável antes do
+    insert/update (`ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL`) e também captura
+    `SequelizeUniqueConstraintError` como rede de segurança contra corrida entre duas
+    requisições simultâneas.
+  - **Validação condicional** (Yup, backend e frontend): `serialNumber` só é
+    obrigatório quando `type = "weapon"` (`Yup.string().when("type", {...})` — yup
+    0.32, sintaxe de objeto antiga, não a função `(schema) => schema` do yup 1.x).
+- **Frontend** (`frontend/src/pages/Financeiro/financeConfig.js`): `PRODUCT_TYPE_OPTIONS`
+  ganhou "Arma" e "Munição / Insumo"; novos campos de arma/munição têm
+  `visibleWhen: (values) => boolean`, uma capacidade **nova** adicionada ao
+  `FinanceRecordModal` (`frontend/src/components/FinanceRecordModal/index.js`) —
+  antes desse componente não suportava nenhuma visibilidade condicional, todo campo
+  do array `fields` sempre renderizava. Dois comportamentos novos:
+  - `field.visibleWhen(values)`: se existir e devolver `false`, o campo não renderiza
+    (checado dentro do `fields.map`, usando os `values` atuais do Formik).
+  - Ao submeter, `stripHiddenFieldValues` zera (pro `defaultValue` ou vazio) qualquer
+    campo que ficou invisível no momento do submit — evita que, ao trocar o Tipo de
+    "Arma" pra "Produto" antes de salvar, dados de arma escondidos continuem sendo
+    enviados junto com um produto comum.
+  - `field.requiredWhen(values)` (usado só por `serialNumber`): mesma ideia, pra
+    validação (`Yup.string().test(...)`, lendo `context.parent` pra acessar os outros
+    valores do form).
+- **Convenção de i18n deste módulo, confirmada antes de decidir não traduzir os
+  novos rótulos**: `financeConfig.js` nunca usou o catálogo de 5 idiomas
+  (`frontend/src/translate/languages/`) — todo rótulo de campo/coluna é string fixa
+  em PT-BR, e **nenhum** código de erro `ERR_FINANCE_*` (nem os já existentes antes
+  desta fase, ex. `ERR_FINANCE_PRODUCT_INVALID_NAME`) tem entrada em
+  `backendErrors` em nenhum dos 5 idiomas — cai pro fallback de `toastError.js`, que
+  mostra o código bruto. Isso é consistente com o módulo inteiro ser voltado à
+  regulamentação brasileira (CPF/CNPJ, NF-e, SIGMA/SINARM), então os novos campos e
+  os dois novos códigos de erro (`ERR_FINANCE_PRODUCT_SERIAL_REQUIRED`,
+  `ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL`) seguiram a mesma convenção — **não** é uma
+  violação da regra geral de i18n do projeto (seção 3 da skill `atendeflow-dev`),
+  é um módulo que já nasceu fora desse catálogo. Débito pré-existente, não criado
+  nesta fase: se algum dia decidirem internacionalizar o Financeiro, são **todos** os
+  `ERR_FINANCE_*`/rótulos de uma vez, não só os desta fase.
+
+#### Testado
+- `npx tsc --noEmit` limpo no backend (instalado `npm ci` nesta sessão pra validar
+  de verdade — sem isso, `npx tsc` cai num TypeScript global incompatível com o
+  `tsconfig.json` do projeto e dá erro falso de configuração).
+- `eslint` limpo em `financeConfig.js`/`FinanceRecordModal/index.js` (só aviso
+  pré-existente de import não usado em `FinanceRecordModal`, não introduzido nesta
+  fase).
+- Migration não executada contra um banco real nesta sessão (sem Postgres disponível
+  no ambiente) — revisão manual cuidadosa do SQL do índice único parcial e dos
+  `addColumn`, seguindo exatamente o padrão de outras migrations do projeto.
+  **Pendente**: cliente validar em homologação antes do deploy em produção.
+- Pendente (próxima parte, "fazer por parte"): importação de produtos/clientes/
+  fornecedores via Excel (detecção automática de coluna, atualiza registro existente
+  em caso de duplicata por CPF/CNPJ ou SKU/nome) e contas bancárias.
 
 ### Decisões em aberto antes de iniciar a Fase 3+
 Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir
@@ -5743,3 +5844,59 @@ string diferente do nome real salvo no disco.
 - Pendente: confirmar em produção que o PDF do Márcio Bispo (ou outro
   documento com nome fora do padrão) abre pelos botões normais da
   tela, sem precisar do link manual com "%25".
+
+## 80. Cadastro de armas/munições/insumos no módulo Financeiro (v2.3.95)
+
+### Contexto
+
+Cliente pediu pra atualizar o módulo Financeiro (que já existia, considerado "muito
+básico") pra atender clube de tiro/loja de armas/armaria — cadastro de armas,
+munições e insumos (marcas citadas: Taurus, CBC, Glock, Imbramun), seguindo como
+referência o Decreto 11.615/2023, o Decreto 12.345/2024 e o Estatuto do Desarmamento
+(Lei 10.826/2003). Pedido explícito de fazer por partes ("vamos fazer por parte"), com
+esta sendo a primeira: Cadastro de Armas.
+
+Como o pedido admitia mais de um caminho razoável de implementação — entidade nova
+dedicada (`FinanceWeapon`) vs. estender o `FinanceProduct` já existente; conjunto de
+campos regulatórios (não há uma única lista "óbvia") — e o `CLAUDE.md` do projeto
+pede pra pausar e perguntar antes de codar nesses casos, foram feitas duas rodadas de
+pergunta ao cliente antes de qualquer código: (1) arquitetura — estender Produto
+existente (confirmado) ou criar entidade dedicada; implementar contas bancárias agora
+ou depois; qual item priorizar primeiro; (2) conjunto exato de campos pra arma e pra
+munição/insumo, e se o número de série deveria ser único por empresa.
+
+### Causa raiz (do "muito básico")
+
+`FinanceProduct` (Fase 1 do roadmap) foi desenhado só pra produto/serviço genérico —
+nome, SKU, unidade, preço, estoque. Não existia nenhum campo que capturasse as
+características regulatórias de uma arma de fogo ou munição/insumo controlado (marca,
+modelo, calibre, número de série, classificação de uso etc.), então não dava pra usar
+esse cadastro pro segmento de clube de tiro/loja de armas sem perder informação
+essencial pro negócio (e, potencialmente, pra conformidade legal do cliente).
+
+### O que foi feito
+
+Ver detalhamento completo na seção 6.2, "Fase 6 — Cadastro de armas/munições/insumos",
+mais acima neste documento (campos adicionados, migration, validação condicional,
+capacidade nova de visibilidade condicional em `FinanceRecordModal`, e o que ficou
+fora de escopo — dados de venda/comprador, que pertencem ao `Sale`, não ao
+`FinanceProduct`).
+
+### Testado
+
+Ver "Testado" no final da seção 6.2, Fase 6.
+
+### Pendente / próximas partes deste mesmo pedido
+
+- Importação de produtos/clientes/fornecedores via planilha Excel (detecção
+  automática de coluna por nome do cabeçalho; duplicata por CPF/CNPJ ou SKU/nome
+  atualiza o registro existente) — decisão já confirmada com o cliente, implementação
+  ainda não iniciada nesta versão.
+- Contas bancárias (`FinanceBankAccount` — entidade nova, sem nenhum cadastro
+  equivalente hoje) — cliente confirmou implementar "junto com o resto", ainda não
+  implementada nesta versão.
+- Cadastro de munição/insumo: os campos de catálogo (lote de fabricação, código de
+  barras/embalagem) já foram implementados nesta versão; os campos de venda
+  controlada (CPF do titular, nº do CRAF, chave de acesso da NF-e, status de entrega)
+  ficam pro item de "documentação do comprador" já previsto no roadmap, ligado ao
+  `Sale`/`SaleItem`.

@@ -3,6 +3,35 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.95] — Módulo Financeiro: cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria) — 2026-10-15
+
+### Adicionado
+- `FinanceProduct` ganhou dois novos tipos, "Arma" e "Munição / Insumo", e um
+  conjunto de campos regulatórios que só aparecem no formulário quando o
+  Tipo escolhido é um desses dois — marca/fabricante, modelo, calibre
+  nominal, número de série (obrigatório e único por empresa pra arma),
+  capacidade de cartuchos, regime de funcionamento, quantidade/comprimento
+  do cano, tipo de alma, energia cinética da munição (Joules), classificação
+  de uso (permitido/restrito), nº de registro SIGMA/SINARM, procedência,
+  situação da arma, lote de fabricação e código de barras/embalagem
+  (munição/insumo). Referência regulatória: Decreto 11.615/2023, Decreto
+  12.345/2024, Estatuto do Desarmamento (Lei 10.826/2003).
+- `FinanceRecordModal` (componente genérico de formulário do Financeiro)
+  ganhou suporte a campo condicional (`visibleWhen`) e obrigatoriedade
+  condicional (`requiredWhen`) — capacidade nova, reaproveitável por
+  qualquer cadastro futuro do módulo.
+
+### Observação
+- Marcas Taurus, CBC, Glock e Imbramun citadas pelo cliente como exemplo —
+  o campo de marca é texto livre, não uma lista fixa.
+- A classificação de uso (permitido/restrito) é preenchida manualmente; não
+  há cálculo automático de conformidade com os decretos citados — isso
+  continua sendo responsabilidade do cliente/especialista legal.
+- Próximas partes deste mesmo pedido (ainda não implementadas): importação
+  de produtos/clientes/fornecedores via Excel, e contas bancárias.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 6.2 (Fase 6) e seção 80.
+
 ## [2.3.94] — Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome — 2026-10-15
 
 ### Corrigido

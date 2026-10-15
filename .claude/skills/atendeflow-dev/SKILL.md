@@ -232,6 +232,15 @@ cd backend && npx tsc --noEmit -p tsconfig.json
 cd frontend && npx eslint src/caminho/do/arquivo.js
 ```
 
+**Ambiente novo sem `node_modules` instalado** (ex.: sessão/container
+recém-criado): `npx tsc` sem o `node_modules` do próprio projeto cai num
+TypeScript global (versão mais nova, incompatível com o `moduleResolution`
+do `tsconfig.json` do backend) e dá um erro de configuração que parece erro
+de código, mas não é (`TS5107`, `moduleResolution=node10` deprecated). Rodar
+`npm ci --prefer-offline --no-audit --no-fund` em `backend/` (e/ou
+`frontend/`, se for lint lá) antes de confiar no resultado do typecheck —
+nesse projeto a instalação é rápida (~1400 pacotes em menos de 1 minuto).
+
 `backend`'s `npm test` roda migrations reais (`pretest`) e depois as desfaz
 (`posttest`) contra o banco configurado em `NODE_ENV=test` — nunca rodar
 isso contra um banco de produção/desenvolvimento com dado real.
@@ -240,3 +249,63 @@ isso contra um banco de produção/desenvolvimento com dado real.
 
 Mensagem com o quê + por quê (nunca só "fix bug"), rodapé de atribuição
 conforme as instruções da sessão. Rodar a validação da seção 7 antes.
+
+## 11. Módulo Financeiro — convenções próprias (diferentes do resto do app)
+
+`frontend/src/pages/Financeiro/` + `backend/src/.../FinanceService/` têm
+duas convenções que **não** seguem as regras gerais das seções 3 e 2 deste
+documento — confirmado investigando o código existente antes de presumir
+que eram esquecimento:
+
+- **Não usa o catálogo de i18n (seção 3)**: todo rótulo de campo/coluna em
+  `financeConfig.js` é string fixa em PT-BR, e nenhum código de erro
+  `ERR_FINANCE_*` tem entrada em `backendErrors` em nenhum dos 5 idiomas
+  (nem os que já existiam antes de qualquer trabalho recente, ex.
+  `ERR_FINANCE_PRODUCT_INVALID_NAME`) — sem tradução, cai no fallback de
+  `toastError.js` que mostra o código bruto. Faz sentido: o módulo inteiro é
+  voltado à regulamentação brasileira (CPF/CNPJ, NF-e, SIGMA/SINARM, Decreto
+  11.615/2023 etc.), que não existe nos outros países atendidos pelo
+  catálogo. **Ao adicionar campo/erro novo neste módulo, seguir essa mesma
+  convenção (string fixa em PT-BR, sem entrada em `backendErrors`)** — não
+  é inconsistência a corrigir de passagem; se um dia decidirem
+  internacionalizar o Financeiro, é um projeto próprio pra TODOS os
+  `ERR_FINANCE_*`/rótulos de uma vez, não field-by-field.
+- **Yup nesse projeto é 0.32.x** (backend `^0.32.11`, frontend `^0.32.8`) —
+  sintaxe de objeto antiga pra condicional, não a função `(schema) =>
+  schema` do Yup 1.x:
+  ```js
+  campo: Yup.string().when("outroCampo", {
+    is: (v) => v === "valor",
+    then: Yup.string().required("ERR_CODE"),
+    otherwise: Yup.string().nullable()
+  })
+  ```
+- **`FinanceRecordModal` (`frontend/src/components/FinanceRecordModal/`)
+  suporta campo condicional** desde a v2.3.95 — antes disso todo campo do
+  array `fields` sempre renderizava, sem exceção. Ao declarar um campo em
+  `financeConfig.js` que só deve aparecer conforme outro valor do form (ex.:
+  campos de arma só quando `type = "weapon"`):
+  - `visibleWhen: (values) => boolean` — some da tela quando falso. Ao
+    submeter, o modal já limpa (`stripHiddenFieldValues`) o valor de
+    qualquer campo que ficou invisível, pro `defaultValue`/vazio — não
+    precisa fazer isso manualmente.
+  - `requiredWhen: (values) => boolean` — obrigatório só quando verdadeiro
+    (usa `Yup.string().test(...)`, lendo `context.parent` pros outros
+    valores do form). Só funciona bem em campo de texto simples; não foi
+    testado com `select`/`switch`/`asyncSelect`.
+  - Esse padrão é genérico e reaproveitável por qualquer cadastro futuro do
+    módulo (não é algo específico de arma/munição).
+- **Índice único parcial pra campo opcional-mas-único** (ex.:
+  `FinanceProduct.serialNumber`, só obrigatório pra `type = "weapon"`, mas
+  único por empresa quando preenchido): não dá pra usar `unique: true`
+  direto na coluna (bloquearia duas linhas com `serialNumber` vazio/NULL em
+  produtos comuns). Migration usa SQL puro
+  (`queryInterface.sequelize.query`) em vez do `addIndex` do Sequelize, pra
+  controlar a cláusula `WHERE` do índice parcial:
+  ```sql
+  CREATE UNIQUE INDEX idx_x ON "Tabela" ("companyId", "coluna")
+  WHERE "coluna" IS NOT NULL AND "coluna" <> '';
+  ```
+  O service faz um `findOne` prévio pra devolver erro amigável, e também
+  captura `SequelizeUniqueConstraintError` no `create`/`update` como rede de
+  segurança contra corrida entre duas requisições simultâneas.

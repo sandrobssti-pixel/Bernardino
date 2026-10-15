@@ -27,11 +27,63 @@ interface ProductData {
   stockQuantity?: number;
   notes?: string;
   active?: boolean;
+  // Cadastro de armas/munições/insumos (clube de tiro, loja de armas,
+  // armaria) — type "weapon"/"ammunition". Ver docs/MANUAL_TECNICO.md.
+  weaponType?: string;
+  brand?: string;
+  model?: string;
+  caliber?: string;
+  serialNumber?: string;
+  cartridgeCapacity?: number;
+  operatingMode?: string;
+  barrelCount?: number;
+  barrelLength?: number;
+  boreType?: string;
+  kineticEnergyJ?: number;
+  useClassification?: string;
+  sigmaRegistrationNumber?: string;
+  origin?: string;
+  weaponStatus?: string;
+  manufacturingLotNumber?: string;
+  packageBarcode?: string;
 }
 
+// Tipos de produto que exigem número de série (arma física, único por
+// empresa). Munição/insumo não tem número de série individual.
+const SERIAL_NUMBER_REQUIRED_TYPES = ["weapon"];
+
 const productSchema = Yup.object().shape({
-  name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2)
+  name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2),
+  serialNumber: Yup.string().when("type", {
+    is: (type: string) => SERIAL_NUMBER_REQUIRED_TYPES.includes(type),
+    then: Yup.string()
+      .required("ERR_FINANCE_PRODUCT_SERIAL_REQUIRED")
+      .min(1, "ERR_FINANCE_PRODUCT_SERIAL_REQUIRED"),
+    otherwise: Yup.string().nullable()
+  })
 });
+
+// Índice único parcial (companyId, serialNumber) cobre a corrida entre duas
+// requisições simultâneas; esse checque prévio só existe pra devolver um
+// erro amigável (em vez do SequelizeUniqueConstraintError genérico) no
+// caminho normal (sem corrida).
+const ensureSerialNumberIsUnique = async (
+  serialNumber: string | undefined,
+  companyId: number,
+  ignoreId?: number
+): Promise<void> => {
+  if (!serialNumber) return;
+
+  const where: any = { companyId, serialNumber };
+  if (ignoreId) {
+    where.id = { [Op.ne]: ignoreId };
+  }
+
+  const existing = await FinanceProduct.findOne({ where });
+  if (existing) {
+    throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
+  }
+};
 
 export const list = async ({
   companyId,
@@ -87,8 +139,17 @@ export const create = async (
     throw new AppError(err.message);
   }
 
-  const record = await FinanceProduct.create({ ...data, companyId } as any);
-  return record;
+  await ensureSerialNumberIsUnique(data.serialNumber, companyId);
+
+  try {
+    const record = await FinanceProduct.create({ ...data, companyId } as any);
+    return record;
+  } catch (err: any) {
+    if (err.name === "SequelizeUniqueConstraintError") {
+      throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
+    }
+    throw err;
+  }
 };
 
 export const update = async (
@@ -104,8 +165,17 @@ export const update = async (
     throw new AppError(err.message);
   }
 
-  await record.update(data);
-  return record;
+  await ensureSerialNumberIsUnique(data.serialNumber, companyId, record.id);
+
+  try {
+    await record.update(data);
+    return record;
+  } catch (err: any) {
+    if (err.name === "SequelizeUniqueConstraintError") {
+      throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
+    }
+    throw err;
+  }
 };
 
 export const remove = async (

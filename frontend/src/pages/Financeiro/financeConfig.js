@@ -67,12 +67,85 @@ export const financeSupplierFields = [
 const PRODUCT_TYPE_OPTIONS = [
   { value: "product", label: "Produto" },
   { value: "service", label: "Serviço" },
+  { value: "weapon", label: "Arma" },
+  { value: "ammunition", label: "Munição / Insumo" },
+];
+
+const PRODUCT_TYPE_LABELS = PRODUCT_TYPE_OPTIONS.reduce((acc, opt) => {
+  acc[opt.value] = opt.label;
+  return acc;
+}, {});
+
+// Cadastro de armas/munições/insumos controlados (clube de tiro, loja de
+// armas, armaria: Taurus, CBC, Glock, Imbramun...) — extensão do Produto
+// existente em vez de entidades dedicadas (decisão do cliente). Normas de
+// referência: Decreto 11.615/2023, Decreto 12.345/2024, Estatuto do
+// Desarmamento (Lei 10.826/2003). Ver docs/MANUAL_TECNICO.md.
+//
+// IMPORTANTE: estes campos ajudam a documentar o cadastro, mas a
+// classificação final de uso permitido/restrito e o cumprimento das normas
+// citadas são responsabilidade do usuário/especialista legal — não há
+// validação automática de conformidade aqui.
+const WEAPON_TYPES = ["weapon"];
+const AMMUNITION_TYPES = ["ammunition"];
+const WEAPON_OR_AMMUNITION_TYPES = [...WEAPON_TYPES, ...AMMUNITION_TYPES];
+
+const isWeapon = (values) => WEAPON_TYPES.includes(values.type);
+const isAmmunition = (values) => AMMUNITION_TYPES.includes(values.type);
+const isWeaponOrAmmunition = (values) => WEAPON_OR_AMMUNITION_TYPES.includes(values.type);
+
+const WEAPON_TYPE_OPTIONS = [
+  { value: "pistol", label: "Pistola" },
+  { value: "revolver", label: "Revólver" },
+  { value: "rifle", label: "Fuzil" },
+  { value: "carbine", label: "Carabina" },
+  { value: "shotgun", label: "Espingarda" },
+  { value: "submachine_gun", label: "Submetralhadora" },
+  { value: "other", label: "Outro" },
+];
+
+const OPERATING_MODE_OPTIONS = [
+  { value: "semi_automatic", label: "Semiautomática" },
+  { value: "repeating", label: "Repetição (ação manual)" },
+  { value: "single_action", label: "Ação simples" },
+  { value: "double_action", label: "Ação dupla" },
+  { value: "automatic", label: "Automática (uso restrito)" },
+  { value: "other", label: "Outro" },
+];
+
+const BORE_TYPE_OPTIONS = [
+  { value: "smooth", label: "Lisa" },
+  { value: "rifled", label: "Raiada" },
+];
+
+const USE_CLASSIFICATION_OPTIONS = [
+  { value: "permitted", label: "Permitido" },
+  { value: "restricted", label: "Restrito" },
+];
+
+const ORIGIN_OPTIONS = [
+  { value: "national", label: "Nacional" },
+  { value: "imported", label: "Importada" },
+];
+
+const WEAPON_STATUS_OPTIONS = [
+  { value: "in_stock", label: "Em estoque" },
+  { value: "sold", label: "Vendida" },
+  { value: "maintenance", label: "Em manutenção" },
+  { value: "decommissioned", label: "Baixada / Inutilizada" },
 ];
 
 export const financeProductColumns = [
   { field: "name", label: "Nome" },
-  { field: "type", label: "Tipo", render: (r) => (r.type === "service" ? "Serviço" : "Produto") },
-  { field: "price", label: "Preço (R$)" },
+  { field: "type", label: "Tipo", render: (r) => PRODUCT_TYPE_LABELS[r.type] || "Produto" },
+  {
+    field: "caliberOrPrice",
+    label: "Calibre / Preço",
+    render: (r) =>
+      r.type === "weapon" || r.type === "ammunition"
+        ? r.caliber || "—"
+        : `R$ ${r.price}`,
+  },
   { field: "stockQuantity", label: "Estoque", render: (r) => (r.controlStock ? r.stockQuantity : "—") },
   { field: "active", label: "Status", render: (r) => <ActiveChip active={r.active} /> },
 ];
@@ -87,6 +160,27 @@ export const financeProductFields = [
   { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6 },
+
+  // -- Campos de arma/munição/insumo — só aparecem quando Tipo = Arma ou
+  // Munição/Insumo (ver `visibleWhen`, checado em FinanceRecordModal). --
+  { name: "brand", label: "Marca / Fabricante", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
+  { name: "model", label: "Modelo", gridSize: 6, visibleWhen: isWeapon },
+  { name: "weaponType", label: "Tipo da arma", type: "select", options: WEAPON_TYPE_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
+  { name: "caliber", label: "Calibre nominal", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
+  { name: "serialNumber", label: "Número de série", gridSize: 6, visibleWhen: isWeapon, requiredWhen: isWeapon },
+  { name: "cartridgeCapacity", label: "Capacidade de cartuchos", type: "number", gridSize: 6, visibleWhen: isWeapon },
+  { name: "operatingMode", label: "Regime de funcionamento", type: "select", options: OPERATING_MODE_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
+  { name: "barrelCount", label: "Quantidade de canos", type: "number", defaultValue: 1, gridSize: 6, visibleWhen: isWeapon },
+  { name: "barrelLength", label: "Comprimento do cano (cm)", type: "number", step: "0.1", gridSize: 6, visibleWhen: isWeapon },
+  { name: "boreType", label: "Tipo de alma", type: "select", options: BORE_TYPE_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
+  { name: "kineticEnergyJ", label: "Energia cinética da munição (Joules)", type: "number", step: "0.1", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
+  { name: "useClassification", label: "Classificação de uso", type: "select", options: USE_CLASSIFICATION_OPTIONS, gridSize: 6, visibleWhen: isWeaponOrAmmunition },
+  { name: "origin", label: "Procedência", type: "select", options: ORIGIN_OPTIONS, gridSize: 6, visibleWhen: isWeaponOrAmmunition },
+  { name: "sigmaRegistrationNumber", label: "Nº de registro SIGMA/SINARM", gridSize: 6, visibleWhen: isWeapon },
+  { name: "weaponStatus", label: "Situação da arma", type: "select", options: WEAPON_STATUS_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
+  { name: "manufacturingLotNumber", label: "Número do lote de fabricação", gridSize: 6, visibleWhen: isAmmunition },
+  { name: "packageBarcode", label: "Código de barras / embalagem", gridSize: 6, visibleWhen: isAmmunition },
+
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
