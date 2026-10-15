@@ -188,7 +188,39 @@ cd ~/atendeflow && git status && git log -1 --oneline
   o cliente pedir explicitamente e confirmar que quer isso (ver pergunta
   obrigatória da seção 0).
 
-## 8. Validação antes de commitar
+## 8. Nome de arquivo / link de mídia — encoding é fácil de esquecer
+
+`Message.ts`, getter `mediaUrl`, é o ÚNICO lugar que monta a URL pública de
+qualquer mídia (usado por frontend principal, webchat, `forwardMessage`,
+transcrição/visão de IA, etc.) — sempre aplica `encodeURIComponent` no nome
+do arquivo antes de montar o link (`docs/MANUAL_TECNICO.md`, seção 79).
+Antes disso, nome com caractere fora do ASCII básico "funcionava sozinho"
+só porque o navegador escapa automaticamente caractere não-ASCII ao montar
+a requisição a partir de um `href` — mas um "%" **literal** no nome (ex.:
+nome de arquivo que já veio com sequência tipo `%C2%BA` como texto, não
+como escape de verdade — aconteceu com nota fiscal baixada/assinada no
+gov.br) não é reescapado pelo navegador, e dá "Cannot GET".
+
+Qualquer código novo que extraia o nome do arquivo direto de
+`mensagem.mediaUrl` (em vez de usar o link como está) precisa de
+`decodeURIComponent` depois do `.split("/").pop()` — já esquecido uma vez
+em `OpenAiService.ts` (dois pontos, transcrição de áudio e visão de
+imagem), que usavam o nome extraído como caminho de disco direto.
+
+**Diagnóstico de "Cannot GET" num link de mídia**: antes de supor que o
+arquivo sumiu ou está corrompido, confirmar se ele existe de verdade
+dentro do container (o volume do Docker não aparece necessariamente no
+mesmo caminho no host):
+
+```bash
+sudo docker exec atendeflow-backend-1 find /app/public/company{ID} -iname "*trecho-do-nome*"
+```
+
+Se achar o arquivo intacto, o problema é de encoding no link, não de
+arquivo perdido — ver a causa acima antes de qualquer ação destrutiva
+(renomear/apagar).
+
+## 9. Validação antes de commitar
 
 ```bash
 # Backend: typecheck é o check confiável (lint tem bug de config
@@ -204,7 +236,7 @@ cd frontend && npx eslint src/caminho/do/arquivo.js
 (`posttest`) contra o banco configurado em `NODE_ENV=test` — nunca rodar
 isso contra um banco de produção/desenvolvimento com dado real.
 
-## 9. Commit
+## 10. Commit
 
 Mensagem com o quê + por quê (nunca só "fix bug"), rodapé de atribuição
 conforme as instruções da sessão. Rodar a validação da seção 7 antes.
