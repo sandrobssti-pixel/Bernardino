@@ -1,5 +1,6 @@
 import { head } from "lodash";
 import XLSX from "xlsx";
+import logger from "../../utils/logger";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceSupplier from "../../models/FinanceSupplier";
@@ -271,7 +272,23 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
   const headerRowIndex = rows.findIndex(
     (row) => String(row[GUN_STORE_REPORT_COL.SKU] || "").trim() === "Cód. Produto"
   );
-  if (headerRowIndex === -1) return null;
+
+  if (headerRowIndex === -1) {
+    // Diagnóstico temporário (v2.3.100): se a detecção falhar, loga o que
+    // de fato está em cada uma das 15 primeiras linhas da coluna A, pra
+    // achar a diferença exata (acento/espaço/encoding) em vez de adivinhar
+    // — já aconteceu de bater em teste local e falhar em produção sem
+    // explicação aparente. Ver docs/MANUAL_TECNICO.md.
+    const firstColumnSample = rows.slice(0, 15).map((row, idx) => ({
+      row: idx,
+      value: row?.[GUN_STORE_REPORT_COL.SKU]
+    }));
+    logger.info(
+      `[FinanceImportService] parseGunStoreReport: cabeçalho "Cód. Produto" não encontrado. ` +
+        `xlsx version=${(XLSX as any).version}. Primeiras linhas da coluna A: ${JSON.stringify(firstColumnSample)}`
+    );
+    return null;
+  }
 
   const records: Record<string, any>[] = [];
 

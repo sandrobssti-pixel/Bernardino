@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.99
-**Etapa:** 6.2 Fase 6 — Vincula Contato do Atendimento a Cliente do Financeiro
+**Versão do documento:** 2.3.100
+**Etapa:** 6.2 Fase 6 — Diagnóstico: importação de produtos não reconheceu o relatório em produção
 **Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6191,3 +6191,49 @@ só são editáveis no Financeiro.
   em homologação/produção — abrir um Contato existente com usuário que tem acesso ao
   Financeiro, clicar "Cadastrar como cliente (Financeiro)", e confirmar que aparece em
   Financeiro > Clientes com nome/telefone corretos.
+
+## 85. Diagnóstico: importação de produtos não reconheceu o relatório em produção (v2.3.100)
+
+### Contexto
+
+Depois do deploy da v2.3.98 (seção 83), cliente testou a importação do arquivo real
+(`RELATORIO_DE_PRODUTOS_GERAIS_DE_ARMAS...xlsx`, o mesmo enviado nesta sessão) pela tela em
+produção e recebeu o toast "Importação concluída: 0 criado(s), 0 atualizado(s), 165
+inválido(s)/ignorado(s))" — ou seja, a requisição chegou no backend e respondeu normalmente
+(sem erro HTTP), mas **nenhuma linha foi reconhecida como produto válido**.
+
+Isso é inesperado: o arquivo enviado é confirmado como sendo o mesmo (cliente confirmou
+explicitamente), e rodar `parseGunStoreReport` contra essa mesma cópia local do arquivo,
+usando exatamente o código da v2.3.98/99 (reconferido nesta sessão, depois do relato),
+continua reconhecendo os 60 produtos normalmente. A causa raiz da divergência entre o teste
+local e o comportamento em produção **não foi identificada ainda** — hipóteses não
+descartadas: versão da lib `xlsx` resolvida diferente no `npm install` do Dockerfile (usa
+`npm install`, não `npm ci` — não é garantido pegar exatamente a mesma versão que o
+`package-lock.json` fixa) vs. o `node_modules` desta sessão (instalado via `npm ci`);
+diferença de encoding/acento na célula "Cód. Produto" que só se manifesta em certas
+condições; ou algo específico do ambiente de produção ainda não mapeado.
+
+### O que foi feito (diagnóstico, não correção definitiva)
+
+- `parseGunStoreReport` (`FinanceImportService.ts`): quando não encontra o cabeçalho "Cód.
+  Produto" (condição que faz cair no importador genérico), agora registra via `logger.info`:
+  a versão da lib `xlsx` efetivamente carregada em produção, e o conteúdo bruto das
+  primeiras 15 linhas da coluna A da planilha — isso revela exatamente o que o código está
+  enxergando ali, em vez de precisar reproduzir o ambiente de produção pra descobrir.
+- **Próximo passo, assim que o cliente testar de novo com o log do backend aberto**: a
+  linha de log vai aparecer com o prefixo `[FinanceImportService] parseGunStoreReport:` —
+  o conteúdo dela decide o próximo passo (se a versão da lib `xlsx` for diferente da
+  esperada, trocar `npm install` por `npm ci` no Dockerfile pra fixar a versão; se o texto
+  da célula estiver sutilmente diferente, ajustar a comparação pra ser mais tolerante —
+  ex. `trim()` + normalização de espaço, já que `trim()` sozinho não remove um espaço
+  não-quebrável (` `) no meio do texto).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Reconfirmado nesta sessão (depois do relato do cliente) que `parseGunStoreReport` continua
+  reconhecendo os 60 produtos corretamente contra a cópia local do arquivo exato enviado
+  pelo cliente — a lógica em si não regrediu; o log novo existe justamente porque a causa da
+  divergência com produção não é óbvia a partir do código sozinho.
+- **Pendente**: cliente rodar `docker compose logs -f backend` e tentar importar de novo —
+  o log vai apontar a causa exata.

@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.100] — Diagnóstico: por que a importação de produtos não reconheceu o relatório em produção — 2026-10-15
+
+### Corrigido (diagnóstico)
+- Cliente testou a importação do `RELATORIO_DE_PRODUTOS_GERAIS_DE_ARMAS.xlsx`
+  em produção e recebeu "0 criado(s), 165 inválido(s)" — caiu no
+  importador genérico, mesmo o arquivo tendo sido validado localmente
+  (60 produtos reconhecidos corretamente, mesma versão de código).
+- Causa ainda não identificada. Adicionado log temporário em
+  `parseGunStoreReport`: se não achar o cabeçalho "Cód. Produto", agora
+  registra a versão da lib `xlsx` em uso e o conteúdo real das primeiras
+  15 linhas da coluna A — próxima tentativa do cliente vai revelar a causa
+  exata (acento/espaço/encoding diferente, versão de lib diferente, etc.)
+  em vez de precisar adivinhar.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 85.
+
 ## [2.3.99] — Vincula Contato do Atendimento a Cliente do Financeiro — 2026-10-15
 
 ### Adicionado
