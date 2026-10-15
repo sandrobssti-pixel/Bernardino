@@ -1766,7 +1766,15 @@ const safeBasename = (value) => {
   const raw = typeof value === "string" ? value : "";
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  return path.basename(trimmed.split("?")[0]);
+  const name = path.basename(trimmed.split("?")[0]);
+  // mediaUrl agora vem com o nome do arquivo codificado (ver Message.ts,
+  // getter mediaUrl) — decodifica pra exibir um nome legível no fallback
+  // de rótulo do documento, em vez do "%C2%BA" cru.
+  try {
+    return decodeURIComponent(name);
+  } catch (error) {
+    return name;
+  }
 };
 
 const parseVcard = (body) => {

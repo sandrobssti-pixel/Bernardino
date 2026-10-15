@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.94] — Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome — 2026-10-15
+
+### Corrigido
+- A correção da v2.3.93 só evitava o problema em uploads novos feitos
+  pelo chat. Documentos que chegam com nome já "fora do padrão" por
+  outro caminho (ex.: nota fiscal baixada e assinada digitalmente no
+  gov.br, cujo nome de arquivo pode conter sequências de caractere
+  atípicas) continuavam dando "Cannot GET" ao visualizar/baixar.
+- Correção mais ampla, no local onde o link é montado
+  (`Message.mediaUrl`, usado por todo o sistema): o nome do arquivo
+  agora é sempre codificado corretamente (`encodeURIComponent`) antes
+  de virar link — não importa a origem do nome ou quais caracteres
+  incomuns ele tenha, o link sempre funciona.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 79.
+
 ## [2.3.93] — Corrige nome de arquivo com caractere especial (º, ç, ã...) — 2026-10-14
 
 ### Corrigido

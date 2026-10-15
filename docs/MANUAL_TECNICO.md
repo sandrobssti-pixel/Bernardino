@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.64
-**Etapa:** 6.29 — Corrige nome de arquivo com caractere especial (º, ç, ã...)
-**Última atualização:** 2026-10-14
+**Versão do documento:** 2.3.65
+**Etapa:** 6.30 — Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome
+**Última atualização:** 2026-10-15
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -5669,3 +5669,77 @@ renomear manualmente, ou pedir pro cliente reenviar o documento.
 - Pendente: confirmar em produção, depois do deploy, que um upload
   novo com caractere especial no nome (ex.: outra nota fiscal com "Nº")
   salva e abre corretamente.
+
+## 79. Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome (v2.3.94)
+
+### Contexto
+
+Depois do deploy da seção 78, cliente testou com uma nota fiscal real
+já assinada digitalmente no gov.br
+(`NF_Nº_481-_MARCIO_BISPO_DOS_SANTOS_assinado.pdf`) e o mesmo erro
+`Cannot GET` apareceu de novo — mas o arquivo físico no servidor
+**não estava corrompido** (localizado via
+`docker exec atendeflow-backend-1 find /app/public/company3 -iname
+"*481*"`): o nome salvo em disco tinha a sequência `%C2%BA` como texto
+**literal** (os caracteres `%`, `C`, `2`, `%`, `B`, `A`), não o
+caractere "º" de verdade nem bytes mal-decodificados — ou seja, um
+problema diferente do da seção 78 (aquele era sobre Latin-1 vs UTF-8
+no upload; este é sobre o link gerado não escapar corretamente um "%"
+literal que já vinha no nome do arquivo, venha ele de onde vier).
+
+Confirmado manualmente: montando a URL com esse "%" literal escapado
+como "%25" (`.../NF_N%25C2%25BA_481-..._assinado....pdf`), o PDF abriu
+normal — o arquivo está intacto, só o link automático da tela estava
+quebrado.
+
+Cliente confirmou que o nome "fora do padrão" provavelmente vem do
+processo de assinatura digital do gov.br (o nome do arquivo já chega
+assim quando baixado/reenviado) — e pediu uma correção **geral**, não
+um reparo pontual nesse arquivo: qualquer documento com caractere
+atípico no nome, não importa a origem, deveria sempre virar um link
+funcional.
+
+### Causa raiz
+
+`backend/src/models/Message.ts`, getter `mediaUrl`: montava a URL
+pública concatenando o nome do arquivo salvo em disco (`storedMediaUrl`)
+direto na string, sem nenhum `encodeURIComponent`. Pra nomes com
+caractere Unicode comum (tipo "º" de verdade) isso "funcionava
+sozinho" por sorte — o navegador escapa automaticamente caractere
+não-ASCII ao montar a requisição HTTP a partir de um `href`. Mas um
+"%" **literal** no nome do arquivo é ASCII válido, então o navegador
+NÃO reescapa — manda exatamente como está, e o Express tenta decodificar
+esse "%C2%BA" como se fosse um escape de verdade, resultando numa
+string diferente do nome real salvo no disco.
+
+### O que foi feito
+
+- `Message.ts`: o getter `mediaUrl` agora aplica `encodeURIComponent`
+  no nome do arquivo antes de montar a URL — centralizado nesse único
+  lugar, usado por toda a aplicação (frontend principal, webchat,
+  `forwardMessage`, IA/transcrição, etc.), então qualquer nome de
+  arquivo — com "º" de verdade, com "%" literal, ou qualquer outra
+  coisa fora do padrão — sempre gera um link que bate exatamente com o
+  arquivo físico.
+- Conferido que `forwardMessage` (`obterNomeEExtensaoDoArquivo`) já
+  fazia `decodeURIComponent` na extração do nome a partir da URL —
+  continua funcionando corretamente com o novo encoding, sem precisar
+  de ajuste ali.
+- `OpenAiService.ts` (transcrição de áudio e visão de imagem pra IA):
+  duas ocorrências que extraíam o nome do arquivo direto de
+  `mediaSent.mediaUrl!.split("/").pop()` pra montar um caminho de
+  disco — precisavam de `decodeURIComponent` explícito agora que o
+  getter sempre devolve o nome codificado (sem isso, a checagem
+  `fs.existsSync` ia sempre falhar pra arquivo com caractere especial).
+- Frontend (`MessagesList/index.js`, `safeBasename`): decodifica o
+  nome extraído da URL antes de usar como rótulo de exibição (fallback
+  quando não há nome mais legível vindo do `dataJson`) — evita mostrar
+  o nome cru codificado (tipo "%C2%BA") pro atendente.
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- `eslint` limpo em `MessagesList/index.js` (só avisos pré-existentes).
+- Pendente: confirmar em produção que o PDF do Márcio Bispo (ou outro
+  documento com nome fora do padrão) abre pelos botões normais da
+  tela, sem precisar do link manual com "%25".

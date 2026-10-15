@@ -1834,7 +1834,10 @@ FINAL RULE: Output ONLY the JSON object. Start with {. End with }. No text outsi
     const messagesAI = prepareMessagesAI(messages, isGeminiModel, promptSystem);
 
     try {
-      const mediaUrl = mediaSent.mediaUrl!.split("/").pop();
+      // mediaUrl (getter de Message) agora vem com o nome do arquivo
+      // codificado (encodeURIComponent) — decodifica antes de usar como
+      // caminho real no disco.
+      const mediaUrl = decodeURIComponent(mediaSent.mediaUrl!.split("/").pop()!);
       const audioFilePath = `${publicFolder}/${mediaUrl}`;
 
       if (!fs.existsSync(audioFilePath)) {
@@ -2016,7 +2019,10 @@ FINAL RULE: Output ONLY the JSON object. Start with {. End with }. No text outsi
     const messagesAI = prepareMessagesAI(messages, isGeminiModel, promptSystem);
 
     try {
-      const mediaUrl = mediaSent.mediaUrl!.split("/").pop();
+      // mediaUrl (getter de Message) agora vem com o nome do arquivo
+      // codificado (encodeURIComponent) — decodifica antes de usar como
+      // caminho real no disco.
+      const mediaUrl = decodeURIComponent(mediaSent.mediaUrl!.split("/").pop()!);
       const imageFilePath = `${publicFolder}/${mediaUrl}`;
 
       if (!fs.existsSync(imageFilePath)) {
