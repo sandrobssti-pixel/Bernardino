@@ -54,6 +54,13 @@ const ENVIRONMENT_OPTIONS = [
   { value: "production", label: "Produção" },
 ];
 
+const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
+  { value: "", label: "Nenhum — emitir manualmente" },
+  { value: "nfe", label: "NF-e" },
+  { value: "nfce", label: "NFC-e" },
+  { value: "nfse", label: "NFS-e" },
+];
+
 // Configuração fiscal da empresa (Fase 3 — módulo fiscal, ver
 // docs/MANUAL_TECNICO.md, seção 6.2). Um registro só por empresa — dados
 // necessários pra emitir NF-e/NFC-e/NFS-e em nome dela via o gateway Focus
@@ -65,13 +72,15 @@ const FiscalConfigPanel = ({ fiscal }) => {
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [gatewayOptions, setGatewayOptions] = useState([]);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const data = await fiscal.config.show();
+        const [data, gateways] = await Promise.all([fiscal.config.show(), fiscal.config.gateways()]);
         setConfig(data);
+        setGatewayOptions(gateways || []);
       } catch (err) {
         toastError(err);
       }
@@ -108,7 +117,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
       </Typography>
       <Typography variant="body2" className={classes.sectionSubtitle}>
         Dados usados pra emitir notas fiscais (NF-e/NFC-e/NFS-e) em nome da sua
-        empresa, através do gateway Focus NFe. Comece pelo ambiente de
+        empresa, através do gateway escolhido abaixo. Comece pelo ambiente de
         Homologação (testes) — só mude pra Produção quando as primeiras notas
         de teste saírem certas.
       </Typography>
@@ -208,9 +217,27 @@ const FiscalConfigPanel = ({ fiscal }) => {
             <Divider className={classes.divider} />
 
             <Typography variant="subtitle1" className={classes.sectionTitle}>
-              Gateway de emissão (Focus NFe)
+              Gateway de emissão
             </Typography>
             <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <Field
+                  as={TextField}
+                  select
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="gatewayProvider"
+                  label="Gateway"
+                  helperText="Quem efetivamente emite e transmite a nota pra Sefaz/Prefeitura"
+                >
+                  {gatewayOptions.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Field>
+              </Grid>
               <Grid item xs={12} sm={6}>
                 <Field
                   as={TextField}
@@ -231,12 +258,30 @@ const FiscalConfigPanel = ({ fiscal }) => {
               <Grid item xs={12} sm={6}>
                 <Field
                   as={TextField}
+                  select
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="defaultDocumentType"
+                  label="Tipo de documento padrão"
+                  helperText="Se definido, emite automaticamente logo após confirmar a venda"
+                >
+                  {DEFAULT_DOCUMENT_TYPE_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value || "none"} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Field>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Field
+                  as={TextField}
                   fullWidth
                   variant="outlined"
                   size="small"
                   name="gatewayToken"
                   label="Token de acesso"
-                  helperText="Gerado no painel da Focus NFe (homologação ou produção, conforme o ambiente acima)"
+                  helperText="Gerado no painel do gateway escolhido acima (homologação ou produção, conforme o ambiente)"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>

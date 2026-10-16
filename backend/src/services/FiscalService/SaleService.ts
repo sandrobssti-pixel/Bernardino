@@ -23,6 +23,7 @@ interface ListResponse {
 interface SaleItemData {
   productId?: number | null;
   description: string;
+  sku?: string;
   ncm?: string;
   cfop?: string;
   unit?: string;
@@ -42,7 +43,7 @@ const includeOptions = [
   {
     model: SaleItem,
     as: "items",
-    include: [{ model: FinanceProduct, as: "product", attributes: ["id", "name"] }]
+    include: [{ model: FinanceProduct, as: "product", attributes: ["id", "name", "sku"] }]
   },
   { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] }
 ];
@@ -113,6 +114,7 @@ const buildItemRows = (items: SaleItemData[], saleId: number) =>
       saleId,
       productId: item.productId || null,
       description: item.description,
+      sku: item.sku || "",
       ncm: item.ncm || "",
       cfop: item.cfop || "5102",
       unit: item.unit || "UN",

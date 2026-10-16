@@ -20,6 +20,10 @@ const useFiscal = () => {
       const { data: responseData } = await api.put("/fiscal/config", data);
       return responseData;
     },
+    gateways: async () => {
+      const { data } = await api.get("/fiscal/gateways");
+      return data;
+    },
   };
 
   const sales = {

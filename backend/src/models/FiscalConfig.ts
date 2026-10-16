@@ -83,6 +83,13 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   nfseSeries: string;
 
+  // Tipo emitido automaticamente ao confirmar uma venda ("nfe"/"nfce"/
+  // "nfse") — em branco significa não emitir automático, mantendo o fluxo
+  // manual (botões em SaleDetailModal). Ver docs/MANUAL_TECNICO.md.
+  @Default("")
+  @Column
+  defaultDocumentType: string;
+
   @Default("5102")
   @Column
   defaultCfop: string;

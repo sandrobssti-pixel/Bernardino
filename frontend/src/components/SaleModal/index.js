@@ -46,6 +46,7 @@ const useStyles = makeStyles((theme) => ({
 const emptyItem = {
   productId: "",
   description: "",
+  sku: "",
   ncm: "",
   cfop: "5102",
   unit: "UN",
@@ -62,6 +63,7 @@ const buildInitialValues = (sale, defaultCfop) => ({
       ? sale.items.map((item) => ({
           productId: item.productId || "",
           description: item.description,
+          sku: item.sku || item.product?.sku || "",
           ncm: item.ncm || "",
           cfop: item.cfop || defaultCfop || "5102",
           unit: item.unit || "UN",
@@ -106,6 +108,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     setFieldValue(`items.${index}.productId`, product?.id || "");
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
+      setFieldValue(`items.${index}.sku`, product.sku || "");
       setFieldValue(`items.${index}.ncm`, product.ncm || "");
       setFieldValue(`items.${index}.unit`, product.unit || "UN");
       setFieldValue(`items.${index}.unitPrice`, Number(product.price) || 0);
@@ -184,7 +187,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     <>
                       {values.items.map((item, index) => (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
-                          <Grid item xs={12} sm={4}>
+                          <Grid item xs={12} sm={3}>
                             <FinanceAsyncAutocomplete
                               label="Produto/serviço"
                               placeholder="Nome ou SKU (vazio = item avulso)"
@@ -197,7 +200,17 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               }
                             />
                           </Grid>
-                          <Grid item xs={12} sm={3}>
+                          <Grid item xs={6} sm={2}>
+                            <Field
+                              as={TextField}
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              label="Código (SKU)"
+                              name={`items.${index}.sku`}
+                            />
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
                             <Field
                               as={TextField}
                               fullWidth

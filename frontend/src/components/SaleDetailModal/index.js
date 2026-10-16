@@ -122,6 +122,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell>Código</TableCell>
               <TableCell>Descrição</TableCell>
               <TableCell align="center">Qtd.</TableCell>
               <TableCell align="right">Valor unit.</TableCell>
@@ -131,6 +132,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
           <TableBody>
             {(sale.items || []).map((item) => (
               <TableRow key={item.id}>
+                <TableCell>{item.sku || item.product?.sku || "—"}</TableCell>
                 <TableCell>{item.description}</TableCell>
                 <TableCell align="center">{item.quantity}</TableCell>
                 <TableCell align="right">{money(item.unitPrice)}</TableCell>

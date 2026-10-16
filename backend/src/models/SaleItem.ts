@@ -30,6 +30,13 @@ class SaleItem extends Model<SaleItem> {
   @Column
   description: string;
 
+  // Código/SKU do produto no momento da venda — mesma lógica de snapshot do
+  // description/ncm/cfop acima (cadastro do produto pode mudar depois, a
+  // venda e a nota fiscal já emitida não devem mudar retroativamente).
+  @Default("")
+  @Column
+  sku: string;
+
   @Default("")
   @Column
   ncm: string;

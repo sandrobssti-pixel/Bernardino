@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.104
-**Etapa:** 6.2 Fase 6 — Busca com filtro em Produto/Cliente/Fornecedor + ajuste de rótulo
+**Versão do documento:** 2.3.105
+**Etapa:** 6.2 Fase 6 — Fiscal multi-gateway + emissão automática na venda + SKU nas vendas
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6419,3 +6419,103 @@ campo), mas não num campo pequeno lado a lado com outros. Trocado pra rótulo c
 do campo, nunca quebra linha, só fica visível quando o campo está vazio) —
 `FinanceAsyncAutocomplete` ganhou a prop `placeholder`, repassada direto pro `TextField`
 interno do `Autocomplete`.
+
+## 88. Fiscal multi-gateway + emissão automática na venda + código do produto nas vendas (v2.3.105)
+
+### Contexto
+
+Cliente perguntou como configurar o certificado digital pra emitir nota fiscal na hora
+da venda. Investigando, o módulo Fiscal só tinha um gateway de verdade implementado
+(Focus NFe) apesar do campo `gatewayProvider` já existir no model desde a Fase 3 "pra
+usar no futuro". Ao explicar a arquitetura atual, cliente mudou o pedido: não tem
+certeza se vai usar a Focus NFe, quer poder **escolher** o gateway; quer que a venda já
+saia com a nota emitida (PDF/XML) assim que confirmada, sem passo manual extra; e no
+longo prazo quer reconhecer um certificado digital instalado na máquina e falar direto
+com Prefeitura/Sefaz, sem gateway nenhum.
+
+Expliquei (não sou especialista em legislação fiscal, isso é responsabilidade do
+cliente/contador validar) que emissão direta contra Sefaz/Prefeitura sem gateway é
+ordens de grandeza mais complexo do que parece — 27 webservices estaduais diferentes,
+nenhum padrão único de NFS-e entre os milhares de municípios, assinatura digital XML,
+tratamento de contingência, risco de nota inválida gerando problema fiscal de verdade.
+Perguntado qual caminho seguir, cliente escolheu **"Vários gateways, escolhível"**:
+continuar emitindo por gateway homologado (como hoje), só que com a empresa podendo
+trocar de gateway, em vez de ficar travada na Focus NFe ou de eu construir integração
+direta/sem assinatura.
+
+Durante a mesma sessão, revendo a tela de Vendas, cliente pediu separadamente que o
+código do produto (SKU) aparecesse no módulo de Vendas — achado, ao investigar, que o
+item da venda nunca guardava o SKU em lugar nenhum, e a nota fiscal usava o **id interno
+do banco** como "código do produto" na Focus NFe (bug real, não só falta de exibição).
+
+### O que foi feito — dispatcher de gateway
+
+- **`FiscalGatewayService.ts`** (novo): interface `FiscalGatewayAdapter` com as mesmas
+  três funções que `FocusNFeService` já exportava (`emit`/`getStatus`/`cancel`, mesma
+  assinatura) — zero mudança necessária no `FocusNFeService` existente, só passou a ser
+  registrado num mapa `GATEWAYS` por `provider`. `getGateway(provider)` lança
+  `ERR_FISCAL_GATEWAY_NOT_SUPPORTED` pra um provider não registrado.
+  `SUPPORTED_GATEWAYS` é a lista exposta pro frontend montar o seletor sem hardcodar
+  nada lá — hoje só tem `focusnfe`, mas o próximo gateway real adicionado aparece na
+  tela automaticamente.
+- **`FiscalDocumentService.ts`**: as três chamadas que importavam `FocusNFeService`
+  direto (`emit`, `refreshStatus`, `cancel`) passaram a usar
+  `FiscalGatewayService.getGateway(config.gatewayProvider)` antes de chamar.
+- **`FiscalConfigController.ts`** + `fiscalRoutes.ts`: novo endpoint
+  `GET /fiscal/gateways`, mesma trava de acesso (`EnsureFiscalAccess`) dos outros.
+- **`FiscalConfigPanel`**: seção "Gateway de emissão" deixou de ter o subtítulo fixo
+  "(Focus NFe)" — ganhou um seletor (`gatewayProvider`) cujas opções vêm de
+  `fiscal.config.gateways()`.
+
+### O que foi feito — emissão automática ao confirmar a venda
+
+- Novo campo `FiscalConfig.defaultDocumentType` (migration
+  `20261016120000-add-default-document-type-to-fiscal-configs.ts`, `ADD COLUMN IF NOT
+  EXISTS` — mesmo padrão idempotente da migration de armas, seção 11 da skill) —
+  `""` (padrão) = não emitir automático, continua manual; `"nfe"`/`"nfce"`/`"nfse"` =
+  emite esse tipo assim que a venda é confirmada.
+- **`SaleController.confirm`**: depois de `SaleService.confirm` criar a conta a
+  receber, se `defaultDocumentType` e `gatewayToken` estiverem configurados, chama
+  `FiscalDocumentService.emit(...)` dentro de um `try/catch` — **nunca** deixa uma
+  falha de emissão (gateway fora do ar, token errado, etc.) impedir a confirmação da
+  venda ou a criação da conta a receber, que são o que realmente não pode falhar. A
+  resposta ganhou um campo extra `fiscalAutoEmit: { attempted, success, type,
+  errorMessage? }` pro frontend poder refletir o resultado se quiser (ainda não
+  consumido no toast de confirmação — fica pra um próximo ajuste, se o cliente notar
+  falta).
+- **Decisão de onde colocar a orquestração**: no controller, não dentro de
+  `SaleService.confirm`. `FiscalDocumentService.ts` já importa `SaleService` (pra
+  revalidar que a venda existe e pertence à empresa antes de emitir) — se
+  `SaleService` importasse `FiscalDocumentService` de volta, seria import circular.
+  O botão manual "Emitir NF-e/NFC-e/NFS-e" em `SaleDetailModal` continua existindo
+  normalmente, como fallback/override mesmo com emissão automática configurada.
+- Fluxo de certificado digital (upload direto no AtendeFlow, decisão anterior do
+  cliente) **ainda não implementado** — ficou decidido antes da mudança pra
+  multi-gateway, precisa ser revisto quando um segundo gateway de verdade entrar,
+  porque cada gateway pode ter uma forma diferente (ou nenhuma) de lidar com
+  certificado pela própria API.
+
+### O que foi feito — código do produto (SKU) nas vendas
+
+- Novo campo `SaleItem.sku` (migration `20261016130000-add-sku-to-sale-items.ts`,
+  mesmo padrão idempotente) — snapshot do SKU no momento da venda, mesma lógica já
+  usada pra `description`/`ncm`/`cfop` (cadastro do produto pode mudar depois, a venda
+  e a nota já emitida não podem mudar retroativamente).
+  `SaleService`: `SaleItemData`/`buildItemRows` passam o `sku` adiante.
+- **`FocusNFeService.buildItemsPayload`**: `codigo_produto` agora usa `item.sku` em
+  vez do id interno do banco — esse era o valor que de fato ia pra nota fiscal emitida
+  até aqui, corrigido independente do dispatcher de gateway.
+- **Frontend**: `SaleModal` ganhou campo "Código (SKU)" por item (preenchido
+  automaticamente ao escolher o produto no autocomplete, mas editável — item avulso
+  sem produto cadastrado pode digitar um código à mão); `SaleDetailModal` ganhou a
+  coluna "Código" na tabela de itens da venda confirmada.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de frontend
+  tocados (`FiscalConfigPanel`, `SaleModal`, `SaleDetailModal`, `useFiscal`).
+- **Não testado** contra credencial de sandbox real de nenhum gateway (mesma ressalva
+  já documentada pro `FocusNFeService` desde a Fase 3 — nunca foi validado end-to-end).
+  **Pendente**: cliente decidir se/quando vai testar a emissão de verdade (precisa de
+  um CNPJ homologado na Focus NFe ou no gateway escolhido), e confirmar visualmente
+  que o SKU aparece certo nas vendas depois do deploy.

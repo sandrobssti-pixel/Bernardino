@@ -89,7 +89,11 @@ const parseDocumentResponse = (data: any): FocusEmitResult => {
 const buildItemsPayload = (sale: Sale) =>
   (sale.items || []).map((item, index) => ({
     numero_item: index + 1,
-    codigo_produto: item.productId ? String(item.productId) : `ITEM-${index + 1}`,
+    // Código do produto que vai na nota: o SKU real do cadastro (snapshot em
+    // SaleItem.sku no momento da venda) — nunca o id interno do banco, que
+    // não tem nenhum significado fora do AtendeFlow e não é o "código do
+    // produto" que a Sefaz/o cliente espera ver na nota.
+    codigo_produto: item.sku || (item.productId ? String(item.productId) : `ITEM-${index + 1}`),
     descricao: item.description,
     ncm: item.ncm || "00000000",
     cfop: item.cfop || "5102",

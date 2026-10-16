@@ -17,6 +17,7 @@ fiscalRoutes.get("/fiscal/access", isAuth, FiscalAccessController.show);
 
 fiscalRoutes.get("/fiscal/config", isAuth, FiscalConfigController.show);
 fiscalRoutes.put("/fiscal/config", isAuth, FiscalConfigController.update);
+fiscalRoutes.get("/fiscal/gateways", isAuth, FiscalConfigController.gateways);
 
 fiscalRoutes.get("/sales", isAuth, SaleController.index);
 fiscalRoutes.get("/sales/:id", isAuth, SaleController.show);

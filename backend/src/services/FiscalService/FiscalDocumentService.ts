@@ -3,7 +3,7 @@ import FiscalDocument from "../../models/FiscalDocument";
 import Company from "../../models/Company";
 import * as SaleService from "./SaleService";
 import * as FiscalConfigService from "./FiscalConfigService";
-import * as FocusNFeService from "./FocusNFeService";
+import * as FiscalGatewayService from "./FiscalGatewayService";
 
 const VALID_TYPES = ["nfe", "nfce", "nfse"];
 
@@ -57,7 +57,8 @@ export const emit = async (
     throw new AppError("ERR_NO_COMPANY_FOUND", 404);
   }
 
-  const { externalRef, result } = await FocusNFeService.emit(type, sale, company, config);
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const { externalRef, result } = await gateway.emit(type, sale, company, config);
 
   const document = await FiscalDocument.create({
     type,
@@ -91,7 +92,8 @@ export const refreshStatus = async (
   }
 
   const config = await FiscalConfigService.show(companyId);
-  const result = await FocusNFeService.getStatus(document.type, document.externalRef, config);
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const result = await gateway.getStatus(document.type, document.externalRef, config);
 
   await document.update({
     status: result.status,
@@ -123,7 +125,8 @@ export const cancel = async (
   }
 
   const config = await FiscalConfigService.show(companyId);
-  const result = await FocusNFeService.cancel(document.type, document.externalRef, justification, config);
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const result = await gateway.cancel(document.type, document.externalRef, justification, config);
 
   if (!result.ok) {
     throw new AppError(result.errorMessage || "ERR_FISCAL_DOCUMENT_CANCEL_FAILED");

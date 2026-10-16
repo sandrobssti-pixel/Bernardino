@@ -439,3 +439,38 @@ que eram esquecimento:
   a busca por nome/SKU/CPF-CNPJ/e-mail já existe nesses `list()`, só
   precisa repassar o termo digitado) em vez de montar outro `<select>`
   com lista fixa.
+- **Módulo Fiscal — gateway é plugável desde a v2.3.105, nunca mais
+  importar `FocusNFeService` direto fora de `FiscalGatewayService.ts`.**
+  `FiscalConfig.gatewayProvider` escolhe o adapter via
+  `FiscalGatewayService.getGateway(provider)` — `FiscalDocumentService`
+  (único consumidor) já segue esse padrão. Pra adicionar um gateway de
+  verdade (o cliente ainda não confirmou qual seria o segundo — só
+  descartou ficar travado só na Focus NFe): criar um arquivo novo com as
+  mesmas três funções (`emit`/`getStatus`/`cancel`, mesma assinatura de
+  `FocusNFeService.ts`) e registrar em `GATEWAYS`/`SUPPORTED_GATEWAYS` —
+  nenhum outro arquivo do backend precisa mudar, e a lista no frontend
+  (`GET /fiscal/gateways`) já reflete automaticamente. Decidir também,
+  nesse momento, como fica o upload de certificado digital (pedido
+  anterior do cliente, ainda não implementado) — cada gateway pode ter
+  uma API própria pra isso, ou nenhuma.
+- **Emissão automática de documento fiscal ao confirmar a venda
+  (`FiscalConfig.defaultDocumentType`, v2.3.105) fica orquestrada no
+  `SaleController.confirm`, nunca dentro de `SaleService.confirm`.**
+  `FiscalDocumentService.ts` já importa `SaleService` (pra revalidar a
+  venda antes de emitir) — `SaleService` importar `FiscalDocumentService`
+  de volta seria import circular. Sempre em `try/catch` que nunca deixa
+  falha de emissão (gateway fora do ar, token errado) impedir a
+  confirmação da venda/criação da conta a receber — essas duas não podem
+  falhar por causa do módulo fiscal. Esse padrão (orquestração entre dois
+  services que se importariam em círculo fica no controller que chama os
+  dois) é reaproveitável pra qualquer acoplamento parecido no futuro.
+- **Toda nota fiscal emitida usava o id interno do banco como "código do
+  produto" (`codigo_produto` no payload da Focus NFe) até a v2.3.105** —
+  bug real, não só falta de exibição; corrigido junto com o pedido do
+  cliente de mostrar o SKU na tela de Vendas. `SaleItem` ganhou campo
+  `sku` (snapshot no momento da venda, mesma lógica já usada pra
+  `description`/`ncm`/`cfop` — cadastro do produto pode mudar depois, a
+  venda/nota já emitida não pode mudar retroativamente). Ao adicionar
+  qualquer campo novo de produto que precise ir pra nota fiscal, snapshotar
+  em `SaleItem` no momento da venda, nunca ler do `FinanceProduct` vivo na
+  hora de montar o payload do gateway.

@@ -3,6 +3,32 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.105] — Fiscal: gateway escolhível + emissão automática na venda; código do produto nas vendas — 2026-10-16
+
+### Adicionado
+- Módulo Fiscal deixou de estar travado na Focus NFe: criado um dispatcher
+  (`FiscalGatewayService`) que escolhe o gateway pelo campo `gatewayProvider` da
+  Configuração Fiscal — hoje só "Focus NFe" está de fato implementado, mas adicionar um
+  gateway novo no futuro é só criar um arquivo com as mesmas três funções
+  (`emit`/`getStatus`/`cancel`) e registrar, sem tocar em nenhum outro lugar do sistema.
+  Tela de Configuração Fiscal ganhou um seletor de gateway (lista vem do backend,
+  `GET /fiscal/gateways`, não é mais hardcoded no frontend).
+- Novo campo "Tipo de documento padrão" na Configuração Fiscal (`nfe`/`nfce`/`nfse`/
+  nenhum) — se definido, a venda já sai com a nota fiscal emitida (PDF/XML) assim que o
+  operador confirma, sem precisar ir na tela de detalhe apertar "Emitir". Em branco
+  (padrão), nada muda — continua 100% manual como antes.
+- Campo "Código (SKU)" nos itens da tela de Vendas (Nova Venda e detalhe da venda) —
+  pedido do cliente pra aparecer o código do produto como consta no cadastro. Preenchido
+  automaticamente ao escolher o produto, mas editável (item avulso sem produto
+  cadastrado pode ter um código digitado à mão).
+
+### Corrigido
+- A nota fiscal emitida usava o **id interno do banco** como "código do produto"
+  (`codigo_produto` no payload da Focus NFe) — não tinha nenhum significado fora do
+  AtendeFlow. Agora usa o SKU real do produto.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 88.
+
 ## [2.3.104] — Ajuste visual: rótulo dos campos de busca estava quebrando linha — 2026-10-16
 
 ### Corrigido

@@ -13,6 +13,7 @@ interface FiscalConfigData {
   nfeSeries?: string;
   nfceSeries?: string;
   nfseSeries?: string;
+  defaultDocumentType?: string;
   defaultCfop?: string;
   notes?: string;
 }
