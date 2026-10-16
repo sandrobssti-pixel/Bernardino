@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.103
-**Etapa:** 6.2 Fase 6 — Busca com filtro em Produto/Cliente/Fornecedor (Vendas e Contas)
+**Versão do documento:** 2.3.104
+**Etapa:** 6.2 Fase 6 — Busca com filtro em Produto/Cliente/Fornecedor + ajuste de rótulo
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6407,3 +6407,15 @@ servidor, não só filtrar o que já tinha sido carregado.
   **Pendente**: cliente confirmar, numa venda nova, que o campo Produto encontra um dos
   produtos importados que não está entre os 20 primeiros (ex.: buscar por "RIFLE" ou
   por um SKU específico) — esse é o caso que antes não tinha solução nenhuma.
+
+### Ajuste (v2.3.104) — rótulo longo quebrando linha
+
+Cliente testou em produção e reportou o rótulo dos dois campos ("Cliente (nome, CPF/CNPJ
+ou e-mail — vazio = consumidor não identificado)" e "Produto/serviço (nome ou SKU — vazio
+= item avulso)") quebrando linha dentro do campo compacto (`size="small"`), ficando
+descentralizado. Rótulo longo cabe numa label de `TextField` padrão (uma linha, acima do
+campo), mas não num campo pequeno lado a lado com outros. Trocado pra rótulo curto
+("Cliente"/"Produto/serviço") + o texto de apoio movido pra `placeholder` (texto dentro
+do campo, nunca quebra linha, só fica visível quando o campo está vazio) —
+`FinanceAsyncAutocomplete` ganhou a prop `placeholder`, repassada direto pro `TextField`
+interno do `Autocomplete`.

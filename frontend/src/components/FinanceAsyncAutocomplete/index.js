@@ -17,6 +17,7 @@ import CircularProgress from "@material-ui/core/CircularProgress";
 // fornecedor não é um dos mais recentes).
 const FinanceAsyncAutocomplete = ({
   label,
+  placeholder,
   value,
   onChange,
   fetchOptions,
@@ -92,6 +93,7 @@ const FinanceAsyncAutocomplete = ({
         <TextField
           {...params}
           label={label}
+          placeholder={placeholder}
           variant="outlined"
           size={size}
           InputProps={{

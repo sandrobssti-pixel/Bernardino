@@ -147,7 +147,8 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={8}>
                     <FinanceAsyncAutocomplete
-                      label="Cliente (nome, CPF/CNPJ ou e-mail — vazio = consumidor não identificado)"
+                      label="Cliente"
+                      placeholder="Nome, CPF/CNPJ ou e-mail"
                       value={
                         customers.find((c) => c.id === values.customerId) ||
                         (sale?.customer?.id === values.customerId ? sale.customer : null)
@@ -185,7 +186,8 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
                           <Grid item xs={12} sm={4}>
                             <FinanceAsyncAutocomplete
-                              label="Produto/serviço (nome ou SKU — vazio = item avulso)"
+                              label="Produto/serviço"
+                              placeholder="Nome ou SKU (vazio = item avulso)"
                               value={products.find((p) => p.id === item.productId) || null}
                               initialOptions={products}
                               getOptionLabel={(opt) => opt?.name || ""}

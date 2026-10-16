@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.104] — Ajuste visual: rótulo dos campos de busca estava quebrando linha — 2026-10-16
+
+### Corrigido
+- Os campos "Cliente" e "Produto/serviço" (busca com filtro, v2.3.103) tinham rótulo longo
+  demais ("Cliente (nome, CPF/CNPJ ou e-mail — vazio = consumidor não identificado)") e
+  quebravam linha dentro do campo compacto, ficando descentralizados. Trocado por rótulo
+  curto ("Cliente"/"Produto/serviço") + texto de apoio como placeholder (dentro do campo,
+  não quebra linha) — `FinanceAsyncAutocomplete` ganhou a prop `placeholder`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 87.
+
 ## [2.3.103] — Busca com filtro em Produto/Cliente/Fornecedor (Vendas e Contas) — 2026-10-16
 
 ### Adicionado
