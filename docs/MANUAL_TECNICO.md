@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.107
-**Etapa:** 6.2 Fase 6 — Importação de Clientes: ajustes pro Relatório de Clientes real
+**Versão do documento:** 2.3.108
+**Etapa:** 6.2 Fase 6 — Paginação na lista de Produtos/Clientes/Fornecedores/Contas
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6670,3 +6670,50 @@ sendo seguida pro importador de Produtos.
   sessão) — só a lógica de parsing/mapeamento foi validada. Cliente precisa fazer o
   upload de verdade pela tela (Financeiro → Clientes → Importar) depois do deploy pra
   confirmar os 205 registros criados.
+
+## 91. Paginação na lista de Produtos/Clientes/Fornecedores/Contas (v2.3.108)
+
+### Contexto
+
+Depois de importar o cadastro de Clientes (seção 90), cliente reportou: "tem 206
+clientes cadastrados e só aparece 20 (...) a mesma coisa está para cadastro de
+produto" (60 produtos cadastrados) — queria um jeito de avançar página conforme for
+adicionando mais registros.
+
+### Causa raiz
+
+`FinanceCustomerService.list()`/`FinanceProductService.list()`/`FinanceSupplierService
+.list()` (e os services de Contas a Pagar/Receber) já paginam no servidor — `limit = 20`
+fixo, aceitam `pageNumber`, devolvem `{ records, count, hasMore }` — desde a Fase 1/2 do
+roadmap. Mas `FinanceRecordList` (`frontend/src/components/FinanceRecordList/`), o
+componente de lista/CRUD genérico usado por todos esses cadastros, **nunca mandava
+`pageNumber`** no `resource.list(...)` e **não tinha nenhum controle de página na
+tela** — sempre buscava (e só conseguia mostrar) a página 1. Com até 20 registros
+cadastrados isso nunca apareceu como problema; só virou visível de verdade agora que o
+cliente importou o cadastro de Clientes real (205 registros, seção 90) e tem 60
+produtos — a partir do 21º registro, não tinha NENHUM jeito de ver o resto pela tela
+(só achando um registro específico pela busca).
+
+### O que foi feito
+
+- `FinanceRecordList`: novo estado `pageNumber`/`count`; `fetchRecords` passa
+  `pageNumber` pro `resource.list(...)` e guarda `count` da resposta. `TablePagination`
+  (`@material-ui/core`, já uma dependência existente) no rodapé da tabela —
+  `rowsPerPageOptions={[20]}` fixo (não é configurável aqui, só reflete o `limit` fixo
+  do backend).
+- Novo `useEffect` separado reseta `pageNumber` pra 1 sempre que `searchParam` ou
+  `filterValues` mudam (ou ao trocar de aba — reaproveita o `resource` já usado como
+  dependência “reforço” documentado na seção anterior do componente) — sem isso, uma
+  busca nova podia abrir numa página sem nenhum resultado (ex.: filtrando e ficando na
+  página 5 de uma busca que só tem 2 páginas).
+- Nenhuma mudança de backend — os services já devolviam tudo que a paginação precisava
+  desde que foram criados, só não tinha consumidor nenhum na tela.
+
+### Testado
+
+- `npx eslint` limpo no arquivo tocado; `npx tsc --noEmit` limpo no backend (sem mudança
+  de backend nesta parte, só reconfirmado).
+- Não testado no navegador nesta sessão (sem acesso à produção). **Pendente**: cliente
+  confirmar, depois do deploy, que a paginação aparece nas 4 telas (Produtos, Clientes,
+  Fornecedores, Contas) e que navegar entre páginas mostra os registros certos (ex.:
+  achar um dos 205 clientes importados que não está na primeira página).

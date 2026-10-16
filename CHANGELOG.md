@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.108] — Paginação na lista de Produtos/Clientes/Fornecedores/Contas — 2026-10-16
+
+### Corrigido
+- As telas de cadastro do Financeiro (Produtos, Clientes, Fornecedores, Contas a Pagar/
+  Receber) são paginadas no servidor (20 por página) desde sempre, mas a tela nunca
+  mostrava um jeito de ir pra próxima página — com mais de 20 registros cadastrados, o
+  resto ficava inacessível por ali (só dava pra achar pela busca). Batido na prática com
+  206 clientes e 60 produtos reais cadastrados. `FinanceRecordList` ganhou um
+  `TablePagination` no rodapé da tabela; busca ou troca de filtro sempre volta pra
+  página 1.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 91.
+
 ## [2.3.107] — Importação de Clientes: ajustes pro Relatório de Clientes real do ERP antigo — 2026-10-16
 
 ### Corrigido

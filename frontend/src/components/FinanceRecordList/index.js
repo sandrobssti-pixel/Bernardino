@@ -15,6 +15,7 @@ import InputAdornment from "@material-ui/core/InputAdornment";
 import Chip from "@material-ui/core/Chip";
 import Box from "@material-ui/core/Box";
 import MenuItem from "@material-ui/core/MenuItem";
+import TablePagination from "@material-ui/core/TablePagination";
 
 import SearchIcon from "@material-ui/icons/Search";
 import AddIcon from "@material-ui/icons/Add";
@@ -27,6 +28,11 @@ import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
 import FinanceRecordModal from "../FinanceRecordModal";
 import toastError from "../../errors/toastError";
+
+// Tem que bater com o `limit` fixo no backend (`FinanceCustomerService.list`,
+// `FinanceProductService.list`, etc.) — não é um valor configurável aqui,
+// só usado pra `TablePagination` calcular quantas páginas existem.
+const PAGE_SIZE = 20;
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -72,6 +78,8 @@ const FinanceRecordList = ({
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
+  const [count, setCount] = useState(0);
+  const [pageNumber, setPageNumber] = useState(1);
   const [searchParam, setSearchParam] = useState("");
   const [filterValues, setFilterValues] = useState({});
   const [modalOpen, setModalOpen] = useState(false);
@@ -85,8 +93,9 @@ const FinanceRecordList = ({
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await resource.list({ searchParam, ...filterValues });
+      const data = await resource.list({ searchParam, pageNumber, ...filterValues });
       setRecords(data.records || []);
+      setCount(data.count || 0);
     } catch (err) {
       toastError(err);
     }
@@ -99,7 +108,7 @@ const FinanceRecordList = ({
     // Financeiro/index.js também usa `key={financeTab}` como reforço, pra
     // garantir estado limpo (busca, filtros) a cada troca de aba.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParam, filterValues, resource]);
+  }, [searchParam, pageNumber, filterValues, resource]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -107,6 +116,18 @@ const FinanceRecordList = ({
     }, 400);
     return () => clearTimeout(timer);
   }, [fetchRecords]);
+
+  // A lista inteira é paginada no servidor (20 por página, fixo — ver
+  // `FinanceCustomerService.list`/`FinanceProductService.list` etc.), mas
+  // até a v2.3.107 a tela nunca mostrava um jeito de ir pra próxima
+  // página — com mais de 20 registros, o resto ficava inacessível (só
+  // dava pra achar via busca). Buscar de novo ou trocar filtro sempre
+  // volta pra página 1, senão uma busca nova podia abrir numa página sem
+  // resultado nenhum.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setPageNumber(1);
+  }, [searchParam, filterValues, resource]);
 
   const handleOpenNew = () => {
     setSelectedRecord(null);
@@ -328,6 +349,16 @@ const FinanceRecordList = ({
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={count}
+          page={pageNumber - 1}
+          onPageChange={(e, newPage) => setPageNumber(newPage + 1)}
+          rowsPerPage={PAGE_SIZE}
+          rowsPerPageOptions={[PAGE_SIZE]}
+          labelRowsPerPage="Por página"
+          labelDisplayedRows={({ from, to, count: total }) => `${from}–${to} de ${total}`}
+        />
       </Paper>
     </div>
   );

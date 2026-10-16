@@ -525,3 +525,15 @@ que eram esquecimento:
   serial (dias desde 30/12/1899), não como texto "10/04/1988". Não mudar
   esse default globalmente; converter pontual só onde precisar (ver
   `excelSerialToDateString` em `FinanceImportService.ts`).
+- **`FinanceRecordList` (lista genérica de Produtos/Clientes/Fornecedores/
+  Contas) não tinha paginação na TELA até a v2.3.108**, mesmo os services
+  do backend já aceitando `pageNumber` e devolvendo `{records, count,
+  hasMore}` desde a Fase 1/2 — o componente só nunca mandava `pageNumber`
+  nem mostrava nenhum controle de página, sempre buscando só a página 1
+  (20 registros). Passou batido até o cliente importar 205 clientes de
+  verdade (seção 90) e notar que o resto sumia. Lição: um `list()` com
+  paginação pronta no backend não significa que a tela que o consome usa
+  de verdade — ao criar uma lista nova em cima de um recurso já paginado,
+  conferir se o componente manda `pageNumber` e mostra algum controle de
+  página, não só assumir que "menos de 20 registros no teste" cobre o
+  caso real do cliente.
