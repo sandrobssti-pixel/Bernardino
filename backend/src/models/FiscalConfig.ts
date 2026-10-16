@@ -61,12 +61,37 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   gatewayProvider: string;
 
+  // Substituído por `gatewayTokenSandbox`/`gatewayTokenProduction` na
+  // v2.3.109 (Homologação e Produção viraram credenciais separadas, igual
+  // ao próprio painel da Focus NFe) — não removido do banco pra não
+  // perder token que já tinha sido salvo aqui (migration copia o valor
+  // pra `gatewayTokenSandbox`), mas nenhum código novo lê/escreve este
+  // campo. Ver docs/MANUAL_TECNICO.md.
   @Default("")
   @Column
   gatewayToken: string;
 
-  // "sandbox" (homologação) ou "production" (produção) — sempre começa em
-  // sandbox, a empresa muda conscientemente quando terminar os testes.
+  @Default("")
+  @Column
+  gatewayTokenSandbox: string;
+
+  @Default("")
+  @Column
+  gatewayTokenProduction: string;
+
+  @Default(true)
+  @Column
+  sandboxEnabled: boolean;
+
+  @Default(false)
+  @Column
+  productionEnabled: boolean;
+
+  // "sandbox" (homologação) ou "production" (produção) — qual das duas
+  // credenciais acima é usada AGORA pra emitir. Sempre começa em sandbox,
+  // a empresa muda conscientemente quando terminar os testes (e só pode
+  // escolher um ambiente que esteja habilitado — ver `sandboxEnabled`/
+  // `productionEnabled` acima).
   @Default("sandbox")
   @Column
   gatewayEnvironment: string;

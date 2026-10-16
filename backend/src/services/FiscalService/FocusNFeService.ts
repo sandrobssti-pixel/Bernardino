@@ -34,12 +34,13 @@ export interface FocusEmitResult {
 }
 
 const buildClient = (config: FiscalConfig): AxiosInstance => {
-  const baseURL =
-    config.gatewayEnvironment === "production" ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
+  const isProduction = config.gatewayEnvironment === "production";
+  const baseURL = isProduction ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
+  const token = isProduction ? config.gatewayTokenProduction : config.gatewayTokenSandbox;
 
   return axios.create({
     baseURL,
-    auth: { username: config.gatewayToken, password: "" },
+    auth: { username: token, password: "" },
     headers: { "Content-Type": "application/json" },
     timeout: 30000
   });

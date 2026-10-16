@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.108
-**Etapa:** 6.2 Fase 6 — Paginação na lista de Produtos/Clientes/Fornecedores/Contas
+**Versão do documento:** 2.3.109
+**Etapa:** 6.2 Fase 6 — Homologação/Produção separadas, CFOP e Município com busca
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6717,3 +6717,98 @@ produtos — a partir do 21º registro, não tinha NENHUM jeito de ver o resto p
   confirmar, depois do deploy, que a paginação aparece nas 4 telas (Produtos, Clientes,
   Fornecedores, Contas) e que navegar entre páginas mostra os registros certos (ex.:
   achar um dos 205 clientes importados que não está na primeira página).
+
+## 92. Homologação/Produção separadas, CFOP e Município com busca (v2.3.109)
+
+### Contexto
+
+Cliente conseguiu o token da Focus NFe e mandou print do painel deles pra configurar
+antes de testar a emissão de verdade pela primeira vez. Olhando o print, pediu quatro
+coisas:
+1. CFOP com busca ("quando digitar aparece, pra não ficar procurando").
+2. Código IBGE do município preenchido automático (escolhe Estado, depois Município).
+3. Homologação e Produção como campos separados, cada uma com botão de ligar/desligar
+   — copiando o padrão que viu no próprio painel da Focus NFe (lá os dois ambientes
+   são blocos de credencial simultâneos, não um token único alternando).
+4. Perguntou se precisa anexar certificado digital no AtendeFlow ou se já está
+   atrelado ao token.
+
+### Resolvido sem código — pergunta 4
+
+Pelo próprio print que o cliente mandou: "Certificado Digital: Válido" aparece como
+dado da conta **na Focus NFe** (`app-v2.focusnfe.com.br/minhas-empresas/empresas/...`),
+não é nada que o AtendeFlow precise receber/guardar. O token de acesso só autentica
+as chamadas de API em nome dessa empresa já com certificado anexado lá. Resolve de vez
+a dúvida que ficou em aberto desde o início da Fase 3 fiscal sobre upload de
+certificado — **não existe esse passo no nosso sistema, pelo menos pra Focus NFe.**
+
+### Homologação/Produção separadas (pergunta 3)
+
+- **Migration** `20261016140000-split-fiscal-gateway-token-by-environment.ts`:
+  `gatewayToken` (coluna única antiga) não é removida do banco (evita perder token já
+  salvo), mas novo código não lê/escreve mais nela. Colunas novas:
+  `gatewayTokenSandbox`, `gatewayTokenProduction`, `sandboxEnabled` (default `true`),
+  `productionEnabled` (default `false`). A migration copia o valor antigo de
+  `gatewayToken` pra `gatewayTokenSandbox` (homologação era o único ambiente usado até
+  aqui).
+- **`FiscalConfigService.getActiveGatewayToken(config)`**: helper central que decide
+  qual token vale AGORA (baseado em `gatewayEnvironment`) — usado por
+  `FocusNFeService.buildClient`, `FiscalDocumentService` (emit/preview) e
+  `FiscalNumberingService`, em vez de cada um checar os dois campos na mão.
+- **`FiscalConfigService.update`** ganhou uma validação: não deixa salvar um estado
+  onde o "Ambiente ativo" (`gatewayEnvironment`) aponta pra um ambiente que está sendo
+  desabilitado na mesma chamada — evita "emitir sem token nenhum" sem nenhum aviso
+  (`ERR_FISCAL_ENVIRONMENT_NOT_ENABLED`, sem tradução, mesma convenção do resto do
+  Financeiro — ver seção 11 da skill `atendeflow-dev`).
+- **Frontend**: `FiscalConfigPanel` — "Ambiente ativo" (era só "Ambiente") só lista os
+  ambientes habilitados; dois cartões lado a lado "Homologação"/"Produção", cada um com
+  `Switch` "Habilitada" + campo de token próprio (desabilitado quando o switch está
+  desligado).
+
+### CFOP e Município com busca (perguntas 1 e 2)
+
+- **Sem acesso à documentação oficial de novo** (mesmo bloqueio de rede de sempre —
+  `WebFetch` não abre `nfe.io`/`focusnfe.com.br`), mas dessa vez os dados não dependem
+  de nenhum gateway: são tabelas públicas e fixas (CFOP é definido por Convênio/Ajuste
+  SINIEF, municípios são do IBGE). `WebFetch`/`curl` CONSEGUEM acessar
+  `raw.githubusercontent.com` normalmente (diferente de `nfe.io`/`focusnfe.com.br`) —
+  descoberta nova: o bloqueio de rede deste ambiente parece ser por domínio
+  específico, não geral.
+  - CFOP: `github.com/gleisonnanet/cfop` (CSV público, MIT), 601 linhas, conferido
+    manualmente contra códigos conhecidos (5101/5102/5405/5929) antes de usar.
+  - Municípios: `github.com/kelvins/municipios-brasileiros` (CSV público, MIT), 5.570
+    municípios + DF, conferido contra contagem oficial por estado (MG 853, SP 645,
+    RS 497 batem).
+- **`frontend/src/data/cfopList.js`** (novo, ~600 entradas `{value, label}`) e
+  **`frontend/src/data/municipiosBrasil.js`** (novo — `UF_LIST`, `MUNICIPIOS_BY_UF`
+  agrupado por sigla, `UF_BY_CODE_PREFIX` pra inferir a UF a partir dos 2 primeiros
+  dígitos de um código IBGE já salvo) — gerados uma vez por script Node a partir dos
+  CSVs baixados, não buscados em tempo de execução (tabela fixa, não muda com
+  frequência; evita dependência de rede em produção).
+- **`CfopAutocomplete`** (novo componente reaproveitável,
+  `frontend/src/components/CfopAutocomplete/`): `Autocomplete` do `@material-ui/lab`
+  com a lista inteira já carregada, filtro 100% client-side — diferente do
+  `FinanceAsyncAutocomplete` (busca no servidor), não precisa disso aqui porque não é
+  paginado nem específico de empresa. Usado no "CFOP padrão" da Configuração Fiscal e
+  no CFOP de cada item em `SaleModal`.
+- **`CityCodeSelector`** (sub-componente local em `FiscalConfigPanel`): select de UF
+  + `Autocomplete` de Município (filtrado pela UF escolhida) — ao selecionar o
+  município, preenche `cityCode` com o código IBGE. A UF não é um campo do model (só
+  `cityCode` é salvo) — ao reabrir um registro já salvo, a UF inicial é inferida dos 2
+  primeiros dígitos do próprio `cityCode` via `UF_BY_CODE_PREFIX`.
+- Bundle do frontend cresceu ~65 KB (gzip) com as duas tabelas — aceitável pra uma
+  ferramenta administrativa interna, confirmado rodando `npm run build` completo
+  antes de considerar pronto.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de
+  frontend tocados (incluindo os dois arquivos de dados gerados).
+- **`npm run build` completo do frontend rodado com sucesso** (não só lint) — confirma
+  que os dois arquivos de dados grandes (82 KB/373 KB de código fonte) não quebram o
+  build nem o bundling.
+- **Não testado contra o gateway de verdade nesta parte** — o cliente já tem o token
+  de homologação, mas ainda não confirmou ter configurado/testado através dessa tela
+  nova. **Pendente**: cliente configurar Homologação com o token real, emitir a
+  primeira NF-e/NFC-e de teste, e confirmar que CFOP/Município aparecem e filtram
+  certo na tela.

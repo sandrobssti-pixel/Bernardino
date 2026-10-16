@@ -48,7 +48,7 @@ export const emit = async (
 
   const config = await FiscalConfigService.show(companyId);
 
-  if (!config.gatewayToken) {
+  if (!FiscalConfigService.getActiveGatewayToken(config)) {
     throw new AppError("ERR_FISCAL_GATEWAY_NOT_CONFIGURED");
   }
 
@@ -193,7 +193,7 @@ export const previewDanfe = async (
   }
 
   const config = await FiscalConfigService.show(companyId);
-  if (!config.gatewayToken) {
+  if (!FiscalConfigService.getActiveGatewayToken(config)) {
     throw new AppError("ERR_FISCAL_GATEWAY_NOT_CONFIGURED");
   }
 

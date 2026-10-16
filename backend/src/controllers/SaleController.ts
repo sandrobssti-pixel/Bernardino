@@ -74,7 +74,7 @@ export const confirm = async (req: Request, res: Response): Promise<Response> =>
 
   try {
     const config = await FiscalConfigService.show(companyId);
-    if (config.defaultDocumentType && config.gatewayToken) {
+    if (config.defaultDocumentType && FiscalConfigService.getActiveGatewayToken(config)) {
       fiscalAutoEmit = { attempted: true, success: false, type: config.defaultDocumentType };
       await FiscalDocumentService.emit(record.id, config.defaultDocumentType, companyId);
       fiscalAutoEmit.success = true;

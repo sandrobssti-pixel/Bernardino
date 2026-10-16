@@ -537,3 +537,39 @@ que eram esquecimento:
   conferir se o componente manda `pageNumber` e mostra algum controle de
   página, não só assumir que "menos de 20 registros no teste" cobre o
   caso real do cliente.
+- **`WebFetch`/`curl` CONSEGUEM acessar `raw.githubusercontent.com`
+  normalmente, mesmo com `nfe.io`/`focusnfe.com.br`/`doc.focusnfe.com.br`
+  dando `ENOTFOUND` neste ambiente de sessão** (lição anterior, seção
+  acima) — o bloqueio parece ser por domínio específico, não uma falha
+  geral de rede. Útil pra achar dado de referência público (tabela fixa
+  tipo CFOP/município/NCM) mesmo quando a doc oficial do serviço em questão
+  está bloqueada: procurar se existe um repositório GitHub público com o
+  mesmo dado (`raw.githubusercontent.com/<owner>/<repo>/<branch>/<arquivo>`)
+  antes de desistir ou reconstruir de memória. **Sempre conferir a
+  qualidade do dado baixado antes de usar** — ex.: grep por um código
+  conhecido (CFOP 5102 = "Venda de mercadoria...") ou comparar contagem
+  por estado contra número público conhecido (MG tem 853 municípios) —
+  feito na prática na v2.3.109 antes de gerar `frontend/src/data/`.
+- **Tabela de referência fixa (CFOP, município/IBGE) vira arquivo estático
+  gerado uma vez por script, não busca em tempo de execução** — não muda
+  com frequência (CFOP é definido por Ajuste SINIEF, município por lei),
+  e depender de rede em produção pra isso seria custo/risco sem benefício.
+  Padrão: baixar o CSV fonte, rodar um script Node avulso de conversão
+  (documentado no header do arquivo gerado, com a fonte/data), revisar a
+  saída, só então commitar o `.js` gerado em `frontend/src/data/`.
+- **Lista de referência fixa e pequena o bastante pra caber no bundle
+  (CFOP ~600, município ~5.570) usa `@material-ui/lab/Autocomplete` puro
+  com filtro client-side**, não o `FinanceAsyncAutocomplete` (que é
+  especificamente pra busca no SERVIDOR de um recurso paginado por
+  empresa, ex. Produto/Cliente/Fornecedor) — usar o componente errado
+  pra esse caso seria buscar no servidor uma coisa que já está toda no
+  bundle, sem necessidade.
+- **Configuração Fiscal: Homologação e Produção são credenciais
+  SEPARADAS desde a v2.3.109** (token próprio + liga/desliga cada uma),
+  não um token único alternado por um seletor de ambiente — decisão
+  tomada olhando o padrão real do painel da Focus NFe (print que o
+  cliente mandou). `FiscalConfigService.getActiveGatewayToken(config)` é
+  o único lugar que decide qual token vale AGORA — qualquer código novo
+  que precise do token do gateway usa esse helper, nunca lê
+  `gatewayTokenSandbox`/`gatewayTokenProduction` direto (evita duplicar a
+  lógica de "qual ambiente tá ativo" espalhada).

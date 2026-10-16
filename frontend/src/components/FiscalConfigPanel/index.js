@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Formik, Form, Field } from "formik";
 import { toast } from "react-toastify";
+import Autocomplete from "@material-ui/lab/Autocomplete";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -22,6 +23,8 @@ import TableHead from "@material-ui/core/TableHead";
 import TableRow from "@material-ui/core/TableRow";
 
 import toastError from "../../errors/toastError";
+import CfopAutocomplete from "../CfopAutocomplete";
+import { UF_LIST, MUNICIPIOS_BY_UF, UF_BY_CODE_PREFIX } from "../../data/municipiosBrasil";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -65,6 +68,72 @@ const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
   { value: "nfce", label: "NFC-e" },
   { value: "nfse", label: "NFS-e" },
 ];
+
+// Estado (UF) -> Município -> preenche sozinho o "Código IBGE do
+// município" (pedido do cliente — antes era campo de texto livre, tinha
+// que saber/procurar o código de cabeça). O valor salvo continua sendo só
+// o código IBGE (`cityCode`); a UF escolhida é só um filtro local, não um
+// campo do model — por isso, ao reabrir um registro já salvo, a UF inicial
+// é inferida dos 2 primeiros dígitos do próprio código (`UF_BY_CODE_PREFIX`).
+const ufFromCityCode = (code) => UF_BY_CODE_PREFIX[String(code || "").slice(0, 2)] || "";
+
+const CityCodeSelector = ({ value, onChange }) => {
+  const [uf, setUf] = useState(() => ufFromCityCode(value));
+
+  useEffect(() => {
+    setUf((prev) => prev || ufFromCityCode(value));
+  }, [value]);
+
+  const municipios = MUNICIPIOS_BY_UF[uf] || [];
+  const selectedMunicipio = municipios.find((m) => m.code === value) || null;
+
+  return (
+    <Grid container spacing={2}>
+      <Grid item xs={12} sm={4}>
+        <TextField
+          select
+          fullWidth
+          variant="outlined"
+          size="small"
+          label="Estado (UF)"
+          value={uf}
+          onChange={(e) => {
+            setUf(e.target.value);
+            onChange("");
+          }}
+        >
+          <MenuItem value="">Selecione...</MenuItem>
+          {UF_LIST.map((sigla) => (
+            <MenuItem key={sigla} value={sigla}>
+              {sigla}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Grid>
+      <Grid item xs={12} sm={8}>
+        <Autocomplete
+          size="small"
+          disabled={!uf}
+          options={municipios}
+          value={selectedMunicipio}
+          onChange={(e, newValue) => onChange(newValue ? newValue.code : "")}
+          getOptionLabel={(opt) => opt?.name || ""}
+          noOptionsText="Nenhum município encontrado"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Município"
+              placeholder={uf ? "Digite pra buscar" : "Escolha o estado primeiro"}
+              variant="outlined"
+              size="small"
+              helperText={value ? `Código IBGE: ${value}` : "Necessário para NFC-e e NFS-e"}
+            />
+          )}
+        />
+      </Grid>
+    </Grid>
+  );
+};
 
 // Inutilização de numeração de NF-e — recurso separado da config principal
 // (não é um campo salvo em FiscalConfig, é uma ação pontual contra o
@@ -358,27 +427,15 @@ const FiscalConfigPanel = ({ fiscal }) => {
                 />
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="cityCode"
-                  label="Código IBGE do município"
-                  placeholder="Ex.: 3550308 (São Paulo)"
-                  helperText="Necessário para NFC-e e NFS-e"
-                />
+              <Grid item xs={12}>
+                <CityCodeSelector value={values.cityCode} onChange={(code) => setFieldValue("cityCode", code)} />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="defaultCfop"
+                <CfopAutocomplete
                   label="CFOP padrão"
                   helperText="Usado como sugestão ao adicionar itens numa venda"
+                  value={values.defaultCfop}
+                  onChange={(code) => setFieldValue("defaultCfop", code)}
                 />
               </Grid>
             </Grid>
@@ -415,9 +472,12 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   variant="outlined"
                   size="small"
                   name="gatewayEnvironment"
-                  label="Ambiente"
+                  label="Ambiente ativo"
+                  helperText="Qual das duas credenciais abaixo é usada ao emitir agora"
                 >
-                  {ENVIRONMENT_OPTIONS.map((opt) => (
+                  {ENVIRONMENT_OPTIONS.filter(
+                    (opt) => (opt.value === "production" ? values.productionEnabled : values.sandboxEnabled)
+                  ).map((opt) => (
                     <MenuItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </MenuItem>
@@ -442,17 +502,72 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   ))}
                 </Field>
               </Grid>
+
+              {/* Homologação e Produção são credenciais separadas (igual ao
+                  próprio painel da Focus NFe) — cada uma com seu token e um
+                  liga/desliga próprio, em vez de um token único alternando
+                  por ambiente. */}
               <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="gatewayToken"
-                  label="Token de acesso"
-                  helperText="Gerado no painel do gateway escolhido acima (homologação ou produção, conforme o ambiente)"
-                />
+                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
+                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                    <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                      Homologação
+                    </Typography>
+                    <FormControlLabel
+                      labelPlacement="start"
+                      control={
+                        <Switch
+                          checked={!!values.sandboxEnabled}
+                          onChange={(e) => setFieldValue("sandboxEnabled", e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label="Habilitada"
+                    />
+                  </Box>
+                  <Field
+                    as={TextField}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    name="gatewayTokenSandbox"
+                    label="Token de acesso (Homologação)"
+                    disabled={!values.sandboxEnabled}
+                    helperText="Gerado no painel do gateway, aba de Homologação"
+                  />
+                </Paper>
               </Grid>
+              <Grid item xs={12} sm={6}>
+                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
+                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
+                    <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                      Produção
+                    </Typography>
+                    <FormControlLabel
+                      labelPlacement="start"
+                      control={
+                        <Switch
+                          checked={!!values.productionEnabled}
+                          onChange={(e) => setFieldValue("productionEnabled", e.target.checked)}
+                          color="primary"
+                        />
+                      }
+                      label="Habilitada"
+                    />
+                  </Box>
+                  <Field
+                    as={TextField}
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    name="gatewayTokenProduction"
+                    label="Token de acesso (Produção)"
+                    disabled={!values.productionEnabled}
+                    helperText="Gerado no painel do gateway, aba de Produção"
+                  />
+                </Paper>
+              </Grid>
+
               <Grid item xs={12} sm={4}>
                 <Field
                   as={TextField}

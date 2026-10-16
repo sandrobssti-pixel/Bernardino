@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.109] — Homologação/Produção separadas, CFOP e Município com busca — 2026-10-16
+
+### Adicionado
+- **Configuração Fiscal — Homologação e Produção viraram credenciais separadas**, igual
+  ao próprio painel da Focus NFe: cada ambiente tem seu próprio token e um botão
+  liga/desliga independente, em vez de um token único alternando por um seletor de
+  ambiente. O seletor "Ambiente ativo" só deixa escolher um ambiente que esteja
+  habilitado.
+- **CFOP com busca** — digita o código ou parte da descrição e filtra, em vez de
+  precisar saber/procurar de cabeça. Tabela completa (~600 códigos, fonte oficial
+  pública). Vale pro "CFOP padrão" da Configuração Fiscal e pro CFOP de cada item
+  numa venda.
+- **Código IBGE do município automático** — escolhe o Estado, depois o Município
+  (busca com filtro, ~5.570 municípios do Brasil inteiro, fonte pública do IBGE), o
+  código IBGE preenche sozinho. Campo de texto livre saiu de cena.
+
+### Corrigido
+- Confirmado com o cliente (vendo o próprio painel da Focus NFe) que o certificado
+  digital já fica anexado **na conta do gateway**, não precisa de upload nenhum no
+  AtendeFlow — dúvida antiga da Fase 3 finalmente resolvida.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 92.
+
 ## [2.3.108] — Paginação na lista de Produtos/Clientes/Fornecedores/Contas — 2026-10-16
 
 ### Corrigido

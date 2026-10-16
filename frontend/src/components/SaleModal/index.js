@@ -20,6 +20,7 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
+import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
 
 const useStyles = makeStyles((theme) => ({
@@ -262,13 +263,9 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>
-                            <Field
-                              as={TextField}
-                              fullWidth
-                              variant="outlined"
-                              size="small"
-                              label="CFOP"
-                              name={`items.${index}.cfop`}
+                            <CfopAutocomplete
+                              value={item.cfop}
+                              onChange={(code) => setFieldValue(`items.${index}.cfop`, code)}
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>

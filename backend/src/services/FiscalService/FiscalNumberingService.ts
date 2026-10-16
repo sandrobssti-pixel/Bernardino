@@ -23,7 +23,7 @@ export const invalidate = async (
   }
 
   const config = await FiscalConfigService.show(companyId);
-  if (!config.gatewayToken) {
+  if (!FiscalConfigService.getActiveGatewayToken(config)) {
     throw new AppError("ERR_FISCAL_GATEWAY_NOT_CONFIGURED");
   }
 
@@ -34,7 +34,7 @@ export const invalidate = async (
 
 export const list = async (companyId: number): Promise<unknown[]> => {
   const config = await FiscalConfigService.show(companyId);
-  if (!config.gatewayToken) {
+  if (!FiscalConfigService.getActiveGatewayToken(config)) {
     return [];
   }
 
