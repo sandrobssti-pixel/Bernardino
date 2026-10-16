@@ -101,5 +101,6 @@ financeRoutes.post(
 financeRoutes.get("/finance/reports/summary", isAuth, FinanceReportController.summary);
 financeRoutes.get("/finance/reports/cashflow", isAuth, FinanceReportController.cashFlow);
 financeRoutes.get("/finance/reports/expenses-by-category", isAuth, FinanceReportController.expensesByCategory);
+financeRoutes.get("/finance/reports/stock-health", isAuth, FinanceReportController.stockHealth);
 
 export default financeRoutes;

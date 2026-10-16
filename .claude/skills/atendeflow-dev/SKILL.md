@@ -593,3 +593,20 @@ que eram esquecimento:
   implementar os dois — evita retrabalho que só aparece depois que o
   cliente vê a tela de verdade. `FiscalConfigService.isProductionActive`
   é o padrão a reaproveitar pra esse tipo de decisão derivada.
+- **Controle de estoque na venda (v2.3.114) só mexe em item com produto
+  vinculado E `FinanceProduct.controlStock` ligado** — item avulso (sem
+  produto cadastrado) ou produto tipo serviço nunca entram na validação/
+  desconto. Desconto é SÓ na confirmação da venda (não no rascunho), e
+  devolvido automaticamente no cancelamento — só se a venda REALMENTE
+  estava confirmada (`sale.status === "confirmed"` antes de cancelar,
+  senão nunca descontou nada pra devolver). Mesma função
+  (`adjustStock(sale, direction)`, `SaleService.ts`) nos dois sentidos
+  (`1`/`-1`) em vez de duplicar a lógica de "quem conta" duas vezes.
+  Padrão reaproveitável pra qualquer outro efeito colateral de
+  confirmar/cancelar venda que precise ser simétrico.
+- **`FinanceProduct.minStockQuantity = 0` significa "sem aviso
+  configurado"**, não "o mínimo é zero" — um produto com estoque zerado
+  mas sem mínimo definido entra em `outOfStock` (sempre destacado), mas
+  NÃO em `lowStock` até o cliente definir um mínimo > 0 de propósito pra
+  ele. Mesmo padrão de "0 = desligado" já usado em outros campos do
+  projeto (ex. `defaultDocumentType` vazio = emissão manual).

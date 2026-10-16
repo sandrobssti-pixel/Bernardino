@@ -6,6 +6,12 @@ import Paper from "@material-ui/core/Paper";
 import Typography from "@material-ui/core/Typography";
 import Button from "@material-ui/core/Button";
 import CircularProgress from "@material-ui/core/CircularProgress";
+import Chip from "@material-ui/core/Chip";
+import Table from "@material-ui/core/Table";
+import TableBody from "@material-ui/core/TableBody";
+import TableCell from "@material-ui/core/TableCell";
+import TableHead from "@material-ui/core/TableHead";
+import TableRow from "@material-ui/core/TableRow";
 import PrintIcon from "@material-ui/icons/Print";
 import {
   ResponsiveContainer,
@@ -136,18 +142,21 @@ const FinancePainel = ({ finance }) => {
   const [summary, setSummary] = useState(null);
   const [cashFlow, setCashFlow] = useState([]);
   const [expensesByCategory, setExpensesByCategory] = useState([]);
+  const [stockHealth, setStockHealth] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [summaryData, cashFlowData, categoryData] = await Promise.all([
+      const [summaryData, cashFlowData, categoryData, stockData] = await Promise.all([
         finance.reports.summary(),
         finance.reports.cashFlow(6),
         finance.reports.expensesByCategory(),
+        finance.reports.stockHealth(),
       ]);
       setSummary(summaryData);
       setCashFlow(cashFlowData);
       setExpensesByCategory(categoryData);
+      setStockHealth(stockData);
     } catch (err) {
       toastError(err);
     }
@@ -255,6 +264,52 @@ const FinancePainel = ({ finance }) => {
           </ResponsiveContainer>
         )}
       </Paper>
+
+      {stockHealth && (
+        <Paper className={classes.chartPaper} variant="outlined">
+          <Typography className={classes.chartTitle}>Situação do estoque</Typography>
+          {stockHealth.trackedCount === 0 ? (
+            <Typography variant="body2" color="textSecondary">
+              Nenhum produto com controle de estoque habilitado ainda (cadastro de Produtos
+              → "Controlar estoque").
+            </Typography>
+          ) : stockHealth.outOfStock.length === 0 && stockHealth.lowStock.length === 0 ? (
+            <Typography variant="body2" color="textSecondary">
+              Estoque saudável — nenhum dos {stockHealth.trackedCount} produto(s) com controle
+              de estoque está zerado ou abaixo do mínimo configurado.
+            </Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Produto</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell align="center">Estoque</TableCell>
+                  <TableCell align="center">Mínimo</TableCell>
+                  <TableCell>Situação</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {[...stockHealth.outOfStock, ...stockHealth.lowStock].map((product) => (
+                  <TableRow key={product.id}>
+                    <TableCell>{product.name}</TableCell>
+                    <TableCell>{product.sku || "—"}</TableCell>
+                    <TableCell align="center">{product.stockQuantity}</TableCell>
+                    <TableCell align="center">{product.minStockQuantity || "—"}</TableCell>
+                    <TableCell>
+                      {product.stockQuantity <= 0 ? (
+                        <Chip size="small" label="Zerado" style={{ backgroundColor: "#ef4444", color: "#fff" }} />
+                      ) : (
+                        <Chip size="small" label="Baixo" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
+      )}
     </div>
   );
 };

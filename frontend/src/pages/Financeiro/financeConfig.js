@@ -93,6 +93,7 @@ const WEAPON_OR_AMMUNITION_TYPES = [...WEAPON_TYPES, ...AMMUNITION_TYPES];
 const isWeapon = (values) => WEAPON_TYPES.includes(values.type);
 const isAmmunition = (values) => AMMUNITION_TYPES.includes(values.type);
 const isWeaponOrAmmunition = (values) => WEAPON_OR_AMMUNITION_TYPES.includes(values.type);
+const hasStockControl = (values) => !!values.controlStock;
 
 const WEAPON_TYPE_OPTIONS = [
   { value: "pistol", label: "Pistola" },
@@ -159,7 +160,15 @@ export const financeProductFields = [
   { name: "price", label: "Preço de venda (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
-  { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6 },
+  { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: hasStockControl },
+  {
+    name: "minStockQuantity",
+    label: "Estoque mínimo (aviso no painel, 0 = sem aviso)",
+    type: "number",
+    defaultValue: 0,
+    gridSize: 6,
+    visibleWhen: hasStockControl,
+  },
 
   // -- Campos de arma/munição/insumo — só aparecem quando Tipo = Arma ou
   // Munição/Insumo (ver `visibleWhen`, checado em FinanceRecordModal). --

@@ -25,6 +25,7 @@ interface ProductData {
   costPrice?: string;
   controlStock?: boolean;
   stockQuantity?: number;
+  minStockQuantity?: number;
   notes?: string;
   active?: boolean;
   // Cadastro de armas/munições/insumos (clube de tiro, loja de armas,

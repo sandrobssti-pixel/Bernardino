@@ -43,7 +43,9 @@ const includeOptions = [
   {
     model: SaleItem,
     as: "items",
-    include: [{ model: FinanceProduct, as: "product", attributes: ["id", "name", "sku"] }]
+    include: [
+      { model: FinanceProduct, as: "product", attributes: ["id", "name", "sku", "controlStock", "stockQuantity"] }
+    ]
   },
   { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] }
 ];
@@ -182,11 +184,47 @@ export const update = async (
   return show(id, companyId);
 };
 
+// Estoque só é checado/mexido pra item com produto vinculado E
+// `controlStock` ligado nesse produto — item avulso (sem produto
+// cadastrado) ou produto que não controla estoque (ex.: serviço) nunca
+// entram nessa conta. Pedido do cliente (v2.3.114): "não venda se não
+// tiver disponível" — bloqueia a confirmação, não só avisa.
+const ensureStockAvailable = (sale: Sale): void => {
+  const shortages = (sale.items || [])
+    .filter(item => item.product?.controlStock)
+    .map(item => ({ item, product: item.product, needed: Number(item.quantity) || 0 }))
+    .filter(({ product, needed }) => needed > product.stockQuantity);
+
+  if (shortages.length > 0) {
+    const details = shortages
+      .map(({ product, needed }) => `${product.name} (disponível: ${product.stockQuantity}, pedido: ${needed})`)
+      .join("; ");
+    throw new AppError(`Estoque insuficiente: ${details}`);
+  }
+};
+
+// `direction` 1 = desconta (confirmar), -1 = devolve (cancelar) — mesma
+// função nos dois sentidos pra não duplicar a lógica de "só mexe quando
+// tem produto + controla estoque".
+const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
+  for (const item of sale.items || []) {
+    if (!item.product?.controlStock) continue;
+    const quantity = Number(item.quantity) || 0;
+    if (quantity === 0) continue;
+    await FinanceProduct.increment("stockQuantity", {
+      by: direction * quantity,
+      where: { id: item.product.id }
+    });
+  }
+};
+
 // Confirma a venda: trava a edição dos itens e gera a conta a receber
 // correspondente (Fase 2) — é o "gancho" entre o módulo de vendas e o
 // financeiro operacional. Emitir a nota fiscal em si é uma ação separada
 // (FiscalDocumentService), porque a empresa pode querer confirmar a venda
 // sem emitir nota na hora (ex.: emitir só depois do pagamento confirmado).
+// Desde a v2.3.114, também valida e desconta estoque dos itens com produto
+// vinculado que controla estoque — ver `ensureStockAvailable`/`adjustStock`.
 export const confirm = async (id: string | number, companyId: number): Promise<Sale> => {
   const sale = await show(id, companyId);
 
@@ -197,6 +235,8 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
   if (!sale.items || sale.items.length === 0) {
     throw new AppError("ERR_SALE_REQUIRES_ITEMS");
   }
+
+  ensureStockAvailable(sale);
 
   const description = `Venda #${sale.id}${sale.customer ? ` - ${sale.customer.name}` : ""}`;
 
@@ -209,16 +249,24 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
     companyId
   } as any);
 
+  await adjustStock(sale, 1);
   await sale.update({ status: "confirmed", receivableId: receivable.id });
 
   return show(id, companyId);
 };
 
+// Devolve o estoque descontado na confirmação — só quando a venda
+// REALMENTE estava confirmada (nunca mexeu no estoque se ainda era
+// rascunho, então nada a devolver nesse caso).
 export const cancel = async (id: string | number, companyId: number): Promise<Sale> => {
   const sale = await show(id, companyId);
 
   if (sale.status === "cancelled") {
     return sale;
+  }
+
+  if (sale.status === "confirmed") {
+    await adjustStock(sale, -1);
   }
 
   await sale.update({ status: "cancelled" });

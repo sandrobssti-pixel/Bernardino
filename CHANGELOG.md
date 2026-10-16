@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.114] — Módulo de estoque: bloqueia venda sem disponibilidade, desconta/devolve no confirmar/cancelar, painel de saúde — 2026-10-16
+
+### Adicionado
+- Confirmar uma venda agora **bloqueia** se algum item (com produto vinculado que
+  controla estoque) pedir mais do que o estoque disponível — mensagem mostra qual
+  produto e quanto falta.
+- Estoque é descontado automaticamente ao confirmar a venda, e devolvido automaticamente
+  ao cancelar uma venda confirmada.
+- Novo campo "Estoque mínimo (aviso)" no cadastro de Produto — define o nível que
+  dispara o aviso de estoque baixo (0 = sem aviso configurado).
+- Painel Financeiro ganhou uma seção "Situação do estoque" — lista produtos zerados e
+  produtos abaixo do mínimo configurado.
+- Só vale pra produto com "Controlar estoque" ligado — item avulso (sem produto
+  cadastrado) ou produto que não controla estoque nunca entram nessa conta.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 95.
+
 ## [2.3.113] — Mensagem de erro da nota fiscal não cortava mais em 40 caracteres — 2026-10-16
 
 ### Corrigido

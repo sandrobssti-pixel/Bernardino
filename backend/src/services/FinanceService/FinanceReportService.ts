@@ -2,6 +2,7 @@ import { Op, fn, col, literal } from "sequelize";
 import moment from "moment";
 import FinanceExpense from "../../models/FinanceExpense";
 import FinanceReceivable from "../../models/FinanceReceivable";
+import FinanceProduct from "../../models/FinanceProduct";
 
 const toNumber = (value: unknown): number => {
   const n = Number(value);
@@ -169,4 +170,30 @@ export const getExpensesByCategory = async (companyId: number) => {
     category: row.category || "Outros",
     total: toNumber(row.total)
   }));
+};
+
+// Saúde do estoque (módulo de estoque, v2.3.114) — só considera produtos
+// com `controlStock` ligado (os demais nunca entram nessa conta, igual já
+// vale pra validação/desconto na confirmação da venda em `SaleService`).
+// "Baixo" = estoque <= mínimo configurado E mínimo > 0 (0 significa "sem
+// aviso configurado" pro produto, não "estoque zerado é o mínimo").
+// "Zerado" é sempre destacado (<= 0), mesmo sem mínimo configurado.
+export const getStockHealth = async (companyId: number) => {
+  const products = await FinanceProduct.findAll({
+    where: { companyId, controlStock: true, active: true },
+    attributes: ["id", "name", "sku", "stockQuantity", "minStockQuantity"],
+    order: [["name", "ASC"]],
+    raw: true
+  });
+
+  const outOfStock = (products as any[]).filter((p) => p.stockQuantity <= 0);
+  const lowStock = (products as any[]).filter(
+    (p) => p.stockQuantity > 0 && p.minStockQuantity > 0 && p.stockQuantity <= p.minStockQuantity
+  );
+
+  return {
+    trackedCount: products.length,
+    outOfStock,
+    lowStock
+  };
 };

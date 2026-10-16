@@ -74,6 +74,10 @@ const useFinance = () => {
       const { data } = await api.get("/finance/reports/expenses-by-category");
       return data;
     },
+    stockHealth: async () => {
+      const { data } = await api.get("/finance/reports/stock-health");
+      return data;
+    },
   };
 
   // Vínculo Contato (Atendimento) <-> Cliente (Financeiro), pra virar uma

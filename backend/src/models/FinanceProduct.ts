@@ -66,6 +66,14 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   stockQuantity: number;
 
+  // Aviso de estoque baixo (Painel Financeiro) dispara quando
+  // `stockQuantity <= minStockQuantity` — `0` (padrão) significa "sem
+  // aviso configurado", nunca entra na lista de estoque baixo mesmo
+  // zerado, até o cliente definir um mínimo de propósito pra esse produto.
+  @Default(0)
+  @Column
+  minStockQuantity: number;
+
   @Default("")
   @Column(DataType.TEXT)
   notes: string;

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.113
-**Etapa:** 6.2 Fase 6 — Mensagem de erro da nota fiscal não cortava mais em 40 caracteres
+**Versão do documento:** 2.3.114
+**Etapa:** 6.2 Fase 6 — Módulo de estoque (bloqueio, desconto/devolução, painel)
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6909,3 +6909,68 @@ versão) pra eu poder comparar o payload que `FocusNFeService` monta contra o qu
 API da Focus NFe realmente espera, e corrigir o campo que estiver errado — é
 exatamente o tipo de ajuste já previsto desde que o adapter foi escrito sem acesso a
 sandbox real.
+
+## 95. Módulo de estoque: bloqueio, desconto/devolução automática, painel de saúde (v2.3.114)
+
+### Contexto
+
+Testando a emissão de NF-e, cliente notou: "o produto não tem em estoque" — o sistema
+nunca mexia em `stockQuantity` em venda nenhuma (nem descontava, nem bloqueava vender
+mais do que tinha). Perguntado como queria que funcionasse, pediu um módulo
+completo: painel pra ver se o estoque está saudável, aviso configurável de estoque
+baixo por produto, e bloquear a venda quando não tiver disponível (confirmado
+"opção 1" — bloquear, não só avisar). Desconto só na confirmação da venda (não no
+rascunho), confirmado também.
+
+### O que foi feito
+
+- **Migration** `20261016150000-add-min-stock-quantity-to-finance-products.ts`:
+  `FinanceProduct.minStockQuantity` (padrão `0` = sem aviso configurado pra esse
+  produto).
+- **`SaleService.ts`**:
+  - `ensureStockAvailable(sale)`: antes de confirmar, para cada item com produto
+    vinculado E `controlStock` ligado, compara `quantity` pedida contra
+    `stockQuantity` disponível — se algum item pedir mais do que tem, lança
+    `AppError` com mensagem listando produto/disponível/pedido (não é um código
+    `ERR_*` fixo — mensagem dinâmica, mesma convenção do Financeiro de não traduzir
+    esses erros, seção 11 da skill).
+  - `adjustStock(sale, direction)`: `1` desconta (ao confirmar), `-1` devolve (ao
+    cancelar uma venda que ESTAVA confirmada) — mesma função nos dois sentidos,
+    usando `FinanceProduct.increment("stockQuantity", {by, where})`. Só mexe em
+    item com produto vinculado + `controlStock` ligado, igual a validação acima.
+  - `confirm()`: chama `ensureStockAvailable` antes de criar a conta a receber (se
+    tiver falta, nem chega a criar a conta), e `adjustStock(sale, 1)` depois de
+    criar — desconta só se tudo deu certo.
+  - `cancel()`: chama `adjustStock(sale, -1)` **só se `sale.status === "confirmed"`**
+    antes de cancelar — uma venda ainda em rascunho nunca descontou nada, não tem o
+    que devolver. Resolve também o caso de limpar vendas de teste (cliente perguntou
+    sobre isso testando a Focus NFe): cancelar uma venda de teste confirmada já
+    devolve o estoque sozinho.
+  - `includeOptions` (usado em `show`/`list`) ganhou `controlStock`/`stockQuantity`
+    nos atributos do `product` incluído — `confirm`/`cancel` precisam desses campos
+    sem fazer outra consulta.
+- **`FinanceReportService.getStockHealth(companyId)`** (novo): lista produtos com
+  `controlStock = true` e `active = true`, separados em `outOfStock`
+  (`stockQuantity <= 0`) e `lowStock` (`stockQuantity <= minStockQuantity`, só
+  quando `minStockQuantity > 0` — `0` é "sem aviso configurado", não "o mínimo é
+  zero"). Rota `GET /finance/reports/stock-health`, mesmo padrão dos outros
+  relatórios (`summary`/`cashflow`/`expenses-by-category`).
+- **Frontend**:
+  - `financeConfig.js`: novo campo "Estoque mínimo (aviso no painel, 0 = sem aviso)"
+    no formulário de Produto, só visível quando "Controlar estoque" está ligado
+    (`visibleWhen: hasStockControl`, mesmo padrão já usado pros campos de
+    arma/munição).
+  - `FinancePainel`: nova seção "Situação do estoque" — tabela com os produtos
+    zerados/baixos (zerados primeiro), chip vermelho "Zerado"/laranja "Baixo". Três
+    estados: nenhum produto rastreado, tudo saudável, ou lista de problemas.
+  - `useFinance().reports.stockHealth()` — mesmo padrão dos outros relatórios.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de
+  frontend tocados.
+- Não testado contra dado real (sem acesso a produção). **Pendente**: cliente
+  confirmar, numa venda de teste, que (a) vender mais do que o estoque disponível é
+  bloqueado com mensagem clara, (b) confirmar desconta o estoque certo, (c) cancelar
+  uma venda confirmada devolve o estoque, (d) o Painel Financeiro mostra a seção de
+  estoque corretamente.
