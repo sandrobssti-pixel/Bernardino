@@ -48,6 +48,7 @@ const FiscalSalesPanel = ({ finance, fiscal }) => {
   return (
     <SaleList
       fiscal={fiscal}
+      finance={finance}
       customers={customers}
       products={products}
       fiscalConfig={fiscalConfig}

@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.103] — Busca com filtro em Produto/Cliente/Fornecedor (Vendas e Contas) — 2026-10-16
+
+### Adicionado
+- Campo "Produto/serviço" e "Cliente" na tela de Vendas, e "Fornecedor"/"Cliente" em
+  Contas a Pagar/Receber, agora são um campo de busca (autocomplete) — digita o nome,
+  SKU (produto) ou CPF/CNPJ/e-mail (cliente/fornecedor) e filtra, em vez de rolar uma
+  lista inteira catando um por um.
+- Busca feita no servidor (com atraso de digitação) em vez de só filtrar uma lista já
+  carregada — o cadastro de Produtos/Clientes/Fornecedores é paginado (20 por página),
+  então carregar tudo de uma vez de propósito não escalaria pra um catálogo maior
+  (ex.: os 65 produtos recém-importados).
+- Componente novo reaproveitável (`FinanceAsyncAutocomplete`) usado nos dois lugares —
+  qualquer campo novo do Financeiro que precise de busca num outro cadastro usa o mesmo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 87.
+
 ## [2.3.102] — Planilha-modelo pra download (Produtos e Clientes) — 2026-10-16
 
 ### Adicionado

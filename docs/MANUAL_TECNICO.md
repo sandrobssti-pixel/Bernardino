@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.102
-**Etapa:** 6.2 Fase 6 — Planilha-modelo pra download + causa raiz do deploy travado (git fetch)
+**Versão do documento:** 2.3.103
+**Etapa:** 6.2 Fase 6 — Busca com filtro em Produto/Cliente/Fornecedor (Vendas e Contas)
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6343,3 +6343,67 @@ enquanto (Fornecedores fica pra depois, mesmo padrão "fazer por parte").
   colunas reconhecidas corretamente, confirmado campo a campo contra os aliases.
 - Não testado o download/fluxo completo no navegador nesta sessão (sem acesso à produção).
   **Pendente**: cliente confirmar que os botões aparecem e os arquivos baixam corretamente.
+
+## 87. Busca com filtro em Produto/Cliente/Fornecedor — Vendas e Contas (v2.3.103)
+
+### Contexto
+
+Depois de importar o catálogo real (65 produtos), cliente pediu que os campos de
+Produto (na tela de Vendas) e Cliente/Fornecedor (Vendas, Contas a Pagar/Receber)
+tivessem busca com filtro — "o usuário digita o nome ou o código do produto e filtra
+pra não ficar procurando um a um" — e que o mesmo valesse pra qualquer campo do
+Financeiro que aponte pra outro cadastro.
+
+### Causa raiz (por que não dava só pra trocar o componente visual)
+
+Os dois lugares afetados montavam a lista de opções de formas diferentes, mas ambos
+com o mesmo problema de fundo:
+
+- **`SaleModal`** (Produto/Cliente na venda): recebia os arrays `customers`/`products`
+  já prontos via prop, buscados **uma única vez** pelo `FiscalSalesPanel` ao entrar na
+  aba Vendas, com `searchParam: ""`.
+- **`FinanceRecordModal`**, campo tipo `asyncSelect` (Fornecedor em Despesas, Cliente em
+  Contas a Receber): buscava a lista uma vez, ao abrir o modal, também com
+  `searchParam: ""`.
+
+Em ambos os casos, o endpoint `list()` de Produtos/Clientes/Fornecedores é **paginado,
+20 registros por página** (`FinanceProductService.list`/`FinanceCustomerService.list`/
+`FinanceSupplierService.list`) — com 65 produtos reais já cadastrados, esses campos só
+enxergavam os 20 primeiros (por nome, ordem alfabética) e **os outros 45 produtos eram
+impossíveis de selecionar na venda**, independente de qualquer melhoria visual. Só
+trocar o componente de "select simples" por um "autocomplete com filtro" sobre essa
+mesma lista capada não resolveria o problema de verdade — o filtro teria que buscar no
+servidor, não só filtrar o que já tinha sido carregado.
+
+### O que foi feito
+
+- **`FinanceAsyncAutocomplete`** (`frontend/src/components/FinanceAsyncAutocomplete/`),
+  componente novo reaproveitável: `Autocomplete` (`@material-ui/lab`, mesmo padrão já
+  usado em `NewTicketModal` pra busca de contato) com busca no servidor via
+  `fetchOptions(searchParam)`, atraso de 350ms na digitação (debounce, evita uma
+  requisição por tecla), e `initialOptions` — garante que o registro já selecionado
+  (ex.: editando uma conta cujo fornecedor não está entre os 20 mais recentes) sempre
+  apareça como opção, mesmo antes de qualquer busca.
+- **`FinanceRecordModal`**: campo `asyncSelect` trocado pra usar esse componente —
+  removida a busca única ao abrir o modal (`asyncOptions`), cada campo busca sob
+  demanda. Usa `record.<singular do optionsResource>` (ex. `record.supplier`,
+  já embutido na resposta de listagem, usado pela própria coluna da tabela) como opção
+  inicial ao editar.
+- **`SaleModal`**: campos "Cliente" e "Produto/serviço" (por item) trocados da mesma
+  forma — precisou passar a prop `finance` (o hook inteiro) por toda a cadeia
+  `FiscalSalesPanel` → `SaleList` → `SaleModal`, que antes só recebiam os arrays já
+  prontos. Os arrays `customers`/`products` que o `FiscalSalesPanel` já buscava uma vez
+  continuam existindo, agora só como opção inicial (primeira exibição, antes de
+  buscar) — a busca de verdade passa a ir sempre ao servidor.
+- **Busca por CPF/CNPJ/e-mail já funcionava no backend** (`FinanceCustomerService.list`/
+  `FinanceSupplierService.list`, `Op.or` em nome/documento/e-mail) — não precisou de
+  nenhuma mudança de backend, só reaproveitar o `searchParam` já existente.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend (sem mudança de backend nesta parte, só
+  reconfirmado); `eslint` limpo nos 5 arquivos de frontend tocados.
+- Não testado o fluxo completo no navegador nesta sessão (sem acesso à produção).
+  **Pendente**: cliente confirmar, numa venda nova, que o campo Produto encontra um dos
+  produtos importados que não está entre os 20 primeiros (ex.: buscar por "RIFLE" ou
+  por um SKU específico) — esse é o caso que antes não tinha solução nenhuma.

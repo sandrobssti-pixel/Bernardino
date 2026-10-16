@@ -421,3 +421,21 @@ que eram esquecimento:
   descobrir que o log não apareceu. (Isso não significa trocar todo uso
   já existente de `logger.*` no sistema — só não confiar nele pra
   diagnóstico novo sem testar primeiro.)
+- **Qualquer campo que lista registros de outro cadastro do Financeiro
+  (Produto numa venda, Fornecedor numa despesa, Cliente numa venda/conta a
+  receber) precisa de busca no servidor (`FinanceAsyncAutocomplete`,
+  `frontend/src/components/FinanceAsyncAutocomplete/`), nunca um `<select>`
+  com a lista inteira carregada de uma vez** — `list()` de Produtos/
+  Clientes/Fornecedores é paginado, 20 por página (`FinanceProductService`/
+  `FinanceCustomerService`/`FinanceSupplierService`). Carregar tudo de uma
+  vez (`searchParam: ""` uma única vez ao abrir o modal/tela) "funciona"
+  em ambiente de teste com poucos registros, mas quebra silenciosamente
+  assim que o cliente tem mais de 20 produtos/clientes/fornecedores — os
+  registros além da primeira página ficam literalmente impossíveis de
+  selecionar, sem erro nenhum aparecendo. Batido na prática (outubro/2026,
+  v2.3.103) depois do cliente importar 65 produtos reais. Ao adicionar um
+  campo novo desse tipo, usar `FinanceAsyncAutocomplete` direto (recebe
+  `fetchOptions(searchParam)` que chama `resource.list({searchParam})` —
+  a busca por nome/SKU/CPF-CNPJ/e-mail já existe nesses `list()`, só
+  precisa repassar o termo digitado) em vez de montar outro `<select>`
+  com lista fixa.

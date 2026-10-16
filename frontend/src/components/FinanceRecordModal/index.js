@@ -17,6 +17,7 @@ import Switch from "@material-ui/core/Switch";
 import CircularProgress from "@material-ui/core/CircularProgress";
 
 import toastError from "../../errors/toastError";
+import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -76,31 +77,11 @@ const buildInitialValues = (fields, record) => {
 const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, finance }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
-  const [asyncOptions, setAsyncOptions] = useState({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const asyncFields = fields.filter((f) => f.type === "asyncSelect");
-    if (asyncFields.length === 0 || !finance) return;
-
-    asyncFields.forEach(async (field) => {
-      try {
-        const resource = finance[field.optionsResource];
-        if (!resource) return;
-        const { records } = await resource.list({ searchParam: "" });
-        setAsyncOptions((prev) => ({ ...prev, [field.optionsResource]: records || [] }));
-      } catch (err) {
-        // Sem opções pra escolher não impede o resto do formulário de funcionar.
-        setAsyncOptions((prev) => ({ ...prev, [field.optionsResource]: [] }));
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   // O campo "principal" (obrigatório, mín. 2 caracteres) varia por cadastro:
   // clientes/fornecedores/produtos usam "name", contas a pagar/receber (Fase
@@ -234,27 +215,33 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                   }
 
                   if (field.type === "asyncSelect") {
-                    const options = asyncOptions[field.optionsResource] || [];
+                    const resource = finance?.[field.optionsResource];
+                    // Associação já vem embutida no registro quando edita
+                    // (ex.: `record.supplier`, usado pela própria tabela do
+                    // FinanceRecordList) — garante que o selecionado apareça
+                    // mesmo que não esteja entre os primeiros resultados de
+                    // uma busca em branco.
+                    const singularKey = field.optionsResource.replace(/s$/, "");
+                    const embedded = record?.[singularKey];
+                    const currentId = values[field.name];
+                    const selected = embedded && embedded.id === currentId ? embedded : null;
+
                     return (
                       <Grid item xs={12} sm={gridSize} key={field.name}>
-                        <Field
-                          as={TextField}
-                          select
-                          fullWidth
-                          variant="outlined"
-                          size="small"
-                          name={field.name}
+                        <FinanceAsyncAutocomplete
                           label={field.label}
-                        >
-                          <MenuItem value="">
-                            <em>Nenhum</em>
-                          </MenuItem>
-                          {options.map((opt) => (
-                            <MenuItem key={opt.id} value={opt.id}>
-                              {opt.name}
-                            </MenuItem>
-                          ))}
-                        </Field>
+                          value={selected}
+                          initialOptions={embedded ? [embedded] : []}
+                          getOptionLabel={(opt) => opt?.name || ""}
+                          fetchOptions={async (searchParam) => {
+                            if (!resource) return [];
+                            const { records } = await resource.list({ searchParam });
+                            return records || [];
+                          }}
+                          onChange={(e, newValue) =>
+                            setFieldValue(field.name, newValue?.id || "")
+                          }
+                        />
                       </Grid>
                     );
                   }

@@ -54,7 +54,7 @@ const statusChip = (status) => {
 // tem itens dinâmicos e um ciclo de vida com mais estados (rascunho ->
 // confirmada -> [nota fiscal emitida] / cancelada) — precisa de ações e
 // modais próprios.
-const SaleList = ({ fiscal, customers, products, fiscalConfig }) => {
+const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
   const [sales, setSales] = useState([]);
@@ -173,6 +173,7 @@ const SaleList = ({ fiscal, customers, products, fiscalConfig }) => {
         sale={selectedSale}
         customers={customers}
         products={products}
+        finance={finance}
         defaultCfop={fiscalConfig?.defaultCfop}
       />
 

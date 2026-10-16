@@ -10,7 +10,6 @@ import DialogActions from "@material-ui/core/DialogActions";
 import DialogContent from "@material-ui/core/DialogContent";
 import DialogTitle from "@material-ui/core/DialogTitle";
 import Grid from "@material-ui/core/Grid";
-import MenuItem from "@material-ui/core/MenuItem";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import IconButton from "@material-ui/core/IconButton";
 import Typography from "@material-ui/core/Typography";
@@ -21,6 +20,7 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
+import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -75,7 +75,7 @@ const buildInitialValues = (sale, defaultCfop) => ({
 // docs/MANUAL_TECNICO.md, seção 6.2). Só permite editar vendas em rascunho —
 // depois de confirmada, os itens ficam travados (viram base pra nota fiscal
 // e conta a receber, não podem mudar retroativamente).
-const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop }) => {
+const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop, finance }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(null, defaultCfop));
 
@@ -102,15 +102,26 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     }
   };
 
-  const handleProductChange = (index, productId, setFieldValue) => {
-    const product = products.find((p) => p.id === productId);
-    setFieldValue(`items.${index}.productId`, productId);
+  const handleProductChange = (index, product, setFieldValue) => {
+    setFieldValue(`items.${index}.productId`, product?.id || "");
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
       setFieldValue(`items.${index}.ncm`, product.ncm || "");
       setFieldValue(`items.${index}.unit`, product.unit || "UN");
       setFieldValue(`items.${index}.unitPrice`, Number(product.price) || 0);
     }
+  };
+
+  const fetchCustomerOptions = async (searchParam) => {
+    if (!finance) return customers;
+    const { records } = await finance.customers.list({ searchParam });
+    return records || [];
+  };
+
+  const fetchProductOptions = async (searchParam) => {
+    if (!finance) return products;
+    const { records } = await finance.products.list({ searchParam });
+    return records || [];
   };
 
   return (
@@ -135,24 +146,17 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
               <DialogContent dividers={false}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={8}>
-                    <Field
-                      as={TextField}
-                      select
-                      fullWidth
-                      variant="outlined"
-                      size="small"
-                      name="customerId"
-                      label="Cliente"
-                    >
-                      <MenuItem value="">
-                        <em>Nenhum (consumidor não identificado)</em>
-                      </MenuItem>
-                      {customers.map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.name}
-                        </MenuItem>
-                      ))}
-                    </Field>
+                    <FinanceAsyncAutocomplete
+                      label="Cliente (nome, CPF/CNPJ ou e-mail — vazio = consumidor não identificado)"
+                      value={
+                        customers.find((c) => c.id === values.customerId) ||
+                        (sale?.customer?.id === values.customerId ? sale.customer : null)
+                      }
+                      initialOptions={sale?.customer ? [sale.customer, ...customers] : customers}
+                      getOptionLabel={(opt) => opt?.name || ""}
+                      fetchOptions={fetchCustomerOptions}
+                      onChange={(e, newValue) => setFieldValue("customerId", newValue?.id || "")}
+                    />
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Field
@@ -180,26 +184,16 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                       {values.items.map((item, index) => (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
                           <Grid item xs={12} sm={4}>
-                            <TextField
-                              select
-                              fullWidth
-                              variant="outlined"
-                              size="small"
-                              label="Produto/serviço"
-                              value={item.productId}
-                              onChange={(e) =>
-                                handleProductChange(index, e.target.value, setFieldValue)
+                            <FinanceAsyncAutocomplete
+                              label="Produto/serviço (nome ou SKU — vazio = item avulso)"
+                              value={products.find((p) => p.id === item.productId) || null}
+                              initialOptions={products}
+                              getOptionLabel={(opt) => opt?.name || ""}
+                              fetchOptions={fetchProductOptions}
+                              onChange={(e, newValue) =>
+                                handleProductChange(index, newValue, setFieldValue)
                               }
-                            >
-                              <MenuItem value="">
-                                <em>Item avulso</em>
-                              </MenuItem>
-                              {products.map((p) => (
-                                <MenuItem key={p.id} value={p.id}>
-                                  {p.name}
-                                </MenuItem>
-                              ))}
-                            </TextField>
+                            />
                           </Grid>
                           <Grid item xs={12} sm={3}>
                             <Field
