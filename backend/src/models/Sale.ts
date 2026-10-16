@@ -17,6 +17,7 @@ import Company from "./Company";
 import FinanceCustomer from "./FinanceCustomer";
 import FinanceReceivable from "./FinanceReceivable";
 import SaleItem from "./SaleItem";
+import FiscalDocument from "./FiscalDocument";
 
 // Venda (Fase 3 do roadmap — módulo fiscal, ver docs/MANUAL_TECNICO.md,
 // seção 6.2). Existe porque NF-e/NFC-e exigem itens discriminados (produto,
@@ -67,6 +68,12 @@ class Sale extends Model<Sale> {
 
   @HasMany(() => SaleItem)
   items: SaleItem[];
+
+  // Usado pra saber se a venda já teve alguma nota de Produção (nota
+  // real) — decide se ela pode ser excluída de verdade como venda de
+  // teste de Homologação (ver `SaleService.remove`).
+  @HasMany(() => FiscalDocument)
+  fiscalDocuments: FiscalDocument[];
 
   @AllowNull(false)
   @ForeignKey(() => Company)

@@ -6,6 +6,10 @@ import SaleItem from "../../models/SaleItem";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceReceivable from "../../models/FinanceReceivable";
+import FiscalConfig from "../../models/FiscalConfig";
+import FiscalDocument from "../../models/FiscalDocument";
+import * as Iva2027Service from "./Iva2027Service";
+import { isProductionActive } from "./FiscalConfigService";
 
 interface ListRequest {
   companyId: number;
@@ -47,7 +51,8 @@ const includeOptions = [
       { model: FinanceProduct, as: "product", attributes: ["id", "name", "sku", "controlStock", "stockQuantity"] }
     ]
   },
-  { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] }
+  { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] },
+  { model: FiscalDocument, as: "fiscalDocuments", attributes: ["id", "type", "status", "environment"] }
 ];
 
 const saleSchema = Yup.object().shape({
@@ -112,21 +117,39 @@ export const show = async (id: string | number, companyId: number): Promise<Sale
 // precisa ver/editar isso) — são sempre lidos do cadastro do produto no
 // momento da venda e gravados como snapshot no item (dashboard de lucro,
 // v2.3.117), mesma lógica de snapshot já usada pra sku/ncm/cfop.
-const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: number) => {
+//
+// Reforma Tributária 2027 (CBS/IBS, v2.3.118): os 9 campos `iva*` do item
+// só são calculados (via `Iva2027Service.calculate`) quando
+// `FiscalConfig.reform2027Enabled` estiver true — com o flag desligado
+// (padrão), nem a config nem o cliente são consultados pra isso, e os
+// campos ficam no default "0", sem nenhum impacto no faturamento atual.
+const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: number, customerId?: number | null) => {
   const productIds = items.map(item => item.productId).filter((id): id is number => !!id);
   const products = productIds.length
     ? await FinanceProduct.findAll({
         where: { id: productIds, companyId },
-        attributes: ["id", "costPrice", "taxRate"]
+        attributes: ["id", "costPrice", "taxRate", "ivaCbsRate", "ivaIbsRate", "ivaEducationReduction"]
       })
     : [];
   const productById = new Map(products.map(p => [p.id, p]));
 
+  const fiscalConfig = await FiscalConfig.findOne({ where: { companyId } });
+  const reformEnabled = !!fiscalConfig?.reform2027Enabled;
+
+  const customer = reformEnabled && customerId
+    ? await FinanceCustomer.findOne({
+        where: { id: customerId, companyId },
+        attributes: ["id", "ivaTaxpayerProfile", "ivaGovExempt"]
+      })
+    : null;
+
   return items.map(item => {
     const quantity = Number(item.quantity) || 0;
     const unitPrice = Number(item.unitPrice) || 0;
+    const totalPrice = quantity * unitPrice;
     const product = item.productId ? productById.get(item.productId) : undefined;
-    return {
+
+    const row: Record<string, unknown> = {
       saleId,
       productId: item.productId || null,
       description: item.description,
@@ -136,10 +159,33 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
       unit: item.unit || "UN",
       quantity: String(quantity),
       unitPrice: String(unitPrice),
-      totalPrice: String(quantity * unitPrice),
+      totalPrice: String(totalPrice),
       costPrice: product?.costPrice ?? "0",
       taxRate: product?.taxRate ?? "0"
     };
+
+    if (reformEnabled) {
+      const result = Iva2027Service.calculate({
+        customerProfile: (customer?.ivaTaxpayerProfile as Iva2027Service.IvaTaxpayerProfile) || "B2C",
+        customerGovExempt: !!customer?.ivaGovExempt,
+        baseNetPrice: totalPrice,
+        cbsRate: Number(product?.ivaCbsRate) || 0,
+        ibsRate: Number(product?.ivaIbsRate) || 0,
+        educationReduction: !!product?.ivaEducationReduction
+      });
+
+      row.ivaNetUnitPrice = String(quantity > 0 ? result.netPrice / quantity : 0);
+      row.ivaNetTotalPrice = String(result.netPrice);
+      row.ivaCbsBase = String(result.netPrice);
+      row.ivaIbsBase = String(result.netPrice);
+      row.ivaCbsRateApplied = String(result.cbsRateApplied);
+      row.ivaIbsRateApplied = String(result.ibsRateApplied);
+      row.ivaCbsValue = String(result.cbsValue);
+      row.ivaIbsStateValue = String(result.ibsStateValue);
+      row.ivaIbsCityValue = String(result.ibsCityValue);
+    }
+
+    return row;
   });
 };
 
@@ -161,7 +207,7 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
     companyId
   } as any);
 
-  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId) as any);
+  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId, data.customerId) as any);
 
   return show(sale.id, companyId);
 };
@@ -196,7 +242,7 @@ export const update = async (
   // diff/merge item a item) — venda só é editável em "draft", então não há
   // risco de descartar histórico de itens de uma venda já confirmada.
   await SaleItem.destroy({ where: { saleId: sale.id } });
-  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId) as any);
+  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId, data.customerId) as any);
 
   return show(id, companyId);
 };
@@ -290,12 +336,40 @@ export const cancel = async (id: string | number, companyId: number): Promise<Sa
   return show(id, companyId);
 };
 
+// Pedido do cliente (v2.3.118): poder excluir de verdade (não só cancelar)
+// uma venda confirmada/cancelada feita em Homologação, pra limpar o teste
+// antes/depois de passar pra Produção. Só permitido quando a venda NUNCA
+// teve um FiscalDocument de Produção (nota real) — caso contrário seria
+// apagar uma venda de verdade, e o caminho correto ali é cancelar
+// (`cancel`), não excluir. Explicitamente SEM tocar em estoque, mesmo que
+// a venda tenha "descontado" ao confirmar — pedido do cliente: a limpeza
+// de teste não deve alterar o estoque atual.
 export const remove = async (id: string | number, companyId: number): Promise<void> => {
   const sale = await show(id, companyId);
 
-  if (sale.status !== "draft") {
+  if (sale.status === "draft") {
+    await sale.destroy();
+    return;
+  }
+
+  const documents = sale.fiscalDocuments || [];
+  const hasProductionDocument = documents.some(doc => doc.environment === "production");
+
+  if (hasProductionDocument) {
     throw new AppError("ERR_SALE_NOT_EDITABLE");
   }
 
+  if (documents.length === 0) {
+    const config = await FiscalConfig.findOne({ where: { companyId } });
+    if (config && isProductionActive(config)) {
+      throw new AppError("ERR_SALE_NOT_EDITABLE");
+    }
+  }
+
+  await FiscalDocument.destroy({ where: { saleId: sale.id, companyId } });
+  await SaleItem.destroy({ where: { saleId: sale.id } });
+  if (sale.receivableId) {
+    await FinanceReceivable.destroy({ where: { id: sale.receivableId, companyId } });
+  }
   await sale.destroy();
 };

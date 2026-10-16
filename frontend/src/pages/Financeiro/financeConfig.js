@@ -33,6 +33,18 @@ export const financeCustomerColumns = [
   { field: "active", label: "Status", render: (r) => <ActiveChip active={r.active} /> },
 ];
 
+const IVA_TAXPAYER_PROFILE_OPTIONS = [
+  { value: "B2C", label: "B2C — Pessoa física" },
+  { value: "B2B", label: "B2B — Empresa" },
+  { value: "B2G", label: "B2G — Órgão público" },
+];
+
+// Reforma Tributária 2027 (CBS/IBS) — campos ficam desabilitados enquanto
+// a chave global (Configuração Fiscal) não for ativada. `context` vem de
+// `Financeiro/index.js` (lido da Configuração Fiscal uma vez, repassado
+// até aqui via `FinanceRecordList`/`FinanceRecordModal`).
+const reform2027Disabled = (values, context) => !context?.reform2027Enabled;
+
 export const financeCustomerFields = [
   { name: "name", label: "Nome do cliente", gridSize: 8 },
   { name: "documentType", label: "Tipo de documento", type: "select", options: DOCUMENT_TYPE_OPTIONS, gridSize: 4 },
@@ -42,6 +54,28 @@ export const financeCustomerFields = [
   { name: "active", label: "Cliente ativo", type: "switch", defaultValue: true, gridSize: 6 },
   ...ADDRESS_FIELDS,
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
+  {
+    type: "sectionTitle",
+    label: "Reforma Tributária (IVA 2027)",
+    helperText: "Só tem efeito depois de ativado em Configuração Fiscal.",
+  },
+  {
+    name: "ivaTaxpayerProfile",
+    label: "Perfil do destinatário (IVA 2027)",
+    type: "select",
+    options: IVA_TAXPAYER_PROFILE_OPTIONS,
+    defaultValue: "B2C",
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
+  {
+    name: "ivaGovExempt",
+    label: "Órgão público isento (edital) — IVA 2027",
+    type: "switch",
+    defaultValue: false,
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
 ];
 
 export const financeSupplierColumns = [
@@ -168,6 +202,49 @@ export const financeProductFields = [
     gridSize: 6,
   },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
+  {
+    type: "sectionTitle",
+    label: "Reforma Tributária (IVA 2027)",
+    helperText: "Só tem efeito depois de ativado em Configuração Fiscal — preenchimento preventivo.",
+  },
+  {
+    name: "ivaEducationReduction",
+    label: "Serviço de educação/treinamento com redução de 60%",
+    type: "switch",
+    defaultValue: false,
+    gridSize: 12,
+    disabledWhen: reform2027Disabled,
+  },
+  {
+    name: "ivaCstCbs",
+    label: "CST da CBS (IVA 2027)",
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
+  {
+    name: "ivaCstIbs",
+    label: "CST do IBS (IVA 2027)",
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
+  {
+    name: "ivaCbsRate",
+    label: "Alíquota estimada CBS % (IVA 2027)",
+    type: "number",
+    step: "0.01",
+    defaultValue: "0",
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
+  {
+    name: "ivaIbsRate",
+    label: "Alíquota estimada IBS % (IVA 2027)",
+    type: "number",
+    step: "0.01",
+    defaultValue: "0",
+    gridSize: 6,
+    disabledWhen: reform2027Disabled,
+  },
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: hasStockControl },
   {
     name: "minStockQuantity",

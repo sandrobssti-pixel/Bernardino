@@ -66,6 +66,30 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   taxRate: string;
 
+  // Reforma Tributária 2027 (CBS/IBS) — CST e alíquotas estimadas, mais o
+  // indicador de redução de 60% pra curso/treinamento. Sem efeito nenhum
+  // enquanto `FiscalConfig.reform2027Enabled` for false — ver
+  // `Iva2027Service.ts`.
+  @Default("")
+  @Column
+  ivaCstCbs: string;
+
+  @Default("")
+  @Column
+  ivaCstIbs: string;
+
+  @Default("0")
+  @Column
+  ivaCbsRate: string;
+
+  @Default("0")
+  @Column
+  ivaIbsRate: string;
+
+  @Default(false)
+  @Column
+  ivaEducationReduction: boolean;
+
   @Default(false)
   @Column
   controlStock: boolean;

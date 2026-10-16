@@ -81,6 +81,18 @@ class FinanceCustomer extends Model<FinanceCustomer> {
   @Column(DataType.TEXT)
   notes: string;
 
+  // Reforma Tributária 2027 (CBS/IBS) — perfil do destinatário da nota
+  // ("B2C"/"B2B"/"B2G") e isenção do órgão público (quando B2G), usados
+  // pelo motor de cálculo em `Iva2027Service.ts`. Sem efeito enquanto
+  // `FiscalConfig.reform2027Enabled` for false.
+  @Default("B2C")
+  @Column
+  ivaTaxpayerProfile: string;
+
+  @Default(false)
+  @Column
+  ivaGovExempt: boolean;
+
   @Default(true)
   @Column
   active: boolean;

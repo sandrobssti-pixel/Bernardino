@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.117
-**Etapa:** 6.2 Fase 6 — Dashboard de lucro (compra × imposto × venda × lucro)
+**Versão do documento:** 2.3.118
+**Etapa:** 6.2 Fase 6 — Reforma Tributária 2027 (preparação) + excluir vendas/notas de teste
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7232,3 +7232,186 @@ contabilidade/Focus NFe de verdade).
   produtos, confirmar que o painel aparece só depois de ligar Produção na
   Configuração Fiscal, e validar os números do dashboard contra uma venda
   de teste conhecida.
+
+## 99. Reforma Tributária 2027 (IVA/CBS/IBS) — preparação + excluir vendas/notas de teste (v2.3.118)
+
+### Contexto
+
+O cliente enviou uma especificação técnica bem detalhada (campos, tipos,
+telas, pseudocódigo do motor de cálculo) pedindo pra preparar o sistema
+pra transição tributária de janeiro de 2027 (fim do PIS/Cofins/ICMS/ISS
+tradicionais, entrada da CBS/IBS) — com uma regra central: os campos
+devem existir e aparecer na tela, mas **sem nenhum efeito** no
+faturamento/impressão atual até uma chave global ser ativada. Na mesma
+leva de pedidos, veio também "deletar as notas feitas em homologação e
+[...] a opção de deletar a venda quando tiver no modulo teste de
+homologação" — consequência direta do fluxo de teste real deste cliente
+(primeiras tentativas de NF-e em Homologação, catalogadas nas seções 94 e
+96), que até aqui só podiam ser canceladas, nunca excluídas de verdade.
+
+A especificação do cliente usa nomes de tabela/coluna genéricos
+(`tab_clientes`, `tab_itens`, `tab_nota_itens`, `tab_financeiro_transacoes`,
+`flg_ativar_reforma_2027`, `vUnComLiq` etc., em snake_case/português) — não
+é o schema real deste projeto. Mapeado 1:1 pro schema existente, em
+camelCase (convenção já usada em toda a base), preservando a intenção de
+cada campo:
+
+| Spec do cliente | Tabela/campo real neste projeto |
+|---|---|
+| `tab_clientes` | `FinanceCustomer` |
+| `tab_itens` (produtos) | `FinanceProduct` |
+| `tab_nota_itens` | `SaleItem` |
+| `flg_ativar_reforma_2027` | `FiscalConfig.reform2027Enabled` |
+| `tab_financeiro_transacoes` (Asaas) | **`FinanceReceivable`** (ver decisão abaixo, não uma tabela nova) |
+
+### Decisão: reaproveitar `FinanceReceivable`, não criar uma tabela nova pro Asaas
+
+A especificação pede pra criar os campos de controle do Asaas (split
+payment) "na tabela de transações financeiras" — mas esse projeto não tem
+(e não precisa ter) uma tabela de transações separada: cada venda confirmada
+já gera exatamente UM `FinanceReceivable` (ver `SaleService.confirm`), que
+É a conta a receber daquela venda. Criar uma tabela nova só pros 3 campos
+do Asaas (`asaasPaymentId`/`splitIvaRetido`/`netReceivedViaAsaas`) geraria
+uma tabela sem nenhuma FK de volta pra venda e sem nenhum código que a
+leia/escreva (o próprio pedido do cliente é só "preparação arquitetural",
+a API do Asaas ainda nem suporta isso) — exatamente o tipo de abstração
+prematura que as instruções deste projeto pedem pra evitar. Os 3 campos
+entraram direto em `FinanceReceivable`.
+
+**Atenção pra não confundir**: o projeto já tem um `AsaasBillingProvider.ts`
+(`backend/src/services/BillingProviders/`), mas é de outro domínio
+completamente — a cobrança da própria assinatura do AtendeFlow (SaaS), não
+a venda ao cliente final de uma empresa-cliente. Os campos novos aqui são
+exclusivos do módulo Financeiro/Fiscal, nada a ver com aquele provider.
+
+### Chave global e o padrão "existe mas não faz nada"
+
+`FiscalConfig.reform2027Enabled` (switch na Configuração Fiscal) é a única
+porta de entrada pra tudo isso. Com ela desligada (padrão):
+- Os campos novos de Cliente/Produto aparecem na tela, mas **desabilitados**
+  (`FinanceRecordModal` ganhou suporte a `disabledWhen(values, context)` —
+  diferente de `visibleWhen`/`requiredWhen`, que só recebem `values`, porque
+  aqui o motivo de desabilitar é um estado de FORA do formulário, lido da
+  Configuração Fiscal e repassado via a nova prop `context` em
+  `FinanceRecordList`/`FinanceRecordModal`, preenchida em `Financeiro/index.js`).
+- `SaleService.buildItemRows` nem consulta a `FiscalConfig`/cliente pra
+  isso além do necessário pra saber que está desligado — e nenhum dos 9
+  campos `iva*` do `SaleItem` é calculado (ficam no default "0").
+- A tela de fechamento de venda (`SaleModal`) mostra os blocos "Subtotal
+  líquido"/"Previsão CBS"/"Previsão IBS" sempre, só acinzentados (`opacity:
+  0.5`) enquanto desligado — igual pedido explicitamente na especificação
+  ("campos aparecem desabilitados, servindo só de visualização técnica"),
+  não escondidos condicionalmente.
+- O motor de cálculo em si (`Iva2027Service.calculate`) é uma função pura,
+  sem I/O — só é chamada de dentro do `if (reformEnabled)`.
+
+O dia em que o cliente ligar a chave, o cálculo entra em vigor
+imediatamente pra toda venda nova, sem precisar de deploy.
+
+### Motor de cálculo (`Iva2027Service.ts`)
+
+Implementado seguindo o pseudocódigo do cliente ao pé da letra:
+- **B2C** (pessoa física): sem CBS/IBS por fora, preço final não muda
+  (fica dentro do Simples/DAS).
+- **B2G isento** (órgão público com isenção em edital,
+  `FinanceCustomer.ivaGovExempt`): alíquotas zeradas.
+- **B2B e B2G sem isenção**: regime híbrido — o preço digitado já é o
+  líquido, CBS/IBS somados por fora. `FinanceProduct.ivaEducationReduction`
+  aplica a redução de 60% (`Aliquota_Efetiva = Aliquota × 0,40`) pra
+  curso/treinamento.
+
+Duas lacunas do pseudocódigo do cliente, resolvidas por inferência própria
+(documentadas no código, não bloqueantes porque tudo fica inerte até a
+chave ligar):
+- O pseudocódigo não definia a regra pra B2G SEM isenção — tratado igual
+  B2B (regime híbrido), já que B2G sem isenção em edital é, em princípio,
+  tributável normalmente.
+- O rateio exato entre a parte estadual (UF) e municipal (Município) do
+  IBS (`vIBS_UF`/`vIBS_Mun` do spec, aqui `ivaIbsStateValue`/
+  `ivaIbsCityValue`) ainda não foi regulamentado por nenhuma UF/município —
+  é definido jurisdição por jurisdição, mais perto de 2027. Por ora, todo
+  o IBS calculado vai pra `ivaIbsStateValue`, `ivaIbsCityValue` fica "0"
+  até essa regra existir de verdade.
+
+### Snapshot no item — mesma lógica já usada pra sku/ncm/cfop/costPrice/taxRate
+
+Os 9 campos `iva*` do `SaleItem` são gravados como **snapshot** no momento
+da venda (dentro de `buildItemRows`), nunca recalculados depois — se o
+cliente mudar a alíquota de um produto ou o perfil de um cliente depois,
+vendas já feitas não mudam retroativamente. Consistente com o padrão já
+estabelecido pro resto do item da venda.
+
+### Excluir vendas e notas de teste (Homologação)
+
+Problema: `FiscalDocument`/`Sale` só podiam ser **cancelados**, nunca
+excluídos de verdade — bom pra nota real (cancelamento é o ato legal
+correto), ruim pra limpar lixo de teste feito em Homologação antes de
+passar pra Produção.
+
+Solução: nova coluna `FiscalDocument.environment` ("sandbox"/"production"),
+gravada em `FiscalDocumentService.emit` a partir de
+`FiscalConfigService.isProductionActive(config)` no momento da emissão.
+A partir dela:
+- `DELETE /fiscal-documents/:id` (`FiscalDocumentService.remove`) exclui
+  de verdade um documento — **recusa** (`ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION`)
+  se `environment === "production"`.
+- `SaleService.remove`, antes só aceitava venda "draft". Agora também
+  aceita "confirmed"/"cancelled" quando a venda é de teste: nenhum dos
+  `FiscalDocument` dela é de Produção, E (se não tiver nenhum documento
+  ainda) a empresa não está com Produção ativa agora — essa segunda
+  condição existe pra não deixar excluir uma venda real confirmada que
+  ainda nem foi emitida. Exclusão cascateia `FiscalDocument`/`SaleItem`/
+  `FinanceReceivable` (se houver) e a própria `Sale`.
+- **Explicitamente não ajusta estoque** nessa exclusão (pedido do
+  cliente), mesmo que a venda tenha descontado estoque ao confirmar
+  durante o teste — diferente do `cancel()` normal, que devolve.
+- `Sale` ganhou `@HasMany(() => FiscalDocument) fiscalDocuments` (mesmo
+  padrão circular já usado entre `Sale`/`SaleItem`) só pra essa checagem
+  — incluído em `includeOptions` do `SaleService`.
+- Frontend: `SaleList` mostra o botão excluir pra venda confirmada/
+  cancelada só quando ela é "de teste" (mesma regra replicada em
+  `isTestSale()`, cliente, pra não precisar de uma chamada extra só pra
+  decidir se mostra o botão); `SaleDetailModal` mostra excluir em cada
+  linha de nota com `environment !== "production"`.
+
+### Onde entra
+
+- Migrations `20261016170000`–`20261016170400` (chave global, campos de
+  Cliente/Produto/SaleItem/Receivable da Reforma) e `20261016180000`
+  (`FiscalDocument.environment`) — todas `IF NOT EXISTS`.
+- `backend/src/services/FiscalService/Iva2027Service.ts` (novo).
+- `backend/src/services/FiscalService/SaleService.ts` — `buildItemRows`
+  (cálculo da Reforma) e `remove` (exclusão de teste) reescritos.
+- `backend/src/services/FiscalService/FiscalDocumentService.ts` — `emit`
+  grava `environment`; novo `remove`.
+- `backend/src/models/Sale.ts` — nova associação `fiscalDocuments`.
+- `frontend/src/components/FinanceRecordModal/index.js` — suporte a
+  `disabledWhen`/`context` e ao pseudo-campo `sectionTitle`.
+- `frontend/src/pages/Financeiro/index.js` — busca `reform2027Enabled` uma
+  vez (só se tiver acesso ao Fiscal) e repassa via `context`.
+- `frontend/src/pages/Financeiro/financeConfig.js` — campos novos de
+  Cliente/Produto.
+- `frontend/src/components/FiscalConfigPanel/index.js` — switch global.
+- `frontend/src/components/SaleModal/index.js` — preview Subtotal
+  líquido/CBS/IBS.
+- `frontend/src/components/SaleList/index.js` — botão excluir venda de
+  teste.
+- `frontend/src/components/SaleDetailModal/index.js` — botão excluir nota
+  de teste.
+- `frontend/src/hooks/useFiscal/index.js` — `fiscalDocuments.remove(id)`.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em todos os arquivos de frontend tocados.
+- **`craco build` (build de produção) rodado localmente antes de cada
+  entrega** — lição da v2.3.117/v2.3.118 (ver seção 11 da skill
+  `atendeflow-dev`): um `import default` de um pacote sem export default
+  (`xlsx`) passou no dev server e no ESLint, e só quebrou no build de
+  produção real.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem
+  acesso). **Pendente**: cliente ativar a chave da Reforma 2027 num
+  ambiente de teste e confirmar que uma venda nova grava os campos `iva*`
+  corretamente; testar a exclusão de uma venda/nota de Homologação de
+  verdade e confirmar que uma nota/venda de Produção continua protegida
+  (só cancelável).

@@ -74,6 +74,7 @@ const FinanceRecordList = ({
   allowImport = false,
   allowTemplateDownload = false,
   templateFilename,
+  context = {},
 }) => {
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
@@ -228,6 +229,7 @@ const FinanceRecordList = ({
         fields={fields}
         record={selectedRecord}
         finance={finance}
+        context={context}
       />
 
       <Box className={classes.mainHeader}>

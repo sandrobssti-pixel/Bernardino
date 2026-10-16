@@ -3,6 +3,38 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.118] — Reforma Tributária 2027 (preparação) + excluir vendas/notas de teste — 2026-10-16
+
+### Adicionado — Reforma Tributária 2027 (IVA/CBS/IBS)
+- Estrutura completa pré-configurada pra transição tributária de janeiro de 2027,
+  conforme especificação técnica detalhada do cliente — **sem nenhum efeito no
+  faturamento atual** enquanto a chave global "Ativar Regras de Faturamento IVA
+  (Reforma Tributária 2027)" (Configuração Fiscal) estiver desligada (padrão).
+- Cadastro de Cliente: perfil do destinatário (B2C/B2B/B2G) e isenção de órgão
+  público — campos desabilitados até a chave ser ativada.
+- Cadastro de Produto: CST e alíquotas estimadas de CBS/IBS, indicador de
+  redução de 60% pra curso/treinamento — idem, desabilitados até a chave ser
+  ativada.
+- Motor de cálculo (`Iva2027Service.ts`) pronto e testado isoladamente, aplicado
+  automaticamente a cada venda (snapshot nos itens) a partir do momento em que a
+  chave for ativada — sem precisar de deploy novo nesse dia.
+- Tela de fechamento de venda mostra, só de visualização técnica (acinzentado
+  até a chave ser ativada), o Subtotal Líquido e a previsão de CBS/IBS por fora.
+- Preparação estrutural (3 colunas, sem nenhuma integração ainda) pra quando a
+  API do Asaas liberar o split automático do imposto no pagamento online.
+
+### Adicionado — Excluir vendas e notas de teste (Homologação)
+- Agora é possível excluir de verdade (não só cancelar) uma nota fiscal ou uma
+  venda confirmada/cancelada, desde que nenhuma delas tenha sido emitida em
+  modo **Produção** (nota fiscal real) — pensado pra limpar o teste feito em
+  Homologação antes/depois de passar pra Produção.
+- Exclusão da venda nunca altera o estoque atual, mesmo que a venda tenha
+  descontado estoque ao ser confirmada durante o teste.
+- Uma venda de Produção (ou com qualquer nota de Produção emitida) nunca pode
+  ser excluída — só cancelada, como já era.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 99.
+
 ## [2.3.117] — Dashboard de lucro: compra × imposto × venda × lucro — 2026-10-16
 
 ### Adicionado

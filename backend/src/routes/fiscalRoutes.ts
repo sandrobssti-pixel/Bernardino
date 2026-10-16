@@ -42,6 +42,7 @@ fiscalRoutes.get("/sales/:saleId/fiscal-documents", isAuth, FiscalDocumentContro
 fiscalRoutes.post("/sales/:saleId/fiscal-documents", isAuth, FiscalDocumentController.store);
 fiscalRoutes.post("/sales/:saleId/fiscal-documents/preview", isAuth, FiscalDocumentController.previewDanfe);
 fiscalRoutes.post("/fiscal-documents/:id/refresh-status", isAuth, FiscalDocumentController.refreshStatus);
+fiscalRoutes.delete("/fiscal-documents/:id", isAuth, FiscalDocumentController.remove);
 fiscalRoutes.post("/fiscal-documents/:id/cancel", isAuth, FiscalDocumentController.cancel);
 fiscalRoutes.post("/fiscal-documents/:id/correction-letter", isAuth, FiscalDocumentController.correctionLetter);
 fiscalRoutes.post("/fiscal-documents/:id/send-email", isAuth, FiscalDocumentController.sendEmail);

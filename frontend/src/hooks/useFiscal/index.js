@@ -100,6 +100,13 @@ const useFiscal = () => {
       });
       return data;
     },
+    // Exclui de verdade um documento de teste (Homologação) — o backend
+    // recusa (ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION) se for um
+    // documento de Produção, nota fiscal real (v2.3.118).
+    remove: async (id) => {
+      const { data } = await api.delete(`/fiscal-documents/${id}`);
+      return data;
+    },
   };
 
   const numbering = {

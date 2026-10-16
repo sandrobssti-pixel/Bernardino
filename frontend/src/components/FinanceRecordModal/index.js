@@ -15,6 +15,8 @@ import MenuItem from "@material-ui/core/MenuItem";
 import FormControlLabel from "@material-ui/core/FormControlLabel";
 import Switch from "@material-ui/core/Switch";
 import CircularProgress from "@material-ui/core/CircularProgress";
+import Typography from "@material-ui/core/Typography";
+import Divider from "@material-ui/core/Divider";
 
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
@@ -55,6 +57,7 @@ const useStyles = makeStyles((theme) => ({
 const buildInitialValues = (fields, record) => {
   const values = {};
   fields.forEach((field) => {
+    if (field.type === "sectionTitle") return;
     if (field.type === "switch") {
       values[field.name] = record?.[field.name] ?? field.defaultValue ?? false;
     } else {
@@ -74,7 +77,7 @@ const buildInitialValues = (fields, record) => {
 // (`field.optionsResource`, ex.: "suppliers"/"customers") — a lista é
 // buscada uma vez quando o modal abre, via a prop `finance` (o próprio hook,
 // repassado por quem monta o formulário).
-const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, finance }) => {
+const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, finance, context = {} }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
 
@@ -172,6 +175,28 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                   }
 
                   const gridSize = field.gridSize || 6;
+                  // `disabledWhen` recebe (values, context) — diferente de
+                  // `visibleWhen`/`requiredWhen` (só `values`), porque o
+                  // motivo de desabilitar costuma ser um estado de FORA do
+                  // formulário (ex.: a Reforma 2027 não ter sido ativada na
+                  // Configuração Fiscal), não algo digitado neste form.
+                  const isDisabled = field.disabledWhen ? field.disabledWhen(values, context) : false;
+
+                  if (field.type === "sectionTitle") {
+                    return (
+                      <Grid item xs={12} key={field.key || field.label}>
+                        <Divider style={{ margin: "8px 0 12px" }} />
+                        <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                          {field.label}
+                        </Typography>
+                        {field.helperText && (
+                          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+                            {field.helperText}
+                          </Typography>
+                        )}
+                      </Grid>
+                    );
+                  }
 
                   if (field.type === "switch") {
                     return (
@@ -184,6 +209,7 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                                 setFieldValue(field.name, e.target.checked)
                               }
                               color="primary"
+                              disabled={isDisabled}
                             />
                           }
                           label={field.label}
@@ -203,6 +229,7 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                           size="small"
                           name={field.name}
                           label={field.label}
+                          disabled={isDisabled}
                         >
                           {field.options.map((opt) => (
                             <MenuItem key={opt.value} value={opt.value}>
@@ -276,8 +303,12 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
                         minRows={field.type === "textarea" ? 3 : undefined}
                         type={field.type === "number" ? "number" : "text"}
                         inputProps={field.type === "number" && field.step ? { step: field.step } : undefined}
+                        disabled={isDisabled}
                         error={touched[field.name] && Boolean(errors[field.name])}
-                        helperText={touched[field.name] && errors[field.name]}
+                        helperText={
+                          (touched[field.name] && errors[field.name]) ||
+                          (isDisabled ? field.disabledHelperText : undefined)
+                        }
                       />
                     </Grid>
                   );

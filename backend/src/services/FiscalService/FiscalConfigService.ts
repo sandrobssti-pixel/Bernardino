@@ -18,6 +18,7 @@ interface FiscalConfigData {
   defaultDocumentType?: string;
   defaultCfop?: string;
   notes?: string;
+  reform2027Enabled?: boolean;
 }
 
 // Pedido do cliente (v2.3.112): tirar o seletor separado "Ambiente ativo" —

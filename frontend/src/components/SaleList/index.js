@@ -44,6 +44,17 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+// Venda de teste (Homologação) excluível de verdade (v2.3.118) — nunca
+// teve nota de Produção, e, se ainda não tem nota nenhuma, a empresa não
+// está com Produção ativa agora (senão seria uma venda real aguardando
+// emissão). Mesma regra usada no backend (`SaleService.remove`).
+const isTestSale = (sale, fiscalConfig) => {
+  const documents = sale.fiscalDocuments || [];
+  if (documents.some((doc) => doc.environment === "production")) return false;
+  if (documents.length === 0 && fiscalConfig?.productionEnabled) return false;
+  return true;
+};
+
 const statusChip = (status) => {
   if (status === "confirmed") return <Chip size="small" label="Confirmada" style={{ backgroundColor: "#10b981", color: "#fff" }} />;
   if (status === "cancelled") return <Chip size="small" label="Cancelada" style={{ backgroundColor: "#6b7280", color: "#fff" }} />;
@@ -182,7 +193,10 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     },
     delete: {
       title: confirmTarget ? `Excluir venda #${confirmTarget.id}?` : "",
-      body: "Essa ação não pode ser desfeita.",
+      body:
+        confirmTarget?.status === "draft"
+          ? "Essa ação não pode ser desfeita."
+          : "Essa ação não pode ser desfeita. Exclui também os itens e as notas fiscais de teste dessa venda (nenhuma delas é de Produção) e, se houver, a conta a receber gerada — sem alterar o estoque atual.",
     },
   }[confirmAction] || { title: "", body: "" };
 
@@ -206,6 +220,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         products={products}
         finance={finance}
         defaultCfop={fiscalConfig?.defaultCfop}
+        reform2027Enabled={!!fiscalConfig?.reform2027Enabled}
       />
 
       <SaleDetailModal
@@ -301,14 +316,30 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <CancelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      {isTestSale(sale, fiscalConfig) && (
+                        <Tooltip title="Excluir venda de teste (Homologação) — não afeta estoque">
+                          <IconButton size="small" onClick={() => requestDelete(sale)}>
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </>
                   )}
                   {sale.status === "cancelled" && (
-                    <Tooltip title="Ver itens">
-                      <IconButton size="small" onClick={() => handleViewDetail(sale)}>
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <>
+                      <Tooltip title="Ver itens">
+                        <IconButton size="small" onClick={() => handleViewDetail(sale)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {isTestSale(sale, fiscalConfig) && (
+                        <Tooltip title="Excluir venda de teste (Homologação) — não afeta estoque">
+                          <IconButton size="small" onClick={() => requestDelete(sale)}>
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </>
                   )}
                 </TableCell>
               </TableRow>

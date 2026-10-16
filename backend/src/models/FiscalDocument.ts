@@ -67,6 +67,14 @@ class FiscalDocument extends Model<FiscalDocument> {
   @Column(DataType.TEXT)
   errorMessage: string;
 
+  // "sandbox" | "production" — qual ambiente estava ativo
+  // (`FiscalConfigService.isProductionActive`) no momento da emissão.
+  // Documento "" (vazio) é legado, de antes desta coluna existir — tratado
+  // como não-produção pra fins de exclusão (ver `SaleService.remove`).
+  @Default("")
+  @Column
+  environment: string;
+
   @Column(DataType.DATE)
   issuedAt: Date;
 

@@ -594,6 +594,32 @@ const FiscalConfigPanel = ({ fiscal }) => {
               </Grid>
             </Grid>
 
+            <Divider className={classes.divider} />
+
+            <Typography variant="subtitle1" className={classes.sectionTitle}>
+              Reforma Tributária 2027 (IVA)
+            </Typography>
+            <Typography variant="body2" className={classes.sectionSubtitle}>
+              Prepara o sistema pra transição CBS/IBS de janeiro de 2027. Enquanto
+              desativado, nenhum campo novo (cliente, produto, venda) tem efeito — o
+              faturamento continua pelas regras de hoje (Simples Nacional, PIS/Cofins,
+              ICMS/ISS tradicionais).
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!!values.reform2027Enabled}
+                      onChange={(e) => setFieldValue("reform2027Enabled", e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Ativar Regras de Faturamento IVA (Reforma Tributária 2027)"
+                />
+              </Grid>
+            </Grid>
+
             <Box mt={3} display="flex" justifyContent="flex-end">
               <Button
                 type="submit"

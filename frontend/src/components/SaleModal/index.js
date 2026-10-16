@@ -78,7 +78,40 @@ const buildInitialValues = (sale, defaultCfop) => ({
 // docs/MANUAL_TECNICO.md, seção 6.2). Só permite editar vendas em rascunho —
 // depois de confirmada, os itens ficam travados (viram base pra nota fiscal
 // e conta a receber, não podem mudar retroativamente).
-const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop, finance }) => {
+// Reforma Tributária 2027 (IVA) — espelho simplificado do cálculo real
+// (`Iva2027Service.ts`, backend), só pra pré-visualização enquanto a venda
+// ainda está sendo montada. O valor gravado de verdade é recalculado no
+// servidor ao salvar (`SaleService.buildItemRows`) — esta função nunca é a
+// fonte de verdade, só evita que o vendedor precise salvar pra ver uma
+// estimativa. Mesma lógica de B2C/B2B/B2G do motor real.
+const calculateIvaPreview = (items, product, customer) => {
+  const customerProfile = customer?.ivaTaxpayerProfile || "B2C";
+  const customerGovExempt = !!customer?.ivaGovExempt;
+
+  return items.reduce(
+    (acc, item) => {
+      const qty = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const base = qty * unitPrice;
+      acc.netValue += base;
+
+      if (customerProfile === "B2C" || (customerProfile === "B2G" && customerGovExempt)) {
+        return acc;
+      }
+
+      const prod = product(item.productId);
+      const reduction = prod?.ivaEducationReduction ? 0.4 : 1;
+      const cbsRate = (Number(prod?.ivaCbsRate) || 0) * reduction;
+      const ibsRate = (Number(prod?.ivaIbsRate) || 0) * reduction;
+      acc.cbsValue += base * (cbsRate / 100);
+      acc.ibsValue += base * (ibsRate / 100);
+      return acc;
+    },
+    { netValue: 0, cbsValue: 0, ibsValue: 0 }
+  );
+};
+
+const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop, finance, reform2027Enabled }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(null, defaultCfop));
 
@@ -143,6 +176,15 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
           const total = values.items.reduce(
             (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
             0
+          );
+
+          const selectedCustomer =
+            customers.find((c) => c.id === values.customerId) ||
+            (sale?.customer?.id === values.customerId ? sale.customer : null);
+          const ivaPreview = calculateIvaPreview(
+            values.items,
+            (productId) => products.find((p) => p.id === productId),
+            selectedCustomer
           );
 
           return (
@@ -311,6 +353,29 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                 <Box className={classes.totalBox}>
                   <Typography className={classes.totalValue}>
                     Total: {money(total)}
+                  </Typography>
+                </Box>
+
+                {/* Reforma Tributária 2027 (IVA) — aparece sempre, mas só
+                    com números de verdade (e sem o aspecto acinzentado)
+                    quando a chave global estiver ativada em Configuração
+                    Fiscal; até lá serve só de visualização técnica, sem
+                    nenhum efeito no total/faturamento desta venda. */}
+                <Box
+                  mt={1}
+                  p={1.5}
+                  display="flex"
+                  justifyContent="flex-end"
+                  style={{ gap: 24, opacity: reform2027Enabled ? 1 : 0.5 }}
+                >
+                  <Typography variant="body2" color="textSecondary">
+                    Subtotal líquido (IVA 2027): {money(ivaPreview.netValue)}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Previsão CBS por fora: {money(ivaPreview.cbsValue)}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Previsão IBS por fora: {money(ivaPreview.ibsValue)}
                   </Typography>
                 </Box>
               </DialogContent>

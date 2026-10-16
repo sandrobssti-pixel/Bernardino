@@ -111,6 +111,13 @@ const Financeiro = () => {
   // (Plan.useFiscal, v2.3.23) — o Master pode vender um plano com Financeiro
   // mas sem Fiscal, então precisa de um gate próprio (não basta financeAccess).
   const [fiscalAccess, setFiscalAccess] = useState(null);
+  // Flag global da Reforma Tributária 2027 (IVA) — vem da Configuração
+  // Fiscal, mas também é usada aqui pra desabilitar os campos novos de
+  // Cliente/Produto enquanto estiver off (ver FinanceRecordModal
+  // `disabledWhen`/`context`). Só busca quando a empresa tem acesso ao
+  // módulo fiscal — sem ele, fica sempre `false` (campos ficam
+  // desabilitados, que é o padrão seguro).
+  const [reform2027Enabled, setReform2027Enabled] = useState(false);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
 
   useEffect(() => {
@@ -124,6 +131,10 @@ const Financeiro = () => {
       try {
         const access = await fiscal.getAccess();
         setFiscalAccess(access);
+        if (access?.hasAccess) {
+          const config = await fiscal.config.show();
+          setReform2027Enabled(!!config?.reform2027Enabled);
+        }
       } catch (err) {
         setFiscalAccess({ planHasModule: false, hasAccess: false });
       }
@@ -132,6 +143,7 @@ const Financeiro = () => {
   }, []);
 
   const showFiscalTabs = user.super || !!fiscalAccess?.hasAccess;
+  const financeRecordContext = { reform2027Enabled };
 
   const renderPanel = () => {
     if (financeTab === "painel") {
@@ -194,6 +206,7 @@ const Financeiro = () => {
           allowImport
           allowTemplateDownload
           templateFilename="modelo-importacao-clientes.xlsx"
+          context={financeRecordContext}
         />
       );
     }
@@ -220,6 +233,7 @@ const Financeiro = () => {
           allowImport
           allowTemplateDownload
           templateFilename="modelo-importacao-produtos.xlsx"
+          context={financeRecordContext}
         />
       );
     }

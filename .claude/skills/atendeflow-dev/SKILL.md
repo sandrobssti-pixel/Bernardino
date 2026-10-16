@@ -262,6 +262,20 @@ nesse projeto a instalação é rápida (~1400 pacotes em menos de 1 minuto).
 (`posttest`) contra o banco configurado em `NODE_ENV=test` — nunca rodar
 isso contra um banco de produção/desenvolvimento com dado real.
 
+**`npx eslint` e o dev server do CRA NÃO pegam tudo — rodar o build de
+produção de verdade antes de entregar qualquer PR de frontend.** Batido em
+produção (v2.3.117): `import XLSX from "xlsx"` (default export) passou no
+ESLint e funcionava no dev server, mas quebrava o `docker compose build`
+do cliente com "Attempted import error: 'xlsx' does not contain a default
+export" — só o build de produção real (webpack com tree-shaking/strict
+module resolution) pega esse tipo de erro. Comando:
+```bash
+cd frontend && GENERATE_SOURCEMAP=false CI=false npx craco build
+```
+Rodar isso (não só lint) antes de toda entrega que toque em import de
+pacote de terceiro no frontend — mais caro que o lint, mas muito mais
+barato que o cliente descobrir no deploy.
+
 ## 10. Commit
 
 Mensagem com o quê + por quê (nunca só "fix bug"), rodapé de atribuição
@@ -691,3 +705,49 @@ que eram esquecimento:
   etapa 6.2) — qualquer seção nova dentro do mesmo painel ganha isso de
   graça, só precisa adicionar o id certo (`finance-painel-print-hide*`) em
   botão que não deve ir pro papel.
+- **Pedido pra pré-configurar algo que entra em vigor numa data futura
+  (v2.3.118, Reforma Tributária 2027) — padrão "existe mas não faz nada
+  até o gatilho".** Nunca espalhar o `if (flagLigada)` em vários lugares:
+  centralizar o cálculo numa função pura própria (`Iva2027Service.ts`,
+  sem I/O), e no ÚNICO ponto de entrada real (aqui, `SaleService.
+  buildItemRows`) nem sequer CONSULTAR a config/dados relacionados quando
+  a flag estiver desligada — não só pular o cálculo. Isso garante que
+  "sem efeito no faturamento atual" seja verdade de verdade (zero query
+  extra, zero I/O), não só "o resultado fica igual por coincidência".
+  Campo desabilitado na tela (não escondido) enquanto a flag estiver off
+  é outra parte do mesmo padrão — ver `disabledWhen` abaixo.
+- **`FinanceRecordModal` ganhou `disabledWhen(values, context)` (v2.3.118),
+  diferente de `visibleWhen`/`requiredWhen` (só recebem `values`)** —
+  porque o motivo de desabilitar um campo às vezes é um estado de FORA do
+  formulário (ex.: uma flag global lida da Configuração Fiscal), não algo
+  digitado neste form. `context` é um prop novo, opcional, repassado por
+  quem monta a tela (`Financeiro/index.js` busca a flag uma vez e passa
+  pra baixo via `FinanceRecordList` → `FinanceRecordModal`). Também ganhou
+  um pseudo-campo `type: "sectionTitle"` (só visual, sem `name`, sem valor
+  de formulário) pra agrupar um bloco de campos novo sob um título —
+  reaproveitável pra qualquer feature futura que precise anexar um grupo
+  de campos opcionais/condicionais a um cadastro já existente sem mexer no
+  layout do resto.
+- **Especificação externa com nomes de tabela/campo genéricos
+  (snake_case, nomes de ERP/exemplo) nunca deve ser copiada ao pé da
+  letra** — mapear pro schema REAL do projeto (camelCase, nomes dos models
+  Sequelize já existentes) antes de escrever a migration. Documentar essa
+  tabela de mapeamento no manual técnico (seção 99) ajuda a auditar depois
+  se a interpretação ficou fiel à intenção original do cliente.
+- **Antes de criar uma tabela nova pra "preparar" uma integração futura,
+  perguntar se um campo a mais numa tabela já existente não resolve** —
+  aqui a especificação pedia uma "tabela de transações financeiras" nova
+  pro Asaas (split payment), mas este projeto já tem exatamente um
+  `FinanceReceivable` por venda confirmada; 3 colunas novas nele cobrem o
+  mesmo pedido sem criar uma tabela solta, sem FK de volta pra venda e sem
+  nenhum código que a use ainda (exatamente o tipo de abstração prematura
+  que este projeto pede pra evitar). Reservar tabela nova pra quando o
+  domínio de verdade não existir ainda no schema.
+- **Toda nota/venda feita em Homologação precisa ficar identificável
+  depois** — `FiscalDocument.environment` ("sandbox"/"production"),
+  gravado em `FiscalDocumentService.emit` a partir de
+  `isProductionActive(config)` no momento da emissão, é o que decide se
+  algo pode ser EXCLUÍDO de verdade (teste) ou só CANCELADO (nota real).
+  Sem esse campo, não tem como diferenciar programaticamente lixo de
+  teste de dado de produção depois do fato — vale pra qualquer _gateway_
+  fiscal futuro, não só Focus NFe.

@@ -76,6 +76,51 @@ class SaleItem extends Model<SaleItem> {
   @Column
   taxRate: string;
 
+  // Reforma Tributária 2027 (CBS/IBS) — snapshot do cálculo no momento da
+  // venda (mesma lógica de snapshot acima). Populado só quando
+  // `FiscalConfig.reform2027Enabled` for true (`Iva2027Service.ts` via
+  // `SaleService.buildItemRows`); até lá, fica tudo "0", sem efeito no
+  // faturamento atual. `ivaIbsStateValue`/`ivaIbsCityValue` (vIBS_UF/
+  // vIBS_Mun do spec): a proporção exata do split estadual x municipal do
+  // IBS ainda não foi regulamentada por cada UF/município — por ora todo
+  // o valor do IBS calculado vai pra `ivaIbsStateValue`, `ivaIbsCityValue`
+  // fica "0" até a regra de rateio existir de verdade.
+  @Default("0")
+  @Column
+  ivaNetUnitPrice: string;
+
+  @Default("0")
+  @Column
+  ivaNetTotalPrice: string;
+
+  @Default("0")
+  @Column
+  ivaCbsBase: string;
+
+  @Default("0")
+  @Column
+  ivaIbsBase: string;
+
+  @Default("0")
+  @Column
+  ivaCbsRateApplied: string;
+
+  @Default("0")
+  @Column
+  ivaIbsRateApplied: string;
+
+  @Default("0")
+  @Column
+  ivaCbsValue: string;
+
+  @Default("0")
+  @Column
+  ivaIbsStateValue: string;
+
+  @Default("0")
+  @Column
+  ivaIbsCityValue: string;
+
   @ForeignKey(() => Sale)
   @AllowNull(false)
   @Column

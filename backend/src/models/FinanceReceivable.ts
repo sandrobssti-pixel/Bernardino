@@ -52,6 +52,22 @@ class FinanceReceivable extends Model<FinanceReceivable> {
   @Column
   active: boolean;
 
+  // Preparação pra Split Payment do IVA via Asaas (Reforma 2027) — nenhum
+  // código escreve aqui ainda, é só estrutura pronta pra quando a API do
+  // Asaas liberar o split automático do imposto no pagamento online. Ver
+  // docs/MANUAL_TECNICO.md.
+  @Default("")
+  @Column
+  asaasPaymentId: string;
+
+  @Default(false)
+  @Column
+  splitIvaRetido: boolean;
+
+  @Default("0")
+  @Column
+  netReceivedViaAsaas: string;
+
   @ForeignKey(() => FinanceCustomer)
   @Column
   customerId: number;

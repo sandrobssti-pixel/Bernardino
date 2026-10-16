@@ -125,6 +125,14 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column(DataType.TEXT)
   notes: string;
 
+  // Chave global da Reforma Tributária 2027 (CBS/IBS) — enquanto `false`
+  // (padrão), nenhum campo/regra novo da reforma tem efeito no faturamento
+  // atual (NF-e/NFC-e/NFS-e continuam pelas regras de hoje). Ver
+  // `Iva2027Service.ts` e docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  reform2027Enabled: boolean;
+
   @AllowNull(false)
   @ForeignKey(() => Company)
   @Column

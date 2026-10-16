@@ -28,9 +28,11 @@ import BuildIcon from "@material-ui/icons/Build";
 import EmailIcon from "@material-ui/icons/Email";
 import EditIcon from "@material-ui/icons/Edit";
 import VisibilityIcon from "@material-ui/icons/Visibility";
+import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
+import ConfirmationModal from "../ConfirmationModal";
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -78,6 +80,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
   const [correctionDialogDoc, setCorrectionDialogDoc] = useState(null);
   const [correctionText, setCorrectionText] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
+  const [deleteDialogDoc, setDeleteDialogDoc] = useState(null);
 
   const fetchDocuments = useCallback(async () => {
     if (!sale?.id) return;
@@ -114,6 +117,20 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
     } catch (err) {
       toastError(err);
     }
+  };
+
+  // Exclui de verdade um documento de teste (Homologação) — nunca
+  // disponível pra um documento de Produção (ver botão na tabela, v2.3.118).
+  const handleDeleteDocument = async () => {
+    if (!deleteDialogDoc) return;
+    try {
+      await fiscal.fiscalDocuments.remove(deleteDialogDoc.id);
+      toast.success("Nota de teste excluída.");
+      await fetchDocuments();
+    } catch (err) {
+      toastError(err);
+    }
+    setDeleteDialogDoc(null);
   };
 
   const handlePreview = async () => {
@@ -323,6 +340,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
                         )}
                       </>
                     )}
+                    {doc.environment !== "production" && (
+                      <Tooltip title="Excluir nota de teste (Homologação)">
+                        <IconButton size="small" onClick={() => setDeleteDialogDoc(doc)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -335,6 +359,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
           Fechar
         </Button>
       </DialogActions>
+
+      <ConfirmationModal
+        title={deleteDialogDoc ? `Excluir ${DOC_TYPE_LABEL[deleteDialogDoc.type] || deleteDialogDoc.type} de teste?` : ""}
+        open={!!deleteDialogDoc}
+        onClose={() => setDeleteDialogDoc(null)}
+        onConfirm={handleDeleteDocument}
+      >
+        Essa ação não pode ser desfeita. Essa nota foi emitida em Homologação (teste),
+        não é uma nota fiscal real.
+      </ConfirmationModal>
 
       <Dialog open={!!emailDialogDoc} onClose={() => setEmailDialogDoc(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Enviar nota fiscal por e-mail</DialogTitle>

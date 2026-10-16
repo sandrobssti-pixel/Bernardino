@@ -71,11 +71,25 @@ export const emit = async (
     pdfUrl: result.pdfUrl,
     errorMessage: result.errorMessage,
     issuedAt: result.status === "authorized" ? new Date() : null,
+    environment: FiscalConfigService.isProductionActive(config) ? "production" : "sandbox",
     saleId: sale.id,
     companyId
   } as any);
 
   return document;
+};
+
+// Exclui de verdade um documento de teste (emitido em Homologação) — nunca
+// um documento de Produção, que é uma nota fiscal real (cancelar, não
+// excluir, é o caminho pra esse caso — ver `cancel` acima).
+export const remove = async (id: string | number, companyId: number): Promise<void> => {
+  const document = await show(id, companyId);
+
+  if (document.environment === "production") {
+    throw new AppError("ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION");
+  }
+
+  await document.destroy();
 };
 
 // Reconsulta o status de um documento que ficou "processing" — a emissão na
