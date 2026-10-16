@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.111] — "Tipo de documento padrão" só NF-e/NFC-e — 2026-10-16
+
+### Corrigido
+- Cliente confirmou que só trabalha com NF-e e NFC-e — "Tipo de documento padrão" (em
+  Configuração Fiscal) mostrava NFS-e como terceira opção também. Removida da lista;
+  a emissão manual de NFS-e continua disponível (detalhe da venda), só deixou de ser
+  opção de emissão automática.
+
 ## [2.3.110] — Ajuste visual: alinhamento da Configuração Fiscal — 2026-10-16
 
 ### Corrigido

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.110
-**Etapa:** 6.2 Fase 6 — Ajuste visual: alinhamento da Configuração Fiscal
+**Versão do documento:** 2.3.111
+**Etapa:** 6.2 Fase 6 — "Tipo de documento padrão" só NF-e/NFC-e
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6829,3 +6829,13 @@ anterior. **Lição**: ao montar um formulário com `Grid` misturando itens de l
 diferentes (cartão grande + campo pequeno), somar a largura de cada "grupo" e garantir
 que feche 12 antes do próximo, ou isolar grupos de tamanho diferente em linhas
 (`xs=12`) próprias — não só empilhar itens na ordem e confiar no wrap automático.
+
+### Ajuste (v2.3.111) — "Tipo de documento padrão" só NF-e/NFC-e
+
+Cliente reportou o seletor mostrando 3 tipos (NF-e/NFC-e/NFS-e) quando só trabalha com
+dois — confirma o que já tinha dito mais cedo ao escolher quais funções habilitar no
+painel da Focus NFe. Removido "NFS-e" de `DEFAULT_DOCUMENT_TYPE_OPTIONS`
+(`FiscalConfigPanel`). Não mexeu em mais nada NFS-e-relacionado (emissão manual
+continua em `SaleDetailModal`, `FocusNFeService.buildNfsePayload` intacto) — só deixou
+de aparecer como opção de emissão AUTOMÁTICA, caso o cliente volte a precisar depois
+(ex.: cobrar serviço separado de venda de produto) é só adicionar de volta na lista.

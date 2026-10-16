@@ -62,11 +62,14 @@ const ENVIRONMENT_OPTIONS = [
   { value: "production", label: "Produção" },
 ];
 
+// Só NF-e/NFC-e por pedido do cliente ("só vou trabalhar com esses dois
+// tipos de notas fiscais") — NFS-e continua funcionando por baixo
+// (FocusNFeService, emissão manual em SaleDetailModal), só não aparece
+// mais aqui como opção de emissão automática.
 const DEFAULT_DOCUMENT_TYPE_OPTIONS = [
   { value: "", label: "Nenhum — emitir manualmente" },
   { value: "nfe", label: "NF-e" },
   { value: "nfce", label: "NFC-e" },
-  { value: "nfse", label: "NFS-e" },
 ];
 
 // Estado (UF) -> Município -> preenche sozinho o "Código IBGE do
