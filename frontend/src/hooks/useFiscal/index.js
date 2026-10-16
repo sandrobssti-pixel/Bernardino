@@ -74,9 +74,35 @@ const useFiscal = () => {
       const { data } = await api.post(`/fiscal-documents/${id}/cancel`, { justification });
       return data;
     },
+    correctionLetter: async (id, text) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/correction-letter`, { text });
+      return data;
+    },
+    sendEmail: async (id, emails) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/send-email`, { emails });
+      return data;
+    },
+    // Resposta é o PDF em binário, não JSON — pede o blob direto do axios.
+    previewDanfe: async (saleId) => {
+      const { data } = await api.post(`/sales/${saleId}/fiscal-documents/preview`, null, {
+        responseType: "blob",
+      });
+      return data;
+    },
   };
 
-  return { getAccess, config, sales, fiscalDocuments };
+  const numbering = {
+    list: async () => {
+      const { data } = await api.get("/fiscal/numbering/invalidations");
+      return data;
+    },
+    invalidate: async (data) => {
+      const { data: responseData } = await api.post("/fiscal/numbering/invalidations", data);
+      return responseData;
+    },
+  };
+
+  return { getAccess, config, sales, fiscalDocuments, numbering };
 };
 
 export default useFiscal;

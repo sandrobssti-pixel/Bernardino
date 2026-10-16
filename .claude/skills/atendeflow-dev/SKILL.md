@@ -474,3 +474,27 @@ que eram esquecimento:
   qualquer campo novo de produto que precise ir pra nota fiscal, snapshotar
   em `SaleItem` no momento da venda, nunca ler do `FinanceProduct` vivo na
   hora de montar o payload do gateway.
+- **`WebFetch` não consegue abrir `nfe.io`, `focusnfe.com.br`,
+  `doc.focusnfe.com.br` (nem provavelmente outros domínios de gateway
+  fiscal) neste ambiente de sessão — sempre `getaddrinfo ENOTFOUND`,
+  confirmado batendo até no domínio raiz.** Só o `WebSearch` funciona (usa
+  um serviço à parte, não é o mesmo bloqueio), mas devolve resumo indireto,
+  não a página real. Na prática (v2.3.106): implementar endpoint novo de
+  gateway fiscal sem conseguir ler a doc oficial é arriscado demais (é nota
+  fiscal de verdade) — melhor pedir pro cliente copiar/colar o conteúdo
+  (ele abre no navegador dele normalmente) do que tentar reconstruir só
+  por `WebSearch` ou conhecimento geral. Quando o cliente manda curl de
+  exemplo da documentação oficial (como fez pra Focus NFe), isso vira fonte
+  de alta confiança pro método/URL do endpoint — mas se o corpo do
+  exemplo for só `{}`/`{"items":[]}` genérico, os nomes de campo dentro
+  dele ainda são reconstrução por conhecimento geral, não confirmados; deixar
+  isso explícito no código e no manual técnico, não misturar os dois níveis
+  de confiança.
+- **`FiscalGatewayAdapter` (`FiscalGatewayService.ts`) agora tem métodos
+  opcionais** (`emitCorrectionLetter?`, `sendByEmail?`, `previewDanfe?`,
+  `invalidateNumbering?`, `listInvalidations?`) além dos três obrigatórios
+  (`emit`/`getStatus`/`cancel`) — porque nem todo gateway tem equivalente
+  de cada recurso (ex.: carta de correção só existe no modelo de NF-e).
+  Usar `FiscalGatewayService.requireFeature(gateway, "nomeDoMetodo")` em
+  vez de checar `gateway.x &&` na mão em cada service novo — já lança
+  `ERR_FISCAL_FEATURE_NOT_SUPPORTED_BY_GATEWAY` padronizado.

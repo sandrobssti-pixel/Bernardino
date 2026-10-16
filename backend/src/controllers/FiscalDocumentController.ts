@@ -50,3 +50,40 @@ export const cancel = async (req: Request, res: Response): Promise<Response> => 
   const document = await FiscalDocumentService.cancel(id, justification, companyId);
   return res.status(200).json(document);
 };
+
+export const correctionLetter = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+  const { text } = req.body;
+
+  const result = await FiscalDocumentService.emitCorrectionLetter(id, text, companyId);
+  return res.status(200).json(result);
+};
+
+export const sendEmail = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+  const { emails } = req.body;
+
+  const result = await FiscalDocumentService.sendByEmail(id, emails, companyId);
+  return res.status(200).json(result);
+};
+
+// Devolve o PDF direto (não é JSON) — pré-visualização antes de emitir de
+// verdade, não cria FiscalDocument nenhum.
+export const previewDanfe = async (req: Request, res: Response): Promise<Response | void> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { saleId } = req.params;
+
+  const result = await FiscalDocumentService.previewDanfe(saleId, companyId);
+
+  if (!result.ok || !result.pdf) {
+    return res.status(502).json({ error: result.errorMessage });
+  }
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.send(result.pdf);
+};

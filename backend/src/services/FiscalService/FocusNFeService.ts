@@ -282,3 +282,116 @@ export const cancel = async (
     };
   }
 };
+
+// ⚠️ As cinco funções abaixo usam endpoints confirmados pelo próprio cliente
+// (curls copiados direto da documentação oficial da Focus NFe, v2.3.106) —
+// método/URL têm certeza alta. O FORMATO DO CORPO de cada request (nomes de
+// campo) não veio nos exemplos (só `{}`/`{"items":[]}` genéricos), então foi
+// reconstruído por conhecimento geral da API — mesmo nível de confiança que
+// o resto do adapter (emit/getStatus/cancel): precisa validar contra conta
+// de homologação de verdade antes de confiar em produção.
+
+// Carta de Correção — só existe pra NF-e (modelo 55), não pra NFC-e/NFS-e.
+export const emitCorrectionLetter = async (
+  type: string,
+  externalRef: string,
+  correctionText: string,
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  if (type !== "nfe") {
+    return { ok: false, errorMessage: "ERR_FISCAL_CORRECTION_LETTER_ONLY_NFE" };
+  }
+
+  const client = buildClient(config);
+
+  try {
+    await client.post(`/v2/nfe/${externalRef}/carta_correcao`, { correcao: correctionText });
+    return { ok: true, errorMessage: "" };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao emitir carta de correção no gateway fiscal.")
+    };
+  }
+};
+
+export const sendByEmail = async (
+  type: string,
+  externalRef: string,
+  emails: string[],
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  const client = buildClient(config);
+  const endpoint = documentEndpoint(type);
+
+  try {
+    await client.post(`/v2/${endpoint}/${externalRef}/email`, { emails });
+    return { ok: true, errorMessage: "" };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao enviar a nota por e-mail pelo gateway fiscal.")
+    };
+  }
+};
+
+// Pré-visualização — monta o mesmo payload de `emit`, mas chama o endpoint
+// de prévia (não transmite nada pra Sefaz, não gera `ref`/FiscalDocument).
+// Só existe pra NF-e. Resposta é o PDF em binário, não JSON.
+export const previewDanfe = async (
+  sale: Sale,
+  company: Company,
+  config: FiscalConfig
+): Promise<{ ok: boolean; pdf: Buffer | null; errorMessage: string }> => {
+  const client = buildClient(config);
+  const payload = buildNfePayload(sale, company, config);
+
+  try {
+    const { data } = await client.post("/v2/nfe/danfe", payload, { responseType: "arraybuffer" });
+    return { ok: true, pdf: Buffer.from(data), errorMessage: "" };
+  } catch (err: any) {
+    return {
+      ok: false,
+      pdf: null,
+      errorMessage: err?.message || "Falha ao gerar a pré-visualização do DANFe no gateway fiscal."
+    };
+  }
+};
+
+// Inutilização de numeração — nível empresa/série, não está ligado a um
+// FiscalDocument específico (é justamente pra um número que NUNCA foi
+// usado). Só existe pra NF-e.
+export const invalidateNumbering = async (
+  series: string,
+  numberStart: number,
+  numberEnd: number,
+  justification: string,
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string; raw: unknown }> => {
+  const client = buildClient(config);
+
+  try {
+    const { data } = await client.post("/v2/nfe/inutilizacao", {
+      serie: series,
+      numero_inicial: numberStart,
+      numero_final: numberEnd,
+      justificativa: justification
+    });
+    return { ok: true, errorMessage: "", raw: data };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao inutilizar numeração no gateway fiscal."),
+      raw: responseData || null
+    };
+  }
+};
+
+export const listInvalidations = async (config: FiscalConfig): Promise<unknown[]> => {
+  const client = buildClient(config);
+  const { data } = await client.get("/v2/nfe/inutilizacoes");
+  return Array.isArray(data) ? data : [];
+};

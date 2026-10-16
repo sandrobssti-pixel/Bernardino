@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.106] — Focus NFe: carta de correção, envio por e-mail, pré-visualização de DANFe, inutilização de numeração — 2026-10-16
+
+### Adicionado
+- Cinco funções novas no adaptador da Focus NFe, confirmadas contra os endpoints reais
+  (curls copiados da documentação oficial pelo cliente): Carta de Correção, Enviar nota
+  por e-mail, Pré-visualização de DANFe (antes de emitir de verdade), e Inutilizar
+  Numeração + Consultar Inutilizações (pra quando um número de nota "quebra").
+- `FiscalGatewayAdapter` ganhou esses métodos como **opcionais** — nem todo gateway
+  futuro vai ter equivalente pra cada um (ex.: carta de correção só existe no modelo de
+  NF-e); quem chama trata a ausência como recurso não suportado por aquele gateway.
+- Tela de detalhe da venda: botões "Enviar por e-mail" e "Carta de correção" por nota
+  emitida, e "Pré-visualizar DANFe" antes de confirmar a emissão de verdade.
+- Configuração Fiscal: nova seção "Inutilizar numeração de NF-e" (formulário +
+  histórico de inutilizações já registradas).
+
+### Nota
+- Essas funções (e o restante do adaptador da Focus NFe) ainda **não foram testadas
+  contra uma chamada real** — só o método/URL dos endpoints foi confirmado pelo
+  cliente; o formato exato do corpo de cada requisição segue sem validação até ter um
+  token de homologação de verdade.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 89.
+
 ## [2.3.105] — Fiscal: gateway escolhível + emissão automática na venda; código do produto nas vendas — 2026-10-16
 
 ### Adicionado

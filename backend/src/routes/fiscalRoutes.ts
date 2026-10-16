@@ -5,6 +5,7 @@ import * as FiscalAccessController from "../controllers/FiscalAccessController";
 import * as FiscalConfigController from "../controllers/FiscalConfigController";
 import * as SaleController from "../controllers/SaleController";
 import * as FiscalDocumentController from "../controllers/FiscalDocumentController";
+import * as FiscalNumberingController from "../controllers/FiscalNumberingController";
 
 const fiscalRoutes = Router();
 
@@ -29,7 +30,13 @@ fiscalRoutes.delete("/sales/:id", isAuth, SaleController.remove);
 
 fiscalRoutes.get("/sales/:saleId/fiscal-documents", isAuth, FiscalDocumentController.index);
 fiscalRoutes.post("/sales/:saleId/fiscal-documents", isAuth, FiscalDocumentController.store);
+fiscalRoutes.post("/sales/:saleId/fiscal-documents/preview", isAuth, FiscalDocumentController.previewDanfe);
 fiscalRoutes.post("/fiscal-documents/:id/refresh-status", isAuth, FiscalDocumentController.refreshStatus);
 fiscalRoutes.post("/fiscal-documents/:id/cancel", isAuth, FiscalDocumentController.cancel);
+fiscalRoutes.post("/fiscal-documents/:id/correction-letter", isAuth, FiscalDocumentController.correctionLetter);
+fiscalRoutes.post("/fiscal-documents/:id/send-email", isAuth, FiscalDocumentController.sendEmail);
+
+fiscalRoutes.get("/fiscal/numbering/invalidations", isAuth, FiscalNumberingController.index);
+fiscalRoutes.post("/fiscal/numbering/invalidations", isAuth, FiscalNumberingController.invalidate);
 
 export default fiscalRoutes;

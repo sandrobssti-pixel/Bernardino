@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.105
-**Etapa:** 6.2 Fase 6 — Fiscal multi-gateway + emissão automática na venda + SKU nas vendas
+**Versão do documento:** 2.3.106
+**Etapa:** 6.2 Fase 6 — Focus NFe: carta de correção, e-mail, pré-visualização, inutilização
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6519,3 +6519,92 @@ do banco** como "código do produto" na Focus NFe (bug real, não só falta de e
   **Pendente**: cliente decidir se/quando vai testar a emissão de verdade (precisa de
   um CNPJ homologado na Focus NFe ou no gateway escolhido), e confirmar visualmente
   que o SKU aparece certo nas vendas depois do deploy.
+
+## 89. Focus NFe: carta de correção, e-mail, pré-visualização de DANFe, inutilização de numeração (v2.3.106)
+
+### Contexto
+
+Depois da v2.3.105 (gateway escolhível), cliente perguntou sobre um segundo gateway.
+Expliquei que, sem conseguir abrir a documentação oficial de um gateway novo (bloqueio
+de rede deste ambiente — `nfe.io`, `focusnfe.com.br`, `doc.focusnfe.com.br` todos dão
+`ENOTFOUND` mesmo via `WebFetch`; só a busca por palavra-chave funciona, e só traz
+resumo indireto), implementar um gateway novo "às cegas" seria arriscado demais pra
+nota fiscal de verdade. Cliente decidiu contratar um gateway primeiro e me mandar a
+documentação depois — enquanto isso, colou o índice inteiro da documentação da Focus
+NFe (`doc.focusnfe.com.br/reference/nfe`) com o método/URL de cada endpoint (ele
+conseguia abrir as páginas no navegador dele, mesmo eu não conseguindo daqui).
+
+Com os endpoints confirmados de verdade (não mais só conhecimento geral), ficou viável
+expandir o que já estava implementado (emitir/consultar/cancelar) com mais cobertura —
+focando só no que faz sentido pra "venda de produto" numa loja física (não logística de
+transportadora, não conciliação financeira, não o lado de notas recebidas de
+fornecedor — tudo isso ficou registrado como ideia de backlog, não implementado).
+
+### O que foi feito
+
+- **`FocusNFeService.ts`**: cinco funções novas, batendo contra os endpoints reais
+  confirmados pelo cliente:
+  - `emitCorrectionLetter` — `POST /v2/nfe/{ref}/carta_correcao`, body `{ correcao }`.
+    Só NF-e (carta de correção não existe pra NFC-e/NFS-e).
+  - `sendByEmail` — `POST /v2/{tipo}/{ref}/email`, body `{ emails: [...] }`.
+  - `previewDanfe` — `POST /v2/nfe/danfe`, mesmo payload de `buildNfePayload` (reaproveitado
+    de `emit`), resposta é PDF binário (`responseType: "arraybuffer"`), não JSON. Não
+    transmite nada pra Sefaz nem gera `ref`/`FiscalDocument` — só prévia.
+  - `invalidateNumbering` — `POST /v2/nfe/inutilizacao`, body `{ serie, numero_inicial,
+    numero_final, justificativa }`.
+  - `listInvalidations` — `GET /v2/nfe/inutilizacoes`.
+  - **Ressalva igual ao resto do adapter**: método/URL de cada endpoint vieram de curl
+    real colado pelo cliente (alta confiança), mas o **formato do corpo** de cada
+    request (nomes de campo) foi reconstruído por conhecimento geral — os exemplos do
+    cliente só mostravam `{}`/`{"items":[]}` genérico, sem o schema completo. Precisa
+    validar contra conta de homologação de verdade.
+- **`FiscalGatewayAdapter`** (`FiscalGatewayService.ts`): as cinco funções entraram como
+  métodos **opcionais** na interface (`emitCorrectionLetter?`, `sendByEmail?`,
+  `previewDanfe?`, `invalidateNumbering?`, `listInvalidations?`) — nem todo gateway
+  futuro vai ter equivalente de cada uma. Novo helper `requireFeature(gateway, nome)`
+  lança `ERR_FISCAL_FEATURE_NOT_SUPPORTED_BY_GATEWAY` se o gateway atual não implementa
+  aquele método, em vez de cada service repetir o mesmo `if (!gateway.x) throw`.
+- **`FiscalDocumentService.ts`**: `emitCorrectionLetter`/`sendByEmail`/`previewDanfe`
+  novos — os dois primeiros exigem documento `authorized`; `previewDanfe` funciona com
+  a venda ainda em rascunho (é justamente pra conferir antes de confirmar/emitir).
+- **`FiscalNumberingService.ts`** (novo arquivo): `invalidate`/`list` — inutilização é
+  nível empresa+série, não está ligada a nenhuma venda/FiscalDocument específico, por
+  isso não entrou em `FiscalDocumentService`.
+- Rotas novas em `fiscalRoutes.ts`: `POST /fiscal-documents/:id/correction-letter`,
+  `POST /fiscal-documents/:id/send-email`, `POST /sales/:saleId/fiscal-documents/preview`
+  (devolve o PDF direto, `Content-Type: application/pdf`, não JSON),
+  `GET`/`POST /fiscal/numbering/invalidations`.
+- **Frontend**: `SaleDetailModal` ganhou botões "Enviar por e-mail" e "Carta de
+  correção" por nota autorizada (com diálogo próprio cada um — e-mail pré-preenchido
+  com o do cliente da venda), e "Pré-visualizar DANFe" na venda confirmada (abre o PDF
+  em nova aba via blob URL). `FiscalConfigPanel` ganhou uma segunda seção
+  (`NumberingInvalidationPanel`, sub-componente no mesmo arquivo) com formulário de
+  inutilização + tabela das já registradas — não usa Formik como o resto do painel
+  porque não é um valor salvo pra reinicializar, é uma ação pontual a cada envio.
+
+### Descartado por enquanto (fora do escopo "venda de produto")
+
+Da documentação completa que o cliente colou, ficou de fora: Registrar/Cancelar Ator
+Interessado, Registrar/Cancelar Insucesso na Entrega (logística de transportadora),
+Conciliação Financeira/ECONF, Emitir/Cancelar Evento genérico, Importar NFe, DANFe
+Etiqueta (HTML/PDF), Reenvio de notificação de webhook, toda a seção "Documentos
+Recebidos" (CTe/NFe/NFSe recebidas — é o lado de COMPRA, reconciliação com nota de
+fornecedor, feature separada e maior), "Gestão" (Criar/Listar/Atualizar/Excluir Empresa,
+Backups, Emails Bloqueados, Webhooks) e "Ferramentas" (Comunicador Offline — app local
+pra contingência de NFC-e sem internet no PDV, arquitetura bem diferente). Também veio
+a lista de "APIs Acessórias" (CEP, CFOP, CNAE, CNPJ, Municípios, NCM) — ideia de
+backlog pra facilitar cadastro (auto-preencher endereço por CEP, dados de cliente por
+CNPJ, achar NCM/CFOP/código IBGE certo), não implementado.
+
+Confirmado com o cliente: o cadastro da empresa na própria Focus NFe ("Criar Empresa")
+já foi feito manualmente pelo painel deles — não é um passo que falta automatizar no
+AtendeFlow.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo nos 3 arquivos de frontend
+  tocados (`FiscalConfigPanel`, `SaleDetailModal`, `useFiscal`).
+- **Não testado contra API real** — mesma ressalva de sempre, agora também pras cinco
+  funções novas. Cliente está em contato com a Focus NFe pra conseguir o token de
+  homologação; assim que tiver, é o primeiro teste de ponta a ponta de todo o módulo
+  fiscal desde que ele existe.

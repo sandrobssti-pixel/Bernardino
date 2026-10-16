@@ -135,3 +135,74 @@ export const cancel = async (
   await document.update({ status: "cancelled" });
   return document;
 };
+
+// Carta de Correção — só pra documento já autorizado, e só NF-e (a Focus
+// NFe não tem CC-e pra NFC-e/NFS-e).
+export const emitCorrectionLetter = async (
+  id: string | number,
+  correctionText: string,
+  companyId: number
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  const document = await show(id, companyId);
+
+  if (document.status !== "authorized") {
+    throw new AppError("ERR_FISCAL_DOCUMENT_NOT_AUTHORIZED");
+  }
+  if (!correctionText || correctionText.trim().length < 15) {
+    throw new AppError("ERR_FISCAL_CORRECTION_TEXT_TOO_SHORT");
+  }
+
+  const config = await FiscalConfigService.show(companyId);
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const fn = FiscalGatewayService.requireFeature(gateway, "emitCorrectionLetter");
+  return fn(document.type, document.externalRef, correctionText, config);
+};
+
+export const sendByEmail = async (
+  id: string | number,
+  emails: string[],
+  companyId: number
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  const document = await show(id, companyId);
+
+  if (document.status !== "authorized") {
+    throw new AppError("ERR_FISCAL_DOCUMENT_NOT_AUTHORIZED");
+  }
+  if (!emails || emails.length === 0) {
+    throw new AppError("ERR_FISCAL_DOCUMENT_EMAIL_REQUIRED");
+  }
+
+  const config = await FiscalConfigService.show(companyId);
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const fn = FiscalGatewayService.requireFeature(gateway, "sendByEmail");
+  return fn(document.type, document.externalRef, emails, config);
+};
+
+// Pré-visualização do DANFe (PDF) antes de confirmar a venda/emitir de
+// verdade — não cria FiscalDocument nenhum, só devolve o binário. Funciona
+// com a venda ainda em rascunho (é justamente pra conferir antes de
+// confirmar), diferente de `emit` que exige venda confirmada.
+export const previewDanfe = async (
+  saleId: string | number,
+  companyId: number
+): Promise<{ ok: boolean; pdf: Buffer | null; errorMessage: string }> => {
+  const sale = await SaleService.show(saleId, companyId);
+
+  if (!sale.items || sale.items.length === 0) {
+    throw new AppError("ERR_SALE_REQUIRES_ITEMS");
+  }
+
+  const config = await FiscalConfigService.show(companyId);
+  if (!config.gatewayToken) {
+    throw new AppError("ERR_FISCAL_GATEWAY_NOT_CONFIGURED");
+  }
+
+  const company = await Company.findByPk(companyId);
+  if (!company) {
+    throw new AppError("ERR_NO_COMPANY_FOUND", 404);
+  }
+
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const fn = FiscalGatewayService.requireFeature(gateway, "previewDanfe");
+  return fn(sale, company, config);
+};

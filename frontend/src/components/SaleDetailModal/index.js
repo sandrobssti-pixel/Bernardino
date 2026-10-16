@@ -19,11 +19,15 @@ import Chip from "@material-ui/core/Chip";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import IconButton from "@material-ui/core/IconButton";
 import Tooltip from "@material-ui/core/Tooltip";
+import TextField from "@material-ui/core/TextField";
 import RefreshIcon from "@material-ui/icons/Refresh";
 import DescriptionIcon from "@material-ui/icons/Description";
 import ReceiptIcon from "@material-ui/icons/Receipt";
 import ShoppingCartIcon from "@material-ui/icons/ShoppingCart";
 import BuildIcon from "@material-ui/icons/Build";
+import EmailIcon from "@material-ui/icons/Email";
+import EditIcon from "@material-ui/icons/Edit";
+import VisibilityIcon from "@material-ui/icons/Visibility";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -67,6 +71,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [emitting, setEmitting] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [emailDialogDoc, setEmailDialogDoc] = useState(null);
+  const [emailValue, setEmailValue] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [correctionDialogDoc, setCorrectionDialogDoc] = useState(null);
+  const [correctionText, setCorrectionText] = useState("");
+  const [sendingCorrection, setSendingCorrection] = useState(false);
 
   const fetchDocuments = useCallback(async () => {
     if (!sale?.id) return;
@@ -103,6 +114,57 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
     } catch (err) {
       toastError(err);
     }
+  };
+
+  const handlePreview = async () => {
+    setPreviewing(true);
+    try {
+      const blob = await fiscal.fiscalDocuments.previewDanfe(sale.id);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      toastError(err);
+    }
+    setPreviewing(false);
+  };
+
+  const openEmailDialog = (doc) => {
+    setEmailDialogDoc(doc);
+    setEmailValue(sale.customer?.email || "");
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailValue.trim()) {
+      toast.error("Informe pelo menos um e-mail.");
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      const emails = emailValue.split(",").map((e) => e.trim()).filter(Boolean);
+      await fiscal.fiscalDocuments.sendEmail(emailDialogDoc.id, emails);
+      toast.success("Nota fiscal enviada por e-mail.");
+      setEmailDialogDoc(null);
+    } catch (err) {
+      toastError(err);
+    }
+    setSendingEmail(false);
+  };
+
+  const handleSendCorrection = async () => {
+    if (correctionText.trim().length < 15) {
+      toast.error("O texto da correção precisa ter pelo menos 15 caracteres.");
+      return;
+    }
+    setSendingCorrection(true);
+    try {
+      await fiscal.fiscalDocuments.correctionLetter(correctionDialogDoc.id, correctionText);
+      toast.success("Carta de correção enviada.");
+      setCorrectionDialogDoc(null);
+      setCorrectionText("");
+    } catch (err) {
+      toastError(err);
+    }
+    setSendingCorrection(false);
   };
 
   if (!sale) return null;
@@ -165,6 +227,15 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
                 Emitir {DOC_TYPE_LABEL[type]}
               </Button>
             ))}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={previewing ? <CircularProgress size={14} /> : <VisibilityIcon fontSize="small" />}
+              disabled={previewing}
+              onClick={handlePreview}
+            >
+              Pré-visualizar DANFe
+            </Button>
           </Box>
         ) : (
           <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
@@ -219,6 +290,22 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
                         </IconButton>
                       </Tooltip>
                     )}
+                    {doc.status === "authorized" && (
+                      <>
+                        <Tooltip title="Enviar por e-mail">
+                          <IconButton size="small" onClick={() => openEmailDialog(doc)}>
+                            <EmailIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        {doc.type === "nfe" && (
+                          <Tooltip title="Carta de correção">
+                            <IconButton size="small" onClick={() => setCorrectionDialogDoc(doc)}>
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -231,6 +318,72 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
           Fechar
         </Button>
       </DialogActions>
+
+      <Dialog open={!!emailDialogDoc} onClose={() => setEmailDialogDoc(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Enviar nota fiscal por e-mail</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            variant="outlined"
+            size="small"
+            margin="dense"
+            label="E-mail(s)"
+            placeholder="separe vários por vírgula"
+            value={emailValue}
+            onChange={(e) => setEmailValue(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmailDialogDoc(null)} disabled={sendingEmail}>
+            Cancelar
+          </Button>
+          <Button
+            color="primary"
+            variant="contained"
+            onClick={handleSendEmail}
+            disabled={sendingEmail}
+            startIcon={sendingEmail ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!correctionDialogDoc} onClose={() => setCorrectionDialogDoc(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Carta de correção</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+            Use só pra corrigir erro que não muda valor/imposto/dados do destinatário (ex.: descrição de
+            item) — qualquer coisa além disso exige cancelar e emitir de novo.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={3}
+            variant="outlined"
+            size="small"
+            label="Texto da correção (mín. 15 caracteres)"
+            value={correctionText}
+            onChange={(e) => setCorrectionText(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCorrectionDialogDoc(null)} disabled={sendingCorrection}>
+            Cancelar
+          </Button>
+          <Button
+            color="primary"
+            variant="contained"
+            onClick={handleSendCorrection}
+            disabled={sendingCorrection}
+            startIcon={sendingCorrection ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
