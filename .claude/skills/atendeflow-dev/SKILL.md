@@ -573,3 +573,13 @@ que eram esquecimento:
   que precise do token do gateway usa esse helper, nunca lê
   `gatewayTokenSandbox`/`gatewayTokenProduction` direto (evita duplicar a
   lógica de "qual ambiente tá ativo" espalhada).
+- **Formulário com `Grid` (MUI) misturando item grande (cartão/`Paper`) e
+  pequeno (campo de texto) na mesma sequência: somar a largura (`sm`) de
+  cada "grupo" antes de empilhar, não confiar no wrap automático** —
+  batido na prática na v2.3.110 (Configuração Fiscal "desorganizada"): um
+  campo `sm=6` sozinho antes de dois cartões `sm=6` deixava só metade da
+  linha livre, o primeiro cartão preenchia ali, o segundo abria linha
+  nova sozinho, e o próximo campo pequeno (`sm=4`) grudava do lado errado
+  em vez de ficar com os campos do mesmo grupo. Fix: campo que antecede
+  um grupo "fechado" (dois itens que somam 12) vira `sm=12` próprio, ou o
+  grupo inteiro fica isolado numa linha garantida.

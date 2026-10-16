@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.109
-**Etapa:** 6.2 Fase 6 — Homologação/Produção separadas, CFOP e Município com busca
+**Versão do documento:** 2.3.110
+**Etapa:** 6.2 Fase 6 — Ajuste visual: alinhamento da Configuração Fiscal
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6812,3 +6812,20 @@ certificado — **não existe esse passo no nosso sistema, pelo menos pra Focus 
   nova. **Pendente**: cliente configurar Homologação com o token real, emitir a
   primeira NF-e/NFC-e de teste, e confirmar que CFOP/Município aparecem e filtram
   certo na tela.
+
+### Ajuste (v2.3.110) — alinhamento do grid
+
+Cliente testou em produção e reportou "painel desorganizado" (print). Causa: o
+`Grid` (MUI, `flex-wrap`) preenche linha por linha somando a largura (`sm`) de cada
+item — um campo de largura menor logo depois de um grupo que não fechava a linha em
+12 "escorregava" pro lado errado. Especificamente: "Tipo de documento padrão" (`sm=6`)
+deixava só 6 livres na linha, que o cartão "Homologação" (`sm=6`) preenchia; o cartão
+"Produção" (`sm=6`) então abria linha nova sozinho, e "Série NF-e" (`sm=4`) grudava do
+lado dele em vez de ficar junto de "Série NFC-e"/"Série NFS-e". Corrigido fazendo
+"Tipo de documento padrão" e "CFOP padrão" ocuparem a linha inteira (`sm=12`) — assim
+Homologação/Produção (6+6=12) e as três Séries (4+4+4=12) sempre fecham a própria
+linha antes do próximo grupo começar, sem depender de sobra de espaço do grupo
+anterior. **Lição**: ao montar um formulário com `Grid` misturando itens de larguras
+diferentes (cartão grande + campo pequeno), somar a largura de cada "grupo" e garantir
+que feche 12 antes do próximo, ou isolar grupos de tamanho diferente em linhas
+(`xs=12`) próprias — não só empilhar itens na ordem e confiar no wrap automático.

@@ -430,7 +430,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
               <Grid item xs={12}>
                 <CityCodeSelector value={values.cityCode} onChange={(code) => setFieldValue("cityCode", code)} />
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <CfopAutocomplete
                   label="CFOP padrão"
                   helperText="Usado como sugestão ao adicionar itens numa venda"
@@ -484,7 +484,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   ))}
                 </Field>
               </Grid>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <Field
                   as={TextField}
                   select
@@ -503,6 +503,10 @@ const FiscalConfigPanel = ({ fiscal }) => {
                 </Field>
               </Grid>
 
+              {/* Linha própria (sozinha, sm=12 acima) de propósito — assim
+                  Homologação/Produção sempre começam numa linha nova e
+                  limpa (6+6=12), sem "sobrar" espaço que um campo menor
+                  (ex.: Série NF-e) acabasse preenchendo do lado errado. */}
               {/* Homologação e Produção são credenciais separadas (igual ao
                   próprio painel da Focus NFe) — cada uma com seu token e um
                   liga/desliga próprio, em vez de um token único alternando

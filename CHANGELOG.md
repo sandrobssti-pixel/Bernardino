@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.110] — Ajuste visual: alinhamento da Configuração Fiscal — 2026-10-16
+
+### Corrigido
+- Cliente testou a tela nova (v2.3.109) e reportou "painel desorganizado": o grid de
+  campos tinha linhas de tamanhos diferentes se misturando (ex.: "Série NF-e" ficava
+  colado ao lado do cartão "Produção" em vez de ficar agrupado com as outras séries).
+  Reorganizado pra cada "grupo" de campos sempre fechar a própria linha (soma 12) antes
+  do próximo começar — "Tipo de documento padrão" e "CFOP padrão" viraram largura
+  cheia, Homologação/Produção sempre começam linha nova, Séries NF-e/NFC-e/NFS-e
+  sempre ficam juntas.
+
 ## [2.3.109] — Homologação/Produção separadas, CFOP e Município com busca — 2026-10-16
 
 ### Adicionado
