@@ -270,12 +270,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
                   <TableCell>
                     {statusChip(doc.status)}
                     {doc.status === "error" && doc.errorMessage && (
-                      <Tooltip title={doc.errorMessage}>
-                        <Typography variant="caption" color="error" style={{ display: "block", marginTop: 2 }}>
-                          {doc.errorMessage.slice(0, 40)}
-                          {doc.errorMessage.length > 40 ? "..." : ""}
-                        </Typography>
-                      </Tooltip>
+                      <Typography
+                        variant="caption"
+                        color="error"
+                        style={{ display: "block", marginTop: 2, whiteSpace: "normal", wordBreak: "break-word" }}
+                      >
+                        {doc.errorMessage}
+                      </Typography>
                     )}
                   </TableCell>
                   <TableCell>{doc.number || "—"}</TableCell>

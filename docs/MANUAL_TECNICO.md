@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.112
-**Etapa:** 6.2 Fase 6 — Removido o seletor "Ambiente ativo" da Configuração Fiscal
+**Versão do documento:** 2.3.113
+**Etapa:** 6.2 Fase 6 — Mensagem de erro da nota fiscal não cortava mais em 40 caracteres
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6880,3 +6880,32 @@ era isso, era simplesmente tirar o terceiro campo redundante.
 - Não testado contra o gateway de verdade nesta parte (mesma ressalva de sempre).
   **Pendente**: cliente confirmar visualmente que a tela ficou só com os dois cartões,
   e que ligar/desligar Produção realmente muda qual token é usado ao emitir.
+
+## 94. Primeiro teste real contra a Focus NFe — erro de validação de XML (v2.3.113)
+
+### Contexto
+
+Cliente configurou o token de Homologação e tentou emitir NF-e/NFC-e/NFS-e numa
+venda de teste — primeira chamada de verdade contra a Focus NFe desde que o módulo
+fiscal existe. NFS-e deu "Empresa ainda não habilitada para emissão" (esperado — só
+NFe/NFCe foram habilitadas no painel deles). NF-e e NFC-e deram "Erro na validação do
+Schema XML" — confirma que a chamada chegou no gateway (token/conexão funcionando),
+só o payload que `FocusNFeService.buildNfePayload`/`buildNfcePayload` monta não bate
+com o que a Sefaz espera em algum campo. Precisa da mensagem completa do erro pra
+saber qual campo corrigir.
+
+### Bloqueio encontrado ao diagnosticar
+
+A mensagem de erro aparecia cortada em 40 caracteres na tela ("Erro na validação do
+Schema XML, verifiq...") com o resto só visível passando o mouse (tooltip) — não dá
+pra ler/copiar isso de um print de tela (que é como o cliente está me mandando a
+informação). Corrigido: `SaleDetailModal` agora mostra a mensagem de erro inteira,
+direto na linha (sem cortar, sem depender de hover).
+
+### Pendente
+
+Aguardando o cliente mandar a mensagem de erro completa (depois do deploy desta
+versão) pra eu poder comparar o payload que `FocusNFeService` monta contra o que a
+API da Focus NFe realmente espera, e corrigir o campo que estiver errado — é
+exatamente o tipo de ajuste já previsto desde que o adapter foi escrito sem acesso a
+sandbox real.

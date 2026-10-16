@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.113] — Mensagem de erro da nota fiscal não cortava mais em 40 caracteres — 2026-10-16
+
+### Corrigido
+- Primeiro teste real contra a Focus NFe (homologação) deu erro de validação de XML —
+  mas a tela cortava a mensagem em 40 caracteres ("Erro na validação do Schema XML,
+  verifiq...") com o resto só num tooltip de hover, impossível de ler/copiar num
+  print. Mensagem de erro agora aparece inteira, direto na tela.
+
 ## [2.3.112] — Removido o seletor "Ambiente ativo" da Configuração Fiscal — 2026-10-16
 
 ### Corrigido
