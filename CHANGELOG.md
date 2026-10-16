@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.115] — Erro interno sempre que abria a Configuração Fiscal — 2026-10-16
+
+### Corrigido
+- `FocusNFeService.listInvalidations` (consulta de inutilizações de numeração, v2.3.106)
+  era a única das sete funções novas da Focus NFe sem tratamento de erro — qualquer
+  falha nessa chamada derrubava a tela de Configuração Fiscal inteira com "Internal
+  server error", já que ela busca essa lista toda vez que abre. Agora falha
+  silenciosamente (lista vazia) como as outras seis funções já faziam.
+
 ## [2.3.114] — Módulo de estoque: bloqueia venda sem disponibilidade, desconta/devolve no confirmar/cancelar, painel de saúde — 2026-10-16
 
 ### Adicionado

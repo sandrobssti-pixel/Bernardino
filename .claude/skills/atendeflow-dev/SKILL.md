@@ -610,3 +610,15 @@ que eram esquecimento:
   NÃO em `lowStock` até o cliente definir um mínimo > 0 de propósito pra
   ele. Mesmo padrão de "0 = desligado" já usado em outros campos do
   projeto (ex. `defaultDocumentType` vazio = emissão manual).
+- **Toda função nova de `FocusNFeService.ts` (ou qualquer chamada HTTP pro
+  gateway fiscal) PRECISA de `try/catch` em volta da chamada — sem
+  exceção.** Batido em produção (v2.3.115): `listInvalidations` foi a
+  única das sete funções adicionadas na v2.3.106 sem isso, e uma falha
+  nela (algo que a Focus NFe devolve quando não tem inutilização nenhuma
+  registrada) virou exceção não tratada → 500 → derrubou a Configuração
+  Fiscal inteira, mesmo ela já tendo os dados principais carregados e
+  exibidos (o erro era de outra chamada da mesma tela, não da que carrega
+  a config). Ao adicionar uma função nova nesse arquivo, copiar o padrão
+  já usado nas outras (`try { ... } catch (err) { devolve valor "vazio"
+  de erro, nunca deixa a exceção subir }`) mesmo que pareça óbvio demais
+  pra esquecer.

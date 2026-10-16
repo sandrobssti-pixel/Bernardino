@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.114
-**Etapa:** 6.2 Fase 6 — Módulo de estoque (bloqueio, desconto/devolução, painel)
+**Versão do documento:** 2.3.115
+**Etapa:** 6.2 Fase 6 — Erro interno sempre que abria a Configuração Fiscal
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6974,3 +6974,40 @@ rascunho), confirmado também.
   bloqueado com mensagem clara, (b) confirmar desconta o estoque certo, (c) cancelar
   uma venda confirmada devolve o estoque, (d) o Painel Financeiro mostra a seção de
   estoque corretamente.
+
+## 96. Erro interno sempre que abria a Configuração Fiscal (v2.3.115)
+
+### Contexto
+
+Cliente reportou "dando erro interno toda vez que abre o módulo fiscal" (print
+mostrando um toast "Internal server error" por cima da tela, mas a tela em si já
+carregada com os dados reais — regime tributário, Estado/Município, gateway, token de
+Homologação, tudo certo). O erro vinha de outra chamada da mesma tela, não da que
+carrega a configuração.
+
+### Causa raiz
+
+`NumberingInvalidationPanel` (seção "Inutilizar numeração de NF-e", dentro de
+`FiscalConfigPanel`) busca a lista de inutilizações já registradas assim que a tela
+abre (`fiscal.numbering.list()`). Essa chamada desce até
+`FocusNFeService.listInvalidations(config)` — que, revendo o arquivo, era a ÚNICA das
+sete funções novas da Focus NFe (v2.3.106) sem `try/catch` em volta da chamada HTTP.
+Qualquer falha ali (ex.: a Focus NFe responder de um jeito que a lib HTTP trata como
+erro quando não existe nenhuma inutilização registrada ainda) virava uma exceção não
+tratada, subindo até o Express e voltando como 500 — derrubando a tela inteira com
+"Internal server error" mesmo ela já tendo os dados principais carregados e exibidos.
+
+### O que foi feito
+
+- `FocusNFeService.listInvalidations`: adicionado `try/catch` igual às outras seis
+  funções do arquivo — em caso de falha, devolve lista vazia em vez de propagar o
+  erro. A seção "Inutilizações já registradas" já tratava lista vazia graciosamente
+  ("Nenhuma inutilização registrada ainda."), então o conserto é só não deixar a
+  exceção escapar.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado contra o gateway de verdade nesta sessão (sem acesso a produção).
+  **Pendente**: cliente confirmar que a Configuração Fiscal abre sem o erro depois
+  do deploy.

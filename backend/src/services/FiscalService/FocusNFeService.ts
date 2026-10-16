@@ -394,8 +394,20 @@ export const invalidateNumbering = async (
   }
 };
 
+// Bug real batido em produção (v2.3.115): sem try/catch aqui, qualquer
+// falha nessa chamada (ex.: a Focus NFe não tem nenhuma inutilização
+// registrada ainda e responde de um jeito que a lib de HTTP trata como
+// erro) derrubava a Configuração Fiscal inteira com 500 — a tela chama
+// isso toda vez que abre (`NumberingInvalidationPanel`). Mesmo padrão das
+// outras seis funções deste arquivo: nunca deixar a UI quebrar por causa
+// de uma falha de rede/API do gateway.
 export const listInvalidations = async (config: FiscalConfig): Promise<unknown[]> => {
   const client = buildClient(config);
-  const { data } = await client.get("/v2/nfe/inutilizacoes");
-  return Array.isArray(data) ? data : [];
+
+  try {
+    const { data } = await client.get("/v2/nfe/inutilizacoes");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 };
