@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.111
-**Etapa:** 6.2 Fase 6 — "Tipo de documento padrão" só NF-e/NFC-e
+**Versão do documento:** 2.3.112
+**Etapa:** 6.2 Fase 6 — Removido o seletor "Ambiente ativo" da Configuração Fiscal
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6839,3 +6839,44 @@ painel da Focus NFe. Removido "NFS-e" de `DEFAULT_DOCUMENT_TYPE_OPTIONS`
 continua em `SaleDetailModal`, `FocusNFeService.buildNfsePayload` intacto) — só deixou
 de aparecer como opção de emissão AUTOMÁTICA, caso o cliente volte a precisar depois
 (ex.: cobrar serviço separado de venda de produto) é só adicionar de volta na lista.
+
+## 93. Removido o seletor "Ambiente ativo" da Configuração Fiscal (v2.3.112)
+
+### Contexto
+
+Pedido do cliente, depois de testar a tela nova de Homologação/Produção separadas
+(v2.3.109): "que só deveria ter os campos homologação e produção" — o campo "Ambiente
+ativo" (select separado escolhendo qual das duas credenciais vale pra emitir) saiu,
+ficando só os dois cartões (cada um com seu liga/desliga próprio). Antes de mexer,
+cheguei a perguntar se a ideia era os dois toggles virarem mutuamente exclusivos — não
+era isso, era simplesmente tirar o terceiro campo redundante.
+
+### O que foi feito
+
+- **`FiscalConfigService.isProductionActive(config)`** (novo): deriva qual ambiente
+  está ativo direto de `productionEnabled` — Produção habilitada tem prioridade (é a
+  "de verdade", bate com o fluxo descrito pelo cliente: testa em Homologação, quando
+  valida passa a usar Produção); senão usa Homologação, se estiver habilitada; se
+  nenhuma estiver, não tem token (tratado como gateway não configurado pelos
+  callers). `getActiveGatewayToken` passou a usar esse helper em vez de ler
+  `config.gatewayEnvironment`.
+- **`FocusNFeService.buildClient`**: mesma lógica (`!!config.productionEnabled`) pra
+  decidir a URL-base (homologação/produção), duplicada ali de propósito — evita
+  acoplar `FocusNFeService` a `FiscalConfigService` só por uma linha.
+- **`FiscalConfigService.update`**: a validação `ERR_FISCAL_ENVIRONMENT_NOT_ENABLED`
+  (impedir o seletor apontar pra um ambiente desligado, da v2.3.109) saiu junto — não
+  fazia mais sentido sem o seletor pra validar.
+- `FiscalConfig.gatewayEnvironment` (coluna) não foi removida do banco (mesmo motivo
+  de `gatewayToken`, seção 92) — só nenhum código novo lê/escreve nela.
+- Frontend: campo "Ambiente ativo" e `ENVIRONMENT_OPTIONS` saíram de
+  `FiscalConfigPanel`; "Gateway" virou largura cheia (sozinho na linha agora);
+  helper text do token de Produção ganhou uma nota ("tem prioridade sobre
+  Homologação") pra deixar a regra visível na tela, já que não tem mais um campo
+  explícito mostrando qual está ativo.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo no `FiscalConfigPanel`.
+- Não testado contra o gateway de verdade nesta parte (mesma ressalva de sempre).
+  **Pendente**: cliente confirmar visualmente que a tela ficou só com os dois cartões,
+  e que ligar/desligar Produção realmente muda qual token é usado ao emitir.

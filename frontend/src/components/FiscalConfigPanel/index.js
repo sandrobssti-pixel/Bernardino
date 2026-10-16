@@ -57,11 +57,6 @@ const TAX_REGIME_OPTIONS = [
   { value: "real", label: "Lucro Real" },
 ];
 
-const ENVIRONMENT_OPTIONS = [
-  { value: "sandbox", label: "Homologação (testes)" },
-  { value: "production", label: "Produção" },
-];
-
 // Só NF-e/NFC-e por pedido do cliente ("só vou trabalhar com esses dois
 // tipos de notas fiscais") — NFS-e continua funcionando por baixo
 // (FocusNFeService, emissão manual em SaleDetailModal), só não aparece
@@ -449,7 +444,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
               Gateway de emissão
             </Typography>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
+              <Grid item xs={12}>
                 <Field
                   as={TextField}
                   select
@@ -461,26 +456,6 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   helperText="Quem efetivamente emite e transmite a nota pra Sefaz/Prefeitura"
                 >
                   {gatewayOptions.map((opt) => (
-                    <MenuItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </Field>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  select
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="gatewayEnvironment"
-                  label="Ambiente ativo"
-                  helperText="Qual das duas credenciais abaixo é usada ao emitir agora"
-                >
-                  {ENVIRONMENT_OPTIONS.filter(
-                    (opt) => (opt.value === "production" ? values.productionEnabled : values.sandboxEnabled)
-                  ).map((opt) => (
                     <MenuItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </MenuItem>
@@ -570,7 +545,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
                     name="gatewayTokenProduction"
                     label="Token de acesso (Produção)"
                     disabled={!values.productionEnabled}
-                    helperText="Gerado no painel do gateway, aba de Produção"
+                    helperText="Gerado no painel do gateway, aba de Produção. Se habilitada, a venda emite por aqui (tem prioridade sobre Homologação)"
                   />
                 </Paper>
               </Grid>

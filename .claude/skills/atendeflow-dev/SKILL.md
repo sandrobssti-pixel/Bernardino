@@ -583,3 +583,13 @@ que eram esquecimento:
   em vez de ficar com os campos do mesmo grupo. Fix: campo que antecede
   um grupo "fechado" (dois itens que somam 12) vira `sm=12` próprio, ou o
   grupo inteiro fica isolado numa linha garantida.
+- **"Ambiente ativo" (seletor separado homologação/produção) durou só uma
+  versão (v2.3.109 → v2.3.112)** — cliente pediu pra tirar assim que viu
+  a tela, queria só os dois cartões com liga/desliga, sem um terceiro
+  campo redundante escolhendo qual vale. Lição: ao modelar
+  "duas credenciais + qual está ativa", perguntar/confirmar se precisa
+  mesmo de um campo explícito de seleção ou se dá pra DERIVAR isso dos
+  próprios toggles (aqui: Produção habilitada ganha prioridade) antes de
+  implementar os dois — evita retrabalho que só aparece depois que o
+  cliente vê a tela de verdade. `FiscalConfigService.isProductionActive`
+  é o padrão a reaproveitar pra esse tipo de decisão derivada.

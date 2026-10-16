@@ -87,11 +87,13 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   productionEnabled: boolean;
 
-  // "sandbox" (homologação) ou "production" (produção) — qual das duas
-  // credenciais acima é usada AGORA pra emitir. Sempre começa em sandbox,
-  // a empresa muda conscientemente quando terminar os testes (e só pode
-  // escolher um ambiente que esteja habilitado — ver `sandboxEnabled`/
-  // `productionEnabled` acima).
+  // Substituído na v2.3.112 — cliente pediu pra tirar esse seletor
+  // separado, deixando só os dois cartões Homologação/Produção na tela
+  // (`sandboxEnabled`/`productionEnabled` acima). Qual dos dois está
+  // ativo agora é derivado direto do toggle "Produção habilitada" (ver
+  // `FiscalConfigService.isProductionActive`), não lido mais daqui.
+  // Coluna não removida do banco por segurança (mesmo motivo de
+  // `gatewayToken` acima), só não é mais escrita/lida por código novo.
   @Default("sandbox")
   @Column
   gatewayEnvironment: string;

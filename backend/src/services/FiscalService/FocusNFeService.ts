@@ -34,7 +34,10 @@ export interface FocusEmitResult {
 }
 
 const buildClient = (config: FiscalConfig): AxiosInstance => {
-  const isProduction = config.gatewayEnvironment === "production";
+  // Qual ambiente usar é derivado direto do toggle "Produção habilitada"
+  // (v2.3.112) — não tem mais um seletor separado pra isso, ver
+  // FiscalConfigService.isProductionActive.
+  const isProduction = !!config.productionEnabled;
   const baseURL = isProduction ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
   const token = isProduction ? config.gatewayTokenProduction : config.gatewayTokenSandbox;
 

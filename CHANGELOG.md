@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.112] — Removido o seletor "Ambiente ativo" da Configuração Fiscal — 2026-10-16
+
+### Corrigido
+- Cliente pediu pra só ter os campos Homologação e Produção na tela — o seletor
+  separado "Ambiente ativo" saiu. Qual das duas credenciais é usada ao emitir agora
+  passou a ser decidido direto pelos dois botões liga/desliga: Produção habilitada
+  tem prioridade (é a opção "de verdade"); senão usa Homologação, se estiver
+  habilitada.
+
 ## [2.3.111] — "Tipo de documento padrão" só NF-e/NFC-e — 2026-10-16
 
 ### Corrigido
