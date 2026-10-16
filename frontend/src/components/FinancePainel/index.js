@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Grid from "@material-ui/core/Grid";
