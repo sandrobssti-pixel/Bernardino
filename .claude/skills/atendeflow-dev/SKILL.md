@@ -498,3 +498,30 @@ que eram esquecimento:
   Usar `FiscalGatewayService.requireFeature(gateway, "nomeDoMetodo")` em
   vez de checar `gateway.x &&` na mão em cada service novo — já lança
   `ERR_FISCAL_FEATURE_NOT_SUPPORTED_BY_GATEWAY` padronizado.
+- **Antes de mexer num importador por alias de cabeçalho (Produtos/
+  Clientes/Fornecedores), testar contra o arquivo REAL do cliente num
+  script Node avulso primeiro** (reaproveitando a lib `xlsx` já instalada
+  no backend), não só olhar a lista de aliases e supor que bate. Batido de
+  novo na prática (v2.3.107, Relatório de Clientes real): 3 colunas comuns
+  em relatório de ERP não batiam por causa da mesma pegadinha já conhecida
+  (igualdade exata do texto normalizado, não substring — "Nome / Razão
+  Social" → `nomerazaosocial` ≠ apelido `razaosocial` sozinho; "Telefone 1"
+  → `telefone1` ≠ `telefone`; "Compl." → `compl` ≠ `complemento`). Rodar o
+  parser contra o arquivo de verdade ANTES de mexer no código mostra
+  exatamente quantas linhas ficam inválidas e por quê, em vez de descobrir
+  só depois do deploy.
+- **Coluna de planilha sem campo correspondente no model → guardar em
+  `notes` em vez de descartar**, mas com dedup: se o relatório do ERP
+  antigo repete o mesmo valor em duas colunas (comum — "Nome Fantasia"
+  igual ao nome, "Telefone 2/3" iguais ao "Telefone 1"), comparar via
+  `normalizeHeader` (o mesmo helper já usado pro casamento de cabeçalho —
+  ignora acento/case/pontuação) contra o campo já capturado e pular a
+  linha da nota se for igual. Padrão em `FinanceImportService.ts`
+  (`buildLegacyNotes`/`LEGACY_NOTE_FIELDS`, v2.3.107) — reaproveitável pra
+  qualquer importador futuro que precise preservar coluna "extra".
+- **`readRows()` de `FinanceImportService.ts` lê com `raw: true` de
+  propósito** (Produtos depende disso pro parser de preço/estoque em
+  formato brasileiro) — uma célula de DATA do Excel chega como número
+  serial (dias desde 30/12/1899), não como texto "10/04/1988". Não mudar
+  esse default globalmente; converter pontual só onde precisar (ver
+  `excelSerialToDateString` em `FinanceImportService.ts`).

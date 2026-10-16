@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.107] — Importação de Clientes: ajustes pro Relatório de Clientes real do ERP antigo — 2026-10-16
+
+### Corrigido
+- O importador genérico de Clientes não reconhecia 3 colunas do Relatório de Clientes real
+  do ERP antigo do cliente ("Nome / Razão Social", "Telefone 1", "Compl.") — o texto
+  normalizado delas não batia exatamente com nenhum apelido já cadastrado (mesma pegadinha
+  de "igualdade exata, não substring" já documentada pro importador de Produtos). Testado
+  contra o arquivo real: 205/205 clientes reconhecidos depois do ajuste (eram 0/205 antes).
+
+### Adicionado
+- Colunas da planilha sem campo correspondente no cadastro de Cliente/Fornecedor (código do
+  sistema antigo, data de nascimento, RG/IE, telefones extras, nome para contato) agora são
+  guardadas automaticamente em Observações, em vez de descartadas — evitando linha repetida
+  quando a planilha já tinha o mesmo valor em duas colunas (ex.: Nome Fantasia igual ao nome,
+  Telefone 2/3 iguais ao Telefone 1).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 90.
+
 ## [2.3.106] — Focus NFe: carta de correção, envio por e-mail, pré-visualização de DANFe, inutilização de numeração — 2026-10-16
 
 ### Adicionado

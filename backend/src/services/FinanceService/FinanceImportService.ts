@@ -82,18 +82,78 @@ const buildLabelTransform = (labelMap: Record<string, string>) => (raw: any): st
   return labelMap[normalized] || String(raw).trim();
 };
 
+// "telefone1" e "compl" entraram pelo Relatório de Clientes real do ERP
+// antigo do cliente (v2.3.107) — "Telefone 1"/"Compl." normalizam pra algo
+// diferente de "telefone"/"complemento" (casamento de alias é por igualdade
+// exata, não substring — mesma pegadinha já documentada pro importador de
+// produtos).
 const DOCUMENT_ALIASES = ["cpf", "cnpj", "documento", "cpfcnpj", "ruc"];
 const EMAIL_ALIASES = ["email", "e-mail"];
-const PHONE_ALIASES = ["telefone", "celular", "fone", "whatsapp", "contato"];
+const PHONE_ALIASES = ["telefone", "celular", "fone", "whatsapp", "contato", "telefone1"];
 const ADDRESS_MAPPINGS: FieldMapping[] = [
   { field: "zipCode", aliases: ["cep", "zipcode"] },
   { field: "street", aliases: ["rua", "logradouro", "street", "endereco"] },
   { field: "number", aliases: ["numero", "número", "numberaddress", "num"] },
-  { field: "complement", aliases: ["complemento", "complement"] },
+  { field: "complement", aliases: ["complemento", "complement", "compl"] },
   { field: "neighborhood", aliases: ["bairro", "neighborhood"] },
   { field: "city", aliases: ["cidade", "city", "municipio"] },
   { field: "state", aliases: ["uf", "estado", "state"] }
 ];
+
+// `readRows` lê com `raw: true` (não `false`) de propósito — Produtos já
+// depende disso pro parser de preço/estoque (`parseBrazilianDecimal`), não
+// dá pra mudar o default sem revalidar a importação de Produtos inteira.
+// Por isso uma data vem como serial numérico do Excel (nº de dias desde
+// 30/12/1899), não como texto "10/04/1988" — só converte aqui, pontual,
+// pros campos de nota que precisam disso.
+const excelSerialToDateString = (value: any): string => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return String(value).trim();
+  const date = new Date(Date.UTC(1899, 11, 30) + num * 86400000);
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${date.getUTCFullYear()}`;
+};
+
+// Colunas do Relatório de Clientes do ERP antigo que não têm campo
+// correspondente em `FinanceCustomer`/`FinanceSupplier` — em vez de
+// descartar o dado, concatena em `notes` pra não perder nada que o cliente
+// eventualmente precise consultar depois (decisão do mesmo tipo já tomada
+// pro relatório de produtos: "o que o sistema não tem, preenche manual
+// depois" — mas aqui dá pra já guardar automaticamente). `skipIfEquals`
+// evita linha redundante quando a planilha repete o mesmo valor em duas
+// colunas (comum nesse relatório: "Nome Fantasia" igual ao nome pra pessoa
+// física, "Telefone 2"/"3" iguais ao "Telefone 1" — confirmado olhando o
+// arquivo real do cliente).
+const LEGACY_NOTE_FIELDS: {
+  label: string;
+  aliases: string[];
+  transform?: (raw: any) => string;
+  skipIfEquals?: (data: Record<string, any>) => string | undefined;
+}[] = [
+  { label: "Código (sistema antigo)", aliases: ["codigo"] },
+  { label: "Nome fantasia/Apelido", aliases: ["nomefantasiaapelido"], skipIfEquals: (data) => data.name },
+  { label: "Data nascimento", aliases: ["datanasc"], transform: excelSerialToDateString },
+  { label: "RG/IE", aliases: ["rgie"] },
+  { label: "Telefone 2", aliases: ["telefone2"], skipIfEquals: (data) => data.phone },
+  { label: "Telefone 3", aliases: ["telefone3"], skipIfEquals: (data) => data.phone },
+  { label: "Fax", aliases: ["fax"], skipIfEquals: (data) => data.phone },
+  { label: "Nome para contato", aliases: ["nomeparacontato"], skipIfEquals: (data) => data.phone }
+];
+
+const buildLegacyNotes = (row: Record<string, any>, data: Record<string, any>): string =>
+  LEGACY_NOTE_FIELDS.map(({ label, aliases, transform, skipIfEquals }) => {
+    const raw = getRowValueByAliases(row, aliases);
+    if (raw === undefined || !String(raw).trim()) return "";
+
+    const value = transform ? transform(raw) : String(raw).trim();
+    const compareTo = skipIfEquals ? skipIfEquals(data) : undefined;
+    if (compareTo && normalizeHeader(compareTo) === normalizeHeader(value)) return "";
+
+    return `${label}: ${value}`;
+  })
+    .filter(Boolean)
+    .join("\n");
 
 const PRODUCT_TYPE_LABEL_MAP: Record<string, string> = {
   produto: "product",
@@ -399,7 +459,7 @@ export const importProducts = async (
 // ---------------------------------------------------------------------------
 
 const buildPersonMappings = (extra: FieldMapping[] = []): FieldMapping[] => [
-  { field: "name", aliases: ["nome", "name", "razaosocial", "cliente", "fornecedor"] },
+  { field: "name", aliases: ["nome", "name", "razaosocial", "cliente", "fornecedor", "nomerazaosocial"] },
   { field: "document", aliases: DOCUMENT_ALIASES, transform: (raw) => String(raw).replace(/\D/g, "") || String(raw).trim() },
   {
     field: "documentType",
@@ -450,6 +510,11 @@ export const importCustomers = async (
     }
     summary.total += 1;
 
+    const legacyNotes = buildLegacyNotes(row, data);
+    if (legacyNotes) {
+      data.notes = data.notes ? `${data.notes}\n${legacyNotes}` : legacyNotes;
+    }
+
     const inferredType = inferDocumentType(data);
     if (inferredType) data.documentType = inferredType;
 
@@ -488,6 +553,11 @@ export const importSuppliers = async (
       continue;
     }
     summary.total += 1;
+
+    const legacyNotes = buildLegacyNotes(row, data);
+    if (legacyNotes) {
+      data.notes = data.notes ? `${data.notes}\n${legacyNotes}` : legacyNotes;
+    }
 
     const inferredType = inferDocumentType(data);
     if (inferredType) data.documentType = inferredType;

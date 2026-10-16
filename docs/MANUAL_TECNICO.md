@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.106
-**Etapa:** 6.2 Fase 6 — Focus NFe: carta de correção, e-mail, pré-visualização, inutilização
+**Versão do documento:** 2.3.107
+**Etapa:** 6.2 Fase 6 — Importação de Clientes: ajustes pro Relatório de Clientes real
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -6608,3 +6608,65 @@ AtendeFlow.
   funções novas. Cliente está em contato com a Focus NFe pra conseguir o token de
   homologação; assim que tiver, é o primeiro teste de ponta a ponta de todo o módulo
   fiscal desde que ele existe.
+
+## 90. Importação de Clientes: ajustes pro Relatório de Clientes real (v2.3.107)
+
+### Contexto
+
+Cliente pediu pra "migrar" o cadastro de clientes do ERP antigo — chamou de "XMLs" na
+primeira mensagem, mas era na verdade `.xls` (Excel antigo). Mandou o arquivo real
+("Relatorio de Clientes - Excel - Confiança Armas"), 205 linhas de clientes.
+
+### Causa raiz
+
+O importador genérico de Clientes/Fornecedores já existia (v2.3.96), mas o casamento de
+cabeçalho é por **igualdade exata** do texto normalizado (sem acento, minúsculo, só
+`[a-z0-9]`), não substring — mesma pegadinha já batida e documentada pro importador de
+Produtos (planilha-modelo, v2.3.102). Três colunas do relatório real não batiam com
+nenhum apelido cadastrado:
+- "Nome / Razão Social" normaliza pra `nomerazaosocial`, mas só existia o apelido
+  `razaosocial` (sem o prefixo "nome").
+- "Telefone 1" normaliza pra `telefone1`, mas só existia `telefone` (sem o número).
+- "Compl." normaliza pra `compl`, mas só existiam `complemento`/`complement` por
+  extenso.
+
+Resultado antes do ajuste: 0 de 205 linhas reconhecidas (nome sempre vazio → toda linha
+cai em `summary.invalid`). Achado rodando o parser contra o arquivo real num script
+Node avulso (reaproveitando a lib `xlsx` já instalada no backend) **antes** de mudar
+qualquer código — mesma disciplina de "testar contra o dado real primeiro" que vinha
+sendo seguida pro importador de Produtos.
+
+### O que foi feito
+
+- `FinanceImportService.ts`: adicionados os três apelidos que faltavam
+  (`nomerazaosocial` em `name`, `telefone1` em `PHONE_ALIASES`, `compl` em
+  `complement`) — correção mínima, sem mexer em mais nada do importador genérico.
+- **Preservação de dado sem campo correspondente**: o relatório real tem várias colunas
+  que não existem em `FinanceCustomer`/`FinanceSupplier` (Código do sistema antigo,
+  Nome Fantasia/Apelido, Data Nasc., RG/IE, Telefone 2/3, Fax, Nome para Contato). Em
+  vez de descartar, `buildLegacyNotes()` (novo helper) concatena esses valores no campo
+  `notes`, com dedup inteligente: pula a linha quando o valor é idêntico (comparado via
+  o mesmo `normalizeHeader` já usado pro casamento de cabeçalho — ignora
+  acento/case/pontuação) a um campo já capturado (`name` ou `phone`) — comum nesse
+  relatório real: "Nome Fantasia" igual ao nome (cliente pessoa física sem nome
+  fantasia próprio) e "Telefone 2"/"Telefone 3"/"Fax"/"Nome para Contato" repetindo o
+  mesmo número de "Telefone 1" com formatações diferentes.
+- **Data de nascimento como serial do Excel**: `readRows()` lê com `raw: true`
+  (intencional — Produtos depende disso pro parser de preço/estoque em formato
+  brasileiro, não dá pra mudar o default sem revalidar aquele importador também), então
+  uma célula de data vem como número (dias desde 30/12/1899), não como texto. Resolvido
+  pontual, só pro campo "Data nascimento" das notas, com `excelSerialToDateString()`.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- **Rodado o parser (réplica fiel da lógica, sem gravar no banco) contra o arquivo real
+  do cliente**: 205/205 linhas reconhecidas depois do ajuste (eram 0/205 antes). Datas
+  de nascimento conferidas manualmente contra o valor bruto da planilha (bate: célula
+  mostrando "4/10/88" vira "10/04/1988" nas notas). Conferido que as colunas
+  redundantes (Nome Fantasia/Telefone 2-3/Fax/Nome para Contato) não aparecem
+  duplicadas nas notas quando repetem valor já capturado.
+- **Não rodado o import de verdade contra o banco** (sem acesso a produção/banco desta
+  sessão) — só a lógica de parsing/mapeamento foi validada. Cliente precisa fazer o
+  upload de verdade pela tela (Financeiro → Clientes → Importar) depois do deploy pra
+  confirmar os 205 registros criados.
