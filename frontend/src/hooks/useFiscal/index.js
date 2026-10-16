@@ -55,6 +55,17 @@ const useFiscal = () => {
       const { data } = await api.delete(`/sales/${id}`);
       return data;
     },
+    // Importação de vendas históricas via planilha (migração de ERP,
+    // v2.3.116) — registra vendas que já têm nota fiscal emitida no sistema
+    // anterior, sem chamar o gateway e sem mexer em estoque.
+    importSpreadsheet: async (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/sales/import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      return data;
+    },
   };
 
   const fiscalDocuments = {

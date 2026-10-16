@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.116] — Importação de vendas históricas (migração de ERP) — 2026-10-16
+
+### Adicionado
+- Tela de Vendas (módulo fiscal) ganhou botão "Importar planilha" — lê o
+  "Relatório de Notas" (Consulta de Notas Fiscais - Analítico) exportado do
+  sistema anterior do cliente e registra cada nota como uma venda já
+  confirmada, com seus itens e uma conta a receber já marcada como "recebida".
+- Cobre as 3 situações encontradas no relatório real do cliente: Aprovada
+  (venda confirmada + nota autorizada), Cancelada (venda cancelada, sem conta
+  a receber) e "NF-e Rejeitado" (venda confirmada — a mercadoria foi vendida
+  de verdade — mas o documento fiscal fica marcado como erro, já que a nota
+  em si nunca foi validada pela Sefaz).
+- **Nunca** chama o gateway de emissão (Focus NFe) — essas notas já existem
+  de verdade no sistema anterior, a importação só registra o que já
+  aconteceu. **Nunca** desconta estoque — confirmado com o cliente que só
+  venda lançada a partir de agora movimenta estoque.
+- Reimportar a mesma planilha não duplica (idempotente por número da nota).
+- Validado com o relatório real do cliente antes de liberar: 486 notas
+  extraídas de 5.535 linhas, todas com cliente e itens.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 97.
+
 ## [2.3.115] — Erro interno sempre que abria a Configuração Fiscal — 2026-10-16
 
 ### Corrigido

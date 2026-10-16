@@ -622,3 +622,34 @@ que eram esquecimento:
   já usado nas outras (`try { ... } catch (err) { devolve valor "vazio"
   de erro, nunca deixa a exceção subir }`) mesmo que pareça óbvio demais
   pra esquecer.
+- **Importação de histórico de migração (v2.3.116, `SaleImportService.ts`)
+  nunca deve reaproveitar `SaleService.confirm()`/`.cancel()`** — grava
+  `Sale`/`SaleItem`/`FiscalDocument`/`FinanceReceivable` direto, porque
+  aquele fluxo é feito pra venda NOVA (chama o gateway, desconta estoque).
+  Venda histórica já tem nota de verdade emitida no sistema anterior e não
+  deve tocar estoque nem emitir nada de novo — confirmar explicitamente com
+  o cliente antes de assumir isso em qualquer importador fiscal futuro
+  (aqui foi confirmado: "não mexe no estoque, pois só a partir de hoje as
+  vendas lançadas que vai mexer no estoque").
+- **Relatório de bloco de tamanho variável (nº de linhas de item muda por
+  registro) não dá pra parsear por offset fixo** (técnica usada no
+  "Relatório de Produtos") — precisa de reconhecimento de padrão linha a
+  linha: cada linha é classificada pelo *conteúdo das colunas* (ex.: "é
+  cabeçalho se coluna X é só dígitos E coluna Y tem '/' E coluna Z é uma
+  das situações conhecidas"), não pela posição dentro do bloco. Ver
+  `parseNotesReport` em `SaleImportService.ts`.
+- **Nem todo relatório do mesmo cliente usa o mesmo formato de número.** O
+  "Relatório de Notas" usa separador de milhar "," e decimal "." (formato
+  americano, ex. `"5,100.00"`) — o INVERSO do formato brasileiro que
+  `parseBrazilianDecimal` (usado nos outros importadores) espera. Sempre
+  inspecionar uma amostra de valores reais do arquivo antes de escolher/
+  reaproveitar um parser numérico; se não bater, criar um helper dedicado
+  (`parseUsNumber`) em vez de forçar o existente.
+- **Antes de liberar qualquer importador novo pro cliente, validar com um
+  script local (fora do Express/banco) contra o arquivo real que ele
+  mandou** — ler o arquivo, contar quantos registros o parser extraiu,
+  comparar soma de totais do cabeçalho vs. soma calculada a partir dos
+  itens, e olhar as primeiras linhas extraídas. Pego no v2.3.116: validar
+  486 notas de 5.535 linhas, com <0,1% de diferença entre total do
+  cabeçalho e soma dos itens, deu confiança pra liberar sem precisar de
+  acesso ao banco de produção.

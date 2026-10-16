@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.115
-**Etapa:** 6.2 Fase 6 — Erro interno sempre que abria a Configuração Fiscal
+**Versão do documento:** 2.3.116
+**Etapa:** 6.2 Fase 6 — Importação de vendas históricas (migração de ERP)
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7011,3 +7011,127 @@ tratada, subindo até o Express e voltando como 500 — derrubando a tela inteir
 - Não testado contra o gateway de verdade nesta sessão (sem acesso a produção).
   **Pendente**: cliente confirmar que a Configuração Fiscal abre sem o erro depois
   do deploy.
+
+## 97. Importação de vendas históricas — migração de ERP (v2.3.116)
+
+### Contexto
+
+Cliente migrou de outro sistema (ERP anterior) para o AtendeFlow e pediu pra
+"lançar as vendas pela planilha excel pois fiz a migração de outro sistema pra
+esse" — essas vendas **já aconteceram de verdade** e **já têm NF-e emitida** no
+sistema anterior (confirmado: "todas com notas fiscais"). A importação precisa
+só *registrar* esse histórico no AtendeFlow, nunca tratar como venda nova.
+
+Três decisões confirmadas explicitamente com o cliente antes de implementar
+(pedido ambíguo o bastante pra exigir checagem, por instrução permanente deste
+repositório):
+
+1. **Nunca chamar o gateway de emissão** (Focus NFe) — a nota já existe de
+   verdade no sistema anterior; chamar o gateway geraria uma segunda nota
+   fiscal real pra uma venda que já foi faturada. A numeração de produção da
+   Focus NFe (quando o cliente trocar de homologação pra produção) deve
+   recomeçar em 492 — mas isso é configuração no próprio painel da Focus NFe,
+   não no código do AtendeFlow.
+2. **Nunca mexer em `FinanceProduct.stockQuantity`** — confirmado: "não mexe
+   no estoque, pois só a partir de hoje as vendas lançadas que vai mexer no
+   estoque". A importação faz os registros `Sale`/`SaleItem` diretamente,
+   sem passar por `SaleService.confirm()` (que é o único lugar que desconta
+   estoque).
+3. **Quais situações importar, e o que cada uma gera** — perguntado via
+   questionário porque o relatório real do cliente ("Relatório de Notas –
+   Consulta de Notas Fiscais - Analítico") trouxe 3 situações distintas
+   (Aprovada / Cancelada / "NF-e Rejeitado") sem um mapeamento óbvio pro
+   modelo de dados do AtendeFlow (`Sale.status` tem só
+   draft/confirmed/cancelled; `FiscalDocument.status` tem
+   processing/authorized/error/cancelled). Cliente confirmou: importar as 3,
+   e criar `FinanceReceivable` já como "recebida" pra cada venda importada
+   (pedido: "Cria conta a receber já como 'recebida'").
+
+Sobre o pedido de "gravar o ID da nota num arquivo na pasta do AtendeFlow pra
+backup" — esclarecido com o cliente que era só querer **saber em qual pasta**
+esse tipo de arquivo ficaria (não necessariamente um pedido firme de construir
+um novo recurso de log em arquivo). Resposta dada: o único caminho que
+sobrevive a um rebuild é o volume Docker nomeado `atendeflow_public`, montado
+em `/app/public` dentro do container `backend` (ver `docker-compose.coolify.yml`)
+— qualquer outro caminho dentro do container é perdido em todo
+`docker compose up -d --build`. Como os dados já ficam gravados no Postgres
+(que já tem backup diário, segundo o próprio cliente), nenhum arquivo extra
+foi criado — ficaria redundante.
+
+### Formato do relatório — máquina de estados, não offset fixo
+
+O "Relatório de Produtos" original (seção 6.2 Fase 6, importador de produtos)
+usa um offset de linha FIXO por registro. O "Relatório de Notas" **não dá**
+pra parsear assim: cada nota tem um bloco de tamanho **variável**, porque o
+número de linhas de item depende de quantos produtos aquela nota teve.
+
+Solução: `SaleImportService.parseNotesReport()` lê linha a linha e classifica
+cada uma pelo *conteúdo das colunas* (reconhecimento de padrão), não pela
+posição:
+
+- **Linha de cabeçalho de nota**: coluna 0 é só dígitos (número da nota),
+  coluna 3 contém "/" (é uma data) e coluna 12 é uma das 3 situações
+  conhecidas (`KNOWN_STATUSES`). Início de uma nota nova.
+- **Linha de item**: coluna 1 (SKU) e coluna 5 (descrição) não vazias.
+  Acumula no array `items` da nota atual.
+- Qualquer outra linha (resumo "Qtde Produtos: N", linha em branco, rodapé de
+  página) não casa com nenhum dos dois padrões acima — ignorada por omissão,
+  sem precisar de uma checagem explícita de exclusão.
+
+Validado com o arquivo real do cliente ("Relatorio_de_Notas - Federacao
+Baiana.xlsx") antes de liberar: 486 notas extraídas de 5.535 linhas, 100% com
+cliente e pelo menos 1 item, soma do total das notas (R$ 801.825,25) e soma
+calculada a partir dos itens (R$ 801.995,25) batendo a menos de 0,1% de
+diferença (1 nota em 486 com uma diferença maior que R$ 1 — provavelmente um
+desconto real do próprio sistema anterior, não um erro de parsing).
+
+### Formato numérico americano — outro helper, não reaproveitar `parseBrazilianDecimal`
+
+Esse relatório específico usa separador de milhar "," e decimal "."
+(ex.: `"5,100.00"`) — o **inverso** do formato brasileiro que
+`parseBrazilianDecimal` (usado nos outros importadores) espera. Criado um
+helper dedicado, `parseUsNumber`, só pra este arquivo:
+
+```ts
+const parseUsNumber = (raw: unknown): number => {
+  const n = parseFloat(String(raw ?? "").replace(/,/g, "").trim());
+  return Number.isNaN(n) ? 0 : n;
+};
+```
+
+**Lição**: nunca presumir que todo relatório do mesmo cliente usa o mesmo
+formato de número — cada exportação de um sistema legado pode ter sido
+gerada com uma configuração regional diferente. Sempre inspecionar uma
+amostra de valores reais antes de escolher o parser numérico.
+
+### Idempotência
+
+Reimportar a mesma planilha (ex.: depois de corrigir uma linha) não duplica:
+antes de criar qualquer registro, `importSales()` verifica se já existe um
+`FiscalDocument` com `externalRef = "legado-nf-${numero}"` pra aquela nota —
+se existir, pula (conta em `summary.skipped`). Mesmo padrão já usado nos
+importadores de Cliente/Fornecedor/Produto (dedup por SKU/documento).
+
+### Onde entra
+
+- `backend/src/services/FiscalService/SaleImportService.ts` (novo) —
+  `parseNotesReport()` (parser) + `importSales()` (grava `Sale`, `SaleItem`,
+  `FiscalDocument` com `externalRef` determinístico, e `FinanceReceivable`
+  já "recebida" quando a venda conta como confirmada).
+- `backend/src/controllers/SaleImportController.ts` (novo) — mesmo padrão de
+  `getUploadedFile`/`removeUploadedFile` do `FinanceImportController.ts`.
+- `backend/src/routes/fiscalRoutes.ts` — `POST /sales/import` (multer, mesmo
+  `uploadConfig` dos outros importadores).
+- `frontend/src/hooks/useFiscal/index.js` — `sales.importSpreadsheet(file)`.
+- `frontend/src/components/SaleList/index.js` — botão "Importar planilha" no
+  topo da tela de Vendas.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo nos arquivos de frontend tocados.
+- Parser validado com script local (sem gravar no banco) contra o arquivo real
+  do cliente — ver números acima.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem acesso).
+  **Pendente**: cliente rodar a importação de verdade depois do deploy e
+  confirmar as contagens (486 notas esperadas, nenhuma venda tocando estoque).

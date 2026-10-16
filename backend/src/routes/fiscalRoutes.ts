@@ -1,11 +1,16 @@
 import { Router } from "express";
+import multer from "multer";
 import isAuth from "../middleware/isAuth";
+import uploadConfig from "../config/upload";
 
 import * as FiscalAccessController from "../controllers/FiscalAccessController";
 import * as FiscalConfigController from "../controllers/FiscalConfigController";
 import * as SaleController from "../controllers/SaleController";
+import * as SaleImportController from "../controllers/SaleImportController";
 import * as FiscalDocumentController from "../controllers/FiscalDocumentController";
 import * as FiscalNumberingController from "../controllers/FiscalNumberingController";
+
+const upload = multer(uploadConfig);
 
 const fiscalRoutes = Router();
 
@@ -19,6 +24,11 @@ fiscalRoutes.get("/fiscal/access", isAuth, FiscalAccessController.show);
 fiscalRoutes.get("/fiscal/config", isAuth, FiscalConfigController.show);
 fiscalRoutes.put("/fiscal/config", isAuth, FiscalConfigController.update);
 fiscalRoutes.get("/fiscal/gateways", isAuth, FiscalConfigController.gateways);
+
+// Importação de vendas históricas (migração de ERP, v2.3.116) — registra
+// vendas que já têm nota fiscal emitida no sistema anterior; nunca chama o
+// gateway, nunca mexe em estoque. Ver SaleImportService.ts.
+fiscalRoutes.post("/sales/import", isAuth, upload.array("file"), SaleImportController.importSales);
 
 fiscalRoutes.get("/sales", isAuth, SaleController.index);
 fiscalRoutes.get("/sales/:id", isAuth, SaleController.show);

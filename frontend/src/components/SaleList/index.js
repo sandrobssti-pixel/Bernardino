@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 
 import { makeStyles } from "@material-ui/core/styles";
@@ -21,6 +21,7 @@ import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 import CancelIcon from "@material-ui/icons/Cancel";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import ReceiptIcon from "@material-ui/icons/Receipt";
+import PublishIcon from "@material-ui/icons/Publish";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
@@ -63,6 +64,8 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [selectedSale, setSelectedSale] = useState(null);
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
@@ -140,6 +143,34 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setConfirmAction(null);
   };
 
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Importação de vendas históricas já faturadas no sistema anterior do
+  // cliente (migração de ERP, v2.3.116) — só registra o que já existe
+  // (número da nota, itens, cliente), nunca emite nada via gateway e nunca
+  // mexe em estoque. Ver SaleImportService.ts.
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const summary = await fiscal.sales.importSpreadsheet(file);
+      const parts = [`${summary.created} criada(s)`, `${summary.skipped} ignorada(s)`];
+      toast.success(`Importação concluída: ${summary.total} nota(s) lida(s), ${parts.join(", ")}.`);
+      if (summary.errors?.length) {
+        summary.errors.slice(0, 5).forEach((msg) => toast.warn(msg));
+      }
+      fetchSales();
+    } catch (err) {
+      toastError(err);
+    }
+    setImporting(false);
+  };
+
   const confirmModalProps = {
     confirm: {
       title: confirmTarget ? `Confirmar venda #${confirmTarget.id}?` : "",
@@ -186,9 +217,31 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
       <Box className={classes.mainHeader}>
         <div />
-        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenNew}>
-          Nova venda
-        </Button>
+        <Box display="flex" style={{ gap: 8 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: "none" }}
+            onChange={handleImportFile}
+          />
+          <Tooltip title="Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)">
+            <span>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PublishIcon />}
+                onClick={handleImportClick}
+                disabled={importing}
+              >
+                {importing ? "Importando..." : "Importar planilha"}
+              </Button>
+            </span>
+          </Tooltip>
+          <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenNew}>
+            Nova venda
+          </Button>
+        </Box>
       </Box>
 
       <Paper className={classes.tablePaper} variant="outlined">
