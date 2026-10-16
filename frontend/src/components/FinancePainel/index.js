@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import XLSX from "xlsx";
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Grid from "@material-ui/core/Grid";
@@ -13,6 +14,7 @@ import TableCell from "@material-ui/core/TableCell";
 import TableHead from "@material-ui/core/TableHead";
 import TableRow from "@material-ui/core/TableRow";
 import PrintIcon from "@material-ui/icons/Print";
+import GetAppIcon from "@material-ui/icons/GetApp";
 import {
   ResponsiveContainer,
   BarChart,
@@ -43,6 +45,9 @@ import { money } from "../../utils/financeFormat";
 const COLOR_INCOME = "#6366f1";
 const COLOR_EXPENSE = "#ef4444";
 const COLOR_CATEGORY = "#6366f1";
+const COLOR_PROFIT = "#10b981";
+const COLOR_COST = "#f59e0b";
+const COLOR_TAX = "#ef4444";
 
 const useStyles = makeStyles((theme) => ({
   header: {
@@ -105,7 +110,7 @@ const useStyles = makeStyles((theme) => ({
         top: 0,
         width: "100%",
       },
-      "#finance-painel-print-hide": {
+      "#finance-painel-print-hide, #finance-painel-print-hide-excel": {
         display: "none",
       },
       // Se o mouse estiver sobre um gráfico no momento de imprimir, o
@@ -143,26 +148,49 @@ const FinancePainel = ({ finance }) => {
   const [cashFlow, setCashFlow] = useState([]);
   const [expensesByCategory, setExpensesByCategory] = useState([]);
   const [stockHealth, setStockHealth] = useState(null);
+  const [profitDashboard, setProfitDashboard] = useState(null);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [summaryData, cashFlowData, categoryData, stockData] = await Promise.all([
+      const [summaryData, cashFlowData, categoryData, stockData, profitData] = await Promise.all([
         finance.reports.summary(),
         finance.reports.cashFlow(6),
         finance.reports.expensesByCategory(),
         finance.reports.stockHealth(),
+        finance.reports.profitDashboard(),
       ]);
       setSummary(summaryData);
       setCashFlow(cashFlowData);
       setExpensesByCategory(categoryData);
       setStockHealth(stockData);
+      setProfitDashboard(profitData);
     } catch (err) {
       toastError(err);
     }
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Exporta a tabela "lucro por produto" pro Excel (mesmo padrão já usado
+  // em Reports/index.js — XLSX.utils.json_to_sheet + XLSX.writeFile).
+  const handleExportProfitExcel = () => {
+    if (!profitDashboard?.byProduct?.length) return;
+    const rows = profitDashboard.byProduct.map((p) => ({
+      Produto: p.name,
+      SKU: p.sku || "",
+      Quantidade: p.quantity,
+      "Valor de compra (custo)": p.cost,
+      Impostos: p.tax,
+      "Valor de venda (bruto)": p.gross,
+      "Lucro líquido": p.profit,
+      "Margem (%)": Number(p.margin.toFixed(2)),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "LucroPorProduto");
+    XLSX.writeFile(wb, "lucro-por-produto.xlsx");
+  };
 
   useEffect(() => {
     fetchAll();
@@ -302,6 +330,126 @@ const FinancePainel = ({ finance }) => {
                       ) : (
                         <Chip size="small" label="Baixo" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />
                       )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </Paper>
+      )}
+
+      {profitDashboard && !profitDashboard.enabled && (
+        <Paper className={classes.chartPaper} variant="outlined">
+          <Typography className={classes.chartTitle}>Compra × imposto × venda × lucro</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Esse painel aparece depois que a emissão de nota fiscal passar pra modo Produção na
+            Configuração Fiscal — enquanto está em Homologação (testes), vendas não entram nessa
+            conta de lucro.
+          </Typography>
+        </Paper>
+      )}
+
+      {profitDashboard?.enabled && (
+        <Paper className={classes.chartPaper} variant="outlined">
+          <Box display="flex" alignItems="center" justifyContent="space-between" flexWrap="wrap" style={{ gap: 8 }}>
+            <Typography className={classes.chartTitle} style={{ marginBottom: 0 }}>
+              Compra × imposto × venda × lucro
+            </Typography>
+            <Button
+              id="finance-painel-print-hide-excel"
+              size="small"
+              variant="outlined"
+              color="primary"
+              startIcon={<GetAppIcon />}
+              onClick={handleExportProfitExcel}
+              disabled={!profitDashboard.byProduct.length}
+            >
+              Baixar Excel
+            </Button>
+          </Box>
+
+          <Grid container spacing={2} style={{ margin: "16px 0" }}>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard label="Comprado (custo)" value={profitDashboard.totals.cost} />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard label="Impostos" value={profitDashboard.totals.tax} accent="#ef4444" />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard label="Vendido (bruto)" value={profitDashboard.totals.gross} />
+            </Grid>
+            <Grid item xs={6} sm={3}>
+              <SummaryCard
+                label={`Lucro líquido (margem ${profitDashboard.totals.margin.toFixed(1)}%)`}
+                value={profitDashboard.totals.profit}
+                accent={profitDashboard.totals.profit < 0 ? "#ef4444" : "#10b981"}
+              />
+            </Grid>
+          </Grid>
+
+          {profitDashboard.monthly.length === 0 ? (
+            <Typography variant="body2" color="textSecondary">
+              Nenhuma venda confirmada com produto cadastrado ainda — o lucro é calculado a
+              partir do custo/alíquota de imposto do produto no momento da venda.
+            </Typography>
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={profitDashboard.monthly} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="monthLabel" />
+                <YAxis tickFormatter={(v) => money(v)} width={90} />
+                <Tooltip formatter={currencyTooltipFormatter} />
+                <Legend />
+                <Bar dataKey="cost" name="Comprado (custo)" stackId="venda" fill={COLOR_COST} />
+                <Bar dataKey="tax" name="Impostos" stackId="venda" fill={COLOR_TAX} />
+                <Bar dataKey="profit" name="Lucro líquido" stackId="venda" fill={COLOR_PROFIT} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+
+          <Typography className={classes.chartTitle} style={{ marginTop: 24 }}>
+            Produtos por margem de lucro
+          </Typography>
+          {profitDashboard.byProduct.length === 0 ? (
+            <Typography variant="body2" color="textSecondary">
+              Nenhum produto com venda confirmada ainda.
+            </Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Produto</TableCell>
+                  <TableCell>SKU</TableCell>
+                  <TableCell align="center">Qtde vendida</TableCell>
+                  <TableCell align="right">Custo</TableCell>
+                  <TableCell align="right">Impostos</TableCell>
+                  <TableCell align="right">Venda</TableCell>
+                  <TableCell align="right">Lucro</TableCell>
+                  <TableCell align="right">Margem</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {profitDashboard.byProduct.map((p) => (
+                  <TableRow key={p.productId || p.name}>
+                    <TableCell>{p.name}</TableCell>
+                    <TableCell>{p.sku || "—"}</TableCell>
+                    <TableCell align="center">{p.quantity}</TableCell>
+                    <TableCell align="right">{money(p.cost)}</TableCell>
+                    <TableCell align="right">{money(p.tax)}</TableCell>
+                    <TableCell align="right">{money(p.gross)}</TableCell>
+                    <TableCell align="right" style={{ color: p.profit < 0 ? "#ef4444" : "#10b981", fontWeight: 600 }}>
+                      {money(p.profit)}
+                    </TableCell>
+                    <TableCell align="right">
+                      <Chip
+                        size="small"
+                        label={`${p.margin.toFixed(1)}%`}
+                        style={{
+                          backgroundColor: p.margin < 0 ? "#ef4444" : p.margin < 15 ? "#f59e0b" : "#10b981",
+                          color: "#fff",
+                        }}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

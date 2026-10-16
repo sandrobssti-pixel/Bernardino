@@ -63,6 +63,19 @@ class SaleItem extends Model<SaleItem> {
   @Column
   totalPrice: string;
 
+  // Snapshot do custo/alíquota de imposto do produto no momento da venda
+  // (dashboard de lucro, v2.3.117) — mesma lógica de snapshot do
+  // description/sku/ncm/cfop acima: se o cadastro do produto mudar depois
+  // (custo, alíquota), o lucro de uma venda já feita não deve mudar
+  // retroativamente.
+  @Default("0")
+  @Column
+  costPrice: string;
+
+  @Default("0")
+  @Column
+  taxRate: string;
+
   @ForeignKey(() => Sale)
   @AllowNull(false)
   @Column

@@ -78,6 +78,14 @@ const useFinance = () => {
       const { data } = await api.get("/finance/reports/stock-health");
       return data;
     },
+    // Dashboard de lucro (v2.3.117) — devolve { enabled: false } quando a
+    // empresa ainda não está com a Focus NFe em modo Produção (pedido do
+    // cliente: só mostrar esse relatório depois que a emissão "for de
+    // verdade", não com venda de teste em Homologação).
+    profitDashboard: async () => {
+      const { data } = await api.get("/finance/reports/profit-dashboard");
+      return data;
+    },
   };
 
   // Vínculo Contato (Atendimento) <-> Cliente (Financeiro), pra virar uma

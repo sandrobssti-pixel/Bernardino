@@ -653,3 +653,41 @@ que eram esquecimento:
   486 notas de 5.535 linhas, com <0,1% de diferença entre total do
   cabeçalho e soma dos itens, deu confiança pra liberar sem precisar de
   acesso ao banco de produção.
+- **Pedido espalhado em várias mensagens seguidas, cada uma acrescentando
+  um detalhe novo (v2.3.117, dashboard de lucro) — não implementar no
+  meio, esperar o pedido "assentar" e depois perguntar de uma vez.** O
+  cliente mandou ~5 mensagens em sequência (custo/imposto no produto,
+  visão simplificada pro analista financeiro, dashboard unificado
+  estoque+vendas com hover no gráfico, "só aplicar quando for pra
+  produção") antes de parar de adicionar contexto. Resposta certa: juntar
+  tudo mentalmente primeiro, identificar os pontos realmente ambíguos
+  (onde gravar custo/imposto, quantos tributos detalhar, o que "só
+  produção" quer dizer, onde entra o painel) e perguntar os 4 de uma vez
+  só (`AskUserQuestion` com 4 perguntas), não uma pergunta por mensagem
+  chegada nem implementar a primeira interpretação que apareceu.
+- **Custo/alíquota de imposto do produto são sempre snapshot no item da
+  venda, nunca lidos "ao vivo" do cadastro** (`SaleService.buildItemRows`,
+  v2.3.117) — mesmo motivo do sku/ncm/cfop: se o cliente editar o custo ou
+  a alíquota de um produto depois, vendas já feitas (e qualquer relatório
+  de lucro sobre elas) não podem mudar retroativamente. Ao adicionar
+  qualquer campo novo no cadastro de Produto que alimente cálculo
+  financeiro de uma venda, por padrão snapshot no `SaleItem` no momento da
+  venda — só não fazer isso se o cliente pedir explicitamente o contrário.
+- **Relatório/painel que só deve valer "pra produção de verdade" (não
+  teste) deriva isso de `FiscalConfigService.isProductionActive(config)`,
+  igual já é feito pra escolher qual token usar** — não inventar um flag
+  novo. E ao ler `FiscalConfig` de dentro de um código do módulo
+  Financeiro (não Fiscal) só pra checar esse booleano, usar
+  `FiscalConfig.findOne` direto, nunca `FiscalConfigService.show()` (que
+  faz `findOrCreate` — criaria uma linha de configuração fiscal pra toda
+  empresa que só abrisse o Painel Financeiro, mesmo sem usar o módulo
+  fiscal nenhuma vez).
+- **Export de Excel no frontend não precisa de endpoint novo no backend**
+  quando os dados já estão na tela (ex.: uma tabela de relatório já
+  carregada) — só montar o workbook no cliente com
+  `XLSX.utils.json_to_sheet` + `XLSX.writeFile` (mesmo padrão já usado em
+  `pages/Reports/index.js`). PDF do Painel Financeiro já é
+  `window.print()` + CSS `@media print` (ver seção 2 do manual técnico,
+  etapa 6.2) — qualquer seção nova dentro do mesmo painel ganha isso de
+  graça, só precisa adicionar o id certo (`finance-painel-print-hide*`) em
+  botão que não deve ir pro papel.

@@ -169,6 +169,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
 
   if (!sale) return null;
 
+  // Valor bruto é sempre sale.totalValue (o que o cliente pagou de verdade);
+  // "líquido" aqui é informativo — venda menos a parte que vai de imposto
+  // (snapshot de alíquota gravado no item no momento da venda, dashboard de
+  // lucro v2.3.117), não uma dedução real sobre o que foi recebido.
+  const totalTax = (sale.items || []).reduce(
+    (sum, item) => sum + Number(item.totalPrice || 0) * (Number(item.taxRate || 0) / 100),
+    0
+  );
+  const netValue = Number(sale.totalValue || 0) - totalTax;
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth classes={{ paper: classes.dialogPaper }}>
       <DialogTitle>Venda #{sale.id}</DialogTitle>
@@ -203,8 +213,14 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
             ))}
           </TableBody>
         </Table>
-        <Box display="flex" justifyContent="flex-end" mt={1}>
-          <Typography style={{ fontWeight: 700 }}>Total: {money(sale.totalValue)}</Typography>
+        <Box display="flex" flexDirection="column" alignItems="flex-end" mt={1}>
+          <Typography style={{ fontWeight: 700 }}>Valor bruto: {money(sale.totalValue)}</Typography>
+          <Typography variant="body2" color="textSecondary">
+            Impostos: {money(totalTax)}
+          </Typography>
+          <Typography variant="body2" style={{ fontWeight: 700, color: "#10b981" }}>
+            Valor líquido (após impostos): {money(netValue)}
+          </Typography>
         </Box>
 
         <Divider style={{ margin: "16px 0" }} />

@@ -42,3 +42,11 @@ export const stockHealth = async (req: Request, res: Response): Promise<Response
   const result = await FinanceReportService.getStockHealth(companyId);
   return res.status(200).json(result);
 };
+
+export const profitDashboard = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+
+  const result = await FinanceReportService.getProfitDashboard(companyId);
+  return res.status(200).json(result);
+};

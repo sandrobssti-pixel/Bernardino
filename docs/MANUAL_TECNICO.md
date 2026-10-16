@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.116
-**Etapa:** 6.2 Fase 6 — Importação de vendas históricas (migração de ERP)
+**Versão do documento:** 2.3.117
+**Etapa:** 6.2 Fase 6 — Dashboard de lucro (compra × imposto × venda × lucro)
 **Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7135,3 +7135,100 @@ importadores de Cliente/Fornecedor/Produto (dedup por SKU/documento).
 - Não testado end-to-end contra o banco de produção nesta sessão (sem acesso).
   **Pendente**: cliente rodar a importação de verdade depois do deploy e
   confirmar as contagens (486 notas esperadas, nenhuma venda tocando estoque).
+
+## 98. Dashboard de lucro: compra × imposto × venda × lucro (v2.3.117)
+
+### Contexto
+
+Depois da importação histórica (seção 97), cliente apontou um problema de
+fundo: "já fica registrado como vendas certas, contas a receber, só que eu
+quero (...) uma visão se está gerando lucro ou não na precificação" — mesmo
+com venda/conta a receber funcionando, não havia nenhum jeito de saber se o
+preço de venda cadastrado cobre custo + imposto e ainda dá lucro.
+
+Pedido chegou em várias mensagens seguidas, com bastante espaço pra
+interpretação (onde gravar custo/imposto, quantos tributos detalhar, o que
+exatamente "só aplicar quando for pra produção" queria dizer, onde colocar
+o painel). Por instrução permanente deste repositório (pedido com mais de
+um caminho razoável de implementação → perguntar antes de codar), as 4
+decisões de arquitetura foram confirmadas via questionário antes de
+implementar:
+
+1. **Onde fica custo/imposto**: no cadastro do Produto (não digitado a cada
+   venda) — assim todo item de venda já nasce sabendo seu custo/alíquota,
+   sem trabalho manual do vendedor.
+2. **Quantos tributos detalhar**: um `%` de imposto único por produto (não
+   o detalhamento ICMS/PIS/COFINS/IPI/ISS separado) — mais rápido de
+   cadastrar, suficiente pro que foi pedido (visão de margem, não apuração
+   fiscal formal).
+3. **"Só aplicar quando for pra produção"**: o painel de lucro só aparece
+   quando a empresa está com a Focus NFe em modo **Produção** (não quando
+   só Homologação está ligada) — assim venda de teste e o histórico
+   importado da migração de ERP (seção 97, que pode ter acontecido todo em
+   Homologação) não contaminam a conta de lucro.
+4. **Onde entra o painel**: dentro do Painel Financeiro já existente (não
+   uma tela nova) — mais uma seção, ao lado de "Situação do estoque".
+
+### Modelo de dados — snapshot de custo/imposto no item, igual sku/ncm/cfop
+
+`FinanceProduct` ganhou `taxRate` (string, %, default "0") — ao lado do
+`costPrice` que já existia. `SaleItem` ganhou `costPrice`/`taxRate`
+(migration `20261016160000-...`), gravados como **snapshot** no momento da
+venda (`SaleService.buildItemRows`, que agora é `async` e busca
+`costPrice`/`taxRate` dos produtos vendidos antes de montar os itens) — não
+vêm do formulário de venda (o vendedor nunca vê/edita isso), e não mudam
+retroativamente se o cadastro do produto for atualizado depois. Mesma
+lógica de snapshot já usada pra `description`/`sku`/`ncm`/`cfop`.
+
+### Cálculo de lucro
+
+Por item: `lucro = totalPrice - (costPrice × quantity) - (totalPrice × taxRate / 100)`.
+Margem (%) = `lucro / totalPrice × 100` (0 se totalPrice for 0, evita
+divisão por zero). Isso é intencionalmente uma simplificação de
+precificação (todo imposto calculado sobre o preço de venda, não sobre uma
+base de cálculo fiscal formal) — adequado pra dar visão de margem ao
+analista financeiro, não pra apuração fiscal (que continua sendo feita pela
+contabilidade/Focus NFe de verdade).
+
+### Onde entra
+
+- `backend/src/models/FinanceProduct.ts` — campo `taxRate`.
+- `backend/src/models/SaleItem.ts` — campos `costPrice`/`taxRate` (snapshot).
+- `backend/src/database/migrations/20261016160000-...` — `IF NOT EXISTS`
+  nas 3 colunas novas (mesma lição da seção 11 da skill `atendeflow-dev`).
+- `backend/src/services/FiscalService/SaleService.ts` — `buildItemRows`
+  agora assíncrono, busca `costPrice`/`taxRate` do produto antes de montar
+  cada `SaleItem`.
+- `backend/src/services/FinanceService/FinanceReportService.ts` —
+  `getProfitDashboard(companyId)`: devolve `{ enabled: false }` quando a
+  empresa não tem `FiscalConfig` ou não está com `isProductionActive()`
+  (reaproveitado de `FiscalConfigService.ts`, sem criar um registro de
+  config como efeito colateral — usa `findOne`, não o `findOrCreate` da
+  tela de Configuração Fiscal); senão agrega todo `SaleItem` de venda
+  `confirmed` por produto e por mês (compra/imposto/venda/lucro/margem).
+- `backend/src/controllers/FinanceReportController.ts` +
+  `backend/src/routes/financeRoutes.ts` — `GET /finance/reports/profit-dashboard`.
+- `frontend/src/pages/Financeiro/financeConfig.js` — campo "Alíquota de
+  imposto (%)" no formulário de Produto (ao lado de "Preço de custo",
+  `gridSize: 6` + `6` = 12, soma certa — ver seção 11 da skill sobre Grid).
+- `frontend/src/components/FinancePainel/index.js` — seção "Compra ×
+  imposto × venda × lucro": cartões de totais, gráfico de barra empilhada
+  por mês (custo+imposto+lucro = venda, com tooltip no hover) e tabela
+  "Produtos por margem de lucro" com exportação Excel (`XLSX.writeFile`,
+  mesmo padrão já usado em `pages/Reports/index.js`). Reaproveita o botão
+  "Imprimir / Exportar PDF" que já existe no topo do Painel Financeiro
+  (`window.print()`) — não precisou de nada novo pra isso.
+- `frontend/src/components/SaleDetailModal/index.js` — mostra Valor
+  bruto/Impostos/Valor líquido no detalhe da venda (calculado a partir do
+  `taxRate` snapshot de cada item, não é uma dedução real do que foi
+  recebido — é informativo, pro cliente visualizar a margem).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em todos os arquivos de frontend tocados.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem
+  acesso). **Pendente**: cliente cadastrar a alíquota de imposto nos
+  produtos, confirmar que o painel aparece só depois de ligar Produção na
+  Configuração Fiscal, e validar os números do dashboard contra uma venda
+  de teste conhecida.

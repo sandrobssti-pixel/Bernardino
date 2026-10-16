@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.117] — Dashboard de lucro: compra × imposto × venda × lucro — 2026-10-16
+
+### Adicionado
+- Cadastro de Produto ganhou o campo "Alíquota de imposto (%)" — junto com "Preço de
+  custo" já existente, é a base do cálculo de lucro automático em toda venda.
+- Painel Financeiro ganhou a seção "Compra × imposto × venda × lucro": cartões de
+  totais (comprado/custo, impostos, vendido/bruto, lucro líquido com margem %),
+  gráfico mensal (barra empilhada custo+imposto+lucro, soma = valor vendido, com
+  tooltip ao passar o mouse) e tabela "Produtos por margem de lucro" com botão
+  "Baixar Excel".
+- Detalhe de uma venda (módulo fiscal) agora mostra Valor bruto, Impostos e Valor
+  líquido (após impostos) — calculado a partir do custo/alíquota gravados no
+  momento da venda.
+- Esse painel só aparece quando a Focus NFe estiver em modo **Produção** — venda de
+  teste em Homologação e o histórico importado da migração de ERP não entram nessa
+  conta de lucro (decisão confirmada com o cliente).
+- Impressão/exportar PDF reaproveita o botão já existente do Painel Financeiro
+  (window.print()); Excel usa o mesmo padrão já usado em Relatórios (`xlsx`).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 98.
+
 ## [2.3.116] — Importação de vendas históricas (migração de ERP) — 2026-10-16
 
 ### Adicionado

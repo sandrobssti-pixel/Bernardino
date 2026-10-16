@@ -159,6 +159,14 @@ export const financeProductFields = [
   { name: "ncm", label: "NCM (uso futuro fiscal)", gridSize: 4 },
   { name: "price", label: "Preço de venda (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  {
+    name: "taxRate",
+    label: "Alíquota de imposto (%) — usada no dashboard de lucro",
+    type: "number",
+    step: "0.01",
+    defaultValue: "0",
+    gridSize: 6,
+  },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: hasStockControl },
   {

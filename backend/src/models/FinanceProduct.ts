@@ -58,6 +58,14 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   costPrice: string;
 
+  // Alíquota de imposto única (%), usada pro dashboard de lucro (v2.3.117) —
+  // lucro líquido = preço de venda - custo - (preço de venda × taxRate/100).
+  // Simplificação de propósito (um % só, não o detalhamento de ICMS/PIS/
+  // COFINS/IPI/ISS separados) — decisão confirmada com o cliente.
+  @Default("0")
+  @Column
+  taxRate: string;
+
   @Default(false)
   @Column
   controlStock: boolean;

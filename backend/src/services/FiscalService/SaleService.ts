@@ -108,10 +108,24 @@ export const show = async (id: string | number, companyId: number): Promise<Sale
   return record;
 };
 
-const buildItemRows = (items: SaleItemData[], saleId: number) =>
-  items.map(item => {
+// Custo/alíquota de imposto não vêm do formulário de venda (o vendedor não
+// precisa ver/editar isso) — são sempre lidos do cadastro do produto no
+// momento da venda e gravados como snapshot no item (dashboard de lucro,
+// v2.3.117), mesma lógica de snapshot já usada pra sku/ncm/cfop.
+const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: number) => {
+  const productIds = items.map(item => item.productId).filter((id): id is number => !!id);
+  const products = productIds.length
+    ? await FinanceProduct.findAll({
+        where: { id: productIds, companyId },
+        attributes: ["id", "costPrice", "taxRate"]
+      })
+    : [];
+  const productById = new Map(products.map(p => [p.id, p]));
+
+  return items.map(item => {
     const quantity = Number(item.quantity) || 0;
     const unitPrice = Number(item.unitPrice) || 0;
+    const product = item.productId ? productById.get(item.productId) : undefined;
     return {
       saleId,
       productId: item.productId || null,
@@ -122,9 +136,12 @@ const buildItemRows = (items: SaleItemData[], saleId: number) =>
       unit: item.unit || "UN",
       quantity: String(quantity),
       unitPrice: String(unitPrice),
-      totalPrice: String(quantity * unitPrice)
+      totalPrice: String(quantity * unitPrice),
+      costPrice: product?.costPrice ?? "0",
+      taxRate: product?.taxRate ?? "0"
     };
   });
+};
 
 export const create = async (data: SaleData, companyId: number): Promise<Sale> => {
   try {
@@ -144,7 +161,7 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
     companyId
   } as any);
 
-  await SaleItem.bulkCreate(buildItemRows(data.items, sale.id) as any);
+  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId) as any);
 
   return show(sale.id, companyId);
 };
@@ -179,7 +196,7 @@ export const update = async (
   // diff/merge item a item) — venda só é editável em "draft", então não há
   // risco de descartar histórico de itens de uma venda já confirmada.
   await SaleItem.destroy({ where: { saleId: sale.id } });
-  await SaleItem.bulkCreate(buildItemRows(data.items, sale.id) as any);
+  await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId) as any);
 
   return show(id, companyId);
 };
