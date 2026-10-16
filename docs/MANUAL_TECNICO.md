@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.101
-**Etapa:** 6.2 Fase 6 — Log de diagnóstico da v2.3.100 não aparecia (Pino sem efeito neste ambiente)
-**Última atualização:** 2026-10-15
+**Versão do documento:** 2.3.102
+**Etapa:** 6.2 Fase 6 — Planilha-modelo pra download + causa raiz do deploy travado (git fetch)
+**Última atualização:** 2026-10-16
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -6264,3 +6264,82 @@ função está sendo chamada de verdade.
 **Lição pro futuro, já registrada na skill `atendeflow-dev`**: não confiar que `logger.info`
 do Pino vai aparecer nos logs do Docker neste projeto sem antes confirmar — preferir
 `console.log` pra qualquer log de diagnóstico temporário que precise ser visto com certeza.
+
+## 86. Causa raiz real do "deploy não aplicou nada" + planilha-modelo pra download (v2.3.102)
+
+### Contexto
+
+Depois do log de diagnóstico da v2.3.101 também não aparecer em produção (mesmo sendo
+`console.log`, à prova de falha), ficou claro que o problema não era mais no código — era
+no próprio arquivo que estava sendo enviado pro build. Confirmado rodando `wc -l` no
+arquivo `FinanceImportService.ts` do servidor: **310 linhas**, batendo exatamente com a
+versão da v2.3.96 (antes do reconhecedor de relatório), enquanto o arquivo correto tem 514.
+
+### Causa raiz
+
+O roteiro de deploy usado desde a divergência git/GitHub (seção 7 da skill
+`atendeflow-dev`) copia cada arquivo individualmente com
+`git show origin/claude/tender-carson-h1zc86:<caminho> > <caminho>`. Esse comando lê do
+**cache local** da referência `origin/claude/tender-carson-h1zc86` — que só é atualizado
+rodando `git fetch` (ou `git pull`). A primeira tentativa de `git pull` (que falhou na
+hora de reconciliar o merge) **fez o fetch com sucesso antes de falhar**, deixando a
+referência local travada no commit da v2.3.96 (`bf6ca5a`). Nenhuma instrução de deploy
+dada depois disso incluiu um novo `git fetch` — então toda cópia de arquivo nas rodadas
+seguintes (correção da migration v2.3.97, reconhecedor do relatório v2.3.98, vínculo
+Contato/Cliente v2.3.99, os dois logs de diagnóstico v2.3.100/101) continuava lendo essa
+mesma referência desatualizada, trazendo sempre o conteúdo da v2.3.96 de volta — mesmo com
+os commits certos já publicados no GitHub havia várias versões.
+
+**Por que os builds "funcionavam" sem erro**: o Docker builda o que está no disco do
+servidor naquele momento — como o `git show` sempre escrevia o mesmo conteúdo antigo (só
+que de novo), o build sempre completava normalmente, só que recompilando a mesma versão
+desatualizada repetidas vezes. Nada indicava isso nos logs do build.
+
+**Nem tudo foi afetado**: os arquivos da Fase 6 original (campos de arma, migration — antes
+de `bf6ca5a`) já estavam corretos porque a v2.3.96 (onde a referência ficou travada) é
+posterior a eles, então já continha essas mudanças. `version.ts`/`package.json` também
+sempre ficaram certos, porque são alterados por `sed` direto no conteúdo atual do arquivo,
+sem depender de git nenhum momento.
+
+### O que foi feito
+
+- Identificado e corrigido rodando `git fetch origin claude/tender-carson-h1zc86` antes de
+  repetir a cópia de todos os 8 arquivos de código afetados (ver lista completa na skill
+  `atendeflow-dev`, seção dedicada a isso) — confirmado via `wc -l` batendo 514 linhas no
+  `FinanceImportService.ts` antes de rebuildar.
+- **Lição permanente, registrada na skill**: toda instrução de deploy baseada em
+  `git show origin/<branch>:<arquivo>` (o fluxo usado enquanto o servidor estiver
+  divergente do GitHub, seção 7) precisa vir precedida de `git fetch origin <branch>` —
+  nunca assumir que a referência local já está atualizada, mesmo que um `git pull`
+  anterior tenha rodado (ele pode ter feito o fetch e falhado só no merge).
+
+### Planilha-modelo pra download (pedido separado, mesma sessão)
+
+Cliente pediu, depois de validar a importação funcionando, um jeito de gerar a planilha do
+zero "de acordo com os campos corretos do sistema" — cadastro de Clientes e Produtos por
+enquanto (Fornecedores fica pra depois, mesmo padrão "fazer por parte").
+
+- `FinanceImportService.ts`: `buildProductTemplate()`/`buildCustomerTemplate()` geram um
+  `.xlsx` (via `XLSX.utils.aoa_to_sheet` + `XLSX.write(..., {type:"buffer"})`) com uma linha
+  de cabeçalho e uma linha de exemplo preenchida (produto de exemplo: pistola Taurus G2C,
+  mostrando os campos de arma preenchidos; cliente de exemplo com CPF e endereço completo).
+  **Os títulos de coluna foram escolhidos a dedo pra normalizar exatamente igual a um alias
+  já reconhecido** pelos mapeamentos de importação (`PRODUCT_MAPPINGS`/`CUSTOMER_MAPPINGS`)
+  — ex.: "Preço Venda" em vez de "Preço de Venda", porque a preposição "de" mudaria o texto
+  normalizado e o campo não seria reconhecido na reimportação (o casamento de alias é por
+  igualdade exata do texto normalizado, não substring). Validado rodando o parser contra o
+  próprio buffer gerado antes de considerar pronto.
+- Rotas novas: `GET /finance/products/import-template`, `GET /finance/customers/import-template`
+  (antes das rotas genéricas `/:id`, mesmo motivo já documentado pro vínculo Contato/Cliente).
+- Frontend: `useFinance().<resource>.downloadTemplate(filename)` (blob + link temporário pra
+  disparar o download do navegador) e botão "Baixar modelo" em `FinanceRecordList` — nova
+  prop `allowTemplateDownload` (separada de `allowImport`, porque só Produtos/Clientes têm
+  o endpoint; Fornecedores continua com importação mas sem modelo pra baixar, por enquanto).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo nos arquivos de frontend tocados.
+- Gerado o buffer de cada modelo e reprocessado pelo próprio parser (`ts-node`) — todas as
+  colunas reconhecidas corretamente, confirmado campo a campo contra os aliases.
+- Não testado o download/fluxo completo no navegador nesta sessão (sem acesso à produção).
+  **Pendente**: cliente confirmar que os botões aparecem e os arquivos baixam corretamente.

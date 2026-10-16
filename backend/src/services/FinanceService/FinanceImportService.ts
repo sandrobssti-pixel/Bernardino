@@ -512,3 +512,54 @@ export const importSuppliers = async (
 
   return summary;
 };
+
+// ---------------------------------------------------------------------------
+// Planilha-modelo pra download (Produtos/Clientes) — pedido do cliente pra
+// fechar o ciclo (baixar modelo → preencher → importar). Os títulos de
+// coluna usados aqui foram escolhidos de propósito pra normalizar
+// EXATAMENTE igual a um alias já reconhecido pelos mapeamentos acima (ex.:
+// "Preço Venda", não "Preço de Venda" — a preposição "de" mudaria o texto
+// normalizado e o campo não seria reconhecido na reimportação). Ao
+// adicionar uma coluna nova aqui, sempre conferir contra `PRODUCT_MAPPINGS`/
+// `CUSTOMER_MAPPINGS` antes. Ver docs/MANUAL_TECNICO.md.
+// ---------------------------------------------------------------------------
+
+const buildTemplateBuffer = (headerRow: string[], exampleRow: (string | number)[]): Buffer => {
+  const worksheet = XLSX.utils.aoa_to_sheet([headerRow, exampleRow]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Modelo");
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+};
+
+const PRODUCT_TEMPLATE_HEADERS = [
+  "Nome", "Tipo", "SKU", "Unidade", "NCM", "Preço Venda", "Preço Custo", "Estoque",
+  "Marca", "Modelo", "Tipo da Arma", "Calibre", "Número de Série", "Capacidade de Cartuchos",
+  "Regime de Funcionamento", "Quantidade de Canos", "Comprimento do Cano", "Tipo de Alma",
+  "Energia Cinética", "Classificação de Uso", "Procedência", "SIGMA", "Situação",
+  "Lote Fabricação", "Código de Barras", "Observações"
+];
+
+const PRODUCT_TEMPLATE_EXAMPLE = [
+  "Pistola Taurus G2C", "Arma", "TAU-G2C-001", "UN", "93020000", "2500", "1800", "5",
+  "Taurus", "G2C", "Pistola", ".40 S&W", "ABC123456", "12",
+  "Semiautomática", "1", "10.2", "Raiada",
+  "450", "Permitido", "Nacional", "SIGMA-000123", "Em estoque",
+  "", "", "Linha de exemplo — pode apagar"
+];
+
+export const buildProductTemplate = (): Buffer =>
+  buildTemplateBuffer(PRODUCT_TEMPLATE_HEADERS, PRODUCT_TEMPLATE_EXAMPLE);
+
+const CUSTOMER_TEMPLATE_HEADERS = [
+  "Nome", "Tipo de Documento", "CPF/CNPJ", "E-mail", "Telefone",
+  "CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "UF", "Observações"
+];
+
+const CUSTOMER_TEMPLATE_EXAMPLE = [
+  "João da Silva", "cpf", "123.456.789-00", "joao@email.com", "(71) 99999-9999",
+  "40000-000", "Rua Exemplo", "100", "Apto 1", "Centro", "Salvador", "BA",
+  "Linha de exemplo — pode apagar"
+];
+
+export const buildCustomerTemplate = (): Buffer =>
+  buildTemplateBuffer(CUSTOMER_TEMPLATE_HEADERS, CUSTOMER_TEMPLATE_EXAMPLE);

@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.102] — Planilha-modelo pra download (Produtos e Clientes) — 2026-10-16
+
+### Adicionado
+- Botão "Baixar modelo" nas abas Produtos e Clientes do Financeiro — baixa um `.xlsx` com
+  as colunas certas (mesmas que a importação reconhece) já com uma linha de exemplo
+  preenchida, pra facilitar montar a planilha de importação do zero.
+- Os títulos de coluna do modelo foram escolhidos pra normalizar exatamente igual a um
+  alias já reconhecido pelo importador — preencher o modelo baixado e reimportar funciona
+  de ponta a ponta, sem precisar adivinhar nome de coluna.
+
+### Corrigido (causa raiz do bug de importação das últimas versões)
+- Achada a causa real de por que v2.3.97-101 pareciam não ter efeito em produção: o
+  servidor usava `git show origin/<branch>:<arquivo>` pra copiar cada arquivo sem rodar
+  `git fetch` antes — a referência local do branch remoto ficou travada no commit da
+  v2.3.96 desde a primeira tentativa de `git pull`, então toda cópia de arquivo nas
+  rodadas seguintes trazia a versão antiga, mesmo com os commits certos já no GitHub.
+  Não é bug de código — é do roteiro de deploy. Documentado em `docs/MANUAL_TECNICO.md`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 86.
+
 ## [2.3.101] — Log de diagnóstico da v2.3.100 não aparecia (Pino sem efeito neste ambiente) — 2026-10-15
 
 ### Corrigido (diagnóstico)

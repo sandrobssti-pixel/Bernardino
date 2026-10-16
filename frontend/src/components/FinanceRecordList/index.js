@@ -21,6 +21,7 @@ import AddIcon from "@material-ui/icons/Add";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import EditIcon from "@material-ui/icons/Edit";
 import PublishIcon from "@material-ui/icons/Publish";
+import GetAppIcon from "@material-ui/icons/GetApp";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
@@ -57,7 +58,17 @@ const useStyles = makeStyles((theme) => ({
 // pro `resource.list(...)` (ex.: filtrar contas por status). `finance`
 // (opcional): o hook `useFinance()` inteiro, repassado ao modal só pra
 // resolver campos "asyncSelect" (ex.: escolher fornecedor/cliente).
-const FinanceRecordList = ({ title, resource, columns, fields, filters = [], finance, allowImport = false }) => {
+const FinanceRecordList = ({
+  title,
+  resource,
+  columns,
+  fields,
+  filters = [],
+  finance,
+  allowImport = false,
+  allowTemplateDownload = false,
+  templateFilename,
+}) => {
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
@@ -68,6 +79,7 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchRecords = useCallback(async () => {
@@ -159,6 +171,19 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
     setImporting(false);
   };
 
+  // Planilha-modelo (Fase 6) — baixa um .xlsx com as colunas que a
+  // importação reconhece, já com uma linha de exemplo, pra preencher e
+  // reimportar depois.
+  const handleDownloadTemplate = async () => {
+    setDownloadingTemplate(true);
+    try {
+      await resource.downloadTemplate(templateFilename || "modelo-importacao.xlsx");
+    } catch (err) {
+      toastError(err);
+    }
+    setDownloadingTemplate(false);
+  };
+
   return (
     <div className={classes.root}>
       <ConfirmationModal
@@ -223,6 +248,17 @@ const FinanceRecordList = ({ title, resource, columns, fields, filters = [], fin
           ))}
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
+          {allowTemplateDownload && (
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<GetAppIcon />}
+              onClick={handleDownloadTemplate}
+              disabled={downloadingTemplate}
+            >
+              {downloadingTemplate ? "Baixando..." : "Baixar modelo"}
+            </Button>
+          )}
           {allowImport && (
             <>
               <input

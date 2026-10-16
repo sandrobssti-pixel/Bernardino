@@ -178,6 +178,23 @@ cd ~/atendeflow && git status && git log -1 --oneline
     `git fetch origin <branch>` seguido de
     `git show origin/<branch>:<caminho> > <caminho>` (local no repo
     clonado desta sessão, não no SSH) e rebuildar.
+    **`git fetch origin <branch>` tem que rodar TODA VEZ, em TODA rodada
+    de deploy — nunca só uma vez no início da sessão.** `git show
+    origin/<branch>:<caminho>` lê da referência LOCAL cacheada
+    (`origin/<branch>`), que só atualiza com um fetch/pull explícito. Batido
+    na prática (outubro/2026, v2.3.97-101): a primeira tentativa de `git
+    pull` fez o fetch com sucesso antes de falhar no merge — deixando a
+    referência local travada naquele commit. As cinco rodadas de deploy
+    seguintes (~5 versões, horas de trabalho) só copiaram `git show` sem
+    fetch antes, e cada uma delas **copiou silenciosamente o mesmo
+    conteúdo antigo de novo** — sem erro nenhum, o build sempre completava
+    normal (só recompilava a mesma versão desatualizada). O sintoma
+    (`docs/MANUAL_TECNICO.md`, seção 86) foi um bug que já tinha sido
+    corrigido no código continuar "não resolvendo" em produção repetidas
+    vezes. **Checagem rápida pra confirmar que pegou**: depois do `git
+    show`, `wc -l <arquivo>` deveria bater com o número de linhas do
+    arquivo local (desta sessão) — se vier bem menor, é sinal de que
+    trouxe uma versão antiga.
   - **Arquivo com modificação local** (aparece como staged ou não-staged):
     NÃO sobrescrever. Pedir `grep -n -A 2 "<âncora>"` do trecho relevante
     no servidor, montar um `sed -i '<linha>a\<texto novo>'` cirúrgico que

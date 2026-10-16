@@ -74,3 +74,24 @@ export const importSuppliers = async (req: Request, res: Response): Promise<Resp
     removeUploadedFile(file);
   }
 };
+
+const sendXlsxBuffer = (res: Response, buffer: Buffer, filename: string): Response => {
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  return res.status(200).send(buffer);
+};
+
+export const productTemplate = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const buffer = FinanceImportService.buildProductTemplate();
+  return sendXlsxBuffer(res, buffer, "modelo-importacao-produtos.xlsx");
+};
+
+export const customerTemplate = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const buffer = FinanceImportService.buildCustomerTemplate();
+  return sendXlsxBuffer(res, buffer, "modelo-importacao-clientes.xlsx");
+};

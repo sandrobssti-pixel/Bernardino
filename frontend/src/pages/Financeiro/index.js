@@ -192,6 +192,8 @@ const Financeiro = () => {
           columns={financeCustomerColumns}
           fields={financeCustomerFields}
           allowImport
+          allowTemplateDownload
+          templateFilename="modelo-importacao-clientes.xlsx"
         />
       );
     }
@@ -216,6 +218,8 @@ const Financeiro = () => {
           columns={financeProductColumns}
           fields={financeProductFields}
           allowImport
+          allowTemplateDownload
+          templateFilename="modelo-importacao-produtos.xlsx"
         />
       );
     }

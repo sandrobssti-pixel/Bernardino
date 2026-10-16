@@ -41,6 +41,22 @@ const useFinance = () => {
       });
       return data;
     },
+    // Planilha-modelo pra download (só implementado pra customers/products,
+    // `/finance/<basePath>/import-template`) — baixa o .xlsx com as colunas
+    // que a importação reconhece, pra preencher e reimportar depois.
+    downloadTemplate: async (filename) => {
+      const { data } = await api.get(`/finance/${basePath}/import-template`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    },
   });
 
   // Fase 2 (Financeiro operacional) — relatórios são só leitura, então não

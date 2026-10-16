@@ -33,6 +33,13 @@ financeRoutes.post(
   isAuth,
   FinanceCustomerController.linkFromContact
 );
+// Planilha-modelo pra download — mesma observação de ordem de rota acima
+// (precisa vir antes de "/:id").
+financeRoutes.get(
+  "/finance/customers/import-template",
+  isAuth,
+  FinanceImportController.customerTemplate
+);
 financeRoutes.get("/finance/customers/:id", isAuth, FinanceCustomerController.show);
 financeRoutes.post("/finance/customers", isAuth, FinanceCustomerController.store);
 financeRoutes.put("/finance/customers/:id", isAuth, FinanceCustomerController.update);
@@ -45,6 +52,13 @@ financeRoutes.put("/finance/suppliers/:id", isAuth, FinanceSupplierController.up
 financeRoutes.delete("/finance/suppliers/:id", isAuth, FinanceSupplierController.remove);
 
 financeRoutes.get("/finance/products", isAuth, FinanceProductController.index);
+// Planilha-modelo pra download — precisa vir antes de "/:id" (mesmo motivo
+// do vínculo Contato/Cliente, acima).
+financeRoutes.get(
+  "/finance/products/import-template",
+  isAuth,
+  FinanceImportController.productTemplate
+);
 financeRoutes.get("/finance/products/:id", isAuth, FinanceProductController.show);
 financeRoutes.post("/finance/products", isAuth, FinanceProductController.store);
 financeRoutes.put("/finance/products/:id", isAuth, FinanceProductController.update);
