@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.133
-**Etapa:** 6.2 Fase 6 — filtro por tipo na lista de Produtos (armas x munição x geral)
+**Versão do documento:** 2.3.134
+**Etapa:** 6.2 Fase 6 — filtro de Produtos separa Armas nacionais/importadas
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8305,3 +8305,31 @@ mesma lista, só distinguíveis pela coluna "Tipo".
   cliente conferir, depois do deploy, que o filtro "Tipo" aparece na
   tela de Produtos e separa corretamente armas/munição/produtos ao
   escolher cada opção.
+
+## 115. Filtro de Produtos separa Armas nacionais/importadas (v2.3.134)
+
+Pedido de ajuste imediato depois da seção 114: cliente quer "Armas
+nacionais" e "Armas importadas" como opções separadas no filtro, em vez
+de um "Arma" único. Não existe (nem deveria existir) um `type` próprio
+pra isso — já existe exatamente esse dado no campo `origin`
+("Procedência": `national`/`imported`, Fase 6) junto de `type="weapon"`.
+
+Em vez de criar um segundo select (Tipo + Procedência) só pra esse
+cruzamento, o filtro único de "Tipo" aceita um valor composto
+`"weapon:national"`/`"weapon:imported"` (dois pontos como separador),
+resolvido em `FinanceProductService.list`: se o valor contém `:`, quebra
+em `[type, origin]` e filtra os dois campos juntos; senão, filtra só
+`type` como antes. Nenhuma mudança no componente genérico
+`FinanceRecordList` nem no formulário de cadastro — só a lista de opções
+do filtro e o parsing no backend.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc --noEmit`,
+`npx eslint` e build de produção limpos.
+
+**Pendente** (ainda não implementado, aguardando o cliente fechar a
+lista completa de categorias antes de mexer de novo — pedido espalhado
+em várias mensagens seguidas, ver lição da seção 90 sobre não
+implementar no meio): adicionar "Acessórios" e "Caça & Pesca" como
+`type` novos (`accessory`, `hunting_fishing` ou nome parecido) no
+`PRODUCT_TYPE_OPTIONS` do formulário de cadastro e no filtro.

@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.134] — Filtro de Produtos separa Armas nacionais/importadas — 2026-10-17
+
+### Adicionado
+- Filtro "Tipo" da lista de Produtos ganhou "Armas nacionais" e "Armas importadas"
+  no lugar de um "Arma" único — cruza `type="weapon"` com `origin` (Procedência,
+  campo que já existia no cadastro), sem precisar de um segundo select nem de
+  mudar o `type` gravado no banco.
+
 ## [2.3.133] — Filtro por tipo na lista de Produtos (armas x munição x geral) — 2026-10-17
 
 ### Adicionado

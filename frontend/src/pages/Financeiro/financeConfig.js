@@ -283,8 +283,25 @@ export const financeProductFields = [
 // listagem — o dado já vem segmentado desde a importação (`type` do
 // FinanceProduct), só faltava o filtro aqui pra visualizar separado em
 // vez de tudo misturado numa lista só (v2.3.133).
+// "Armas nacionais"/"Armas importadas" não são um `type` próprio do
+// cadastro — são `type="weapon"` cruzado com `origin` ("Procedência",
+// campo que já existe no formulário). O valor "weapon:national"/
+// "weapon:imported" (dois pontos) é resolvido no backend
+// (FinanceProductService.list) em vez de criar um segundo select só pra
+// isso (v2.3.134).
 export const financeProductFilters = [
-  { name: "type", label: "Tipo", options: [{ value: "", label: "Todos" }, ...PRODUCT_TYPE_OPTIONS] },
+  {
+    name: "type",
+    label: "Tipo",
+    options: [
+      { value: "", label: "Todos" },
+      { value: "product", label: "Produto" },
+      { value: "weapon:national", label: "Armas nacionais" },
+      { value: "weapon:imported", label: "Armas importadas" },
+      { value: "ammunition", label: "Munições/Insumos" },
+      { value: "service", label: "Serviço" },
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------

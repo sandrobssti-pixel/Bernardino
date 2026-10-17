@@ -104,8 +104,21 @@ export const list = async ({
   // dado já vinha segmentado desde a importação (`type` no
   // FinanceProduct, FinanceImportService.parseGunStoreReport) — só
   // faltava o filtro na listagem pra visualizar separado.
+  //
+  // "Armas nacionais"/"Armas importadas" (v2.3.134) não são um `type`
+  // próprio — são `type="weapon"` cruzado com `origin` ("national"/
+  // "imported", mesmo campo "Procedência" já usado no cadastro). Pra não
+  // criar um filtro de dois selects (Tipo + Procedência) só pra esse caso,
+  // o valor do filtro único de "Tipo" pode vir como "weapon:national" —
+  // dois pontos separam tipo e procedência, resolvido aqui.
   if (type) {
-    whereCondition.type = type;
+    if (type.includes(":")) {
+      const [realType, origin] = type.split(":");
+      whereCondition.type = realType;
+      whereCondition.origin = origin;
+    } else {
+      whereCondition.type = type;
+    }
   }
 
   if (searchParam) {
