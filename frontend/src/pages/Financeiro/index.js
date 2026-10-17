@@ -4,8 +4,6 @@ import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Typography from "@material-ui/core/Typography";
 import CircularProgress from "@material-ui/core/CircularProgress";
-import Tabs from "@material-ui/core/Tabs";
-import Tab from "@material-ui/core/Tab";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
@@ -45,36 +43,6 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.down("sm")]: {
       padding: theme.spacing(1),
     },
-  },
-  // Navegação lateral (não superior) entre as abas do Financeiro: abas
-  // verticais à esquerda, conteúdo à direita.
-  layoutRow: {
-    display: "flex",
-    flex: 1,
-    gap: theme.spacing(2),
-    alignItems: "flex-start",
-    [theme.breakpoints.down("xs")]: {
-      flexDirection: "column",
-    },
-  },
-  sideTabs: {
-    borderRight: `1px solid ${theme.palette.divider}`,
-    minWidth: 180,
-    flexShrink: 0,
-    [theme.breakpoints.down("xs")]: {
-      width: "100%",
-      borderRight: "none",
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-  },
-  sideTab: {
-    minHeight: 48,
-    alignItems: "flex-start",
-    textAlign: "left",
-    textTransform: "none",
-    fontWeight: 600,
-    fontSize: "0.85rem",
-    paddingLeft: theme.spacing(2),
   },
   content: {
     flex: 1,
@@ -302,33 +270,7 @@ const Financeiro = () => {
 
   return (
     <div className={classes.pageRoot}>
-      <div className={classes.layoutRow}>
-        <Tabs
-          value={financeTab}
-          onChange={(e, v) => setFinanceTab(v)}
-          orientation="vertical"
-          variant="scrollable"
-          indicatorColor="primary"
-          textColor="primary"
-          className={classes.sideTabs}
-        >
-          {user.super && <Tab className={classes.sideTab} value="saas" label="Painel SaaS" />}
-          <Tab className={classes.sideTab} value="painel" label="Painel Financeiro" />
-          <Tab className={classes.sideTab} value="expenses" label="Contas a Pagar" />
-          <Tab className={classes.sideTab} value="receivables" label="Contas a Receber" />
-          <Tab className={classes.sideTab} value="customers" label="Clientes" />
-          <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
-          <Tab className={classes.sideTab} value="products" label="Produtos" />
-          {showFiscalTabs && (
-            <Tab className={classes.sideTab} value="sales" label="Vendas" />
-          )}
-          {showFiscalTabs && (
-            <Tab className={classes.sideTab} value="fiscalConfig" label="Configuração Fiscal" />
-          )}
-        </Tabs>
-
-        <div className={classes.content}>{renderPanel()}</div>
-      </div>
+      <div className={classes.content}>{renderPanel()}</div>
     </div>
   );
 };

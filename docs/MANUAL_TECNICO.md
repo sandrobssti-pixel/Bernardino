@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.137
-**Etapa:** 6.2 Fase 6 — emojis nos itens do submenu Financeiro
+**Versão do documento:** 2.3.138
+**Etapa:** 6.2 Fase 6 — Painel Financeiro sem navegação duplicada
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8443,4 +8443,25 @@ do `LocalAtmIcon`) não ganhou emoji — vem de uma chave de i18n
 então prefixar ali mudaria texto fora do escopo pedido.
 
 **Arquivo**: `frontend/src/layout/MainListItems.js`. `npx eslint` e
+build de produção limpos.
+
+## 119. Painel Financeiro sem navegação duplicada (v2.3.138)
+
+Depois da navegação migrar pro menu lateral (seção 117), a tela do
+Financeiro ficou com DUAS formas de trocar de aba: o menu lateral novo
+e a lista vertical de abas (`<Tabs orientation="vertical">`) que
+sempre existiu dentro da própria página, à esquerda do conteúdo.
+Cliente confirmou que o menu lateral já funciona e pediu pra tirar essa
+segunda lista, que ficou redundante.
+
+Removido o bloco `<Tabs>`/`<Tab>` inteiro de
+`frontend/src/pages/Financeiro/index.js` (junto com os imports
+`Tabs`/`Tab`, agora sem uso, e os estilos `layoutRow`/`sideTabs`/
+`sideTab`) — a página passou a renderizar só `{renderPanel()}` direto,
+ocupando a largura inteira. A troca de aba continua 100% funcional
+pelo `financeTab`/`setFinanceTab` de sempre, só que agora controlada
+só pelo menu lateral (via `?tab=...` na URL, seção 117) — nenhuma
+lógica de navegação mudou, só a remoção da lista duplicada.
+
+**Arquivo**: `frontend/src/pages/Financeiro/index.js`. `npx eslint` e
 build de produção limpos.

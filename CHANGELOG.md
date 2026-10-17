@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.138] — Painel Financeiro sem navegação duplicada — 2026-10-17
+
+### Corrigido
+- Removida a lista vertical de abas (Painel Financeiro, Contas a Pagar, Contas a
+  Receber, Clientes, Fornecedores, Produtos, Vendas, Configuração Fiscal) que
+  ficava à esquerda do conteúdo, dentro da própria tela — ficou redundante depois
+  da navegação ter sido movida pro menu lateral principal (seção 117). O conteúdo
+  agora ocupa a largura inteira da tela.
+
 ## [2.3.137] — Emojis nos itens do submenu Financeiro — 2026-10-17
 
 ### Adicionado
