@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.140
-**Etapa:** 6.2 Fase 6 — filtro de período em Vendas
+**Versão do documento:** 2.3.141
+**Etapa:** 6.2 Fase 6 — permissão "Importar planilha" por usuário
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8557,4 +8557,98 @@ página sem resultado).
 `backend/src/controllers/SaleController.ts`,
 `frontend/src/hooks/useFiscal/index.js`,
 `frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 122. Permissão "Importar planilha" por usuário (v2.3.141)
+
+Pedido: usuário comum ("user") não deve ter a opção de importar
+planilha em NENHUM serviço do sistema, por padrão — isso precisa ser
+liberado nas permissões do cadastro do usuário, não ficar sempre
+disponível. Antes dessa versão, os 4 botões "Importar planilha"
+(Clientes, Fornecedores, Produtos — todos em
+`frontend/src/pages/Financeiro/financeConfig.js` via
+`FinanceRecordList.js` — e Vendas, `SaleList.js`) apareciam pra
+qualquer usuário com acesso ao módulo (Financeiro/Fiscal), sem
+distinção de perfil.
+
+O projeto já tinha um padrão pronto pra esse tipo de permissão
+granular — a seção "Permissões" do `UserModal.js` (Permitir grupos,
+Ações nas conexões, Ver dashboard, Ver painel em tempo real), cada uma
+um toggle próprio no cadastro do usuário, Admin sempre com tudo
+liberado por padrão/implícito. Replicado o mesmo padrão pra
+`allowImport` (string `"enabled"`/`"disabled"`, cai no `else` genérico
+de `isPermissionEnabled`/`togglePermission` — nenhuma mudança
+necessária nessas duas funções, só registrar o campo novo em
+`permissionContent` e adicionar o `Grid`/`renderPermissionButtonField`
+depois de "Ver painel em tempo real").
+
+**Toda a cadeia de campos que precisou ser tocada** (lição de seções
+anteriores: esse tipo de campo de permissão passa por VÁRIOS pontos
+até virar algo utilizável no frontend — fácil esquecer um):
+
+1. `backend/src/models/User.ts` — coluna nova `allowImport` (`@Default("disabled")`).
+2. Migration `20261017220000-add-allowimport-to-users.ts`.
+3. `ShowUserService.ts` — **crítico**: sem adicionar `"allowImport"` na
+   whitelist de `attributes`, o campo nunca chega no frontend, nem no
+   formulário de edição do usuário nem (mais importante) no
+   `AuthContext.user` da sessão atual — `RefreshTokenService.ts` usa
+   exatamente esse service pra reconstruir o usuário a cada renovação
+   de token, é por aí que o valor chega na sessão já logada, não só no
+   login.
+4. `CreateUserService.ts`/`UpdateUserService.ts` — aceitar, persistir e
+   devolver o campo (mesmo padrão de `allowRealTime`/`allowConnections`:
+   `if (userData.allowImport) { ... }`, string sempre truthy tanto pra
+   `"enabled"` quanto `"disabled"`).
+5. `SerializeUser.ts` — incluído na resposta do login
+   (`AuthUserService`/`CreateUserService`).
+6. `isAuth.ts` — **o outro ponto crítico**: o middleware de autenticação
+   NÃO repassa o usuário inteiro pro `req.user` das rotas, monta um
+   `_baseUser` com uma whitelist própria e BEM menor (hoje:
+   `id/profile/companyId/super/canViewAllContacts/canDeleteTickets/
+   allowConnections/financialAccess`) — a maioria dos campos de
+   permissão (`allowRealTime`, `showDashboard`, `allowGroup` etc.)
+   **nunca chegava em `req.user`**, ou seja, só eram aplicados no
+   FRONTEND, sem checagem nenhuma no backend. `allowImport` foi
+   adicionado nessa whitelist de propósito, porque esse aqui PRECISA
+   ser verificável no backend (ver abaixo).
+
+**Frontend**: `UserModal.js` ganhou o toggle "Importar planilha" (ver
+acima). `FinanceRecordList.js` e `SaleList.js` leem
+`user.profile === "admin" || user.super || user.allowImport ===
+"enabled"` (`canImport`) e só renderizam o botão (+ o `<input
+type="file">` escondido) quando isso é verdadeiro — o botão "Baixar
+modelo" (planilha em branco, sem dado nenhum da empresa) não entra
+nessa regra, continua liberado pra todo mundo.
+
+**Backend — a parte que realmente importa pra segurança**: esconder o
+botão sozinho não impede ninguém de montar a requisição `POST
+/finance/.../import` ou `POST /sales/import` direto (DevTools, Postman
+etc.). `FinanceImportController.ts` e `SaleImportController.ts`
+ganharam `ensureImportPermission(req)` (função local, mesmo padrão já
+usado pro `ensureAccess` de cada controller — duplicada entre os dois
+arquivos de propósito, seguindo o estilo já existente em vez de criar
+um util compartilhado novo): Admin/Master (`profile === "admin"` ou
+`super`) sempre passa; usuário comum precisa de
+`req.user.allowImport === "enabled"`, senão `403
+ERR_NO_IMPORT_PERMISSION`. Os endpoints de template em branco
+(`productTemplate`/`customerTemplate`) não entram nessa checagem.
+
+Erro novo traduzido em `frontend/src/translate/languages/pt.js`
+(`ERR_NO_IMPORT_PERMISSION`) — só em português por ora, mesmo padrão
+de outros códigos de erro recentes que não têm tradução nos outros 4
+idiomas ainda.
+
+**Arquivos**: `backend/src/models/User.ts`,
+`backend/src/database/migrations/20261017220000-add-allowimport-to-users.ts`,
+`backend/src/services/UserServices/ShowUserService.ts`,
+`backend/src/services/UserServices/CreateUserService.ts`,
+`backend/src/services/UserServices/UpdateUserService.ts`,
+`backend/src/helpers/SerializeUser.ts`,
+`backend/src/middleware/isAuth.ts`,
+`backend/src/controllers/FinanceImportController.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`frontend/src/components/UserModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/translate/languages/pt.js`. `npx tsc --noEmit`, `npx
 eslint` e build de produção limpos.

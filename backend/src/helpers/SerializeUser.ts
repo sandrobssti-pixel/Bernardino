@@ -29,6 +29,7 @@ interface SerializedUser {
   allowGroup: boolean;
   allowRealTime: string;
   allowConnections: string;
+  allowImport: string;
   blockMultipleLogins: boolean;
   farewellMessage?: string;
 }
@@ -67,6 +68,7 @@ export const SerializeUser = async (user: User): Promise<SerializedUser> => {
     allowGroup: user.allowGroup,
     allowRealTime: user.allowRealTime,
     allowConnections: user.allowConnections,
+    allowImport: user.allowImport,
     blockMultipleLogins: !!user.blockMultipleLogins,
     farewellMessage: user.farewellMessage
   };

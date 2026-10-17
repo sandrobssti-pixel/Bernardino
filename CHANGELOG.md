@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.141] — Permissão "Importar planilha" por usuário — 2026-10-17
+
+### Adicionado
+- Novo toggle em Usuários → Permissões: **"Importar planilha"** (desligado por
+  padrão). Admin/Master sempre pode importar; usuário comum só vê e consegue
+  usar os botões "Importar planilha" (Clientes, Fornecedores, Produtos no
+  Financeiro, e Vendas) se essa permissão for ligada explicitamente no
+  cadastro dele. Travado também no backend (não só escondido na tela) — bater
+  direto na API de importação sem a permissão retorna 403.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 122.
+
 ## [2.3.140] — Filtro de período em Vendas; remoção da opção de baixa no estoque — 2026-10-17
 
 ### Adicionado

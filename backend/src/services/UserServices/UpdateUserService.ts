@@ -30,6 +30,7 @@ interface UserData {
   defaultTicketsManagerWidth?: number;
   allowRealTime?: string;
   allowConnections?: string;
+  allowImport?: string;
   profileImage?: string;
   language?: string; // Adicionado para garantir que o idioma seja atualizado
   canViewAllContacts?: boolean;
@@ -116,6 +117,7 @@ const UpdateUserService = async ({
   if (userData.allowRealTime) { dataToUpdate.allowRealTime = userData.allowRealTime; }
   if (userData.profileImage) { dataToUpdate.profileImage = userData.profileImage; }
   if (userData.allowConnections) { dataToUpdate.allowConnections = userData.allowConnections; }
+  if (userData.allowImport) { dataToUpdate.allowImport = userData.allowImport; }
   if (userData.language) { dataToUpdate.language = userData.language; }
 
   // Coerção booleana explícita
@@ -190,6 +192,7 @@ const UpdateUserService = async ({
     defaultTicketsManagerWidth: user.defaultTicketsManagerWidth,
     allowRealTime: user.allowRealTime,
     allowConnections: user.allowConnections,
+    allowImport: user.allowImport,
     profileImage: user.profileImage,
     birthDate: user.birthDate,
 

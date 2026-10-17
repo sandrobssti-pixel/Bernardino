@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { toast } from "react-toastify";
 import moment from "moment";
+
+import { AuthContext } from "../../context/Auth/AuthContext";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -111,6 +113,11 @@ const statusChip = (status) => {
 // modais próprios.
 const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const classes = useStyles();
+  const { user } = useContext(AuthContext);
+  // Mesma regra do FinanceRecordList.js — admin/Master sempre pode importar,
+  // usuário comum só com `allowImport` ligado no cadastro (UserModal.js).
+  // Backend trava também (SaleImportController.ts).
+  const canImport = user?.profile === "admin" || user?.super || user?.allowImport === "enabled";
   const [loading, setLoading] = useState(false);
   const [sales, setSales] = useState([]);
   const [count, setCount] = useState(0);
@@ -331,26 +338,30 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
           )}
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: "none" }}
-            onChange={handleImportFile}
-          />
-          <Tooltip title="Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)">
-            <span>
-              <Button
-                variant="outlined"
-                color="primary"
-                startIcon={<PublishIcon />}
-                onClick={handleImportClick}
-                disabled={importing}
-              >
-                {importing ? "Importando..." : "Importar planilha"}
-              </Button>
-            </span>
-          </Tooltip>
+          {canImport && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: "none" }}
+                onChange={handleImportFile}
+              />
+              <Tooltip title="Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)">
+                <span>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    startIcon={<PublishIcon />}
+                    onClick={handleImportClick}
+                    disabled={importing}
+                  >
+                    {importing ? "Importando..." : "Importar planilha"}
+                  </Button>
+                </span>
+              </Tooltip>
+            </>
+          )}
           <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenNew}>
             Nova venda
           </Button>

@@ -210,6 +210,14 @@ class User extends Model<User> {
   @Column
   allowConnections: string;
 
+  // Usuário comum só vê/usa os botões "Importar planilha" (Clientes/
+  // Fornecedores/Produtos, Vendas) se isso for ligado aqui — Admin sempre
+  // tem acesso, não depende desse campo (ver isAuth.ts). Mesmo padrão de
+  // allowConnections/allowRealTime acima (string "enabled"/"disabled").
+  @Default("disabled")
+  @Column
+  allowImport: string;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   blockMultipleLogins: boolean;

@@ -1890,6 +1890,7 @@ const messages = {
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
         ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
+        ERR_NO_IMPORT_PERMISSION: "Seu usuário não tem permissão pra importar planilha. Peça pro administrador liberar em Usuários.",
         ERR_NO_HR_MODULE_ACCESS: "Seu plano não inclui o módulo de RH.",
         ERR_CONTACT_REGISTRATION_REQUIRED: "Complete o cadastro do cliente e escolha a coluna do Kanban antes de fechar o atendimento.",
         ERR_JOB_POSTING_INVALID_TITLE: "Informe um título para a vaga.",

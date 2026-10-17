@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { toast } from "react-toastify";
+
+import { AuthContext } from "../../context/Auth/AuthContext";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -78,6 +80,12 @@ const FinanceRecordList = ({
   context = {},
 }) => {
   const classes = useStyles();
+  const { user } = useContext(AuthContext);
+  // Botão "Importar planilha" é admin-only por padrão — usuário comum só
+  // vê se `allowImport` estiver ligado explicitamente no cadastro dele
+  // (ver UserModal.js). Backend também trava (FinanceImportController.ts),
+  // isso aqui é só pra não mostrar um botão que vai dar 403.
+  const canImport = user?.profile === "admin" || user?.super || user?.allowImport === "enabled";
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [count, setCount] = useState(0);
@@ -287,7 +295,7 @@ const FinanceRecordList = ({
               {downloadingTemplate ? "Baixando..." : "Baixar modelo"}
             </Button>
           )}
-          {allowImport && (
+          {allowImport && canImport && (
             <>
               <input
                 ref={fileInputRef}
