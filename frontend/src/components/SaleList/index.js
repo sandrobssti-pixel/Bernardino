@@ -214,11 +214,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setConfirmAction("cancel");
   };
 
-  const requestDelete = (sale) => {
-    setConfirmTarget(sale);
-    setConfirmAction("delete");
-  };
-
   // Qualquer venda da página pode ser selecionada (não só as "normais") —
   // uma com nota de Produção só é excluída de verdade se "Também excluir
   // vendas com nota de Produção" estiver marcado na confirmação (ver
@@ -279,9 +274,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       } else if (confirmAction === "cancel") {
         await fiscal.sales.cancel(confirmTarget.id);
         toast.success("Venda cancelada.");
-      } else if (confirmAction === "delete") {
-        await fiscal.sales.remove(confirmTarget.id);
-        toast.success("Venda excluída.");
       }
       fetchSales();
     } catch (err) {
@@ -327,13 +319,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     cancel: {
       title: confirmTarget ? `Cancelar venda #${confirmTarget.id}?` : "",
       body: "A venda ficará marcada como cancelada.",
-    },
-    delete: {
-      title: confirmTarget ? `Excluir venda #${confirmTarget.id}?` : "",
-      body:
-        confirmTarget?.status === "draft"
-          ? "Essa ação não pode ser desfeita."
-          : "Essa ação não pode ser desfeita. Exclui também os itens e as notas fiscais de teste dessa venda (nenhuma delas é de Produção) e, se houver, a conta a receber gerada — sem alterar o estoque atual.",
     },
   }[confirmAction] || { title: "", body: "" };
 
@@ -539,11 +524,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <CheckCircleIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      <Tooltip title="Excluir">
-                        <IconButton size="small" onClick={() => requestDelete(sale)}>
-                          <DeleteOutlineIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
                     </>
                   )}
                   {sale.status === "confirmed" && (
@@ -563,30 +543,14 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <CancelIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
-                      {isTestSale(sale, fiscalConfig) && (
-                        <Tooltip title="Excluir venda de teste (Homologação) — não afeta estoque">
-                          <IconButton size="small" onClick={() => requestDelete(sale)}>
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
                     </>
                   )}
                   {sale.status === "cancelled" && (
-                    <>
-                      <Tooltip title="Ver itens">
-                        <IconButton size="small" onClick={() => handleViewDetail(sale)}>
-                          <VisibilityIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
-                      {isTestSale(sale, fiscalConfig) && (
-                        <Tooltip title="Excluir venda de teste (Homologação) — não afeta estoque">
-                          <IconButton size="small" onClick={() => requestDelete(sale)}>
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </>
+                    <Tooltip title="Ver itens">
+                      <IconButton size="small" onClick={() => handleViewDetail(sale)}>
+                        <VisibilityIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   )}
                 </TableCell>
               </TableRow>

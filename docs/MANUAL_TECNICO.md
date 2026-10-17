@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.143
-**Etapa:** 6.2 Fase 6 — exclusão em massa libera vendas com nota de Produção (admin)
+**Versão do documento:** 2.3.144
+**Etapa:** 6.2 Fase 6 — ícone de excluir individual removido de Vendas
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra

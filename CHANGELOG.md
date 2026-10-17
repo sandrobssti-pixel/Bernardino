@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.144] — Ícone de excluir individual removido da coluna Ação (Vendas) — 2026-10-17
+
+### Removido
+- O ícone de lixeira por linha na coluna "Ação" da lista de Vendas (rascunho,
+  venda de teste confirmada/cancelada) foi removido — a seleção em massa
+  (seção 123/124) já cobre excluir uma venda individual (basta marcar só
+  aquela linha). O fluxo de confirmação do excluir individual antigo também
+  foi removido do componente (código morto).
+
 ## [2.3.143] — Exclusão em massa também libera vendas com nota de Produção (admin) — 2026-10-17
 
 ### Adicionado
