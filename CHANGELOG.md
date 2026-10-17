@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.145] — Baixar PDF/XML em massa (Vendas) — 2026-10-17
+
+### Adicionado
+- Tela de Vendas ganhou um seletor "Baixar como" (PDF/XML) e botão "Baixar
+  selecionadas", disponível pra todo mundo (não é admin-only) — reaproveita
+  o mesmo checkbox de seleção já usado pra exclusão em massa. Pode combinar
+  com o filtro "Período" já existente (filtra, marca "selecionar tudo da
+  página", baixa tudo de uma vez) ou marcar nota a nota. Cada arquivo abre
+  numa aba separada (sem zipar tudo); vendas sem nota autorizada no formato
+  escolhido são ignoradas com aviso.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 125.
+
 ## [2.3.144] — Ícone de excluir individual removido da coluna Ação (Vendas) — 2026-10-17
 
 ### Removido

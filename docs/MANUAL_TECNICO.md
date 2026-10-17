@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.144
-**Etapa:** 6.2 Fase 6 — ícone de excluir individual removido de Vendas
+**Versão do documento:** 2.3.145
+**Etapa:** 6.2 Fase 6 — baixar PDF/XML em massa (Vendas)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8772,3 +8772,67 @@ igual qualquer outro erro — sem comportamento especial de silêncio.
 `frontend/src/hooks/useFiscal/index.js`,
 `frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
 eslint` e build de produção limpos.
+
+## 125. Ícone de excluir individual removido da coluna Ação em Vendas (v2.3.144)
+
+Pedido pontual do cliente, depois de ver a seleção em massa
+funcionando (seção 123/124): "pode tirar o ícone do delete embaixo de
+ação" — o ícone de lixeira por linha (aparecia em rascunho, e em
+venda confirmada/cancelada de teste) ficou redundante, já que marcar
+só aquela linha na seleção em massa faz a mesma coisa.
+
+Removido o `IconButton`/`Tooltip` de excluir dos três blocos de
+`status` (`draft`/`confirmed`/`cancelled`) na coluna "Ação", junto com
+o código que só servia pra esse fluxo e ficou sem uso: `requestDelete`,
+o branch `confirmAction === "delete"` em `handleConfirmAction`, e a
+entrada `delete` em `confirmModalProps`. O modal de confirmação
+genérico (`confirmAction`) continua usado por "confirmar"/"cancelar"
+venda, só a opção de excluir saiu dele.
+
+**Arquivo**: `frontend/src/components/SaleList/index.js`. `npx eslint`
+e build de produção limpos.
+
+## 126. Baixar PDF/XML em massa (v2.3.145)
+
+Pedido: "filtro pra baixar as notas fiscais iguais os outros filtros
+já feitos — escolhe PDF ou XML, seleciona uma ou várias, no mesmo
+padrão que já faz" (reaproveitando a seleção em massa da seção
+123/124) — "separado ou por período" (nota a nota, ou usando o filtro
+"Período" já existente + "selecionar tudo da página" pra pegar um lote
+inteiro de uma vez). Perguntado e confirmado: cada arquivo baixa numa
+aba separada (sem juntar tudo num .zip).
+
+**Diferente da exclusão em massa, esse recurso é liberado pra
+qualquer usuário** (não é admin-only) — baixar um PDF/XML já
+autorizado pela Sefaz não tem o mesmo risco de apagar dado. Por isso a
+coluna de checkbox (cabeçalho "selecionar tudo"/linha a linha) deixou
+de ser condicionada a `isAdmin` — agora sempre aparece; só o botão
+"Excluir selecionadas" continua atrás do `isAdmin`. A dica (tooltip) na
+checkbox sobre "tem nota de Produção" também passou a só aparecer pra
+quem é admin (só ele vê o botão de excluir, não faz sentido mostrar
+esse aviso pra quem só vai baixar arquivo).
+
+**Achado importante durante a implementação**: o `pdfUrl`/`xmlUrl` de
+cada `FiscalDocument` **não vêm na listagem de Vendas** —
+`SaleService.ts`, `includeOptions`, restringe o `FiscalDocument`
+incluído a `["id", "type", "status", "environment"]` de propósito
+(lista enxuta). Em vez de alargar essa whitelist (arriscaria deixar a
+listagem de Vendas mais pesada sem necessidade, numa tela que já é
+paginada e consultada com frequência), o download em massa busca o
+histórico de documentos de cada venda SELECIONADA na hora
+(`fiscal.fiscalDocuments.list(saleId)`, o mesmo endpoint `GET
+/sales/:id/fiscal-documents` que a tela "Ver histórico de tentativas"
+do `SaleDetailModal` já usa) — esse endpoint já devolve `pdfUrl`/
+`xmlUrl` resolvidos pro host certo da Focus
+(`FiscalDocumentService.resolveDocumentUrls`, seção 112). Zero mudança
+de backend nessa versão — só reaproveitamento do que já existia.
+
+Pra cada venda selecionada: busca os documentos, acha o primeiro com
+`status === "authorized"` que tenha o campo do formato escolhido
+preenchido, e `window.open(url, "_blank")`. Venda sem nota autorizada
+no formato escolhido (ex.: ainda em rascunho, ou só tem nota de
+homologação sem XML) é ignorada, contada à parte e avisada por toast —
+não trava o lote inteiro por causa de uma venda sem documento.
+
+**Arquivo**: `frontend/src/components/SaleList/index.js`. `npx eslint`
+e build de produção limpos (nenhuma mudança de backend).

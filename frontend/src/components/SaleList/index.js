@@ -31,6 +31,7 @@ import CancelIcon from "@material-ui/icons/Cancel";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import ReceiptIcon from "@material-ui/icons/Receipt";
 import PublishIcon from "@material-ui/icons/Publish";
+import GetAppIcon from "@material-ui/icons/GetApp";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
@@ -150,6 +151,11 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [forceDeleteProduction, setForceDeleteProduction] = useState(false);
+  // Formato pra baixar em massa (seleção de nota(s), igual o padrão de
+  // seleção já usado pra excluir) — "pdf" por padrão, só muda se o usuário
+  // trocar explicitamente.
+  const [downloadFormat, setDownloadFormat] = useState("pdf");
+  const [downloading, setDownloading] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -264,6 +270,47 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       failures.slice(0, 5).forEach((msg) => toast.warn(msg));
     }
     fetchSales();
+  };
+
+  // Baixar PDF/XML em massa — pedido pra funcionar "igual os outros
+  // filtros": escolhe o formato, seleciona nota a nota (ou usa "selecionar
+  // tudo da página" depois de filtrar por Período) e baixa. Cada arquivo
+  // abre numa aba separada (confirmado com o cliente — sem zipar tudo num
+  // arquivo só). O `pdfUrl`/`xmlUrl` não vem na listagem de Vendas (lista é
+  // enxuta de propósito), então busca o histórico de documentos de cada
+  // venda selecionada na hora (mesmo endpoint que a tela "Ver histórico"
+  // já usa, com as URLs já resolvidas pro host certo da Focus — ver
+  // FiscalDocumentService.resolveDocumentUrls, seção 112).
+  const handleBulkDownload = async () => {
+    setDownloading(true);
+    let opened = 0;
+    let skipped = 0;
+    for (const id of selectedIds) {
+      try {
+        const documents = await fiscal.fiscalDocuments.list(id);
+        const doc = (documents || []).find(
+          (d) => d.status === "authorized" && (downloadFormat === "pdf" ? d.pdfUrl : d.xmlUrl)
+        );
+        const url = doc && (downloadFormat === "pdf" ? doc.pdfUrl : doc.xmlUrl);
+        if (url) {
+          window.open(url, "_blank");
+          opened += 1;
+        } else {
+          skipped += 1;
+        }
+      } catch (err) {
+        skipped += 1;
+      }
+    }
+    setDownloading(false);
+    if (opened > 0) {
+      toast.success(`${opened} ${downloadFormat.toUpperCase()} aberto(s) em nova(s) aba(s).`);
+    }
+    if (skipped > 0) {
+      toast.warn(
+        `${skipped} venda(s) sem nota autorizada com ${downloadFormat.toUpperCase()} disponível — ignorada(s).`
+      );
+    }
   };
 
   const handleConfirmAction = async () => {
@@ -421,6 +468,18 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               />
             </>
           )}
+          <TextField
+            select
+            variant="outlined"
+            size="small"
+            label="Baixar como"
+            style={{ minWidth: 130 }}
+            value={downloadFormat}
+            onChange={(e) => setDownloadFormat(e.target.value)}
+          >
+            <MenuItem value="pdf">PDF</MenuItem>
+            <MenuItem value="xml">XML</MenuItem>
+          </TextField>
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
           {canImport && (
@@ -447,6 +506,17 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               </Tooltip>
             </>
           )}
+          {selectedIds.length > 0 && (
+            <Button
+              variant="outlined"
+              color="primary"
+              startIcon={<GetAppIcon />}
+              onClick={handleBulkDownload}
+              disabled={downloading}
+            >
+              {downloading ? "Baixando..." : `Baixar selecionadas (${selectedIds.length})`}
+            </Button>
+          )}
           {isAdmin && selectedIds.length > 0 && (
             <Button
               variant="outlined"
@@ -468,16 +538,14 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         <Table size="small">
           <TableHead>
             <TableRow>
-              {isAdmin && (
-                <TableCell padding="checkbox">
-                  <Checkbox
-                    size="small"
-                    indeterminate={someSelectedOnPage && !allSelectedOnPage}
-                    checked={allSelectedOnPage}
-                    onChange={toggleSelectAll}
-                  />
-                </TableCell>
-              )}
+              <TableCell padding="checkbox">
+                <Checkbox
+                  size="small"
+                  indeterminate={someSelectedOnPage && !allSelectedOnPage}
+                  checked={allSelectedOnPage}
+                  onChange={toggleSelectAll}
+                />
+              </TableCell>
               <TableCell>#</TableCell>
               <TableCell>Cliente</TableCell>
               <TableCell>Data</TableCell>
@@ -489,23 +557,21 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
           <TableBody>
             {sales.map((sale) => (
               <TableRow key={sale.id} selected={selectedIds.includes(sale.id)}>
-                {isAdmin && (
-                  <TableCell padding="checkbox">
-                    <Tooltip
-                      title={
-                        isDeletable(sale, fiscalConfig)
-                          ? ""
-                          : "Tem nota de Produção — só exclui marcando \"Também excluir vendas com nota de Produção\" na confirmação"
-                      }
-                    >
-                      <Checkbox
-                        size="small"
-                        checked={selectedIds.includes(sale.id)}
-                        onChange={() => toggleSelectOne(sale.id)}
-                      />
-                    </Tooltip>
-                  </TableCell>
-                )}
+                <TableCell padding="checkbox">
+                  <Tooltip
+                    title={
+                      isAdmin && !isDeletable(sale, fiscalConfig)
+                        ? "Tem nota de Produção — só exclui marcando \"Também excluir vendas com nota de Produção\" na confirmação"
+                        : ""
+                    }
+                  >
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.includes(sale.id)}
+                      onChange={() => toggleSelectOne(sale.id)}
+                    />
+                  </Tooltip>
+                </TableCell>
                 <TableCell>{sale.id}</TableCell>
                 <TableCell>{sale.customer?.name || "Consumidor não identificado"}</TableCell>
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
@@ -555,10 +621,10 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 </TableCell>
               </TableRow>
             ))}
-            {loading && <TableRowSkeleton columns={isAdmin ? 7 : 6} />}
+            {loading && <TableRowSkeleton columns={7} />}
             {!loading && sales.length === 0 && (
               <TableRow>
-                <TableCell colSpan={isAdmin ? 7 : 6} align="center">
+                <TableCell colSpan={7} align="center">
                   Nenhuma venda registrada ainda.
                 </TableCell>
               </TableRow>
