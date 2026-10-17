@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.145
-**Etapa:** 6.2 Fase 6 — baixar PDF/XML em massa (Vendas)
+**Versão do documento:** 2.3.146
+**Etapa:** 6.2 Fase 6 — ícone de excluir individual removido (Financeiro)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8836,3 +8836,22 @@ não trava o lote inteiro por causa de uma venda sem documento.
 
 **Arquivo**: `frontend/src/components/SaleList/index.js`. `npx eslint`
 e build de produção limpos (nenhuma mudança de backend).
+
+## 127. Ícone de excluir individual removido de Clientes/Fornecedores/Produtos/Contas (v2.3.146)
+
+Mesmo pedido da seção 125, agora pro resto do Financeiro: "de todos"
+(confirmado pelo cliente) — `FinanceRecordList.js` é o componente
+compartilhado por Clientes, Fornecedores, Produtos, Contas a Pagar e
+Contas a Receber (`frontend/src/pages/Financeiro/index.js` monta cada
+aba passando `resource`/`columns`/`fields` diferentes pro mesmo
+componente), então um ajuste só nele já vale pras 5 listas de uma vez.
+
+Removido o `IconButton` de excluir da coluna "Ação" (ficava ao lado do
+de editar), e o código que só servia esse fluxo: `handleRequestDelete`,
+`handleConfirmDelete`, os estados `confirmOpen`/`deleteTarget`, e o
+`ConfirmationModal` de exclusão individual (o de exclusão em massa,
+`bulkConfirmOpen`, continua intacto). Editar (`handleEdit`) não mudou
+— só a lixeira saiu.
+
+**Arquivo**: `frontend/src/components/FinanceRecordList/index.js`.
+`npx eslint` e build de produção limpos (nenhuma mudança de backend).

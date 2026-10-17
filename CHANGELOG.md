@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.146] — Ícone de excluir individual removido (Clientes/Fornecedores/Produtos/Contas) — 2026-10-17
+
+### Removido
+- Mesmo ajuste da seção 125 (Vendas), agora em `FinanceRecordList.js` —
+  componente compartilhado por Clientes, Fornecedores, Produtos, Contas a
+  Pagar e Contas a Receber. Removido o ícone de lixeira por linha na coluna
+  "Ação" dessas 5 listas; "Excluir selecionados" (checkbox + botão no topo)
+  já cobre excluir um registro individual também. Fluxo de confirmação do
+  excluir individual antigo removido do componente (código morto).
+
 ## [2.3.145] — Baixar PDF/XML em massa (Vendas) — 2026-10-17
 
 ### Adicionado

@@ -106,8 +106,6 @@ const FinanceRecordList = ({
   const [filterValues, setFilterValues] = useState(initialFilterValues);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
   const [importing, setImporting] = useState(false);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const fileInputRef = useRef(null);
@@ -171,23 +169,6 @@ const FinanceRecordList = ({
       toast.success("Registro adicionado com sucesso.");
     }
     fetchRecords();
-  };
-
-  const handleRequestDelete = (record) => {
-    setDeleteTarget(record);
-    setConfirmOpen(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      await resource.remove(deleteTarget.id);
-      toast.success("Registro excluído com sucesso.");
-      fetchRecords();
-    } catch (err) {
-      toastError(err);
-    }
-    setConfirmOpen(false);
-    setDeleteTarget(null);
   };
 
   const allSelectedOnPage = records.length > 0 && records.every((r) => selectedIds.includes(r.id));
@@ -273,19 +254,6 @@ const FinanceRecordList = ({
 
   return (
     <div className={classes.root}>
-      <ConfirmationModal
-        title={
-          deleteTarget
-            ? `Excluir "${deleteTarget.name || deleteTarget.description}"?`
-            : ""
-        }
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={handleConfirmDelete}
-      >
-        Essa ação não pode ser desfeita.
-      </ConfirmationModal>
-
       <ConfirmationModal
         title={`Excluir ${selectedIds.length} registro(s) selecionado(s)?`}
         open={bulkConfirmOpen}
@@ -438,9 +406,6 @@ const FinanceRecordList = ({
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(record)}>
                     <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton size="small" onClick={() => handleRequestDelete(record)}>
-                    <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </TableCell>
               </TableRow>
