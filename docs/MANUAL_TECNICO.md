@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.122
-**Etapa:** 6.2 Fase 6 — Inscrição Estadual do emitente formatada quebrava o XML + raw da Focus NFe agora é salvo
+**Versão do documento:** 2.3.123
+**Etapa:** 6.2 Fase 6 — modalidade_frete faltando + NCM mal formatado, achados pela resposta bruta da Focus NFe
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7700,3 +7700,70 @@ esse valor está certo antes de tentar emitir NFS-e no futuro.
   **Pendente**: cliente rodar a migration + deploy e tentar emitir de
   novo — se ainda der erro, abrir o botão "ver resposta completa" (ícone
   `</>` na linha do erro) e mandar o JSON pra investigar o campo exato.
+
+## 104. modalidade_frete faltando + NCM mal formatado — achados pelo botão "ver resposta completa" (v2.3.123)
+
+### Contexto
+
+Com o botão novo (seção 103), o cliente conseguiu abrir a resposta bruta de
+uma tentativa real de emissão de NF-e e mandar o JSON completo. Resultado:
+o endereço do emitente e a Inscrição Estadual (seções 100/102) estavam
+corretos — nenhum erro sobre eles. Os erros reais eram outros:
+
+```json
+{
+  "erros": [
+    { "campo": "logradouro_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "numero_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "bairro_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "municipio_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "modalidade_frete", "mensagem": "... não pode ser vazio" },
+    { "campo": "itens.1.codigo_ncm", "mensagem": "... não pode ser vazio" },
+    { "campo": "itens.1.codigo_ncm", "mensagem": "... não é do tamanho correto (precisa ter 8 caracteres)" }
+  ],
+  "codigo": "erro_validacao_schema"
+}
+```
+
+### Causa raiz 1 — `modalidade_frete` nunca existia no payload
+
+Campo obrigatório da NF-e (modalidade do frete — 0 a 4, ou 9 pra "sem
+frete") que `buildNfePayload` simplesmente nunca enviava, bug de código
+puro, não dado de cadastro. Corrigido com `modalidade_frete: "9"` fixo
+(venda de balcão, sem transportadora — se um dia o cliente vender com
+frete, precisa virar campo configurável, não hardcoded).
+
+### Causa raiz 2 — NCM com formato inválido passava pelo fallback
+
+`ncm: item.ncm || "00000000"` só cobre valor VAZIO — um `item.ncm` com
+conteúdo mas formato errado (não exatamente 8 dígitos, ex.: um só
+caractere) passa direto pelo `||` (qualquer string não-vazia é truthy) e
+vai pro payload do jeito errado. Corrigido com `normalizeNcm()`: só aceita
+o NCM cadastrado se tiver exatamente 8 dígitos numéricos, senão cai no
+fallback "00000000".
+
+### Causa raiz 3 (não é bug, é dado faltando) — endereço do destinatário
+
+O cliente (`FinanceCustomer`) dessa venda específica não tinha endereço
+cadastrado — a Sefaz exige o bloco completo quando o destinatário é
+identificado por CPF/CNPJ (não é uma nota "balcão sem identificação").
+Nenhuma mudança de código — o cliente precisa completar o cadastro do
+cliente antes de emitir pra ele. Como ficou claro ver isso só depois de
+uma tentativa real falhar, pode valer a pena, numa leva futura, avisar na
+tela ANTES de tentar emitir se o destinatário escolhido não tem endereço
+completo (validação client-side preventiva) — não implementado agora,
+fora do escopo desta correção pontual.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente completar o endereço do cliente dessa venda,
+  conferir o NCM do segundo item (pode ser produto sem NCM cadastrado
+  corretamente — "00000000" é só um placeholder de fallback, não um NCM
+  válido de verdade; o certo é cadastrar o NCM real do produto), rodar o
+  deploy e tentar emitir de novo.

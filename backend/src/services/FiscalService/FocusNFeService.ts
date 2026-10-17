@@ -100,6 +100,16 @@ const parseDocumentResponse = (data: any): FocusEmitResult => {
   };
 };
 
+// A Sefaz exige NCM com exatamente 8 dígitos — um valor presente mas com
+// formato errado (ex.: "0", espaço, menos de 8 dígitos) passava direto pelo
+// `item.ncm || "00000000"` antigo (qualquer string não-vazia é truthy),
+// causando "não é do tamanho correto" no gateway (v2.3.123). Agora valida o
+// formato, não só a presença.
+const normalizeNcm = (ncm: string | null | undefined): string => {
+  const digits = (ncm || "").replace(/\D/g, "");
+  return digits.length === 8 ? digits : "00000000";
+};
+
 // Monta o payload de itens compartilhado entre NF-e e NFC-e — estruturalmente
 // muito parecidas na API da Focus NFe (a NFC-e é uma NF-e simplificada pro
 // consumidor final).
@@ -112,7 +122,7 @@ const buildItemsPayload = (sale: Sale) =>
     // produto" que a Sefaz/o cliente espera ver na nota.
     codigo_produto: item.sku || (item.productId ? String(item.productId) : `ITEM-${index + 1}`),
     descricao: item.description,
-    ncm: item.ncm || "00000000",
+    ncm: normalizeNcm(item.ncm),
     cfop: item.cfop || "5102",
     unidade_comercial: item.unit || "UN",
     quantidade_comercial: Number(item.quantity) || 0,
@@ -178,6 +188,11 @@ const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => 
   finalidade_emissao: "1",
   cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
   serie: config.nfeSeries,
+  // Campo obrigatório que faltava por completo (nunca foi enviado) — causa
+  // confirmada de erro de schema no primeiro teste real (v2.3.123, resposta
+  // bruta da Focus NFe). "9" = sem frete/sem ocorrência de transporte, o
+  // padrão certo pra venda de balcão sem transportadora.
+  modalidade_frete: "9",
   ...buildEmitente(company, config),
   ...buildDestinatario(sale),
   items: buildItemsPayload(sale)

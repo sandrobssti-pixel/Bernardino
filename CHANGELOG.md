@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.123] — modalidade_frete faltando + NCM mal formatado no payload da NF-e — 2026-10-17
+
+### Corrigido
+- `modalidade_frete` (campo obrigatório da NF-e) nunca era enviado no payload pra Focus
+  NFe — bug de código, não dado de cadastro faltando. Fixado como "9" (sem frete/sem
+  transportadora), o padrão certo pra venda de balcão.
+- NCM com conteúdo mas formato inválido (diferente de 8 dígitos) passava direto pelo
+  fallback antigo (`item.ncm || "00000000"` só cobre valor vazio) e ia pro payload do
+  jeito errado. Agora valida o formato, não só a presença.
+
+Achados pela resposta bruta da Focus NFe (botão "ver resposta completa", v2.3.122) numa
+tentativa real de emissão — o mesmo payload é usado tanto na emissão quanto na
+pré-visualização de DANFe, então a correção vale pros dois fluxos.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 104.
+
 ## [2.3.122] — Inscrição Estadual do emitente com pontuação quebrava o XML + resposta bruta da Focus NFe agora fica salva — 2026-10-17
 
 ### Corrigido
