@@ -7,6 +7,7 @@ interface ListRequest {
   companyId: number;
   searchParam?: string;
   pageNumber?: string | number;
+  type?: string;
 }
 
 interface ListResponse {
@@ -89,12 +90,23 @@ const ensureSerialNumberIsUnique = async (
 export const list = async ({
   companyId,
   searchParam = "",
-  pageNumber = "1"
+  pageNumber = "1",
+  type
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
 
   const whereCondition: any = { companyId };
+
+  // Segmentação por tipo (produto/serviço/arma/munição) — pedido do
+  // cliente ao importar uma planilha de armas separada, pra não misturar
+  // na mesma lista com os produtos/munições já cadastrados (v2.3.133). O
+  // dado já vinha segmentado desde a importação (`type` no
+  // FinanceProduct, FinanceImportService.parseGunStoreReport) — só
+  // faltava o filtro na listagem pra visualizar separado.
+  if (type) {
+    whereCondition.type = type;
+  }
 
   if (searchParam) {
     whereCondition[Op.or] = [

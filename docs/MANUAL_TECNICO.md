@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.132
-**Etapa:** 6.2 Fase 6 — lista de Vendas sem paginação na tela
+**Versão do documento:** 2.3.133
+**Etapa:** 6.2 Fase 6 — filtro por tipo na lista de Produtos (armas x munição x geral)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8253,3 +8253,55 @@ criar uma lista nova em cima de um recurso que já suporta paginação no
 backend, sempre conferir se a tela realmente manda `pageNumber` e
 mostra algum controle — já é a segunda vez que esse exato padrão de bug
 aparece no projeto.
+
+## 114. Filtro por tipo na lista de Produtos — armas x munição x geral (v2.3.133)
+
+### Contexto
+
+Cliente ia importar uma planilha de produtos de armas separada e
+perguntou como deixar "segmentado pra não misturar os produtos" com o
+que já estava cadastrado (munição, produtos gerais).
+
+### O que já existia vs. o que faltava
+
+O **dado** já vem segmentado desde sempre: `FinanceProduct.type`
+("product"/"service"/"weapon"/"ammunition"), e o importador
+(`FinanceImportService.parseGunStoreReport`, Fase 6) já detecta e
+preenche esse campo automaticamente a partir da categoria do relatório
+da loja de armas — nenhuma importação nova "mistura" o dado em si.
+
+O que faltava era só a **visualização**: `FinanceProductService.list`
+nunca aceitava filtrar por `type`, e a tela de Produtos
+(`Financeiro/index.js`) nunca passava `filters` pro `FinanceRecordList`
+genérico (diferente de Contas a Pagar/Receber, que já tinham filtro de
+status desde a Fase 2) — todos os tipos sempre apareciam juntos na
+mesma lista, só distinguíveis pela coluna "Tipo".
+
+### Correção
+
+- `FinanceProductService.list` ganhou o parâmetro `type` (filtra
+  `whereCondition.type` quando informado).
+- `FinanceProductController.index` repassa `req.query.type`.
+- `financeConfig.js`: `financeProductFilters` novo (select "Tipo":
+  Todos/Produto/Serviço/Arma/Munição-Insumo, reaproveitando
+  `PRODUCT_TYPE_OPTIONS` que já existia pro formulário de cadastro).
+- `Financeiro/index.js`: `filters={financeProductFilters}` na
+  instância do `FinanceRecordList` de Produtos — mesmo mecanismo
+  genérico já usado em Contas a Pagar/Receber, nenhuma mudança no
+  componente genérico em si.
+
+### Arquivos alterados
+
+- `backend/src/services/FinanceService/FinanceProductService.ts`
+- `backend/src/controllers/FinanceProductController.ts`
+- `frontend/src/pages/Financeiro/financeConfig.js`
+- `frontend/src/pages/Financeiro/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` e build de produção limpos no frontend.
+- Não testado manualmente no navegador nesta sessão — **pendente**:
+  cliente conferir, depois do deploy, que o filtro "Tipo" aparece na
+  tela de Produtos e separa corretamente armas/munição/produtos ao
+  escolher cada opção.

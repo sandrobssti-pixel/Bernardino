@@ -13,15 +13,17 @@ const ensureAccess = async (req: Request): Promise<void> => {
 export const index = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;
-  const { searchParam, pageNumber } = req.query as {
+  const { searchParam, pageNumber, type } = req.query as {
     searchParam?: string;
     pageNumber?: string;
+    type?: string;
   };
 
   const result = await FinanceProductService.list({
     companyId,
     searchParam,
-    pageNumber
+    pageNumber,
+    type
   });
 
   return res.status(200).json(result);

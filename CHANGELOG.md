@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.133] — Filtro por tipo na lista de Produtos (armas x munição x geral) — 2026-10-17
+
+### Adicionado
+- Lista de Produtos ganhou filtro "Tipo" (Todos/Produto/Serviço/Arma/Munição-Insumo).
+  O dado já vinha segmentado desde a importação (campo `type` do `FinanceProduct`,
+  detectado automaticamente pelo importador de relatório de loja de armas), mas não
+  tinha como visualizar só um tipo de cada vez — pedido do cliente ao importar uma
+  planilha de armas separada, pra não ficar tudo misturado numa lista só.
+
 ## [2.3.132] — Lista de Vendas sem paginação na tela — 2026-10-17
 
 ### Corrigido

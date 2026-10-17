@@ -21,6 +21,7 @@ import {
   financeSupplierFields,
   financeProductColumns,
   financeProductFields,
+  financeProductFilters,
   financeExpenseColumns,
   financeExpenseFields,
   financeExpenseFilters,
@@ -237,6 +238,7 @@ const Financeiro = () => {
           resource={finance.products}
           columns={financeProductColumns}
           fields={financeProductFields}
+          filters={financeProductFilters}
           allowImport
           allowTemplateDownload
           templateFilename="modelo-importacao-produtos.xlsx"

@@ -279,6 +279,14 @@ export const financeProductFields = [
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
 
+// Segmentação de produtos por tipo (produto/serviço/arma/munição) na
+// listagem — o dado já vem segmentado desde a importação (`type` do
+// FinanceProduct), só faltava o filtro aqui pra visualizar separado em
+// vez de tudo misturado numa lista só (v2.3.133).
+export const financeProductFilters = [
+  { name: "type", label: "Tipo", options: [{ value: "", label: "Todos" }, ...PRODUCT_TYPE_OPTIONS] },
+];
+
 // ---------------------------------------------------------------------------
 // Fase 2 — Financeiro operacional (custos, contas a pagar/receber). Ver
 // docs/MANUAL_TECNICO.md, seção 6.2.
