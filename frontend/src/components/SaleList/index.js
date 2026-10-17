@@ -13,6 +13,7 @@ import IconButton from "@material-ui/core/IconButton";
 import Chip from "@material-ui/core/Chip";
 import Box from "@material-ui/core/Box";
 import Tooltip from "@material-ui/core/Tooltip";
+import TablePagination from "@material-ui/core/TablePagination";
 
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
@@ -44,6 +45,10 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
+// Tem que bater com o `limit` fixo em `SaleService.list` — só usado aqui
+// pra `TablePagination` calcular quantas páginas existem.
+const PAGE_SIZE = 20;
+
 // Venda de teste (Homologação) excluível de verdade (v2.3.118) — nunca
 // teve nota de Produção, e, se ainda não tem nota nenhuma, a empresa não
 // está com Produção ativa agora (senão seria uma venda real aguardando
@@ -70,6 +75,8 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const classes = useStyles();
   const [loading, setLoading] = useState(false);
   const [sales, setSales] = useState([]);
+  const [count, setCount] = useState(0);
+  const [pageNumber, setPageNumber] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailFocusFiscal, setDetailFocusFiscal] = useState(false);
@@ -82,13 +89,14 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fiscal.sales.list({});
+      const data = await fiscal.sales.list({ pageNumber });
       setSales(data.records || []);
+      setCount(data.count || 0);
     } catch (err) {
       toastError(err);
     }
     setLoading(false);
-  }, [fiscal]);
+  }, [fiscal, pageNumber]);
 
   useEffect(() => {
     fetchSales();
@@ -357,6 +365,16 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
             )}
           </TableBody>
         </Table>
+        <TablePagination
+          component="div"
+          count={count}
+          page={pageNumber - 1}
+          onPageChange={(e, newPage) => setPageNumber(newPage + 1)}
+          rowsPerPage={PAGE_SIZE}
+          rowsPerPageOptions={[PAGE_SIZE]}
+          labelRowsPerPage="Por página"
+          labelDisplayedRows={({ from, to, count: total }) => `${from}–${to} de ${total}`}
+        />
       </Paper>
     </div>
   );

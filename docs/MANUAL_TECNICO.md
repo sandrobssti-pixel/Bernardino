@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.131
-**Etapa:** 6.2 Fase 6 — botões de PDF/XML da nota autorizada + fix de URL relativa
+**Versão do documento:** 2.3.132
+**Etapa:** 6.2 Fase 6 — lista de Vendas sem paginação na tela
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8227,3 +8227,29 @@ graça, sem tocar no banco — só o próximo `GET` já devolve a URL certa.
   ao navegador) — **pendente**: cliente conferir que os botões abrem o
   PDF/XML de verdade (não 404) nas notas já autorizadas da venda #16,
   depois do deploy de backend E frontend (os dois mudaram dessa vez).
+
+## 113. Lista de Vendas sem paginação na tela (v2.3.132)
+
+Mesmo bug já corrigido antes no `FinanceRecordList` genérico (seção 90,
+v2.3.108), agora encontrado em `SaleList.js`: `SaleService.list` já
+pagina no backend (`limit=20`, devolve `count`/`hasMore`) desde que o
+módulo fiscal existe, mas a tela de Vendas nunca mandava `pageNumber`
+nem mostrava nenhum controle de página — sempre buscava só a página 1.
+Passou despercebido até o cliente importar o histórico de vendas
+antigas (`fiscal.sales.importSpreadsheet`, já existente desde a
+v2.3.116) e ultrapassar 20 vendas de verdade.
+
+Correção: `pageNumber`/`count` como estado, `fetchSales` manda
+`pageNumber` pro backend, `TablePagination` do MUI no rodapé da
+tabela — mesmo padrão exato já usado em `FinanceRecordList.js`
+(`PAGE_SIZE = 20`, `page={pageNumber - 1}`,
+`onPageChange={(e, newPage) => setPageNumber(newPage + 1)}`). Sem
+busca/filtro nessa tela (diferente do Financeiro), não precisou do
+efeito de "resetar pra página 1 ao buscar".
+
+**Arquivo alterado**: `frontend/src/components/SaleList/index.js`.
+`npx eslint` e build de produção limpos. Lição pra não repetir: ao
+criar uma lista nova em cima de um recurso que já suporta paginação no
+backend, sempre conferir se a tela realmente manda `pageNumber` e
+mostra algum controle — já é a segunda vez que esse exato padrão de bug
+aparece no projeto.

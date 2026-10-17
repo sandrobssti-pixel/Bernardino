@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.132] — Lista de Vendas sem paginação na tela — 2026-10-17
+
+### Corrigido
+- `SaleService.list` já paginava no backend (20 por página, `count`/`hasMore`) desde
+  sempre, mas a tela de Vendas nunca mandava `pageNumber` nem mostrava nenhum
+  controle de página — com mais de 20 vendas (ex. depois de importar o histórico),
+  o resto ficava inacessível. Mesmo padrão já corrigido antes no módulo Financeiro
+  genérico (v2.3.108) — agora replicado aqui.
+
 ## [2.3.131] — Botões de PDF/XML da nota autorizada — 2026-10-17
 
 ### Adicionado
