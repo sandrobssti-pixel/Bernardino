@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.136
-**Etapa:** 6.2 Fase 6 — navegação de Produtos movida pro menu lateral
+**Versão do documento:** 2.3.137
+**Etapa:** 6.2 Fase 6 — emojis nos itens do submenu Financeiro
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8427,3 +8427,20 @@ corrigido depois. As duas formas de filtrar levam ao mesmo lugar
 `frontend/src/components/FinanceRecordList/index.js`. `npx eslint` e
 build de produção limpos (sem erros; só os warnings pré-existentes do
 arquivo, não relacionados a essa mudança).
+
+## 118. Emojis nos itens do submenu Financeiro (v2.3.137)
+
+Pedido estético simples, só mexe em texto de `primary` dos
+`ListItemLink`/`Typography` criados na seção 117 — cada item do
+submenu lateral ganhou um emoji antes do nome (📊 Painel Financeiro,
+💸 Contas a Pagar, 💰 Contas a Receber, 🛒 Vendas, 👥 Clientes, 📦
+Produtos — inclusive o cabeçalho do segundo nível —, 🔫 Armas
+nacionais, 🌎 Armas importadas, 🧰 Munições/Insumos, 🎒 Acessórios,
+🎣 Caça & Pesca, 🔧 Serviços, 🚚 Fornecedores, 🧾 Configuração Fiscal).
+O cabeçalho "Financeiro" (nível mais alto, que já tem ícone colorido
+do `LocalAtmIcon`) não ganhou emoji — vem de uma chave de i18n
+(`mainDrawer.listItems.financeiro`) reusada em mais de um lugar,
+então prefixar ali mudaria texto fora do escopo pedido.
+
+**Arquivo**: `frontend/src/layout/MainListItems.js`. `npx eslint` e
+build de produção limpos.

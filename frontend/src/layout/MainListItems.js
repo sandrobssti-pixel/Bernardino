@@ -1464,7 +1464,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=painel"
-                        primary="Painel Financeiro"
+                        primary="📊 Painel Financeiro"
                         icon={<Dashboard />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1472,7 +1472,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=expenses"
-                        primary="Contas a Pagar"
+                        primary="💸 Contas a Pagar"
                         icon={<ReceiptIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1480,7 +1480,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=receivables"
-                        primary="Contas a Receber"
+                        primary="💰 Contas a Receber"
                         icon={<MonetizationOnIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1488,7 +1488,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=sales"
-                        primary="Vendas"
+                        primary="🛒 Vendas"
                         icon={<ShoppingCartIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1496,7 +1496,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=customers"
-                        primary="Clientes"
+                        primary="👥 Clientes"
                         icon={<PeopleIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1523,7 +1523,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                             className={classes.listItemText}
                             primary={
                               <Typography className={classes.listItemLabel}>
-                                Produtos
+                                📦 Produtos
                               </Typography>
                             }
                           />
@@ -1537,7 +1537,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                         <ListItemLink
                           small
                           to="/financeiro?tab=products"
-                          primary="Produtos"
+                          primary="📦 Produtos"
                           icon={<StoreIcon />}
                           iconKey="financial"
                           tooltip={collapsed}
@@ -1553,7 +1553,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products"
-                            primary="Todos os produtos"
+                            primary="📦 Todos os produtos"
                             icon={<ListIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1561,7 +1561,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=weapon:national"
-                            primary="Armas nacionais"
+                            primary="🔫 Armas nacionais"
                             icon={<FlagIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1569,7 +1569,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=weapon:imported"
-                            primary="Armas importadas"
+                            primary="🌎 Armas importadas"
                             icon={<PublicIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1577,7 +1577,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=ammunition"
-                            primary="Munições/Insumos"
+                            primary="🧰 Munições/Insumos"
                             icon={<BuildIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1585,7 +1585,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=accessory"
-                            primary="Acessórios"
+                            primary="🎒 Acessórios"
                             icon={<LocalOfferIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1593,7 +1593,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=hunting_fishing"
-                            primary="Caça & Pesca"
+                            primary="🎣 Caça & Pesca"
                             icon={<NatureIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1601,7 +1601,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=service"
-                            primary="Serviços"
+                            primary="🔧 Serviços"
                             icon={<SettingsOutlinedIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
@@ -1612,7 +1612,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=suppliers"
-                        primary="Fornecedores"
+                        primary="🚚 Fornecedores"
                         icon={<LocalShippingIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
@@ -1620,7 +1620,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=fiscalConfig"
-                        primary="Configuração Fiscal"
+                        primary="🧾 Configuração Fiscal"
                         icon={<GavelIcon />}
                         iconKey="financial"
                         tooltip={collapsed}

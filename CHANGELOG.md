@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.137] — Emojis nos itens do submenu Financeiro — 2026-10-17
+
+### Adicionado
+- Cada item do submenu lateral "Financeiro" (seção 117) ganhou um emoji antes do
+  texto, pra ficar mais rápido de reconhecer visualmente: 📊 Painel Financeiro, 💸
+  Contas a Pagar, 💰 Contas a Receber, 🛒 Vendas, 👥 Clientes, 📦 Produtos (e suas
+  categorias — 🔫 Armas nacionais, 🌎 Armas importadas, 🧰 Munições/Insumos, 🎒
+  Acessórios, 🎣 Caça & Pesca, 🔧 Serviços), 🚚 Fornecedores, 🧾 Configuração Fiscal.
+
 ## [2.3.136] — Navegação de Produtos movida pro menu lateral — 2026-10-17
 
 ### Adicionado
