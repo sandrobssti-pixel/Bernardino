@@ -117,6 +117,32 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   gatewayTokenProduction: string;
 
+  // CNPJ/CPF do escritório de contabilidade — alguns estados (ex. BA)
+  // exigem essa informação (grupo autXML da NF-e, rejeição Sefaz 487
+  // "Escritório de Contabilidade não cadastrado" quando ausente). NÃO vai
+  // no payload da nota: é configuração de nível EMPRESA na própria Focus
+  // NFe, sincronizada por `FocusAccountService.updateAccountingOffice`
+  // sempre que esse campo muda (v2.3.128).
+  @Default("")
+  @Column
+  accountingOfficeDocument: string;
+
+  // Token de CONTA/master da Focus NFe — diferente de
+  // `gatewayTokenSandbox`/`gatewayTokenProduction` (que são por empresa,
+  // usados só pra emitir documento). Esse token autentica a API
+  // "Empresas" (gerenciar o cadastro da empresa em si), só existe no
+  // painel deles em "Minha conta", não na tela de uma empresa específica.
+  @Default("")
+  @Column
+  focusAccountToken: string;
+
+  // Id interno da empresa NA FOCUS (não é o CNPJ) — necessário pra montar
+  // a URL `PUT /v2/empresas/{id}`. Visível na URL do painel deles ao
+  // editar a empresa (ex. .../minhas_empresas/empresas/273913).
+  @Default("")
+  @Column
+  focusCompanyId: string;
+
   @Default(true)
   @Column
   sandboxEnabled: boolean;

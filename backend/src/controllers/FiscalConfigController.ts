@@ -25,8 +25,8 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
   await ensureAccess(req);
   const { companyId } = req.user;
 
-  const config = await FiscalConfigService.update(req.body, companyId);
-  return res.status(200).json(config);
+  const { config, accountingOfficeSync } = await FiscalConfigService.update(req.body, companyId);
+  return res.status(200).json({ ...config.toJSON(), accountingOfficeSync });
 };
 
 // Lista os gateways de emissão suportados, pra tela de Configuração Fiscal

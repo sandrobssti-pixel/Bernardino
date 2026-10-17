@@ -335,9 +335,14 @@ const FiscalConfigPanel = ({ fiscal }) => {
   const handleSubmit = async (values, { setSubmitting }) => {
     setSaving(true);
     try {
-      const updated = await fiscal.config.update(values);
+      const { accountingOfficeSync, ...updated } = await fiscal.config.update(values);
       setConfig(updated);
       toast.success("Configuração fiscal salva com sucesso.");
+      if (accountingOfficeSync && !accountingOfficeSync.ok) {
+        toast.warn(`Salvou aqui, mas não sincronizou com a Focus NFe: ${accountingOfficeSync.errorMessage}`);
+      } else if (accountingOfficeSync && accountingOfficeSync.ok) {
+        toast.success("Escritório de contabilidade sincronizado com a Focus NFe.");
+      }
     } catch (err) {
       toastError(err);
     }
@@ -649,6 +654,51 @@ const FiscalConfigPanel = ({ fiscal }) => {
                     helperText="Gerado no painel do gateway, aba de Produção. Se habilitada, a venda emite por aqui (tem prioridade sobre Homologação)"
                   />
                 </Paper>
+              </Grid>
+
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" style={{ fontWeight: 700, marginTop: 8 }}>
+                  Escritório de contabilidade
+                </Typography>
+                <Typography variant="caption" color="textSecondary" style={{ display: "block", marginBottom: 8 }}>
+                  Alguns estados (ex. BA) exigem o CNPJ/CPF do escritório de contabilidade cadastrado na nota —
+                  preencha aqui pra o AtendeFlow sincronizar automaticamente com a Focus NFe ao salvar, sem precisar
+                  entrar no painel deles. Token de conta e ID da empresa só precisam ser preenchidos uma vez (ficam
+                  no painel da Focus, em "Minha conta" e na URL de edição da empresa).
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="accountingOfficeDocument"
+                  label="CNPJ/CPF do escritório de contabilidade"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="focusCompanyId"
+                  label="ID da empresa na Focus"
+                  helperText="Número na URL do painel ao editar a empresa"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  type="password"
+                  name="focusAccountToken"
+                  label="Token de conta (master) da Focus"
+                  helperText="Painel da Focus → Minha conta — diferente dos tokens de Homologação/Produção acima"
+                />
               </Grid>
 
               <Grid item xs={12} sm={4}>

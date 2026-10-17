@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.128] — Escritório de contabilidade sincronizado com a Focus NFe — 2026-10-17
+
+### Adicionado
+- Configuração Fiscal ganhou 3 campos novos (CNPJ/CPF do escritório de contabilidade,
+  ID da empresa na Focus, token de conta/master da Focus): ao salvar, o AtendeFlow
+  sincroniza automaticamente o escritório de contabilidade direto na API "Empresas"
+  da Focus NFe, sem precisar entrar no painel deles. Resolve a rejeição Sefaz 487
+  ("Escritório de Contabilidade não cadastrado") de forma permanente — campo exigido
+  por alguns estados (ex. BA) e que não vai no payload da nota, é cadastro de empresa
+  na própria Focus.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 109.
+
 ## [2.3.127] — Ícone de olho não dependurava mais a busca de notas fiscais ao só visualizar a venda — 2026-10-17
 
 ### Corrigido

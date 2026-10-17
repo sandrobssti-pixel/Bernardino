@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.127
-**Etapa:** 6.2 Fase 6 — olho x recibo na lista de Vendas abriam a mesma tela de notas fiscais
+**Versão do documento:** 2.3.128
+**Etapa:** 6.2 Fase 6 — escritório de contabilidade sincronizado com a API de Empresas da Focus
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8011,3 +8011,95 @@ estado interno `fiscalExpanded`:
   deploy do frontend que o olho abre só os itens (sem a seção de notas
   fiscais expandida) e que o recibo continua abrindo direto nos botões
   de emissão.
+
+## 109. Escritório de contabilidade sincronizado com a API de Empresas da Focus (v2.3.128)
+
+### Contexto
+
+Seguindo a rejeição Sefaz 487 (seções 107-108 do histórico de erro,
+"Escritório de Contabilidade não cadastrado na SEFAZ"), o cliente
+cadastrou o CNPJ do contador direto no painel da Focus NFe (aba
+"Contabilidade" da empresa) e pediu um campo equivalente no AtendeFlow,
+pra não precisar voltar lá toda vez que trocar de contador.
+
+Investigação na doc oficial da Focus (`doc.focusnfe.com.br/reference/atualizar_empresa`
+— acesso do servidor bloqueado nesta sessão, conteúdo obtido com a ajuda
+do cliente) confirmou: `cpf_cnpj_contabilidade` é um campo de nível
+EMPRESA na API "Empresas" da Focus (`PUT /v2/empresas/{id}`), não um
+campo do payload de cada nota — por isso nunca apareceu em
+`FocusNFeService.ts`. A doc da própria Focus confirma: *"CPF/CNPJ da
+contabilidade da empresa. Alguns estados exigem esta informação (ex.:
+BA)."*
+
+### Decisão
+
+Em vez de só documentar "troque no painel da Focus manualmente", o
+cliente pediu a integração de verdade: campo no AtendeFlow que, ao
+salvar, chama a API da Focus e atualiza lá também.
+
+**Duas credenciais diferentes, não confundir**:
+- `gatewayTokenSandbox`/`gatewayTokenProduction` (já existentes) — token
+  por EMPRESA, usado só pra emitir documento fiscal
+  (`FocusNFeService.ts`).
+- `focusAccountToken` (novo) — token de CONTA/master da Focus, visto no
+  painel deles em "Minha conta" (não na tela de uma empresa específica).
+  Autentica a API "Empresas" (gerenciar o cadastro da empresa em si).
+
+Também precisa do `focusCompanyId` — o id INTERNO da empresa na Focus
+(não é o CNPJ), visível na URL do painel ao editar a empresa (ex.
+`.../minhas_empresas/empresas/273913`).
+
+### Implementação
+
+- Migration `20261017130000-add-accounting-office-to-fiscal-configs.ts`:
+  3 colunas novas em `FiscalConfigs` — `accountingOfficeDocument`,
+  `focusAccountToken`, `focusCompanyId`.
+- `FocusAccountService.ts` (novo arquivo, separado de
+  `FocusNFeService.ts` de propósito — API diferente, autenticação
+  diferente, host sempre de produção mesmo pra empresa em homologação,
+  conforme a doc: *"esta API opera exclusivamente no ambiente de
+  produção"*): `updateAccountingOffice(config, document)` faz o `PUT`
+  com `try/catch` (padrão obrigatório pra toda chamada HTTP a gateway
+  fiscal, seção 627 referenciada em outras partes deste manual).
+- `FiscalConfigService.update` dispara a sincronização só quando
+  `accountingOfficeDocument` muda de verdade (compara valor anterior vs.
+  novo) — não a cada salvamento da tela inteira. Falha na sincronização
+  NUNCA bloqueia o salvamento da config local (retorna
+  `accountingOfficeSync: {ok, errorMessage}` separado do config em si).
+- `FiscalConfigController.update` repassa esse resultado pro frontend
+  junto do config.
+- `FiscalConfigPanel.js`: 3 campos novos (CNPJ/CPF do escritório, ID da
+  empresa na Focus, token de conta — este em campo `type="password"`,
+  mesmo padrão dos tokens de Homologação/Produção). Toast separado
+  avisando se a sincronização com a Focus falhou (salva local mesmo
+  assim) ou funcionou.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261017130000-add-accounting-office-to-fiscal-configs.ts` (novo)
+- `backend/src/models/FiscalConfig.ts`
+- `backend/src/services/FiscalService/FocusAccountService.ts` (novo)
+- `backend/src/services/FiscalService/FiscalConfigService.ts`
+- `backend/src/controllers/FiscalConfigController.ts`
+- `frontend/src/components/FiscalConfigPanel/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo no `FiscalConfigPanel.js`.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção) compilou sem erro.
+- Não testado end-to-end contra a API de Empresas da Focus nesta sessão
+  (token de conta foi passado pelo cliente no chat, não configurado
+  nesta sessão — nunca gravado em código/commit). **Pendente**: cliente
+  rodar a migration + deploy, preencher os 3 campos novos em
+  Configuração Fiscal (CNPJ do contador, ID da empresa `273913`, token
+  de conta), salvar, e conferir se o toast confirma sincronização com
+  sucesso — depois tentar emitir a venda de novo pra ver se a rejeição
+  487 sumiu de vez.
+- Lição pra não repetir: ao integrar um campo de configuração de
+  gateway fiscal que parece "simples" (um CNPJ a mais), sempre checar
+  primeiro se é um campo do PAYLOAD DA NOTA ou um campo de CADASTRO DA
+  EMPRESA no gateway — são APIs, hosts e credenciais diferentes, e
+  tentar encaixar um campo de cadastro de empresa dentro do payload de
+  emissão (ou vice-versa) não funcionaria de jeito nenhum.

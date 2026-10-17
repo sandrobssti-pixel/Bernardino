@@ -1,4 +1,5 @@
 import FiscalConfig from "../../models/FiscalConfig";
+import * as FocusAccountService from "./FocusAccountService";
 
 interface FiscalConfigData {
   taxRegime?: string;
@@ -18,6 +19,9 @@ interface FiscalConfigData {
   gatewayProvider?: string;
   gatewayTokenSandbox?: string;
   gatewayTokenProduction?: string;
+  accountingOfficeDocument?: string;
+  focusAccountToken?: string;
+  focusCompanyId?: string;
   sandboxEnabled?: boolean;
   productionEnabled?: boolean;
   nfeSeries?: string;
@@ -61,8 +65,22 @@ export const show = async (companyId: number): Promise<FiscalConfig> => {
 export const update = async (
   data: FiscalConfigData,
   companyId: number
-): Promise<FiscalConfig> => {
+): Promise<{ config: FiscalConfig; accountingOfficeSync: { ok: boolean; errorMessage: string } | null }> => {
   const config = await show(companyId);
+  const previousAccountingOfficeDocument = config.accountingOfficeDocument;
   await config.update(data);
-  return config;
+
+  // Sincroniza com a Focus só quando o campo muda de verdade (não a cada
+  // salvamento da tela inteira) — nunca deixa falha de sincronização
+  // impedir o salvamento da config local (mesmo padrão já usado pra não
+  // deixar o módulo fiscal travar o resto do sistema).
+  let accountingOfficeSync: { ok: boolean; errorMessage: string } | null = null;
+  if (
+    data.accountingOfficeDocument !== undefined &&
+    data.accountingOfficeDocument !== previousAccountingOfficeDocument
+  ) {
+    accountingOfficeSync = await FocusAccountService.updateAccountingOffice(config, data.accountingOfficeDocument);
+  }
+
+  return { config, accountingOfficeSync };
 };
