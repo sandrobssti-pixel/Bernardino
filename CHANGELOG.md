@@ -3,6 +3,13 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.130] — Rótulo do campo CNPJ/CPF da contabilidade quebrava a borda do campo — 2026-10-17
+
+### Corrigido
+- O rótulo "CNPJ/CPF do escritório de contabilidade" (Configuração Fiscal) era longo
+  demais pra largura do campo e quebrava em duas linhas, estourando a borda do MUI
+  (ficava com aparência "descentralizada"). Encurtado pra "CNPJ/CPF da contabilidade".
+
 ## [2.3.129] — Botões de emissão escondidos atrás de clique extra na tela de olho — 2026-10-17
 
 ### Corrigido

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.129
-**Etapa:** 6.2 Fase 6 — botões de emissão escondidos atrás de clique extra na tela de olho
+**Versão do documento:** 2.3.130
+**Etapa:** 6.2 Fase 6 — rótulo do campo CNPJ/CPF da contabilidade quebrava a borda do campo
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8152,3 +8152,14 @@ sozinho. Correção:
   do primeiro teste real em vez de assumir que a primeira interpretação
   bateu — aqui levou duas rodadas (v2.3.127 escondeu demais, v2.3.129
   ajustou pra esconder só o que realmente incomodava).
+
+## 111. Rótulo do campo CNPJ/CPF da contabilidade quebrava a borda (v2.3.130)
+
+Rótulo "CNPJ/CPF do escritório de contabilidade" (campo novo da seção
+109) era longo demais pra largura do campo (`Grid item sm={4}`) e
+quebrava em duas linhas, estourando a borda arredondada do `TextField`
+`variant="outlined"` do MUI — visualmente parecia "descentralizado" em
+comparação aos campos vizinhos ("ID da empresa na Focus", "Token de
+conta"), que têm rótulo mais curto. Encurtado pra "CNPJ/CPF da
+contabilidade" — cabe numa linha só. `npx eslint` e build de produção
+limpos. Arquivo: `frontend/src/components/FiscalConfigPanel/index.js`.

@@ -674,7 +674,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   variant="outlined"
                   size="small"
                   name="accountingOfficeDocument"
-                  label="CNPJ/CPF do escritório de contabilidade"
+                  label="CNPJ/CPF da contabilidade"
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
