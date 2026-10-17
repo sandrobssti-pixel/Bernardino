@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.121
-**Etapa:** 6.2 Fase 6 — cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro
+**Versão do documento:** 2.3.122
+**Etapa:** 6.2 Fase 6 — Inscrição Estadual do emitente formatada quebrava o XML + raw da Focus NFe agora é salvo
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7642,3 +7642,61 @@ gateway fiscal.
   Configurações → Whitelabel, depois testar "Imprimir / Exportar PDF" no
   Painel Financeiro e conferir se logo (canto superior direito), nome +
   endereço (canto superior esquerdo) e rodapé saem corretos no PDF.
+
+## 103. IE do emitente com pontuação quebrava o schema + resposta bruta da Focus NFe agora fica salva (v2.3.122)
+
+### Contexto
+
+Cliente confirmou (print da Configuração Fiscal) que já tinha preenchido o
+"Endereço do emitente" (seção 100) corretamente — mesmo assim a emissão
+continuava com "Erro na validação do Schema XML, verifique o
+detalhamento dos erros", já na v2.3.120 (que já tinha o fix de mostrar o
+detalhamento junto da mensagem genérica). O detalhamento simplesmente não
+vinha — sinal de que ou a Focus NFe não manda `erros` pra esse tipo de
+falha, ou tinha outro campo mal formatado que nem chega a gerar erro
+"de campo", só rejeita o XML inteiro.
+
+### Causa raiz 1 — Inscrição Estadual com pontuação
+
+No print da Configuração Fiscal, "Inscrição estadual" está como
+`182.174.539` (com pontos) — `FocusNFeService.buildEmitente` mandava esse
+valor DIRETO pro campo `inscricao_estadual_emitente`, sem tirar a
+pontuação, diferente do CNPJ/CEP/telefone do emitente (que já passavam por
+`.replace(/\D/g, "")`). A Sefaz espera só dígitos nesse campo — provável
+causa real do erro de schema persistir mesmo com o endereço certo.
+Corrigido: `inscricao_estadual_emitente` agora também passa por
+`.replace(/\D/g, "")` antes de ir pro payload.
+
+### Causa raiz 2 (diagnóstico) — resposta bruta da Focus NFe nunca era salva
+
+Pra não ficar mais adivinhando qual campo a Sefaz está rejeitando,
+`FiscalDocument` ganhou uma coluna `raw` (JSONB) — `FiscalDocumentService.emit`
+e `.refreshStatus` agora salvam a resposta completa do gateway, não só o
+`errorMessage` já resumido. Na tela de detalhe da venda
+(`SaleDetailModal`), toda nota com status "Erro" ganhou um botão (ícone
+`</>`) que abre um diálogo com o JSON bruto completo (+ botão copiar) — útil
+pra qualquer erro futuro, não só este.
+
+### Observação (não bloqueante)
+
+No mesmo print, "Inscrição municipal" está como `00.914.493/001-43` —
+formato de CNPJ, não de inscrição municipal. Não afeta NF-e/NFC-e (só
+NFS-e usa esse campo), não mexido nesta leva — vale o cliente conferir se
+esse valor está certo antes de tentar emitir NFS-e no futuro.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261017100000-add-raw-response-to-fiscal-documents.ts`
+- `backend/src/models/FiscalDocument.ts`
+- `backend/src/services/FiscalService/FiscalDocumentService.ts`
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` + `craco build` limpos no frontend.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente rodar a migration + deploy e tentar emitir de
+  novo — se ainda der erro, abrir o botão "ver resposta completa" (ícone
+  `</>` na linha do erro) e mandar o JSON pra investigar o campo exato.

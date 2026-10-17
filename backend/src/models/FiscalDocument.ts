@@ -67,6 +67,12 @@ class FiscalDocument extends Model<FiscalDocument> {
   @Column(DataType.TEXT)
   errorMessage: string;
 
+  // Resposta BRUTA do gateway (JSON completo), pra diagnosticar quando o
+  // `errorMessage` (já processado/resumido) não traz detalhe suficiente —
+  // ver docs/MANUAL_TECNICO.md, seção 103.
+  @Column(DataType.JSONB)
+  raw: unknown;
+
   // "sandbox" | "production" — qual ambiente estava ativo
   // (`FiscalConfigService.isProductionActive`) no momento da emissão.
   // Documento "" (vazio) é legado, de antes desta coluna existir — tratado

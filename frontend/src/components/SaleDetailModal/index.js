@@ -29,6 +29,7 @@ import EmailIcon from "@material-ui/icons/Email";
 import EditIcon from "@material-ui/icons/Edit";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
+import CodeIcon from "@material-ui/icons/Code";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -81,6 +82,9 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
   const [correctionText, setCorrectionText] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
   const [deleteDialogDoc, setDeleteDialogDoc] = useState(null);
+  // Resposta bruta do gateway (JSON completo) — diagnóstico pra quando
+  // `errorMessage` (já resumido) não traz detalhe suficiente (v2.3.122).
+  const [rawDialogDoc, setRawDialogDoc] = useState(null);
 
   const fetchDocuments = useCallback(async () => {
     if (!sale?.id) return;
@@ -336,6 +340,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
                     {doc.accessKey || "—"}
                   </TableCell>
                   <TableCell align="right">
+                    {doc.status === "error" && doc.raw && (
+                      <Tooltip title="Ver resposta completa do gateway">
+                        <IconButton size="small" onClick={() => setRawDialogDoc(doc)}>
+                          <CodeIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                     {doc.status === "processing" && (
                       <Tooltip title="Atualizar status">
                         <IconButton size="small" onClick={() => handleRefresh(doc.id)}>
@@ -451,6 +462,44 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
             startIcon={sendingCorrection ? <CircularProgress size={14} color="inherit" /> : null}
           >
             Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!rawDialogDoc} onClose={() => setRawDialogDoc(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Resposta completa do gateway</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+            JSON bruto devolvido pela Focus NFe nesta tentativa — útil quando a mensagem de erro
+            não vem com detalhe suficiente.
+          </Typography>
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              fontSize: "0.75rem",
+              background: "#1e1e1e",
+              color: "#d4d4d4",
+              padding: 12,
+              borderRadius: 8,
+              maxHeight: 400,
+              overflow: "auto",
+            }}
+          >
+            {rawDialogDoc ? JSON.stringify(rawDialogDoc.raw, null, 2) : ""}
+          </pre>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              navigator.clipboard?.writeText(JSON.stringify(rawDialogDoc?.raw, null, 2));
+              toast.success("Copiado.");
+            }}
+          >
+            Copiar
+          </Button>
+          <Button onClick={() => setRawDialogDoc(null)} color="primary">
+            Fechar
           </Button>
         </DialogActions>
       </Dialog>

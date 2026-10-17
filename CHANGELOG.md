@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.122] — Inscrição Estadual do emitente com pontuação quebrava o XML + resposta bruta da Focus NFe agora fica salva — 2026-10-17
+
+### Corrigido
+- A Inscrição Estadual do emitente ia pro XML da nota com pontuação (ex.: "182.174.539"
+  em vez de "182174539") — a Sefaz espera só dígitos nesse campo. Provável causa real do
+  erro de schema continuar mesmo com o endereço do emitente já preenchido certo.
+
+### Adicionado
+- Toda nota com erro de emissão agora guarda a resposta completa (JSON bruto) da Focus
+  NFe, acessível por um botão novo na tela de detalhe da venda — antes só a mensagem
+  resumida ficava salva, dificultando diagnosticar quando ela vinha sem detalhe.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 103.
+
 ## [2.3.121] — Cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro — 2026-10-17
 
 ### Adicionado

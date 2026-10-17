@@ -70,6 +70,7 @@ export const emit = async (
     xmlUrl: result.xmlUrl,
     pdfUrl: result.pdfUrl,
     errorMessage: result.errorMessage,
+    raw: result.raw,
     issuedAt: result.status === "authorized" ? new Date() : null,
     environment: FiscalConfigService.isProductionActive(config) ? "production" : "sandbox",
     saleId: sale.id,
@@ -117,6 +118,7 @@ export const refreshStatus = async (
     xmlUrl: result.xmlUrl || document.xmlUrl,
     pdfUrl: result.pdfUrl || document.pdfUrl,
     errorMessage: result.errorMessage,
+    raw: result.raw || document.raw,
     issuedAt: result.status === "authorized" ? new Date() : document.issuedAt
   });
 

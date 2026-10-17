@@ -150,7 +150,14 @@ const buildEmitente = (company: Company, config: FiscalConfig) => ({
   cnpj_emitente: (company.document || "").replace(/\D/g, ""),
   nome_emitente: company.name,
   regime_tributario_emitente: config.taxRegime === "simples" || config.taxRegime === "mei" ? "1" : "3",
-  inscricao_estadual_emitente: config.stateRegistrationExempt ? "ISENTO" : config.stateRegistration,
+  // Formatada com pontuação no cadastro (ex.: "182.174.539") — a Sefaz
+  // espera só dígitos nesse campo; achado comparando com o print da tela
+  // de Configuração Fiscal do cliente (v2.3.122), causa provável de o
+  // erro de schema continuar mesmo depois do endereço do emitente ter
+  // sido preenchido corretamente.
+  inscricao_estadual_emitente: config.stateRegistrationExempt
+    ? "ISENTO"
+    : (config.stateRegistration || "").replace(/\D/g, ""),
   // Endereço do emitente — obrigatório no XML (enderEmit), faltava por
   // completo até a v2.3.119 (causa raiz confirmada do "Erro na validação
   // do Schema XML" no primeiro teste real).
