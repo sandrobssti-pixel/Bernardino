@@ -20,9 +20,13 @@ import FinanceReceivable from "../../models/FinanceReceivable";
 // ⚠️ Diferente de uma venda nova: essas vendas JÁ aconteceram e JÁ têm nota
 // fiscal de verdade emitida no sistema anterior — a importação só
 // REGISTRA o que já existe (número da nota, itens, cliente), nunca chama o
-// gateway (Focus NFe) pra emitir nada novo. Também NUNCA mexe em estoque
-// (`FinanceProduct.stockQuantity`) — confirmado com o cliente: só venda
-// lançada a partir de agora desconta estoque, histórico não.
+// gateway (Focus NFe) pra emitir nada novo. Por padrão NUNCA mexe em
+// estoque (`FinanceProduct.stockQuantity`) — confirmado com o cliente: só
+// venda lançada a partir de agora desconta estoque, histórico não. A
+// v2.3.139 adicionou um opt-in explícito (`options.deductStock`, ligado só
+// quando o usuário marca a caixinha na tela) pro caso de notas emitidas
+// bem recentemente direto no painel da Focus NFe (fora do AtendeFlow, ainda
+// sem baixa em lugar nenhum) — ver `SaleImportOptions` abaixo.
 
 const NOTE_COL = { NUMBER: 0, DATE: 3, CUSTOMER: 4, DOCUMENT: 11, STATUS: 12, TOTAL: 36 };
 const ITEM_COL = { SKU: 1, DESCRIPTION: 5, NCM: 14, CFOP: 17, UNIT: 20, UNIT_PRICE: 24, QUANTITY: 29, TOTAL: 34 };
@@ -135,7 +139,20 @@ export type SaleImportSummary = {
   total: number;
   created: number;
   skipped: number;
+  stockDeducted: number;
   errors: string[];
+};
+
+export type SaleImportOptions = {
+  // Opt-in explícito (v2.3.139) — por padrão continua NUNCA mexendo em
+  // estoque, igual sempre foi (comentário acima). Só liga quando o próprio
+  // usuário marca a caixinha na tela de importação, pra registrar vendas
+  // que aconteceram de verdade recentemente (nota já emitida direto no
+  // painel da Focus, fora do AtendeFlow) e cujo estoque ainda não foi
+  // baixado em lugar nenhum. Idempotência (checagem de `externalRef`
+  // acima) também protege aqui: reimportar a mesma planilha não baixa
+  // estoque duas vezes.
+  deductStock?: boolean;
 };
 
 const findOrCreateCustomer = async (
@@ -155,12 +172,22 @@ const findOrCreateCustomer = async (
 
 export const importSales = async (
   companyId: number,
-  file: Express.Multer.File
+  file: Express.Multer.File,
+  options: SaleImportOptions = {}
 ): Promise<SaleImportSummary> => {
-  console.log(`[SaleImportService] importSales: iniciando, arquivo=${file.path}`);
+  const deductStock = !!options.deductStock;
+  console.log(
+    `[SaleImportService] importSales: iniciando, arquivo=${file.path}, deductStock=${deductStock}`
+  );
 
   const notes = parseNotesReport(file.path);
-  const summary: SaleImportSummary = { total: notes.length, created: 0, skipped: 0, errors: [] };
+  const summary: SaleImportSummary = {
+    total: notes.length,
+    created: 0,
+    skipped: 0,
+    stockDeducted: 0,
+    errors: []
+  };
 
   for (const note of notes) {
     try {
@@ -199,6 +226,18 @@ export const importSales = async (
             const product = item.sku
               ? await FinanceProduct.findOne({ where: { companyId, sku: item.sku } })
               : null;
+
+            if (deductStock) {
+              if (product) {
+                await product.decrement("stockQuantity", { by: item.quantity });
+                summary.stockDeducted += 1;
+              } else {
+                summary.errors.push(
+                  `Nota ${note.number}: item "${item.description}" (SKU ${item.sku || "?"}) não achou produto cadastrado — estoque NÃO foi baixado pra esse item.`
+                );
+              }
+            }
+
             return {
               saleId: sale.id,
               productId: product?.id || null,

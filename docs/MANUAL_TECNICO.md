@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.138
-**Etapa:** 6.2 Fase 6 — Painel Financeiro sem navegação duplicada
+**Versão do documento:** 2.3.139
+**Etapa:** 6.2 Fase 6 — importação de vendas com baixa de estoque opcional
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8465,3 +8465,50 @@ lógica de navegação mudou, só a remoção da lista duplicada.
 
 **Arquivo**: `frontend/src/pages/Financeiro/index.js`. `npx eslint` e
 build de produção limpos.
+
+## 120. Importação de vendas com opção de dar baixa no estoque (v2.3.139)
+
+Cliente emitiu duas notas (492, 493) direto no painel da Focus NFe
+(fora do AtendeFlow, antes de trocar o próximo número pra 494) e quis
+registrá-las em Vendas a partir da mesma planilha "Consulta de Notas
+Fiscais - Analítico" que o `SaleImportService` (seção... v2.3.116) já
+sabe ler — mas, diferente de toda importação histórica anterior, essas
+duas são recentes o bastante pra precisar baixar estoque de verdade
+(a venda aconteceu, o estoque físico já saiu, só não tinha sido
+refletido em lugar nenhum do sistema ainda).
+
+`importSales` ganhou um terceiro parâmetro opcional,
+`options: SaleImportOptions` (`{ deductStock?: boolean }`, default
+`{}` → `false`) — o comportamento de sempre (nunca mexer em estoque)
+continua sendo o padrão pra qualquer chamada que não passe essa opção
+explicitamente. Quando `true`, pra cada item de cada nota que **achar**
+o produto por SKU, desconta a quantidade vendida de
+`FinanceProduct.stockQuantity` (`product.decrement(...)`, atômico) e
+soma em `summary.stockDeducted`; quando não acha o produto pelo SKU, a
+venda e o item são registrados normalmente (como sempre foi), mas
+**sem** baixar estoque nenhum — e entra um aviso em `summary.errors`
+avisando que esse item específico ficou sem baixa, pra não passar
+batido.
+
+A idempotência que já existia (checagem de `FiscalDocument` com
+`externalRef = legado-nf-<número>` antes de criar) também protege a
+baixa de estoque: reimportar a mesma planilha (por engano, ou pra
+conferir) pula a nota inteira antes de chegar no código de baixa —
+nunca desconta duas vezes.
+
+**Frontend**: `SaleList/index.js` ganhou uma caixinha "Dar baixa no
+estoque" ao lado do botão "Importar planilha", desmarcada por padrão e
+**sempre resetada pra desmarcada** depois de cada importação (mesmo
+que a importação falhe) — precisa ser marcada de novo a cada vez, de
+propósito, pra uma eventual importação em massa futura nunca sair
+baixando estoque sem o usuário decidir isso consciente, clique a
+clique. `useFiscal.sales.importSpreadsheet(file, deductStock)` manda
+esse flag como campo `deductStock` (string `"true"`/`"false"`) no
+mesmo `FormData` do upload; `SaleImportController` lê
+`req.body.deductStock` e repassa pro service.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleImportService.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.

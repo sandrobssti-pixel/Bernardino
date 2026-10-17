@@ -14,6 +14,8 @@ import Chip from "@material-ui/core/Chip";
 import Box from "@material-ui/core/Box";
 import Tooltip from "@material-ui/core/Tooltip";
 import TablePagination from "@material-ui/core/TablePagination";
+import Checkbox from "@material-ui/core/Checkbox";
+import FormControlLabel from "@material-ui/core/FormControlLabel";
 
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
@@ -84,6 +86,10 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [importing, setImporting] = useState(false);
+  // Desmarcada por padrão sempre — não persiste entre cliques de propósito,
+  // pra não arriscar baixar estoque de uma importação em massa por engano
+  // (ver SaleImportService.ts, `deductStock`, v2.3.139).
+  const [deductStockOnImport, setDeductStockOnImport] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -170,17 +176,24 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
   // Importação de vendas históricas já faturadas no sistema anterior do
   // cliente (migração de ERP, v2.3.116) — só registra o que já existe
-  // (número da nota, itens, cliente), nunca emite nada via gateway e nunca
-  // mexe em estoque. Ver SaleImportService.ts.
+  // (número da nota, itens, cliente), nunca emite nada via gateway. Por
+  // padrão (caixinha desmarcada) nunca mexe em estoque; com
+  // `deductStockOnImport` marcado, baixa o estoque dos itens encontrados
+  // por SKU (v2.3.139 — caso de nota emitida recém direto no painel da
+  // Focus). Ver SaleImportService.ts.
   const handleImportFile = async (e) => {
     const file = e.target.files?.[0];
+    const shouldDeductStock = deductStockOnImport;
     e.target.value = "";
     if (!file) return;
 
     setImporting(true);
     try {
-      const summary = await fiscal.sales.importSpreadsheet(file);
+      const summary = await fiscal.sales.importSpreadsheet(file, shouldDeductStock);
       const parts = [`${summary.created} criada(s)`, `${summary.skipped} ignorada(s)`];
+      if (shouldDeductStock) {
+        parts.push(`estoque baixado em ${summary.stockDeducted} item(ns)`);
+      }
       toast.success(`Importação concluída: ${summary.total} nota(s) lida(s), ${parts.join(", ")}.`);
       if (summary.errors?.length) {
         summary.errors.slice(0, 5).forEach((msg) => toast.warn(msg));
@@ -190,6 +203,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       toastError(err);
     }
     setImporting(false);
+    setDeductStockOnImport(false);
   };
 
   const confirmModalProps = {
@@ -251,7 +265,26 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
             style={{ display: "none" }}
             onChange={handleImportFile}
           />
-          <Tooltip title="Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)">
+          <Tooltip title="Baixa a quantidade vendida do estoque dos produtos encontrados por SKU — só marque pra nota(s) recém emitida(s) que ainda não tiveram baixa em lugar nenhum">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={deductStockOnImport}
+                  onChange={(e) => setDeductStockOnImport(e.target.checked)}
+                  disabled={importing}
+                />
+              }
+              label="Dar baixa no estoque"
+            />
+          </Tooltip>
+          <Tooltip
+            title={
+              deductStockOnImport
+                ? "Importa a(s) nota(s) da planilha e já baixa o estoque dos itens encontrados por SKU"
+                : "Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)"
+            }
+          >
             <span>
               <Button
                 variant="outlined"

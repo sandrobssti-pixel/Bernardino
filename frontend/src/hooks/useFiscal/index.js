@@ -57,10 +57,14 @@ const useFiscal = () => {
     },
     // Importação de vendas históricas via planilha (migração de ERP,
     // v2.3.116) — registra vendas que já têm nota fiscal emitida no sistema
-    // anterior, sem chamar o gateway e sem mexer em estoque.
-    importSpreadsheet: async (file) => {
+    // anterior, sem chamar o gateway. Por padrão não mexe em estoque;
+    // `deductStock` (v2.3.139) é opt-in explícito pra nota recém emitida
+    // direto no painel da Focus (fora do AtendeFlow), cujo estoque ainda não
+    // foi baixado em lugar nenhum.
+    importSpreadsheet: async (file, deductStock = false) => {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("deductStock", deductStock ? "true" : "false");
       const { data } = await api.post("/sales/import", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });

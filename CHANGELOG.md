@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.139] — Importação de vendas com opção de dar baixa no estoque — 2026-10-17
+
+### Adicionado
+- Tela de Vendas ganhou uma caixinha "Dar baixa no estoque" ao lado do botão
+  "Importar planilha" (desmarcada por padrão, sempre volta a desmarcada depois
+  de cada importação). A importação de notas via planilha (`SaleImportService`,
+  v2.3.116) sempre registrou vendas já faturadas SEM mexer em estoque, de
+  propósito — isso continua sendo o padrão. Mas pra nota emitida recém direto
+  no painel da Focus (fora do AtendeFlow), cujo estoque ainda não foi baixado em
+  lugar nenhum, agora dá pra marcar a caixinha e baixar a quantidade vendida do
+  estoque dos produtos encontrados por SKU, no mesmo passo da importação.
+  Reimportar a mesma planilha continua idempotente (não duplica venda nem baixa
+  estoque duas vezes).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 120.
+
 ## [2.3.138] — Painel Financeiro sem navegação duplicada — 2026-10-17
 
 ### Corrigido
