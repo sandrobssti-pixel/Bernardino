@@ -70,6 +70,7 @@ const FinanceRecordList = ({
   columns,
   fields,
   filters = [],
+  initialFilterValues = {},
   finance,
   allowImport = false,
   allowTemplateDownload = false,
@@ -82,7 +83,11 @@ const FinanceRecordList = ({
   const [count, setCount] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [searchParam, setSearchParam] = useState("");
-  const [filterValues, setFilterValues] = useState({});
+  // Valor inicial vem do link que trouxe o usuário pra essa aba (ex.: menu
+  // lateral Financeiro > Produtos > Armas nacionais, ver MainListItems.js) —
+  // só lido na primeira renderização; a tela troca de filtro navegando de
+  // novo (o `key` em Financeiro/index.js remonta o componente).
+  const [filterValues, setFilterValues] = useState(initialFilterValues);
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);

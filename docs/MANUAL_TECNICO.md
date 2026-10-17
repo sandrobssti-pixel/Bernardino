@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.135
-**Etapa:** 6.2 Fase 6 — tipos de produto novos: Acessório e Caça & Pesca
+**Versão do documento:** 2.3.136
+**Etapa:** 6.2 Fase 6 — navegação de Produtos movida pro menu lateral
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8358,3 +8358,72 @@ específico).
 
 **Arquivo**: `frontend/src/pages/Financeiro/financeConfig.js`. `npx
 eslint` e build de produção limpos.
+
+## 117. Navegação de Produtos movida pro menu lateral (v2.3.136)
+
+O filtro "Tipo" da lista de Produtos (select adicionado nas seções
+114-116) não abria em produção pro cliente ("cliquei não abre") mesmo
+depois de confirmado, via `curl` direto no bundle publicado
+(`main.<hash>.js`), que o servidor/Cloudflare serviam o código certo —
+inclusive com as strings das opções novas presentes no arquivo. Ou
+seja: não era cache de CDN nem deploy desatualizado; o problema estava
+em algum lugar entre o bundle correto e o `<Select>` do MUI realmente
+abrir na tela do cliente (hipótese não totalmente isolada: possível
+conflito entre `@material-ui/core` v4 e `@mui/material` v5 coexistindo
+no projeto, mas não investigado a fundo).
+
+Em vez de insistir num componente que já se provou pouco confiável
+nesse ambiente, a navegação por categoria foi movida pro menu lateral
+principal (`frontend/src/layout/MainListItems.js`), reaproveitando o
+padrão que já existe aí para "Campanhas" (`openCampaignSubmenu` +
+`Collapse` + `List` de sub-itens):
+
+- **Financeiro** virou um item expansível (clique abre/fecha, não
+  navega) com sub-itens: Painel Financeiro, Contas a Pagar, Contas a
+  Receber, Vendas, Clientes, **Produtos**, Fornecedores, Configuração
+  Fiscal.
+- **Produtos**, dentro do submenu, expande de novo (segundo nível)
+  mostrando: Todos os produtos, Armas nacionais, Armas importadas,
+  Munições/Insumos, Acessórios, Caça & Pesca, Serviços — os mesmos
+  valores de `type`/`type:origin` já usados pelo filtro antigo
+  (`weapon:national`, `weapon:imported`, `ammunition`, `accessory`,
+  `hunting_fishing`, `service`).
+- Com o menu lateral recolhido (modo ícone), "Produtos" vira um link
+  direto (sem segundo nível, que não cabe nesse modo) — só mostra a
+  lista completa, sem filtro de categoria.
+
+**Como a navegação chega até a tela certa**: cada sub-item linka pra
+`/financeiro?tab=<aba>` (produtos: `&type=<valor>` também). A página
+inteira do Financeiro (`frontend/src/pages/Financeiro/index.js`) é uma
+SPA sem rota por aba — a navegação sempre foi controlada só por estado
+React (`financeTab`), nunca pela URL. Um `useEffect` novo lê
+`location.search` (via `useLocation()`) e chama `setFinanceTab(tab)`
+quando o parâmetro `tab` está presente, então um link do menu lateral
+realmente troca de aba mesmo a página já estando montada. O parâmetro
+`type` é lido à parte e passado como `initialFilterValues={{ type }}`
+pro `FinanceRecordList` da aba Produtos — com uma pegadinha: o `key`
+desse componente, que antes era só `financeTab` (fixo, "products"),
+virou `` `products-${productTypeParam}` ``, porque sem isso trocar de
+categoria (ex.: Armas nacionais → Munições/Insumos) não remontava o
+componente, e um prop `initial*` só é lido na primeira renderização —
+ficaria preso na primeira categoria clicada.
+
+`FinanceRecordList` (`frontend/src/components/FinanceRecordList/index.js`)
+ganhou o prop `initialFilterValues` (default `{}`), usado só pra
+inicializar o `useState` de `filterValues` — mesma lógica de sempre
+dali em diante (busca, paginação, `resource.list({...filterValues})`).
+
+O dropdown "Tipo" acima da tabela **não foi removido** — continua lá,
+como caminho alternativo, caso o bug de abertura seja identificado e
+corrigido depois. As duas formas de filtrar levam ao mesmo lugar
+(mesmo `type`/`type:origin`).
+
+**Arquivos**: `frontend/src/layout/MainListItems.js` (submenu +
+ícones novos: `Receipt`, `MonetizationOn`, `ShoppingCart`, `Store`,
+`LocalShipping`, `Gavel`, `Flag`, `Public`, `Build`, `Nature`, todos de
+`@material-ui/icons`; `ListItemLink` ganhou um segundo critério de
+`isActive` pra reconhecer link com query string, ex.
+`/financeiro?tab=products`), `frontend/src/pages/Financeiro/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`. `npx eslint` e
+build de produção limpos (sem erros; só os warnings pré-existentes do
+arquivo, não relacionados a essa mudança).

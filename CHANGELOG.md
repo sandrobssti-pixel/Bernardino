@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.136] — Navegação de Produtos movida pro menu lateral — 2026-10-17
+
+### Adicionado
+- O filtro "Tipo" da lista de Produtos (select ao lado da busca, adicionado nas
+  versões 2.3.133-135) não abria em produção para o cliente — causa não totalmente
+  isolada (servidor/CDN confirmados servindo o bundle certo via `curl`, incluindo as
+  strings das opções novas). Em vez de seguir investigando um componente que já
+  causou problema, a navegação por categoria foi movida pro menu lateral principal:
+  "Financeiro" agora é um item expansível (mesmo padrão já usado em "Campanhas"),
+  com sub-itens — Painel Financeiro, Contas a Pagar, Contas a Receber, Vendas,
+  Clientes, Produtos, Fornecedores, Configuração Fiscal — e "Produtos" expande de
+  novo mostrando as categorias (Todos, Armas nacionais, Armas importadas,
+  Munições/Insumos, Acessórios, Caça & Pesca, Serviços). Cada sub-item linka pra
+  `/financeiro?tab=...&type=...`; a página Financeiro lê esses parâmetros da URL pra
+  abrir na aba/filtro certo.
+- O dropdown "Tipo" acima da tabela de Produtos continua existindo (não foi
+  removido, só deixou de ser o único caminho) — se o bug de renderização nele for
+  identificado depois, não precisa reverter nada feito aqui.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 117.
+
 ## [2.3.135] — Tipos de produto novos: Acessório e Caça & Pesca — 2026-10-17
 
 ### Adicionado

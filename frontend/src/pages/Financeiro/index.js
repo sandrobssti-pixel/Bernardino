@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
+import { useLocation } from "react-router-dom";
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Typography from "@material-ui/core/Typography";
@@ -126,6 +127,23 @@ const Financeiro = () => {
   // pra empresa que só abre o Financeiro, sem usar o módulo fiscal).
   const [fiscalConfig, setFiscalConfig] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
+  const location = useLocation();
+
+  // Navegação pelo menu lateral (MainListItems.js > Financeiro > ...) manda
+  // a aba certa via query string (`?tab=products&type=weapon:national`), já
+  // que essa página inteira é uma SPA sem rotas por aba — sem isso, os links
+  // do menu lateral sempre caíam na mesma aba padrão. Continua funcionando
+  // normal se a página for aberta direto em "/financeiro" (sem query),
+  // porque `tab` vem `null` e o estado inicial acima prevalece.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    if (tabParam) {
+      setFinanceTab(tabParam);
+    }
+  }, [location.search]);
+
+  const productTypeParam = new URLSearchParams(location.search).get("type") || "";
 
   useEffect(() => {
     (async () => {
@@ -233,12 +251,13 @@ const Financeiro = () => {
     if (financeTab === "products") {
       return (
         <FinanceRecordList
-          key={financeTab}
+          key={`products-${productTypeParam}`}
           title="Produto"
           resource={finance.products}
           columns={financeProductColumns}
           fields={financeProductFields}
           filters={financeProductFilters}
+          initialFilterValues={{ type: productTypeParam }}
           allowImport
           allowTemplateDownload
           templateFilename="modelo-importacao-produtos.xlsx"
