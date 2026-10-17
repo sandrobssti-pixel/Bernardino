@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.140] — Filtro de período em Vendas; remoção da opção de baixa no estoque — 2026-10-17
+
+### Adicionado
+- Tela de Vendas ganhou filtro "Período" (Todo o período/Hoje/Esta semana/Este
+  mês/Personalizado — com campos De/Até quando "Personalizado"), filtrando por
+  `saleDate` no backend (`SaleService.list`, novos parâmetros `startDate`/
+  `endDate`).
+
+### Removido
+- Removida a caixinha "Dar baixa no estoque" da importação de planilha
+  (adicionada na v2.3.139) — foi usada uma única vez pras notas 492/493 e o
+  cliente pediu pra tirar, pra não ficar como opção permanente arriscando
+  baixa duplicada numa importação futura. `SaleImportService.importSales`
+  voltou a nunca mexer em estoque, sem opção nenhuma.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 121.
+
 ## [2.3.139] — Importação de vendas com opção de dar baixa no estoque — 2026-10-17
 
 ### Adicionado

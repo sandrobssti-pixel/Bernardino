@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
+import moment from "moment";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -14,8 +15,8 @@ import Chip from "@material-ui/core/Chip";
 import Box from "@material-ui/core/Box";
 import Tooltip from "@material-ui/core/Tooltip";
 import TablePagination from "@material-ui/core/TablePagination";
-import Checkbox from "@material-ui/core/Checkbox";
-import FormControlLabel from "@material-ui/core/FormControlLabel";
+import TextField from "@material-ui/core/TextField";
+import MenuItem from "@material-ui/core/MenuItem";
 
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
@@ -62,6 +63,41 @@ const isTestSale = (sale, fiscalConfig) => {
   return true;
 };
 
+// Filtro de período (Hoje/Semana/Mês/Personalizado) — resolve o preset pra
+// um par startDate/endDate ("YYYY-MM-DD", igual `Sale.saleDate`, DATEONLY)
+// que o backend já sabe filtrar (`SaleService.list`). "custom" usa as datas
+// digitadas pelo usuário direto, sem conversão.
+const PERIOD_OPTIONS = [
+  { value: "", label: "Todo o período" },
+  { value: "today", label: "Hoje" },
+  { value: "week", label: "Esta semana" },
+  { value: "month", label: "Este mês" },
+  { value: "custom", label: "Período personalizado" },
+];
+
+const resolvePeriodRange = (preset, customStart, customEnd) => {
+  if (preset === "today") {
+    const today = moment().format("YYYY-MM-DD");
+    return { startDate: today, endDate: today };
+  }
+  if (preset === "week") {
+    return {
+      startDate: moment().startOf("week").format("YYYY-MM-DD"),
+      endDate: moment().endOf("week").format("YYYY-MM-DD"),
+    };
+  }
+  if (preset === "month") {
+    return {
+      startDate: moment().startOf("month").format("YYYY-MM-DD"),
+      endDate: moment().endOf("month").format("YYYY-MM-DD"),
+    };
+  }
+  if (preset === "custom") {
+    return { startDate: customStart || undefined, endDate: customEnd || undefined };
+  }
+  return {};
+};
+
 const statusChip = (status) => {
   if (status === "confirmed") return <Chip size="small" label="Confirmada" style={{ backgroundColor: "#10b981", color: "#fff" }} />;
   if (status === "cancelled") return <Chip size="small" label="Cancelada" style={{ backgroundColor: "#6b7280", color: "#fff" }} />;
@@ -86,27 +122,34 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
   const [importing, setImporting] = useState(false);
-  // Desmarcada por padrão sempre — não persiste entre cliques de propósito,
-  // pra não arriscar baixar estoque de uma importação em massa por engano
-  // (ver SaleImportService.ts, `deductStock`, v2.3.139).
-  const [deductStockOnImport, setDeductStockOnImport] = useState(false);
+  const [periodPreset, setPeriodPreset] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fiscal.sales.list({ pageNumber });
+      const { startDate, endDate } = resolvePeriodRange(periodPreset, customStart, customEnd);
+      const data = await fiscal.sales.list({ pageNumber, startDate, endDate });
       setSales(data.records || []);
       setCount(data.count || 0);
     } catch (err) {
       toastError(err);
     }
     setLoading(false);
-  }, [fiscal, pageNumber]);
+  }, [fiscal, pageNumber, periodPreset, customStart, customEnd]);
 
   useEffect(() => {
     fetchSales();
   }, [fetchSales]);
+
+  // Troca de filtro de período sempre volta pra página 1 — senão uma busca
+  // nova pode abrir numa página sem resultado nenhum (mesmo padrão já usado
+  // no Financeiro genérico, ver FinanceRecordList.js).
+  useEffect(() => {
+    setPageNumber(1);
+  }, [periodPreset, customStart, customEnd]);
 
   const handleOpenNew = () => {
     setSelectedSale(null);
@@ -176,24 +219,17 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
   // Importação de vendas históricas já faturadas no sistema anterior do
   // cliente (migração de ERP, v2.3.116) — só registra o que já existe
-  // (número da nota, itens, cliente), nunca emite nada via gateway. Por
-  // padrão (caixinha desmarcada) nunca mexe em estoque; com
-  // `deductStockOnImport` marcado, baixa o estoque dos itens encontrados
-  // por SKU (v2.3.139 — caso de nota emitida recém direto no painel da
-  // Focus). Ver SaleImportService.ts.
+  // (número da nota, itens, cliente), nunca emite nada via gateway e nunca
+  // mexe em estoque. Ver SaleImportService.ts.
   const handleImportFile = async (e) => {
     const file = e.target.files?.[0];
-    const shouldDeductStock = deductStockOnImport;
     e.target.value = "";
     if (!file) return;
 
     setImporting(true);
     try {
-      const summary = await fiscal.sales.importSpreadsheet(file, shouldDeductStock);
+      const summary = await fiscal.sales.importSpreadsheet(file);
       const parts = [`${summary.created} criada(s)`, `${summary.skipped} ignorada(s)`];
-      if (shouldDeductStock) {
-        parts.push(`estoque baixado em ${summary.stockDeducted} item(ns)`);
-      }
       toast.success(`Importação concluída: ${summary.total} nota(s) lida(s), ${parts.join(", ")}.`);
       if (summary.errors?.length) {
         summary.errors.slice(0, 5).forEach((msg) => toast.warn(msg));
@@ -203,7 +239,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       toastError(err);
     }
     setImporting(false);
-    setDeductStockOnImport(false);
   };
 
   const confirmModalProps = {
@@ -256,7 +291,45 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       />
 
       <Box className={classes.mainHeader}>
-        <div />
+        <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+          <TextField
+            select
+            variant="outlined"
+            size="small"
+            label="Período"
+            style={{ minWidth: 180 }}
+            value={periodPreset}
+            onChange={(e) => setPeriodPreset(e.target.value)}
+          >
+            {PERIOD_OPTIONS.map((opt) => (
+              <MenuItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          {periodPreset === "custom" && (
+            <>
+              <TextField
+                type="date"
+                variant="outlined"
+                size="small"
+                label="De"
+                InputLabelProps={{ shrink: true }}
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+              />
+              <TextField
+                type="date"
+                variant="outlined"
+                size="small"
+                label="Até"
+                InputLabelProps={{ shrink: true }}
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+              />
+            </>
+          )}
+        </Box>
         <Box display="flex" style={{ gap: 8 }}>
           <input
             ref={fileInputRef}
@@ -265,26 +338,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
             style={{ display: "none" }}
             onChange={handleImportFile}
           />
-          <Tooltip title="Baixa a quantidade vendida do estoque dos produtos encontrados por SKU — só marque pra nota(s) recém emitida(s) que ainda não tiveram baixa em lugar nenhum">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  size="small"
-                  checked={deductStockOnImport}
-                  onChange={(e) => setDeductStockOnImport(e.target.checked)}
-                  disabled={importing}
-                />
-              }
-              label="Dar baixa no estoque"
-            />
-          </Tooltip>
-          <Tooltip
-            title={
-              deductStockOnImport
-                ? "Importa a(s) nota(s) da planilha e já baixa o estoque dos itens encontrados por SKU"
-                : "Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)"
-            }
-          >
+          <Tooltip title="Importa vendas já faturadas no sistema anterior (não emite nota nem mexe em estoque)">
             <span>
               <Button
                 variant="outlined"

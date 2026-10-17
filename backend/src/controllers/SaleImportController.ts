@@ -35,10 +35,8 @@ export const importSales = async (req: Request, res: Response): Promise<Response
   const { companyId } = req.user;
   const file = getUploadedFile(req);
 
-  const deductStock = String(req.body?.deductStock) === "true";
-
   try {
-    const summary = await SaleImportService.importSales(companyId, file, { deductStock });
+    const summary = await SaleImportService.importSales(companyId, file);
     return res.status(200).json(summary);
   } finally {
     removeUploadedFile(file);

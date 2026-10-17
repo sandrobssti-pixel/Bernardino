@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.139
-**Etapa:** 6.2 Fase 6 — importação de vendas com baixa de estoque opcional
+**Versão do documento:** 2.3.140
+**Etapa:** 6.2 Fase 6 — filtro de período em Vendas
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8509,6 +8509,52 @@ mesmo `FormData` do upload; `SaleImportController` lê
 
 **Arquivos**: `backend/src/services/FiscalService/SaleImportService.ts`,
 `backend/src/controllers/SaleImportController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 121. Filtro de período em Vendas; remoção da opção de baixa no estoque (v2.3.140)
+
+Dois ajustes no mesmo commit, pedidos em sequência pelo cliente logo
+depois da seção 120:
+
+**Remoção da caixinha "Dar baixa no estoque"** — usada uma única vez
+(notas 492/493) e o cliente pediu de volta pra tirar, não queria isso
+como opção permanente na tela (risco de alguém marcar sem querer numa
+importação de histórico futura e descontar estoque que não devia).
+Revertido 100% pro estado de antes da seção 120:
+`SaleImportService.importSales` sem `options`/`SaleImportOptions`,
+sem `stockDeducted` no `SaleImportSummary`, sem `product.decrement(...)`;
+`SaleImportController` sem ler `req.body.deductStock`;
+`useFiscal.sales.importSpreadsheet` sem o parâmetro; `SaleList.js` sem
+a checkbox. As duas notas específicas (492/493) já tinham sido
+ajustadas manualmente no cadastro dos produtos antes dessa reversão
+(instrução dada ao cliente na seção anterior) — não houve perda de
+dado, só a remoção do recurso em si.
+
+**Filtro de período em Vendas** — pedido: "ver vendas do dia, da
+semana, do mês ou por período de data". Select "Período" novo ao lado
+do campo de busca (`PERIOD_OPTIONS`: Todo o período/Hoje/Esta
+semana/Este mês/Personalizado), com dois campos de data (De/Até) que
+só aparecem quando "Personalizado" é escolhido. `resolvePeriodRange`
+(função pura, local ao componente) converte o preset escolhido em
+`startDate`/`endDate` (`"YYYY-MM-DD"`) usando `moment().startOf/endOf
+("week"|"month")` — "Personalizado" usa as datas digitadas direto, sem
+conversão.
+
+Backend: `SaleService.list` ganhou `startDate`/`endDate` opcionais,
+filtrando por `Sale.saleDate` (coluna `DATEONLY`) com `Op.gte`/`Op.lte`
+independentes (cada um funciona sozinho, não precisa dos dois juntos).
+`SaleController.index` só repassa os dois novos query params.
+
+Troca de período sempre volta pra página 1 (mesmo padrão já usado em
+toda lista paginada do projeto — senão a busca nova pode abrir numa
+página sem resultado).
+
+**Arquivos**: `backend/src/services/FiscalService/SaleImportService.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
 `frontend/src/hooks/useFiscal/index.js`,
 `frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
 eslint` e build de produção limpos.

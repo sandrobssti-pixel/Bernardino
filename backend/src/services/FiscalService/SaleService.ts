@@ -16,6 +16,11 @@ interface ListRequest {
   searchParam?: string;
   pageNumber?: string | number;
   status?: string;
+  // Filtro de período por `saleDate` (DATEONLY, "YYYY-MM-DD") — qualquer um
+  // dos dois sozinho já filtra (ex.: só `startDate` = "a partir de"). Usado
+  // pelo filtro "Hoje/Semana/Mês/Personalizado" da tela de Vendas.
+  startDate?: string;
+  endDate?: string;
 }
 
 interface ListResponse {
@@ -96,7 +101,9 @@ export const list = async ({
   companyId,
   searchParam = "",
   pageNumber = "1",
-  status
+  status,
+  startDate,
+  endDate
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
@@ -109,6 +116,12 @@ export const list = async ({
 
   if (status) {
     whereCondition.status = status;
+  }
+
+  if (startDate || endDate) {
+    whereCondition.saleDate = {};
+    if (startDate) whereCondition.saleDate[Op.gte] = startDate;
+    if (endDate) whereCondition.saleDate[Op.lte] = endDate;
   }
 
   const { count, rows: records } = await Sale.findAndCountAll({
