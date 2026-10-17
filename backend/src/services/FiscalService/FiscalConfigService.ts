@@ -7,6 +7,14 @@ interface FiscalConfigData {
   municipalRegistration?: string;
   cnae?: string;
   cityCode?: string;
+  emitterZipCode?: string;
+  emitterStreet?: string;
+  emitterNumber?: string;
+  emitterComplement?: string;
+  emitterNeighborhood?: string;
+  emitterCity?: string;
+  emitterState?: string;
+  emitterPhone?: string;
   gatewayProvider?: string;
   gatewayTokenSandbox?: string;
   gatewayTokenProduction?: string;

@@ -70,6 +70,7 @@ import FiscalConfig from "../models/FiscalConfig";
 import Sale from "../models/Sale";
 import SaleItem from "../models/SaleItem";
 import FiscalDocument from "../models/FiscalDocument";
+import FiscalNumberingInvalidation from "../models/FiscalNumberingInvalidation";
 import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
 import SlaRule from "../models/SlaRule";
@@ -152,6 +153,7 @@ const models = [
   Sale,
   SaleItem,
   FiscalDocument,
+  FiscalNumberingInvalidation,
   JobPosting,
   JobApplication,
   SlaRule,

@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.118
-**Etapa:** 6.2 Fase 6 — Reforma Tributária 2027 (preparação) + excluir vendas/notas de teste
-**Última atualização:** 2026-10-16
+**Versão do documento:** 2.3.119
+**Etapa:** 6.2 Fase 6 — primeiro teste real contra a Focus NFe: endereço do emitente + inutilização de numeração
+**Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -7415,3 +7415,107 @@ A partir dela:
   corretamente; testar a exclusão de uma venda/nota de Homologação de
   verdade e confirmar que uma nota/venda de Produção continua protegida
   (só cancelável).
+
+## 100. Primeiro teste real contra a Focus NFe — endereço do emitente faltando + inutilização não listava (v2.3.119)
+
+### Contexto
+
+Cliente fez o primeiro teste de verdade de emissão de NF-e (Homologação)
+contra a Federação Baiana de Tiro Defensivo & Olímpico e todas as
+tentativas vieram com "Erro na validação do Schema XML, verifique o
+detalhamento dos erros" (NF-e, NFC-e e NFS-e — esta última com erro
+diferente: "Empresa ainda não habilitada para emissão de NFSe"). Cliente
+também mandou uma nota fiscal modelo (NF-e nº 491, emitida por outro
+sistema — RenaSoft/MASTER) com os dados reais da empresa, e testou a tela
+de inutilização de numeração, reportando que depois de inutilizar a lista
+"Inutilizações já registradas" continuava vazia.
+
+### Causa raiz 1 — endereço do emitente nunca existiu no sistema
+
+Nenhum model (`Company`, `FiscalConfig`) tinha endereço da PRÓPRIA empresa
+(a que emite a nota) — só o endereço do destinatário (cliente da venda) é
+coletado hoje (`FocusNFeService.buildDestinatario`). Endereço do emitente
+(`enderEmit`: logradouro, número, bairro, município, UF, CEP) é campo
+obrigatório no XML da NF-e/NFC-e — causa mais provável do erro de schema,
+confirmada comparando com a nota modelo enviada pelo cliente (mostra
+exatamente esse bloco preenchido: "RUA ESPATODEAS ROXAS, 298 - JARDIM DAS
+MARGARIDAS - SALVADOR - BA - CEP: 41502-445 - Fone: (71)99636-5862").
+
+### Causa raiz 2 — inutilização nunca checava o retorno do gateway, e a lista dependia de endpoint não confirmado
+
+Dois bugs empilhados em `NumberingInvalidationPanel`
+(`frontend/src/components/FiscalConfigPanel/index.js`) e
+`FiscalNumberingService.ts`:
+
+- `handleSubmit` descartava o retorno de `fiscal.numbering.invalidate(...)`
+  e sempre mostrava "Numeração inutilizada junto à Sefaz." — mesmo quando
+  o gateway respondia `ok: false` (ex.: mesma falta de endereço do
+  emitente acima). O usuário nunca via o erro de verdade.
+- A listagem (`FiscalNumberingService.list`) dependia só de
+  `GET /v2/nfe/inutilizacoes` na Focus NFe — um dos cinco endpoints de
+  `FocusNFeService.ts` reconstruído por conhecimento geral (nunca
+  confirmado contra a doc oficial, bloqueada nesta sessão — ver seção 11
+  da skill `atendeflow-dev`), com `try/catch` que engole qualquer falha e
+  devolve `[]` silenciosamente. Mesmo que o `POST` de inutilização
+  funcionasse, não havia garantia nenhuma de que esse `GET` existisse ou
+  devolvesse os dados certos.
+
+### Correção
+
+- `FiscalConfig` ganhou `emitterZipCode`/`emitterStreet`/`emitterNumber`/
+  `emitterComplement`/`emitterNeighborhood`/`emitterCity`/`emitterState`/
+  `emitterPhone` (texto livre, mesmo padrão já usado pro endereço do
+  destinatário — não derivado do `cityCode`/IBGE já existente, que seguiu
+  servindo só pra NFC-e/NFS-e). Novo seção "Endereço do emitente" na tela
+  de Configuração Fiscal.
+- `FocusNFeService.buildEmitente` passou a enviar
+  `logradouro_emitente`/`numero_emitente`/`complemento_emitente`/
+  `bairro_emitente`/`municipio_emitente`/`uf_emitente`/`cep_emitente`/
+  `telefone_emitente`.
+- Nova tabela `FiscalNumberingInvalidations` — `FiscalNumberingService.invalidate`
+  agora grava um registro local só quando o gateway confirma (`ok: true`);
+  `FiscalNumberingService.list` passou a ler dessa tabela, não mais do
+  gateway. Mesmo padrão já usado pro `FiscalDocument` (fonte de verdade
+  local, não re-consultar o gateway pra listar).
+- `NumberingInvalidationPanel.handleSubmit` agora confere `result.ok` antes
+  de mostrar sucesso — mostra `result.errorMessage` (toast de erro) quando
+  o gateway rejeita.
+
+### Pendente — logo da empresa na nota
+
+Cliente pediu pra colocar a logo da empresa (mandou o arquivo) saindo na
+nota fiscal. Não encontrada nenhuma documentação (bloqueada/sem resultado
+direto via busca) confirmando que a Focus NFe aceita logo por campo no
+payload de emissão — pelo padrão do setor (Alterdata/NFeasy, outros
+emissores pesquisados), esse tipo de personalização do DANFe costuma ser
+configurada uma vez direto no painel do próprio gateway (cadastro da
+empresa), não por API a cada nota. A nota modelo que o cliente mandou (de
+outro sistema) também não tem logo no bloco do emitente, só texto. Não
+implementado nesta leva — precisa confirmar com o cliente/suporte da Focus
+NFe se existe campo de API pra isso antes de codar algo que pode não ter
+efeito nenhum na nota real.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261016190000-add-emitter-address-to-fiscal-configs.ts`
+- `backend/src/database/migrations/20261017090000-create-fiscal-numbering-invalidations.ts`
+- `backend/src/models/FiscalConfig.ts`
+- `backend/src/models/FiscalNumberingInvalidation.ts` (novo)
+- `backend/src/database/index.ts`
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `backend/src/services/FiscalService/FiscalConfigService.ts`
+- `backend/src/services/FiscalService/FiscalNumberingService.ts`
+- `frontend/src/components/FiscalConfigPanel/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em `FiscalConfigPanel/index.js`.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente preencher o endereço do emitente na Configuração
+  Fiscal, rodar a migration em produção, e tentar emitir uma NF-e de teste
+  de novo — se o erro de schema mudar (em vez de sumir), o detalhamento
+  completo da mensagem (já visível por inteiro desde a v2.3.113) é o
+  próximo ponto de investigação. Testar também a inutilização de novo:
+  deve aparecer na lista se o gateway confirmar, ou mostrar o erro real
+  (toast) se não confirmar.

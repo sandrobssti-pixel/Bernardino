@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.119] — Endereço do emitente na nota fiscal + corrige inutilização de numeração — 2026-10-17
+
+### Corrigido
+- Primeiro teste real de NF-e deu "Erro na validação do Schema XML" — causa provável:
+  o endereço da PRÓPRIA empresa (emitente) nunca era enviado pro gateway, nem existia
+  campo pra isso em lugar nenhum do sistema. Novo bloco "Endereço do emitente" na tela
+  de Configuração Fiscal (logradouro, número, complemento, bairro, CEP, município, UF,
+  telefone) — enviado junto na emissão de NF-e/NFC-e.
+- Tela de "Inutilizar numeração de NF-e" mostrava "sucesso" mesmo quando o gateway
+  recusava o pedido, e a lista de inutilizações já feitas nunca aparecia preenchida.
+  Agora confere a resposta real do gateway (mostra o erro quando falha) e guarda as
+  inutilizações confirmadas no próprio banco, em vez de depender de uma consulta à
+  Focus NFe que não estava devolvendo nada.
+
+### Pendente
+- Logo da empresa na nota fiscal: sem confirmação de que a Focus NFe aceita isso por
+  API — provavelmente é configuração direta no painel do gateway, não código. A
+  decidir com o cliente antes de implementar algo que pode não aparecer na nota real.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 100.
+
 ## [2.3.118] — Reforma Tributária 2027 (preparação) + excluir vendas/notas de teste — 2026-10-16
 
 ### Adicionado — Reforma Tributária 2027 (IVA/CBS/IBS)

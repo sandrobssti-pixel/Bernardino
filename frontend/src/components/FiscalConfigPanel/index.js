@@ -170,12 +170,20 @@ const NumberingInvalidationPanel = ({ fiscal }) => {
     }
     setSubmitting(true);
     try {
-      await fiscal.numbering.invalidate({
+      const result = await fiscal.numbering.invalidate({
         series,
         numberStart: Number(numberStart),
         numberEnd: Number(numberEnd),
         justification,
       });
+      // Bug real (v2.3.119): o retorno do gateway nunca era conferido aqui —
+      // a tela mostrava "sucesso" mesmo quando a inutilização falhava de
+      // verdade (ex.: erro de validação), e por isso nunca aparecia na lista.
+      if (!result?.ok) {
+        toast.error(result?.errorMessage || "Falha ao inutilizar numeração no gateway fiscal.");
+        setSubmitting(false);
+        return;
+      }
       toast.success("Numeração inutilizada junto à Sefaz.");
       setNumberStart("");
       setNumberEnd("");
@@ -280,13 +288,13 @@ const NumberingInvalidationPanel = ({ fiscal }) => {
           </TableHead>
           <TableBody>
             {list.map((row, idx) => (
-              <TableRow key={row.numero_protocolo || idx}>
-                <TableCell>{row.serie || "—"}</TableCell>
+              <TableRow key={row.id || idx}>
+                <TableCell>{row.series || "—"}</TableCell>
                 <TableCell>
-                  {row.numero_inicial || "—"} – {row.numero_final || "—"}
+                  {row.numberStart || "—"} – {row.numberEnd || "—"}
                 </TableCell>
                 <TableCell>{row.status || "—"}</TableCell>
-                <TableCell>{row.numero_protocolo || "—"}</TableCell>
+                <TableCell>{row.protocol || "—"}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -434,6 +442,99 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   helperText="Usado como sugestão ao adicionar itens numa venda"
                   value={values.defaultCfop}
                   onChange={(code) => setFieldValue("defaultCfop", code)}
+                />
+              </Grid>
+            </Grid>
+
+            <Divider className={classes.divider} />
+
+            <Typography variant="subtitle1" className={classes.sectionTitle}>
+              Endereço do emitente
+            </Typography>
+            <Typography variant="body2" className={classes.sectionSubtitle}>
+              Obrigatório pra emitir NF-e/NFC-e — sem isso a Sefaz rejeita a nota por
+              validação de schema. É o endereço da sua empresa, não o do cliente.
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={8}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterStreet"
+                  label="Logradouro"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterNumber"
+                  label="Número"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterComplement"
+                  label="Complemento"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterNeighborhood"
+                  label="Bairro"
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterZipCode"
+                  label="CEP"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterCity"
+                  label="Município"
+                />
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterState"
+                  label="UF"
+                  inputProps={{ maxLength: 2, style: { textTransform: "uppercase" } }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterPhone"
+                  label="Telefone"
                 />
               </Grid>
             </Grid>

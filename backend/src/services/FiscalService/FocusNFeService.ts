@@ -137,7 +137,18 @@ const buildEmitente = (company: Company, config: FiscalConfig) => ({
   cnpj_emitente: (company.document || "").replace(/\D/g, ""),
   nome_emitente: company.name,
   regime_tributario_emitente: config.taxRegime === "simples" || config.taxRegime === "mei" ? "1" : "3",
-  inscricao_estadual_emitente: config.stateRegistrationExempt ? "ISENTO" : config.stateRegistration
+  inscricao_estadual_emitente: config.stateRegistrationExempt ? "ISENTO" : config.stateRegistration,
+  // Endereço do emitente — obrigatório no XML (enderEmit), faltava por
+  // completo até a v2.3.119 (causa raiz confirmada do "Erro na validação
+  // do Schema XML" no primeiro teste real).
+  logradouro_emitente: config.emitterStreet || undefined,
+  numero_emitente: config.emitterNumber || undefined,
+  complemento_emitente: config.emitterComplement || undefined,
+  bairro_emitente: config.emitterNeighborhood || undefined,
+  municipio_emitente: config.emitterCity || undefined,
+  uf_emitente: config.emitterState || undefined,
+  cep_emitente: (config.emitterZipCode || "").replace(/\D/g, "") || undefined,
+  telefone_emitente: (config.emitterPhone || "").replace(/\D/g, "") || undefined
 });
 
 const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({

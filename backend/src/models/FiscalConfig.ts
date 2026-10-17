@@ -55,6 +55,44 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   cityCode: string;
 
+  // Endereço do EMITENTE (a própria empresa-cliente) — obrigatório no XML
+  // da NF-e/NFC-e (enderEmit), nunca existiu em lugar nenhum do sistema até
+  // aqui (causa raiz do "Erro na validação do Schema XML" no primeiro
+  // teste real, v2.3.119). Texto livre (não derivado do `cityCode` acima),
+  // mesmo padrão já usado pro endereço do destinatário em
+  // FocusNFeService.buildDestinatario / FinanceCustomer.
+  @Default("")
+  @Column
+  emitterZipCode: string;
+
+  @Default("")
+  @Column
+  emitterStreet: string;
+
+  @Default("")
+  @Column
+  emitterNumber: string;
+
+  @Default("")
+  @Column
+  emitterComplement: string;
+
+  @Default("")
+  @Column
+  emitterNeighborhood: string;
+
+  @Default("")
+  @Column
+  emitterCity: string;
+
+  @Default("")
+  @Column
+  emitterState: string;
+
+  @Default("")
+  @Column
+  emitterPhone: string;
+
   // Único provedor suportado por enquanto é "focusnfe" — campo já existe
   // pra permitir trocar/adicionar outro gateway no futuro sem migração nova.
   @Default("focusnfe")

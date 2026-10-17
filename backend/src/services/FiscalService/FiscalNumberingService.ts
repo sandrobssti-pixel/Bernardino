@@ -1,4 +1,5 @@
 import AppError from "../../errors/AppError";
+import FiscalNumberingInvalidation from "../../models/FiscalNumberingInvalidation";
 import * as FiscalConfigService from "./FiscalConfigService";
 import * as FiscalGatewayService from "./FiscalGatewayService";
 
@@ -29,16 +30,34 @@ export const invalidate = async (
 
   const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
   const fn = FiscalGatewayService.requireFeature(gateway, "invalidateNumbering");
-  return fn(series, numberStart, numberEnd, justification, config);
-};
+  const result = await fn(series, numberStart, numberEnd, justification, config);
 
-export const list = async (companyId: number): Promise<unknown[]> => {
-  const config = await FiscalConfigService.show(companyId);
-  if (!FiscalConfigService.getActiveGatewayToken(config)) {
-    return [];
+  // Só grava quando o gateway confirma — "não desce inutilizações
+  // registrada" (v2.3.119) era porque a listagem dependia só de
+  // `GET /v2/nfe/inutilizacoes` na Focus NFe (endpoint reconstruído por
+  // conhecimento geral, nunca confirmado contra a doc oficial — ver
+  // FocusNFeService.ts), que na prática não devolvia nada. Agora a lista
+  // vem do nosso próprio banco, igual já é feito pro FiscalDocument.
+  if (result.ok) {
+    const raw = (result as any).raw;
+    await FiscalNumberingInvalidation.create({
+      series,
+      numberStart,
+      numberEnd,
+      justification,
+      protocol: String((raw as any)?.numero_protocolo || (raw as any)?.protocolo || ""),
+      status: String((raw as any)?.status || "ok"),
+      environment: FiscalConfigService.isProductionActive(config) ? "production" : "sandbox",
+      raw: raw || null,
+      companyId
+    } as any);
   }
 
-  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
-  const fn = FiscalGatewayService.requireFeature(gateway, "listInvalidations");
-  return fn(config);
+  return result;
 };
+
+export const list = async (companyId: number): Promise<FiscalNumberingInvalidation[]> =>
+  FiscalNumberingInvalidation.findAll({
+    where: { companyId },
+    order: [["createdAt", "DESC"]]
+  });
