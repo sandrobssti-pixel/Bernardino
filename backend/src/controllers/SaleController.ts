@@ -100,9 +100,16 @@ export const cancel = async (req: Request, res: Response): Promise<Response> => 
 
 export const remove = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
-  const { companyId } = req.user;
+  const { companyId, profile, super: isSuper } = req.user as any;
   const { id } = req.params;
 
-  await SaleService.remove(id, companyId);
+  // `force` (bypassa a trava de "nota de Produção" em SaleService.remove)
+  // só é honrado pra Admin/Master — se um usuário comum mandar
+  // `?force=true` na mão, o parâmetro é simplesmente ignorado, continua
+  // caindo na regra padrão (nunca deixa apagar). Ver docs/MANUAL_TECNICO.md.
+  const isAdmin = profile === "admin" || !!isSuper;
+  const force = isAdmin && String(req.query.force) === "true";
+
+  await SaleService.remove(id, companyId, force);
   return res.status(200).json({ message: "Sale deleted" });
 };

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.142
-**Etapa:** 6.2 Fase 6 — seleção em massa pra excluir (admin); filtro de Produtos por categoria
+**Versão do documento:** 2.3.143
+**Etapa:** 6.2 Fase 6 — exclusão em massa libera vendas com nota de Produção (admin)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8720,3 +8720,55 @@ renderiza.
 `frontend/src/pages/Financeiro/index.js`. `npx eslint` e build de
 produção limpos (nenhuma mudança de backend nessa versão — reaproveita
 100% os endpoints de exclusão já existentes).
+
+## 124. Exclusão em massa também libera vendas com nota de Produção, admin-only (v2.3.143)
+
+Pedido direto do cliente, em seguida da seção 123: as vendas 492/493
+(lançadas direto no painel da Focus, importadas pro AtendeFlow) têm
+nota fiscal de Produção de verdade — a trava de `SaleService.remove`
+(seção de paginação de Vendas) recusa excluir qualquer venda nessa
+situação, de propósito, desde sempre. Perguntado explicitamente antes
+de mexer nisso: cliente confirmou que quer poder excluir mesmo assim,
+porque o XML/PDF autorizado pela Sefaz **não fica guardado no nosso
+servidor** — só uma URL apontando pro servidor da própria Focus
+(`FiscalDocumentService.resolveDocumentUrls`, seção 112) — então
+apagar o registro local não desfaz nem afeta o documento fiscal de
+verdade, só faz o AtendeFlow "esquecer" dele. O XML que vai pro
+contador gerar o imposto continua intacto onde sempre esteve.
+
+**Não foi removida a trava padrão** — só adicionado um `force`
+opcional que a ignora, e só quando:
+
+1. Quem está pedindo é Admin/Master — checado no **controller**
+   (`SaleController.remove`), antes de chegar no service, lendo
+   `req.user.profile`/`req.user.super` (os mesmos campos já
+   disponíveis em `req.user` desde a seção 122). Um usuário comum
+   mandando `?force=true` manualmente na requisição tem o parâmetro
+   simplesmente ignorado — a trava continua valendo pra ele, sem
+   exceção.
+2. E, no frontend, só quando o checkbox "Também excluir vendas com
+   nota de Produção" é marcado na confirmação da exclusão em massa —
+   aparece só quando a seleção atual inclui pelo menos uma venda nessa
+   situação (`hasProductionInSelection`), com um aviso em vermelho
+   explicando o que significa marcar.
+
+`SaleService.remove(id, companyId, force = false)` — `force` bypassa
+as duas checagens de nota de Produção (a que já tem documento de
+Produção, e a que está sem documento nenhum mas a empresa já está com
+Produção ativa). Sem `force` (todo o resto do sistema, incluindo o
+botão de excluir individual que sempre existiu), comportamento 100%
+igual a antes.
+
+A checkbox do item na tabela de Vendas não fica mais desabilitada pra
+venda com nota de Produção (antes da seção 123 nem aparecia opção de
+seleção nenhuma) — qualquer linha pode ser marcada, só mostra uma
+dica (tooltip) explicando que precisa do checkbox extra pra ser
+excluída de verdade; se for selecionada sem marcar o `force`, o
+backend recusa normalmente e ela entra no resumo de falhas do lote,
+igual qualquer outro erro — sem comportamento especial de silêncio.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.

@@ -51,8 +51,11 @@ const useFiscal = () => {
       const { data } = await api.post(`/sales/${id}/cancel`);
       return data;
     },
-    remove: async (id) => {
-      const { data } = await api.delete(`/sales/${id}`);
+    // `force` (v2.3.143, admin-only — backend ignora se não for): bypassa a
+    // trava que impede excluir venda com nota fiscal de Produção. Usado só
+    // na seleção em massa, com confirmação extra (ver SaleList.js).
+    remove: async (id, force = false) => {
+      const { data } = await api.delete(`/sales/${id}`, { params: force ? { force: true } : undefined });
       return data;
     },
     // Importação de vendas históricas via planilha (migração de ERP,

@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.143] — Exclusão em massa também libera vendas com nota de Produção (admin) — 2026-10-17
+
+### Adicionado
+- A seleção em massa de Vendas (seção 123) ganhou uma confirmação extra,
+  admin-only: **"Também excluir vendas com nota de Produção"** — aparece só
+  quando a seleção inclui alguma venda nessa situação. Sem marcar, essas
+  continuam protegidas (comportamento de sempre). Marcando, o backend aceita
+  excluir mesmo assim — o XML/PDF autorizado pela Sefaz continua existindo
+  normalmente na Focus (nunca ficou guardado no nosso servidor, só a URL),
+  apagar o registro local não afeta o documento fiscal de verdade.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 124.
+
 ## [2.3.142] — Seleção em massa pra excluir (admin); filtro de Produtos mais limpo por categoria — 2026-10-17
 
 ### Adicionado

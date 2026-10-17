@@ -20,6 +20,8 @@ import TablePagination from "@material-ui/core/TablePagination";
 import TextField from "@material-ui/core/TextField";
 import MenuItem from "@material-ui/core/MenuItem";
 import Checkbox from "@material-ui/core/Checkbox";
+import FormControlLabel from "@material-ui/core/FormControlLabel";
+import Typography from "@material-ui/core/Typography";
 
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
@@ -147,6 +149,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [forceDeleteProduction, setForceDeleteProduction] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -216,13 +219,19 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setConfirmAction("delete");
   };
 
-  const deletableSales = sales.filter((sale) => isDeletable(sale, fiscalConfig));
-  const allSelectedOnPage =
-    deletableSales.length > 0 && deletableSales.every((sale) => selectedIds.includes(sale.id));
-  const someSelectedOnPage = deletableSales.some((sale) => selectedIds.includes(sale.id));
+  // Qualquer venda da página pode ser selecionada (não só as "normais") —
+  // uma com nota de Produção só é excluída de verdade se "Também excluir
+  // vendas com nota de Produção" estiver marcado na confirmação (ver
+  // `forceDeleteProduction` abaixo); sem isso, o backend recusa normalmente
+  // e ela aparece no resumo de falhas, igual qualquer outro erro.
+  const allSelectedOnPage = sales.length > 0 && sales.every((sale) => selectedIds.includes(sale.id));
+  const someSelectedOnPage = sales.some((sale) => selectedIds.includes(sale.id));
+  const hasProductionInSelection = sales.some(
+    (sale) => selectedIds.includes(sale.id) && !isDeletable(sale, fiscalConfig)
+  );
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelectedOnPage ? [] : deletableSales.map((sale) => sale.id));
+    setSelectedIds(allSelectedOnPage ? [] : sales.map((sale) => sale.id));
   };
 
   const toggleSelectOne = (id) => {
@@ -231,17 +240,19 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     );
   };
 
-  // Reaproveita o mesmo `fiscal.sales.remove` do excluir individual — vendas
-  // com nota de Produção são recusadas pelo backend mesmo que tenham sido
-  // selecionadas por engano (não deveriam, já que `deletableSales` filtra
-  // isso, mas a checagem real continua no servidor).
+  // Reaproveita o mesmo `fiscal.sales.remove` do excluir individual.
+  // `forceDeleteProduction` (pedido explícito do cliente, v2.3.143) manda
+  // junto em TODAS as chamadas do lote — pra venda sem nota de Produção não
+  // faz diferença nenhuma; pra venda COM nota de Produção, é o que permite
+  // excluir mesmo assim (o XML autorizado pela Sefaz continua intacto na
+  // Focus, só o registro local some).
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
     let success = 0;
     const failures = [];
     for (const id of selectedIds) {
       try {
-        await fiscal.sales.remove(id);
+        await fiscal.sales.remove(id, forceDeleteProduction);
         success += 1;
       } catch (err) {
         failures.push(err?.response?.data?.error || err.message || `Venda #${id}`);
@@ -249,6 +260,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     }
     setBulkDeleting(false);
     setBulkConfirmOpen(false);
+    setForceDeleteProduction(false);
     if (success > 0) {
       toast.success(`${success} venda(s) excluída(s) com sucesso.`);
     }
@@ -339,10 +351,30 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       <ConfirmationModal
         title={`Excluir ${selectedIds.length} venda(s) selecionada(s)?`}
         open={bulkConfirmOpen}
-        onClose={() => setBulkConfirmOpen(false)}
+        onClose={() => { setBulkConfirmOpen(false); setForceDeleteProduction(false); }}
         onConfirm={handleBulkDelete}
       >
         Essa ação não pode ser desfeita.
+        {hasProductionInSelection && (
+          <Box mt={2}>
+            <Typography variant="body2" color="error" gutterBottom>
+              {selectedIds.length > 1 ? "Algumas das" : "A"} venda(s) selecionada(s) tem
+              nota fiscal de Produção (já autorizada pela Sefaz). Por padrão essas ficam de
+              fora — a nota continua existindo normalmente na Focus, só o registro local é
+              que não some sozinho.
+            </Typography>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  size="small"
+                  checked={forceDeleteProduction}
+                  onChange={(e) => setForceDeleteProduction(e.target.checked)}
+                />
+              }
+              label="Também excluir vendas com nota de Produção"
+            />
+          </Box>
+        )}
       </ConfirmationModal>
 
       <SaleModal
@@ -474,12 +506,19 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               <TableRow key={sale.id} selected={selectedIds.includes(sale.id)}>
                 {isAdmin && (
                   <TableCell padding="checkbox">
-                    <Checkbox
-                      size="small"
-                      checked={selectedIds.includes(sale.id)}
-                      disabled={!isDeletable(sale, fiscalConfig)}
-                      onChange={() => toggleSelectOne(sale.id)}
-                    />
+                    <Tooltip
+                      title={
+                        isDeletable(sale, fiscalConfig)
+                          ? ""
+                          : "Tem nota de Produção — só exclui marcando \"Também excluir vendas com nota de Produção\" na confirmação"
+                      }
+                    >
+                      <Checkbox
+                        size="small"
+                        checked={selectedIds.includes(sale.id)}
+                        onChange={() => toggleSelectOne(sale.id)}
+                      />
+                    </Tooltip>
                   </TableCell>
                 )}
                 <TableCell>{sale.id}</TableCell>

@@ -380,7 +380,20 @@ export const cancel = async (id: string | number, companyId: number): Promise<Sa
 // (`cancel`), não excluir. Explicitamente SEM tocar em estoque, mesmo que
 // a venda tenha "descontado" ao confirmar — pedido do cliente: a limpeza
 // de teste não deve alterar o estoque atual.
-export const remove = async (id: string | number, companyId: number): Promise<void> => {
+// `force` (v2.3.143): bypassa as duas checagens de "nota de Produção"
+// abaixo — só é honrado quando quem pediu é Admin/Master (checado no
+// CONTROLLER, antes de chegar aqui, não neste service). Pedido explícito do
+// cliente pra conseguir limpar vendas reais já emitidas (ex.: notas 492/493,
+// lançadas direto no painel da Focus antes do fluxo normal do AtendeFlow)
+// numa limpeza de módulo — o documento fiscal de verdade (XML já autorizado
+// pela Sefaz) mora na Focus, não aqui; apagar o registro local não desfaz
+// nem afeta a nota em si, só faz o AtendeFlow "esquecer" dela. Sem `force`,
+// o comportamento de sempre continua intacto (nunca deixa apagar).
+export const remove = async (
+  id: string | number,
+  companyId: number,
+  force = false
+): Promise<void> => {
   const sale = await show(id, companyId);
 
   if (sale.status === "draft") {
@@ -391,11 +404,11 @@ export const remove = async (id: string | number, companyId: number): Promise<vo
   const documents = sale.fiscalDocuments || [];
   const hasProductionDocument = documents.some(doc => doc.environment === "production");
 
-  if (hasProductionDocument) {
+  if (hasProductionDocument && !force) {
     throw new AppError("ERR_SALE_NOT_EDITABLE");
   }
 
-  if (documents.length === 0) {
+  if (documents.length === 0 && !force) {
     const config = await FiscalConfig.findOne({ where: { companyId } });
     if (config && isProductionActive(config)) {
       throw new AppError("ERR_SALE_NOT_EDITABLE");
