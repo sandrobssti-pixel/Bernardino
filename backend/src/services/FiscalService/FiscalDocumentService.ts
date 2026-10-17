@@ -4,18 +4,41 @@ import Company from "../../models/Company";
 import * as SaleService from "./SaleService";
 import * as FiscalConfigService from "./FiscalConfigService";
 import * as FiscalGatewayService from "./FiscalGatewayService";
+import { BASE_URL_SANDBOX, BASE_URL_PRODUCTION } from "./FocusNFeService";
 
 const VALID_TYPES = ["nfe", "nfce", "nfse"];
+
+// `pdfUrl`/`xmlUrl` são salvos como CAMINHO relativo (o jeito que a Focus
+// devolve, ver FocusNFeService.ts) — resolvidos pra URL absoluta só aqui,
+// na hora de servir pro frontend (não no momento de salvar), porque assim
+// conserta também documentos já emitidos ANTES dessa correção existir
+// (v2.3.131), sem precisar de migração/backfill: usa o `environment`
+// ("sandbox"/"production") que já é gravado em todo FiscalDocument desde a
+// v2.3.125. Idempotente — se já vier URL completa (gateway diferente no
+// futuro, ou já resolvido antes), devolve sem mexer.
+const resolveDocumentUrls = (document: FiscalDocument): FiscalDocument => {
+  const baseURL = document.environment === "production" ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
+  const resolve = (path: string): string => {
+    if (!path || /^https?:\/\//i.test(path)) return path;
+    return `${baseURL}${path.startsWith("/") ? "" : "/"}${path}`;
+  };
+
+  document.pdfUrl = resolve(document.pdfUrl);
+  document.xmlUrl = resolve(document.xmlUrl);
+  return document;
+};
 
 export const list = async (saleId: string | number, companyId: number): Promise<FiscalDocument[]> => {
   // Garante que a venda pertence à empresa antes de listar os documentos
   // dela (reaproveita o `show` do SaleService, que já filtra por companyId).
   await SaleService.show(saleId, companyId);
 
-  return FiscalDocument.findAll({
+  const documents = await FiscalDocument.findAll({
     where: { saleId, companyId },
     order: [["id", "DESC"]]
   });
+
+  return documents.map(resolveDocumentUrls);
 };
 
 export const show = async (id: string | number, companyId: number): Promise<FiscalDocument> => {
@@ -25,7 +48,7 @@ export const show = async (id: string | number, companyId: number): Promise<Fisc
     throw new AppError("ERR_FISCAL_DOCUMENT_NOT_FOUND", 404);
   }
 
-  return document;
+  return resolveDocumentUrls(document);
 };
 
 // Emite um documento fiscal pra uma venda confirmada. A venda precisa estar

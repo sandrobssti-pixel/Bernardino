@@ -19,8 +19,10 @@ import Company from "../../models/Company";
 // (`parseDocumentResponse`) e ajustar se necessário. Erros da API ficam
 // registrados no campo `errorMessage` do FiscalDocument pra facilitar esse
 // ajuste sem precisar instrumentar nada na hora.
-const BASE_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
-const BASE_URL_PRODUCTION = "https://api.focusnfe.com.br";
+// Exportados pra FiscalDocumentService.resolveDocumentUrls poder prefixar
+// caminho_danfe/caminho_xml_nota_fiscal (relativos) sem duplicar os hosts.
+export const BASE_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
+export const BASE_URL_PRODUCTION = "https://api.focusnfe.com.br";
 
 export interface FocusEmitResult {
   status: "processing" | "authorized" | "error";
@@ -59,6 +61,16 @@ const documentEndpoint = (type: string): string => {
 // retorna "processando_autorizacao", e o status final (autorizado/erro) só
 // fica disponível numa consulta GET seguinte ou via webhook. Por isso o
 // mesmo parser serve tanto pra resposta do POST quanto do GET de status.
+//
+// `caminho_danfe`/`caminho_xml_nota_fiscal` vêm da Focus como CAMINHO
+// relativo (ex.: "/v2/nfe/.../danfe.pdf"), não URL completa — guardado
+// cru aqui de propósito. Quem resolve pra URL absoluta (prefixando o
+// host certo, sandbox/produção) é `FiscalDocumentService.resolveDocumentUrls`,
+// no momento de SERVIR o documento pro frontend — não aqui no momento de
+// salvar — porque isso também conserta documentos que já foram emitidos
+// e salvos ANTES dessa correção existir (v2.3.131), sem precisar de
+// nenhuma migração/backfill: o `environment` ("sandbox"/"production") já
+// fica gravado em cada `FiscalDocument` desde a v2.3.125.
 const parseDocumentResponse = (data: any): FocusEmitResult => {
   const rawStatus = String(data?.status || "").toLowerCase();
 

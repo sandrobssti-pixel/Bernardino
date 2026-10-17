@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.130
-**Etapa:** 6.2 Fase 6 — rótulo do campo CNPJ/CPF da contabilidade quebrava a borda do campo
+**Versão do documento:** 2.3.131
+**Etapa:** 6.2 Fase 6 — botões de PDF/XML da nota autorizada + fix de URL relativa
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8163,3 +8163,67 @@ comparação aos campos vizinhos ("ID da empresa na Focus", "Token de
 conta"), que têm rótulo mais curto. Encurtado pra "CNPJ/CPF da
 contabilidade" — cabe numa linha só. `npx eslint` e build de produção
 limpos. Arquivo: `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 112. Botões de PDF/XML da nota autorizada + fix de URL relativa (v2.3.131)
+
+### Marco
+
+Depois da cadeia de correções das seções 104-109 (modalidade_frete, NCM,
+endereço do destinatário, PIS/COFINS, escritório de contabilidade), o
+cliente testou a venda #16 (2 itens) e **as duas notas NF-e saíram
+"Autorizada"** — primeira emissão real, de ponta a ponta, confirmada em
+produção/homologação. Pedido natural seguinte: baixar/imprimir o PDF
+(DANFe) e o XML da nota autorizada.
+
+### Causa raiz descoberta ao implementar
+
+`pdfUrl`/`xmlUrl` (gravados a partir de `data.caminho_danfe`/
+`data.caminho_xml_nota_fiscal` da resposta da Focus, ver
+`FocusNFeService.parseDocumentResponse`) são **caminho relativo**
+(ex.: `/v2/nfe/.../danfe.pdf`), não URL completa — confirmado batendo
+contra as notas reais da venda #16. Se o botão novo só abrisse
+`doc.pdfUrl` direto, o navegador tentaria abrir relativo ao domínio do
+**frontend** (`atendeflow.confiancatechnologies.com/v2/nfe/...`), não
+da Focus — 404.
+
+### Decisão de onde resolver a URL
+
+Duas opções: resolver no momento de SALVAR (dentro de
+`FocusNFeService.ts`) ou no momento de SERVIR pro frontend (dentro de
+`FiscalDocumentService.list`/`show`). Escolhido o segundo, de propósito:
+resolver só ao salvar não ajudaria as notas da venda #16, já emitidas
+ANTES dessa correção existir — precisaria de uma migration/backfill pra
+corrigir o que já está no banco. Resolvendo ao SERVIR, usando o
+`environment` ("sandbox"/"production") que já é gravado em todo
+`FiscalDocument` desde a v2.3.125, as notas antigas são corrigidas de
+graça, sem tocar no banco — só o próximo `GET` já devolve a URL certa.
+
+### Implementação
+
+- `BASE_URL_SANDBOX`/`BASE_URL_PRODUCTION` exportados de
+  `FocusNFeService.ts` (eram só consts internas).
+- `FiscalDocumentService.resolveDocumentUrls(document)`: prefixa
+  `pdfUrl`/`xmlUrl` com o host certo conforme `document.environment`,
+  só se o valor já não for uma URL completa (idempotente — seguro
+  chamar em cima de um valor já resolvido). Aplicado em `list` e `show`.
+- `SaleDetailModal.js`: dois ícones novos na coluna "Ação" de nota
+  `authorized` — `PictureAsPdfIcon` ("Ver / imprimir DANFe (PDF)",
+  abre `doc.pdfUrl` em nova aba — o navegador mostra o PDF com o botão
+  de imprimir nativo dele, não precisou de lógica de impressão própria)
+  e `GetAppIcon` ("Baixar XML", abre `doc.xmlUrl`). Só aparecem se o
+  campo correspondente não estiver vazio (`doc.pdfUrl && (...)`).
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts` (exports)
+- `backend/src/services/FiscalService/FiscalDocumentService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` e build de produção (`craco build`) limpos no frontend.
+- Não testado contra o PDF/XML reais da Focus nesta sessão (sem acesso
+  ao navegador) — **pendente**: cliente conferir que os botões abrem o
+  PDF/XML de verdade (não 404) nas notas já autorizadas da venda #16,
+  depois do deploy de backend E frontend (os dois mudaram dessa vez).

@@ -26,6 +26,8 @@ import ReceiptIcon from "@material-ui/icons/Receipt";
 import ShoppingCartIcon from "@material-ui/icons/ShoppingCart";
 import BuildIcon from "@material-ui/icons/Build";
 import EmailIcon from "@material-ui/icons/Email";
+import PictureAsPdfIcon from "@material-ui/icons/PictureAsPdf";
+import GetAppIcon from "@material-ui/icons/GetApp";
 import EditIcon from "@material-ui/icons/Edit";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
@@ -373,6 +375,20 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                     )}
                     {doc.status === "authorized" && (
                       <>
+                        {doc.pdfUrl && (
+                          <Tooltip title="Ver / imprimir DANFe (PDF)">
+                            <IconButton size="small" onClick={() => window.open(doc.pdfUrl, "_blank")}>
+                              <PictureAsPdfIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {doc.xmlUrl && (
+                          <Tooltip title="Baixar XML">
+                            <IconButton size="small" onClick={() => window.open(doc.xmlUrl, "_blank")}>
+                              <GetAppIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
                         <Tooltip title="Enviar por e-mail">
                           <IconButton size="small" onClick={() => openEmailDialog(doc)}>
                             <EmailIcon fontSize="small" />

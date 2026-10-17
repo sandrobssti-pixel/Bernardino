@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.131] — Botões de PDF/XML da nota autorizada — 2026-10-17
+
+### Adicionado
+- Nota fiscal autorizada ganhou botões "Ver / imprimir DANFe (PDF)" e "Baixar XML" na
+  coluna Ação, ao lado dos já existentes (e-mail, carta de correção).
+
+### Corrigido
+- `pdfUrl`/`xmlUrl` eram salvos como CAMINHO relativo (jeito que a Focus devolve), não
+  URL completa — sem prefixar com o host certo, os botões novos dariam 404. Resolvido
+  na hora de SERVIR o documento pro frontend (não ao salvar), usando o `environment`
+  já gravado em cada nota — conserta também documentos autorizados antes dessa
+  correção, sem precisar de migração.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 112.
+
 ## [2.3.130] — Rótulo do campo CNPJ/CPF da contabilidade quebrava a borda do campo — 2026-10-17
 
 ### Corrigido
