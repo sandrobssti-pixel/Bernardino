@@ -67,19 +67,21 @@ const statusChip = (status) => {
 };
 
 // Detalhe de uma venda confirmada (Fase 3 — módulo fiscal): mostra os itens
-// (travados, não editáveis depois de confirmada) e a seção de notas fiscais
-// — histórico de tentativas de emissão + botões pra emitir uma nova.
+// (travados, não editáveis depois de confirmada), os botões de emissão
+// (sempre visíveis) e o histórico de tentativas anteriores.
 //
-// `focusFiscal` decide se a seção "Notas fiscais" já abre expandida (ícone
-// de recibo na lista, usuário já quer emitir) ou recolhida atrás de um botão
-// (ícone de olho, só visualizar os itens) — antes os dois ícones chamavam a
-// mesma função e caíam direto no histórico de erro de emissão, mesmo quando
-// o usuário só queria ver a venda (v2.3.127).
+// `focusFiscal` só decide se o HISTÓRICO (tabela com tentativas/erros
+// antigos) já abre expandido (ícone de recibo na lista) ou recolhido atrás
+// de um botão "Ver histórico" (ícone de olho) — os botões de emissão em si
+// aparecem direto nos dois casos. Antes (v2.3.127) a seção inteira ficava
+// escondida atrás de um botão extra, o que confundia mais do que ajudava;
+// o problema real nunca foi "abrir direto", era o histórico de erro antigo
+// aparecendo sem avisar (v2.3.129).
 const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) => {
   const classes = useStyles();
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
-  const [fiscalExpanded, setFiscalExpanded] = useState(focusFiscal);
+  const [historyExpanded, setHistoryExpanded] = useState(focusFiscal);
   const [emitting, setEmitting] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [emailDialogDoc, setEmailDialogDoc] = useState(null);
@@ -106,12 +108,12 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   }, [sale, fiscal]);
 
   useEffect(() => {
-    if (open) setFiscalExpanded(focusFiscal);
+    if (open) setHistoryExpanded(focusFiscal);
   }, [open, focusFiscal, sale?.id]);
 
   useEffect(() => {
-    if (open && fiscalExpanded) fetchDocuments();
-  }, [open, fiscalExpanded, fetchDocuments]);
+    if (open && historyExpanded) fetchDocuments();
+  }, [open, historyExpanded, fetchDocuments]);
 
   const handleEmit = async (type) => {
     setEmitting(type);
@@ -280,16 +282,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
           Notas fiscais
         </Typography>
 
-        {!fiscalExpanded ? (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<ReceiptIcon fontSize="small" />}
-            onClick={() => setFiscalExpanded(true)}
-          >
-            Ver / emitir nota fiscal
-          </Button>
-        ) : sale.status === "confirmed" ? (
+        {sale.status === "confirmed" ? (
           <Box className={classes.emitButtons}>
             {["nfe", "nfce", "nfse"].map((type) => (
               <Button
@@ -319,7 +312,11 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
           </Typography>
         )}
 
-        {!fiscalExpanded ? null : loadingDocs ? (
+        {!historyExpanded ? (
+          <Button size="small" onClick={() => setHistoryExpanded(true)} style={{ marginTop: 8 }}>
+            Ver histórico de tentativas
+          </Button>
+        ) : loadingDocs ? (
           <Box display="flex" justifyContent="center" my={2}>
             <CircularProgress size={24} />
           </Box>

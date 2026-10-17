@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.129] — Botões de emissão escondidos atrás de clique extra na tela de olho — 2026-10-17
+
+### Corrigido
+- O fix da v2.3.127 escondeu os botões de emissão (Emitir NF-e/NFC-e/NFS-e, Pré-visualizar
+  DANFe) atrás de um botão extra "Ver / emitir nota fiscal" quando a venda era aberta pelo
+  ícone de olho — criava um clique a mais pra chegar nas opções, e duplicava o texto do
+  ícone de recibo. Os botões agora aparecem direto nos dois casos; só o HISTÓRICO de
+  tentativas/erros antigos é que fica recolhido atrás de um botão "Ver histórico", que era
+  o que realmente confundia ao abrir a tela sem avisar.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 110.
+
 ## [2.3.128] — Escritório de contabilidade sincronizado com a Focus NFe — 2026-10-17
 
 ### Adicionado

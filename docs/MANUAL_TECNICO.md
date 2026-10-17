@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.128
-**Etapa:** 6.2 Fase 6 — escritório de contabilidade sincronizado com a API de Empresas da Focus
+**Versão do documento:** 2.3.129
+**Etapa:** 6.2 Fase 6 — botões de emissão escondidos atrás de clique extra na tela de olho
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8103,3 +8103,52 @@ Também precisa do `focusCompanyId` — o id INTERNO da empresa na Focus
   EMPRESA no gateway — são APIs, hosts e credenciais diferentes, e
   tentar encaixar um campo de cadastro de empresa dentro do payload de
   emissão (ou vice-versa) não funcionaria de jeito nenhum.
+
+## 110. Botões de emissão escondidos atrás de clique extra na tela de olho (v2.3.129)
+
+### Contexto
+
+Depois do fix da seção 108 (olho x recibo na lista de Vendas), o cliente
+testou e apontou dois problemas no mesmo fluxo: o botão novo
+"Ver / emitir nota fiscal" criava um passo a mais só pra chegar nos
+botões de emissão, e tinha o mesmo texto ("emitir nota") do ícone de
+recibo ao lado — confuso, parecia uma tela duplicada.
+
+### Correção
+
+Reexaminando o pedido original do cliente ("quando clica no olho é pra
+visualizar as funções"): o problema nunca foi os BOTÕES aparecerem
+direto — era o HISTÓRICO de tentativas/erros antigos aparecendo sem
+avisar, dando a impressão de que o sistema tinha tentado emitir
+sozinho. Correção:
+
+- Os botões de emissão (`Emitir NF-e/NFC-e/NFS-e`, `Pré-visualizar
+  DANFe`) agora aparecem direto na seção "Notas fiscais", tanto pelo
+  olho quanto pelo recibo.
+- Só a TABELA de histórico (`documents`, incluindo erros antigos) fica
+  recolhida atrás de um botão "Ver histórico de tentativas" — e só
+  dispara `fetchDocuments` quando expandida (estado renomeado de
+  `fiscalExpanded` pra `historyExpanded`, mais claro sobre o que
+  controla agora).
+- `focusFiscal` (prop vinda de `SaleList.js`) continua controlando se
+  esse histórico já abre expandido (ícone de recibo) ou recolhido
+  (ícone de olho) — só mudou o que fica atrás do toggle.
+
+### Arquivos alterados
+
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx eslint` limpo.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção) compilou sem erro.
+- Não testado manualmente no navegador nesta sessão — **pendente**:
+  cliente conferir que o olho e o recibo mostram os botões de emissão
+  direto, e que o histórico só aparece depois de clicar em "Ver
+  histórico de tentativas".
+- Lição pra não repetir: ao implementar um pedido de UX descrito em
+  texto corrido (sem print/protótipo), confirmar com o cliente depois
+  do primeiro teste real em vez de assumir que a primeira interpretação
+  bateu — aqui levou duas rodadas (v2.3.127 escondeu demais, v2.3.129
+  ajustou pra esconder só o que realmente incomodava).
