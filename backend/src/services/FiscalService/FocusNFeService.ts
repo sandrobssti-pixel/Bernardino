@@ -69,10 +69,23 @@ const parseDocumentResponse = (data: any): FocusEmitResult => {
     status = "error";
   }
 
+  // A Focus NFe costuma devolver uma `mensagem` GENÉRICA ("Erro na
+  // validação do Schema XML, verifique o detalhamento dos erros") separada
+  // de `erros`, um array com o detalhe campo a campo de verdade. Antes
+  // (v2.3.113-118) `mensagem` tinha prioridade no `||` e o `erros` nunca
+  // aparecia — a mensagem genérica saía inteira na tela, mas sem o
+  // "detalhamento" que ela mesma promete. Agora sempre concatena os dois
+  // quando `erros` existe, em vez de escolher um ou outro.
+  const genericMessage = String(data?.mensagem_sefaz || data?.mensagem || "");
+  const detailedErrors = Array.isArray(data?.erros)
+    ? data.erros
+        .map((e: any) => (typeof e === "string" ? e : e?.mensagem || e?.message || JSON.stringify(e)))
+        .filter(Boolean)
+        .join("; ")
+    : "";
   const errorMessage =
     status === "error"
-      ? String(data?.mensagem_sefaz || data?.mensagem || (Array.isArray(data?.erros) ? data.erros.join("; ") : "")) ||
-        "Erro não detalhado retornado pelo gateway."
+      ? [genericMessage, detailedErrors].filter(Boolean).join(" — ") || "Erro não detalhado retornado pelo gateway."
       : "";
 
   return {

@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.120] — Pré-visualização de DANFe escondia o erro real + mensagem de schema sem detalhe — 2026-10-17
+
+### Corrigido
+- "Pré-visualizar DANFe" mostrava só "An error occurred!" quando falhava, sem detalhe
+  nenhum — o erro verdadeiro vinha escondido porque a chamada pede o PDF como binário
+  (blob), e isso também mascarava a mensagem de erro em JSON. Agora lê o erro de
+  verdade mesmo numa resposta binária.
+- A mensagem de erro de emissão (Focus NFe) mostrava sempre o texto genérico ("Erro na
+  validação do Schema XML, verifique o detalhamento dos erros") sem o detalhamento que
+  ela mesma promete — o gateway manda os dois juntos, mas o código só lia o genérico.
+  Agora mostra os dois, apontando o campo específico que está falhando.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 101.
+
 ## [2.3.119] — Endereço do emitente na nota fiscal + corrige inutilização de numeração — 2026-10-17
 
 ### Corrigido

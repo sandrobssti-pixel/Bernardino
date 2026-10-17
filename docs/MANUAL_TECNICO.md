@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.119
-**Etapa:** 6.2 Fase 6 — primeiro teste real contra a Focus NFe: endereço do emitente + inutilização de numeração
+**Versão do documento:** 2.3.120
+**Etapa:** 6.2 Fase 6 — Pré-visualização de DANFe escondia o erro real + mensagem de schema sem detalhe
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7519,3 +7519,63 @@ efeito nenhum na nota real.
   próximo ponto de investigação. Testar também a inutilização de novo:
   deve aparecer na lista se o gateway confirmar, ou mostrar o erro real
   (toast) se não confirmar.
+
+## 101. Depois do deploy da v2.3.119: "Pré-visualizar DANFe" dava "An error occurred!" + mesma mensagem genérica de Schema XML sem detalhe (v2.3.120)
+
+### Contexto
+
+Cliente rodou o deploy da v2.3.119 (migration + rebuild) e testou de novo
+numa venda nova (#4): "Pré-visualizar DANFe" deu um toast genérico "An
+error occurred!" (sem nenhum detalhe), e "Emitir NF-e" voltou com a MESMA
+mensagem genérica de antes ("Erro na validação do Schema XML, verifique o
+detalhamento dos erros") — igual, palavra por palavra, ao erro antes do
+fix de endereço do emitente, o que não dava pra saber se o fix tinha
+pegado ou se tinha outra coisa faltando.
+
+### Causa raiz 1 — preview: erro verdadeiro escondido por causa do `responseType: "blob"`
+
+`SaleDetailModal.handlePreview` chama `fiscal.fiscalDocuments.previewDanfe`,
+que usa `responseType: "blob"` no axios (a resposta de SUCESSO é o PDF em
+binário). Só que isso também faz o axios devolver `err.response.data` como
+`Blob` numa resposta de ERRO (o backend responde 502 com JSON
+`{error: "..."}`, mas o axios não sabe antecipadamente que esse body é
+JSON e segue o `responseType` configurado). `toastError` só olha
+`err.response.data.error` — que não existe num Blob — e cai no fallback
+genérico "An error occurred!", escondendo a mensagem real do gateway.
+Corrigido lendo o Blob como texto (`blob.text()` + `JSON.parse`) no
+`catch` do `handlePreview` antes de desistir pro `toastError` padrão.
+
+### Causa raiz 2 — mensagem de erro da Focus NFe: genérica engolia o detalhe
+
+`FocusNFeService.parseDocumentResponse` montava `errorMessage` com
+`data.mensagem_sefaz || data.mensagem || data.erros.join(...)` — um
+`||` que PARA no primeiro campo não vazio. A Focus NFe parece devolver os
+dois ao mesmo tempo num erro de schema: `mensagem` genérica ("...verifique
+o detalhamento dos erros") E `erros`, um array com o detalhe campo a campo
+de verdade — mas como `mensagem` vinha primeiro no `||`, `erros` nunca era
+lido, e a tela sempre mostrava só a mensagem genérica, por mais detalhado
+que fosse o conteúdo de `erros`. Ninguém (nem o cliente, nem esta sessão)
+conseguia ver o campo específico que está falhando. Corrigido pra sempre
+concatenar os dois (`mensagem — detalhe1; detalhe2; ...`) em vez de
+escolher um.
+
+**Isso não significa que o fix de endereço do emitente (seção 100) não
+funcionou** — os dois documentos com erro na venda #4 do print já foram
+criados ANTES desse ajuste de mensagem (dado histórico, `FiscalDocument`
+já salvo), então claro que mostram o texto antigo. Só uma tentativa NOVA,
+depois deste deploy, vai mostrar o detalhe de verdade.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em `SaleDetailModal/index.js`.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente rodar o deploy e tentar de novo (preview E
+  emissão) numa venda nova — se ainda der erro de schema, agora o
+  detalhamento completo (`erros`) deve aparecer na tela, apontando o campo
+  exato que falta/está errado.

@@ -140,7 +140,26 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank");
     } catch (err) {
-      toastError(err);
+      // `previewDanfe` pede responseType: "blob" (a resposta de sucesso é o
+      // PDF em binário) — por causa disso, numa resposta de ERRO (502 JSON
+      // do backend) o axios também devolve `err.response.data` como Blob,
+      // não como objeto já parseado, e `toastError` (que só olha
+      // `err.response.data.error`) sempre caía no fallback genérico "An
+      // error occurred!", escondendo a mensagem real do gateway. Precisa
+      // ler o Blob como texto e parsear manualmente antes de desistir e
+      // cair no toastError padrão.
+      const blobData = err?.response?.data;
+      if (blobData instanceof Blob) {
+        try {
+          const text = await blobData.text();
+          const parsed = JSON.parse(text);
+          toast.error(parsed?.error || "Falha ao gerar a pré-visualização do DANFe.");
+        } catch {
+          toastError(err);
+        }
+      } else {
+        toastError(err);
+      }
     }
     setPreviewing(false);
   };
