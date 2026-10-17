@@ -132,7 +132,25 @@ const buildItemsPayload = (sale: Sale) =>
     quantidade_tributavel: Number(item.quantity) || 0,
     valor_unitario_tributavel: Number(item.unitPrice) || 0,
     icms_origem: "0",
-    icms_situacao_tributaria: "102"
+    // "102" é o CSOSN certo pro regime Simples Nacional (venda tributada
+    // pelo Simples, sem crédito) — mesmo regime assumido em
+    // buildEmitente (regime_tributario_emitente "1"). Empresa fora do
+    // Simples precisaria de um CST (não CSOSN) diferente aqui; não
+    // implementado ainda porque não há cliente nesse regime testando.
+    icms_situacao_tributaria: "102",
+    // Grupo do PIS/COFINS, que faltava por completo (rejeição Sefaz 745,
+    // "NF-e sem grupo do PIS", v2.3.126) — a Sefaz exige o grupo mesmo
+    // quando não há valor a destacar. "99" = Outras Operações, o CST
+    // correto pra regime Simples Nacional (PIS/COFINS são recolhidos via
+    // DAS, não destacados nota a nota).
+    pis_situacao_tributaria: "99",
+    pis_valor_base_calculo: 0,
+    pis_aliquota_porcentual: 0,
+    pis_valor: 0,
+    cofins_situacao_tributaria: "99",
+    cofins_valor_base_calculo: 0,
+    cofins_aliquota_porcentual: 0,
+    cofins_valor: 0
   }));
 
 const buildDestinatario = (sale: Sale) => {

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.125
-**Etapa:** 6.2 Fase 6 — endereço do destinatário nunca chegava na nota (attributes limitado)
+**Versão do documento:** 2.3.126
+**Etapa:** 6.2 Fase 6 — grupo do PIS/COFINS faltando no item da nota
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7894,3 +7894,76 @@ Acrescentados `phone`, `zipCode`, `street`, `number`, `neighborhood`,
   (lista de vendas, detalhe da venda, módulo fiscal), ou, se restringir,
   grep pelo nome do model/association (`sale.customer`) no resto do
   backend pra conferir quem mais lê esse objeto antes de cortar campos.
+
+## 107. Grupo do PIS/COFINS faltando no item da nota (v2.3.126)
+
+### Contexto
+
+Com os fixes das seções 104-106 em produção (modalidade_frete, NCM,
+endereço do destinatário), a venda #13 avançou mais um passo na Sefaz
+de verdade — passou da validação de schema e da identificação do
+destinatário, e foi rejeitada só nesse novo ponto:
+
+```json
+{
+  "status": "erro_autorizacao",
+  "status_sefaz": "745",
+  "mensagem_sefaz": "Rejeicao: NF-e sem grupo do PIS ."
+}
+```
+
+### Causa raiz
+
+`buildItemsPayload` nunca enviava nenhum campo de PIS nem COFINS — o
+item só tinha `icms_origem`/`icms_situacao_tributaria`. A Sefaz exige o
+grupo do PIS (e, por decorrência do mesmo motivo, do COFINS também)
+mesmo quando não há valor a destacar — não é um campo opcional que some
+quando zerado.
+
+### Correção
+
+Adicionado ao item, junto do grupo ICMS já existente:
+
+```ts
+pis_situacao_tributaria: "99",
+pis_valor_base_calculo: 0,
+pis_aliquota_porcentual: 0,
+pis_valor: 0,
+cofins_situacao_tributaria: "99",
+cofins_valor_base_calculo: 0,
+cofins_aliquota_porcentual: 0,
+cofins_valor: 0
+```
+
+CST "99" (Outras Operações) é o código correto pro regime Simples
+Nacional — mesmo regime já assumido em `icms_situacao_tributaria: "102"`
+(CSOSN de Simples Nacional) e em `buildEmitente`
+(`regime_tributario_emitente: "1"` quando `config.taxRegime` é
+`simples`/`mei`). Empresas fora do Simples usam CST de PIS/COFINS
+diferente (ex. "01", "02", com alíquota/valor calculados de verdade) —
+não implementado ainda, mesma limitação já registrada pro ICMS (seção
+anterior) por falta de cliente nesse regime testando.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir de novo. Se a
+  Sefaz aceitar PIS mas rejeitar o CFOP/CSOSN do ICMS (ou qualquer outro
+  campo tributário) em seguida, é o mesmo padrão: o item de munição
+  (NCM 93063000) pode ter regra tributária federal específica que o
+  "modo Simples Nacional genérico" hardcoded aqui não cobre — nesse caso
+  vale perguntar ao cliente/contador antes de adivinhar o CST certo.
+- Lição pra não repetir: campos tributários de item de NF-e (ICMS, PIS,
+  COFINS, e potencialmente IPI/ISS conforme o produto) tendem a aparecer
+  um de cada vez nas rejeições da Sefaz, nunca todos juntos na primeira
+  tentativa — cada rodada de teste real tende a revelar o próximo grupo
+  faltando. Vale perguntar ao cliente, antes de continuar adivinhando
+  grupo por grupo, se ele tem acesso a um contador/XML de referência de
+  nota já emitida com sucesso por outro sistema, pra copiar os CSTs
+  certos de uma vez em vez de descobrir por tentativa e erro contra a
+  Sefaz.

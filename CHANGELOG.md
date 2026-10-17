@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.126] — Grupo do PIS/COFINS faltando no item da nota — 2026-10-17
+
+### Corrigido
+- O item da NF-e não enviava nenhum campo de PIS/COFINS — a Sefaz rejeitava com
+  "NF-e sem grupo do PIS" (745) assim que os erros anteriores (endereço, NCM) foram
+  corrigidos. Adicionado o grupo com CST "99" (Outras Operações) e valores zerados,
+  correto pro regime Simples Nacional (mesmo regime já assumido no ICMS — PIS/COFINS
+  são recolhidos via DAS, não destacados nota a nota).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 107.
+
 ## [2.3.125] — Endereço do destinatário nunca chegava na nota fiscal (attributes limitado) — 2026-10-17
 
 ### Corrigido
