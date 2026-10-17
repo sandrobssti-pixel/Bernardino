@@ -43,7 +43,30 @@ interface SaleData {
 }
 
 const includeOptions = [
-  { model: FinanceCustomer, as: "customer", attributes: ["id", "name", "document", "documentType", "email"] },
+  {
+    model: FinanceCustomer,
+    as: "customer",
+    // A lista de attributes limitava os campos do cliente que vêm junto da
+    // venda — faltavam TODOS os campos de endereço + telefone, usados pelo
+    // payload da nota fiscal (buildDestinatario, FocusNFeService.ts). Não
+    // importava o quão completo o cadastro do cliente estivesse: o
+    // Sequelize nem buscava essas colunas, então a nota sempre ia sem
+    // endereço do destinatário (v2.3.125).
+    attributes: [
+      "id",
+      "name",
+      "document",
+      "documentType",
+      "email",
+      "phone",
+      "zipCode",
+      "street",
+      "number",
+      "neighborhood",
+      "city",
+      "state"
+    ]
+  },
   {
     model: SaleItem,
     as: "items",

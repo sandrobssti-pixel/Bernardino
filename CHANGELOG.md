@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.125] — Endereço do destinatário nunca chegava na nota fiscal (attributes limitado) — 2026-10-17
+
+### Corrigido
+- O `include` do cliente em `SaleService.ts` (usado pela emissão/pré-visualização de
+  nota fiscal) tinha uma lista de `attributes` que não trazia NENHUM campo de endereço
+  nem telefone do cliente — só id/nome/documento/tipo/e-mail. Não importava o quão
+  completo o cadastro do cliente estivesse: o Sequelize nem buscava essas colunas do
+  banco, então a nota sempre ia sem endereço do destinatário, mesmo pra clientes com
+  cadastro 100% preenchido. Confirmado comparando um cadastro completo (endereço,
+  bairro, cidade, UF todos preenchidos) com o erro "sem a identificação do
+  destinatário" que a Sefaz continuava devolvendo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 106.
+
 ## [2.3.124] — Campo NCM do item enviado com nome errado (ncm em vez de codigo_ncm) — 2026-10-17
 
 ### Corrigido

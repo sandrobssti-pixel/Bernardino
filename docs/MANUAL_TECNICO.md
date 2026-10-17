@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.124
-**Etapa:** 6.2 Fase 6 — campo NCM do item com nome errado (ncm em vez de codigo_ncm)
+**Versão do documento:** 2.3.125
+**Etapa:** 6.2 Fase 6 — endereço do destinatário nunca chegava na nota (attributes limitado)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7834,3 +7834,63 @@ da chave no payload.
   o nome exato da chave contra uma resposta de erro REAL da Focus NFe
   (ela sempre ecoa o nome do campo que espera no `erros[].campo`) em vez
   de confiar só na documentação pública.
+
+## 106. Endereço do destinatário nunca chegava na nota — `attributes` do include limitava os campos do cliente (v2.3.125)
+
+### Contexto
+
+Com os fixes das seções 104/105 em produção, o cliente testou a emissão
+pra dois destinatários diferentes — um com cadastro completo (endereço,
+bairro, cidade, UF todos preenchidos, print conferido na tela de
+Clientes) — e a Sefaz continuou rejeitando com "NF-e sem a identificação
+do destinatário" nos dois casos. Como o cadastro estava visivelmente
+completo, a causa não podia ser dado faltando (como presumido nas seções
+anteriores) — tinha que ser código.
+
+### Causa raiz
+
+`SaleService.ts`, `includeOptions`, o `include` de `FinanceCustomer`
+(usado tanto por `SaleService.show` quanto por tudo que depende dele —
+emissão, pré-visualização de DANFe, etc.) tinha uma lista de `attributes`
+explícita:
+
+```ts
+attributes: ["id", "name", "document", "documentType", "email"]
+```
+
+Nenhum campo de endereço (`street`, `number`, `neighborhood`, `city`,
+`state`, `zipCode`) nem `phone` estava nessa lista. Um `attributes`
+explícito no Sequelize é uma lista BRANCA — qualquer coluna fora dela
+simplesmente não é buscada do banco, mesmo que exista e esteja
+preenchida. `buildDestinatario` (`FocusNFeService.ts`) lia
+`customer.street`/`customer.city`/etc. de um objeto que nunca tinha
+esses campos carregados — sempre `undefined`, não importa o cadastro.
+Isso explica por que a causa raiz 3 das seções anteriores (endereço
+"faltando") nunca foi realmente sobre o cadastro do cliente estar
+incompleto — era sempre esse `attributes` cortando o dado antes dele
+chegar no payload.
+
+### Correção
+
+Acrescentados `phone`, `zipCode`, `street`, `number`, `neighborhood`,
+`city`, `state` à lista de `attributes` do include.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/SaleService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir de novo (venda
+  #11, ADEVAL ATANAZIO PEREIRA, que já tem CPF certo e agora deve levar
+  o endereço completo também).
+- Lição pra não repetir: ao adicionar um `attributes` explícito num
+  `include` do Sequelize, é fácil esquecer um campo que só é consumido
+  bem mais tarde na cadeia (aqui, `FocusNFeService.ts`, vários arquivos
+  de distância de `SaleService.ts`) — preferir não restringir
+  `attributes` num include cujo resultado alimenta mais de um consumidor
+  (lista de vendas, detalhe da venda, módulo fiscal), ou, se restringir,
+  grep pelo nome do model/association (`sale.customer`) no resto do
+  backend pra conferir quem mais lê esse objeto antes de cortar campos.
