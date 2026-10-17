@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.121] — Cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro — 2026-10-17
+
+### Adicionado
+- "Imprimir / Exportar PDF" do Painel Financeiro agora sai com cabeçalho personalizado:
+  logomarca da empresa (a mesma cadastrada em Configurações → Whitelabel) no canto
+  superior direito, nome e endereço da empresa à esquerda, e rodapé com a data de
+  geração. Endereço vem do mesmo cadastro já usado na nota fiscal (Configuração
+  Fiscal → Endereço do emitente) — não precisa cadastrar de novo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 102.
+
 ## [2.3.120] — Pré-visualização de DANFe escondia o erro real + mensagem de schema sem detalhe — 2026-10-17
 
 ### Corrigido

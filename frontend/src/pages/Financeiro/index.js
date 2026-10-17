@@ -118,6 +118,12 @@ const Financeiro = () => {
   // módulo fiscal — sem ele, fica sempre `false` (campos ficam
   // desabilitados, que é o padrão seguro).
   const [reform2027Enabled, setReform2027Enabled] = useState(false);
+  // Endereço do emitente pro cabeçalho impresso do Painel Financeiro — vem
+  // do mesmo fetch que já existia aqui (reform2027Enabled), sem chamada
+  // extra. Só busca quando a empresa tem acesso ao Fiscal (ver aviso em
+  // FiscalConfigService.show: evitar criar uma linha de config fiscal vazia
+  // pra empresa que só abre o Financeiro, sem usar o módulo fiscal).
+  const [fiscalConfig, setFiscalConfig] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
 
   useEffect(() => {
@@ -134,6 +140,7 @@ const Financeiro = () => {
         if (access?.hasAccess) {
           const config = await fiscal.config.show();
           setReform2027Enabled(!!config?.reform2027Enabled);
+          setFiscalConfig(config);
         }
       } catch (err) {
         setFiscalAccess({ planHasModule: false, hasAccess: false });
@@ -147,7 +154,7 @@ const Financeiro = () => {
 
   const renderPanel = () => {
     if (financeTab === "painel") {
-      return <FinancePainel finance={finance} />;
+      return <FinancePainel finance={finance} company={user.company} fiscalConfig={fiscalConfig} />;
     }
     if (financeTab === "expenses") {
       return (

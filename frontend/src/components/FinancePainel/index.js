@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
-import { makeStyles } from "@material-ui/core/styles";
+import { makeStyles, useTheme } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Grid from "@material-ui/core/Grid";
 import Paper from "@material-ui/core/Paper";
@@ -92,6 +92,24 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     padding: theme.spacing(6),
   },
+  // Cabeçalho/rodapé personalizado (logo + endereço da empresa) — só
+  // aparece no papel/PDF (igual ao padrão inverso de print-hide acima),
+  // nunca na tela normal do painel. Pedido do cliente (v2.3.121): toda
+  // impressão do Painel Financeiro sai com identidade visual da empresa.
+  letterhead: {
+    display: "none",
+  },
+  letterheadAddress: {
+    color: theme.palette.text.secondary,
+  },
+  letterheadLogo: {
+    maxHeight: 64,
+    maxWidth: 180,
+    objectFit: "contain",
+  },
+  printFooter: {
+    display: "none",
+  },
   // Só a área do painel deve ir pro papel/PDF quando o usuário manda
   // imprimir — o resto da tela (menu lateral, abas, cabeçalho do app) fica
   // fora. Ver docs/MANUAL_TECNICO.md, seção 6.2, sobre a decisão por
@@ -112,6 +130,23 @@ const useStyles = makeStyles((theme) => ({
       },
       "#finance-painel-print-hide, #finance-painel-print-hide-excel": {
         display: "none",
+      },
+      "#finance-painel-letterhead": {
+        display: "flex !important",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 16,
+        marginBottom: 16,
+        paddingBottom: 12,
+        borderBottom: "1px solid #ccc",
+      },
+      "#finance-painel-footer": {
+        display: "block !important",
+        marginTop: 24,
+        paddingTop: 8,
+        borderTop: "1px solid #ccc",
+        fontSize: "0.72rem",
+        color: "#666",
       },
       // Se o mouse estiver sobre um gráfico no momento de imprimir, o
       // tooltip do recharts pode ficar "grudado" na página impressa —
@@ -141,8 +176,29 @@ const SummaryCard = ({ label, value, accent }) => {
 
 const currencyTooltipFormatter = (value) => money(value);
 
-const FinancePainel = ({ finance }) => {
+// Mesmo formato da nota modelo que o cliente mandou (ex.: "RUA ESPATODEAS
+// ROXAS, 298 - JARDIM DAS MARGARIDAS - SALVADOR - BA - CEP: 41502-445") —
+// monta a partir do endereço do emitente já cadastrado em Configuração
+// Fiscal (FiscalConfig), nunca fixo no código (sistema multiempresa).
+const buildAddressLine = (config) => {
+  if (!config) return "";
+  const parts = [];
+  if (config.emitterStreet) {
+    parts.push(`${config.emitterStreet}${config.emitterNumber ? `, ${config.emitterNumber}` : ""}`);
+  }
+  if (config.emitterNeighborhood) parts.push(config.emitterNeighborhood);
+  const cityState = [config.emitterCity, config.emitterState].filter(Boolean).join(" - ");
+  if (cityState) parts.push(cityState);
+  let line = parts.join(" - ");
+  if (config.emitterZipCode) {
+    line = line ? `${line} - CEP: ${config.emitterZipCode}` : `CEP: ${config.emitterZipCode}`;
+  }
+  return line;
+};
+
+const FinancePainel = ({ finance, company, fiscalConfig }) => {
   const classes = useStyles();
+  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
   const [cashFlow, setCashFlow] = useState([]);
@@ -204,6 +260,9 @@ const FinancePainel = ({ finance }) => {
     );
   }
 
+  const logoSrc = typeof theme.calculatedLogoLight === "function" ? theme.calculatedLogoLight() : null;
+  const addressLine = buildAddressLine(fiscalConfig);
+
   return (
     <div id="finance-painel-print-area">
       <Box id="finance-painel-print-hide" className={classes.header}>
@@ -216,6 +275,29 @@ const FinancePainel = ({ finance }) => {
         >
           Imprimir / Exportar PDF
         </Button>
+      </Box>
+
+      {/* Cabeçalho personalizado — só aparece no papel/PDF (classes.letterhead
+          é display:none na tela, "@media print" vira flex). Logo no canto
+          superior direito, nome + endereço da empresa à esquerda (pedido do
+          cliente, v2.3.121). */}
+      <Box id="finance-painel-letterhead" className={classes.letterhead}>
+        <div>
+          <Typography variant="subtitle1" style={{ fontWeight: 700 }}>
+            {company?.name}
+          </Typography>
+          {addressLine && (
+            <Typography variant="body2" className={classes.letterheadAddress}>
+              {addressLine}
+            </Typography>
+          )}
+          {fiscalConfig?.emitterPhone && (
+            <Typography variant="body2" className={classes.letterheadAddress}>
+              Fone: {fiscalConfig.emitterPhone}
+            </Typography>
+          )}
+        </div>
+        {logoSrc && <img src={logoSrc} alt={company?.name || "logo"} className={classes.letterheadLogo} />}
       </Box>
 
       {summary && (
@@ -458,6 +540,14 @@ const FinancePainel = ({ finance }) => {
           )}
         </Paper>
       )}
+
+      {/* Rodapé — só no papel/PDF, mesmo padrão do cabeçalho acima. */}
+      <Box id="finance-painel-footer" className={classes.printFooter}>
+        <Typography variant="caption">
+          {company?.name ? `${company.name} — ` : ""}
+          Relatório gerado pelo AtendeFlow em {new Date().toLocaleString("pt-BR")}
+        </Typography>
+      </Box>
     </div>
   );
 };

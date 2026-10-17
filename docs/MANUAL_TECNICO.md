@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.120
-**Etapa:** 6.2 Fase 6 — Pré-visualização de DANFe escondia o erro real + mensagem de schema sem detalhe
+**Versão do documento:** 2.3.121
+**Etapa:** 6.2 Fase 6 — cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7579,3 +7579,66 @@ depois deste deploy, vai mostrar o detalhe de verdade.
   emissão) numa venda nova — se ainda der erro de schema, agora o
   detalhamento completo (`erros`) deve aparecer na tela, apontando o campo
   exato que falta/está errado.
+
+## 102. Cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro (v2.3.121)
+
+### Contexto
+
+Cliente pediu pra sair a logomarca da empresa (mandou o arquivo — escudo da
+Federação Baiana de Tiro Defensivo e Olímpico) na impressão/PDF de
+relatório, "personalizado, com endereço da empresa", logo no canto
+superior direito, e rodapé. Diferente do pedido anterior de logo na NF-e
+(seção 100, ainda pendente — depende de confirmar com a Focus NFe), este é
+sobre a impressão própria do AtendeFlow (`window.print()` do Painel
+Financeiro), totalmente sob controle do sistema — sem a incerteza do
+gateway fiscal.
+
+### Decisões
+
+- **Logo**: reaproveitado o logotipo de whitelabel que a empresa já pode
+  cadastrar em Configurações → Whitelabel (`appLogoLight`,
+  `frontend/src/components/Settings/Whitelabel.js`) — exposto via
+  `theme.calculatedLogoLight()` (já usado no Drawer/sidebar). Nenhum upload
+  novo criado; se a empresa ainda não tiver cadastrado um logo próprio, usa
+  o fallback padrão do sistema (mesmo comportamento do resto do app).
+- **Endereço**: reaproveitados os campos `emitterStreet`/`emitterNumber`/
+  `emitterNeighborhood`/`emitterCity`/`emitterState`/`emitterZipCode`/
+  `emitterPhone` de `FiscalConfig` (seção 100, já existiam pro endereço do
+  emitente na NF-e) — formatado no mesmo padrão da nota modelo do cliente
+  ("Rua Espatódeas Roxas, 298 - Jardim das Margaridas - Salvador - BA -
+  CEP: 41502-445"). Nenhum campo novo no banco; mesma fonte de dado dos
+  dois lugares (nota fiscal e relatório impresso), evita cadastro
+  duplicado.
+- **Busca condicional**: `Financeiro/index.js` já buscava `FiscalConfig`
+  pra ler `reform2027Enabled` só quando a empresa tem acesso ao Fiscal
+  (`fiscalAccess?.hasAccess`) — reaproveitado o mesmo fetch (guardado em
+  `fiscalConfig`, passado como prop) em vez de `FinancePainel` buscar de
+  novo por conta própria. Evita o anti-padrão já documentado (seção 11 da
+  skill `atendeflow-dev`): chamar `FiscalConfigService.show()` direto
+  criaria uma linha de configuração fiscal vazia pra toda empresa que
+  abrisse o Painel Financeiro, mesmo sem usar o módulo fiscal.
+- **Nome da empresa**: `user.company.name` (já vem no payload de login,
+  `AuthUserService` inclui `Company`), não `theme.appName` (esse é o nome
+  "de marca" configurável no whitelabel, pode ser diferente da razão
+  social que deve aparecer no relatório).
+- Cabeçalho/rodapé só aparecem no papel/PDF — mesmo mecanismo inverso do
+  `#finance-painel-print-hide` já existente (CSS `display: none` na tela,
+  `@media print { display: flex/block !important }`), nunca poluindo a
+  tela normal do painel.
+
+### Arquivos alterados
+
+- `frontend/src/components/FinancePainel/index.js`
+- `frontend/src/pages/Financeiro/index.js`
+
+### Testado
+
+- `npx eslint` limpo nos dois arquivos.
+- `craco build` (build de produção) rodado localmente — compilou sem erro
+  (regra da seção 11 da skill: eslint sozinho não pega tudo).
+- Não testado visualmente num navegador real nesta sessão (sem acesso).
+  **Pendente**: cliente preencher "Endereço do emitente" em Configuração
+  Fiscal (se ainda não preencheu, seção 100) e cadastrar o logo em
+  Configurações → Whitelabel, depois testar "Imprimir / Exportar PDF" no
+  Painel Financeiro e conferir se logo (canto superior direito), nome +
+  endereço (canto superior esquerdo) e rodapé saem corretos no PDF.
