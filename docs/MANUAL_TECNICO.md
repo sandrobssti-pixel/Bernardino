@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.134
-**Etapa:** 6.2 Fase 6 — filtro de Produtos separa Armas nacionais/importadas
+**Versão do documento:** 2.3.135
+**Etapa:** 6.2 Fase 6 — tipos de produto novos: Acessório e Caça & Pesca
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8333,3 +8333,28 @@ em várias mensagens seguidas, ver lição da seção 90 sobre não
 implementar no meio): adicionar "Acessórios" e "Caça & Pesca" como
 `type` novos (`accessory`, `hunting_fishing` ou nome parecido) no
 `PRODUCT_TYPE_OPTIONS` do formulário de cadastro e no filtro.
+
+## 116. Tipos de produto novos: Acessório e Caça & Pesca (v2.3.135)
+
+Fecha a lista de categorias pedida nas seções 114/115: cliente confirmou
+("por enquanto só isso") que não precisa de mais nenhuma. Dois `type`
+novos, flat (sem cruzamento com `origin` como "Armas nacionais/
+importadas" — não foi pedido pra esses):
+
+- `accessory` → "Acessório"
+- `hunting_fishing` → "Caça & Pesca"
+
+Adicionados em `PRODUCT_TYPE_OPTIONS` (formulário de cadastro, campo
+"Tipo") e nas opções do filtro `financeProductFilters` da lista de
+Produtos, na ordem pedida (Produto, Armas nacionais, Armas importadas,
+Munições/Insumos, Acessórios, Caça & Pesca, Serviço por último).
+
+Nenhuma mudança de backend necessária — `FinanceProduct.type` é coluna
+de texto livre, sem whitelist/enum no banco nem validação Yup
+restringindo valores, então um `type` novo só precisa existir nas
+opções do frontend pra funcionar (cadastro, filtro, e qualquer
+`visibleWhen`/`requiredWhen` que algum dia precise checar esse tipo
+específico).
+
+**Arquivo**: `frontend/src/pages/Financeiro/financeConfig.js`. `npx
+eslint` e build de produção limpos.

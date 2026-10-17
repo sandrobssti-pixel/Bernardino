@@ -103,6 +103,8 @@ const PRODUCT_TYPE_OPTIONS = [
   { value: "service", label: "Serviço" },
   { value: "weapon", label: "Arma" },
   { value: "ammunition", label: "Munição / Insumo" },
+  { value: "accessory", label: "Acessório" },
+  { value: "hunting_fishing", label: "Caça & Pesca" },
 ];
 
 const PRODUCT_TYPE_LABELS = PRODUCT_TYPE_OPTIONS.reduce((acc, opt) => {
@@ -299,6 +301,8 @@ export const financeProductFilters = [
       { value: "weapon:national", label: "Armas nacionais" },
       { value: "weapon:imported", label: "Armas importadas" },
       { value: "ammunition", label: "Munições/Insumos" },
+      { value: "accessory", label: "Acessórios" },
+      { value: "hunting_fishing", label: "Caça & Pesca" },
       { value: "service", label: "Serviço" },
     ],
   },

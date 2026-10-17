@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.135] — Tipos de produto novos: Acessório e Caça & Pesca — 2026-10-17
+
+### Adicionado
+- Dois tipos novos de produto (`accessory`/"Acessório", `hunting_fishing`/"Caça &
+  Pesca"), disponíveis no cadastro (`Tipo`) e no filtro da lista de Produtos —
+  fecha a lista de categorias pedida pelo cliente junto com a seção 114/115
+  (Produto, Armas nacionais/importadas, Munições/Insumos, Acessórios, Caça & Pesca).
+
 ## [2.3.134] — Filtro de Produtos separa Armas nacionais/importadas — 2026-10-17
 
 ### Adicionado
