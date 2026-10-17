@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.124] — Campo NCM do item enviado com nome errado (ncm em vez de codigo_ncm) — 2026-10-17
+
+### Corrigido
+- O payload de item da NF-e/NFC-e enviava o NCM no campo `ncm`, mas a Focus NFe espera
+  `codigo_ncm` — a Sefaz nunca recebia o valor de verdade, daí o erro continuar mesmo
+  depois do fix da v2.3.123 (`normalizeNcm` funcionava certo, só ia pro campo errado).
+  Achado testando uma emissão real já com o fix anterior aplicado — o erro mudou de
+  "não pode ser vazio" + "não é do tamanho correto" simultâneos pro mesmo campo, sinal
+  de que a Focus nem reconhecia a chave enviada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 105.
+
 ## [2.3.123] — modalidade_frete faltando + NCM mal formatado no payload da NF-e — 2026-10-17
 
 ### Corrigido

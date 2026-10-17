@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.123
-**Etapa:** 6.2 Fase 6 — modalidade_frete faltando + NCM mal formatado, achados pela resposta bruta da Focus NFe
+**Versão do documento:** 2.3.124
+**Etapa:** 6.2 Fase 6 — campo NCM do item com nome errado (ncm em vez de codigo_ncm)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7767,3 +7767,70 @@ fora do escopo desta correção pontual.
   corretamente — "00000000" é só um placeholder de fallback, não um NCM
   válido de verdade; o certo é cadastrar o NCM real do produto), rodar o
   deploy e tentar emitir de novo.
+
+## 105. Campo NCM do item com nome errado — `ncm` em vez de `codigo_ncm` (v2.3.124)
+
+### Contexto
+
+Com o fix da seção 104 (`modalidade_frete` + `normalizeNcm`) já em produção,
+o cliente testou uma emissão de verdade (Venda #9, token de homologação da
+Focus NFe já configurado). O erro de `modalidade_frete` sumiu — confirmando
+que o fix anterior funcionou — mas `itens.1.codigo_ncm` continuou dando
+erro, com as DUAS mensagens ao mesmo tempo:
+
+```json
+{ "campo": "itens.1.codigo_ncm", "mensagem": "... não pode ser vazio" },
+{ "campo": "itens.1.codigo_ncm", "mensagem": "... não é do tamanho correto (precisa ter 8 caracteres)" }
+```
+
+As duas mensagens juntas pro mesmo campo (vazio E tamanho errado) não batem
+com o que `normalizeNcm` devolve (sempre 8 dígitos reais ou `"00000000"`,
+nunca vazio) — sinal de que o valor nem estava chegando no campo que a
+Focus NFe espera.
+
+### Causa raiz
+
+`buildItemsPayload` montava o item com a chave `ncm:`, mas o nome do campo
+na API da Focus NFe é `codigo_ncm` (confirmado pelo próprio erro, que cita
+`itens.1.codigo_ncm`). Como a chave enviada não existia no schema deles, a
+Focus tratava o campo esperado (`codigo_ncm`) como completamente ausente —
+daí os dois erros simultâneos (ausente conta como "vazio" e, sem valor, não
+bate o tamanho).
+
+Reforça a observação já registrada no cabeçalho deste arquivo (seção 7 do
+header do `FocusNFeService.ts`): esse adapter foi escrito a partir da
+documentação pública, sem validação end-to-end antes dessa sessão — nomes
+de campo "quase certos" (como `ncm` em vez de `codigo_ncm`) são exatamente
+o tipo de erro que só aparece testando contra o gateway real.
+
+### Correção
+
+```ts
+// antes
+ncm: normalizeNcm(item.ncm),
+// depois
+codigo_ncm: normalizeNcm(item.ncm),
+```
+
+A validação de formato (`normalizeNcm`, seção 104) não mudou — só o nome
+da chave no payload.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir a Venda #9 de novo.
+  Se ainda der erro de NCM, o próximo passo é conferir se o produto
+  "MUN CBC 380 AUTO LPC 95GR POLYMATCH C" tem NCM cadastrado de verdade
+  (sem isso, cai no fallback `"00000000"`, que não é um NCM válido pra
+  munição — a Sefaz pode aceitar o formato mas rejeitar o código em si
+  por não existir na tabela oficial).
+- Lição registrada pra não repetir: ao adicionar/revisar qualquer campo
+  novo em `buildItemsPayload`/`buildEmitente`/`buildDestinatario`, conferir
+  o nome exato da chave contra uma resposta de erro REAL da Focus NFe
+  (ela sempre ecoa o nome do campo que espera no `erros[].campo`) em vez
+  de confiar só na documentação pública.

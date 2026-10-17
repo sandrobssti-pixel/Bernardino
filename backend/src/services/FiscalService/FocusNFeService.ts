@@ -122,7 +122,7 @@ const buildItemsPayload = (sale: Sale) =>
     // produto" que a Sefaz/o cliente espera ver na nota.
     codigo_produto: item.sku || (item.productId ? String(item.productId) : `ITEM-${index + 1}`),
     descricao: item.description,
-    ncm: normalizeNcm(item.ncm),
+    codigo_ncm: normalizeNcm(item.ncm),
     cfop: item.cfop || "5102",
     unidade_comercial: item.unit || "UN",
     quantidade_comercial: Number(item.quantity) || 0,
