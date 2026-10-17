@@ -38,6 +38,7 @@ const ShowUserService = async (id: string | number, companyId: string | number):
         "allowRealTime",
         "allowConnections",
         "allowImport",
+        "allowExport",
         "language",
         "canViewAllContacts", // <<== ADICIONADO AQUI
         "financialAccess",

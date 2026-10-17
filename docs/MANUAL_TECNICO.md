@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.146
-**Etapa:** 6.2 Fase 6 — ícone de excluir individual removido (Financeiro)
+**Versão do documento:** 2.3.147
+**Etapa:** 6.2 Fase 6 — imprimir/exportar PDF e Excel (Financeiro)
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8855,3 +8855,66 @@ de editar), e o código que só servia esse fluxo: `handleRequestDelete`,
 
 **Arquivo**: `frontend/src/components/FinanceRecordList/index.js`.
 `npx eslint` e build de produção limpos (nenhuma mudança de backend).
+
+## 128. Imprimir / Exportar PDF e Excel — Clientes, Fornecedores, Produtos, Contas a Pagar e Contas a Receber (v2.3.147)
+
+Retomada do pedido antigo de relatórios (ainda em aberto desde o
+início da sessão), agora concretizado pra essas 5 listas: "quando
+filtrar ou selecionar, ter a opção de imprimir ou gerar em PDF ou
+Excel... o usuário que tenha permissão possa imprimir direto na
+impressora instalada na máquina ou gerar PDF/Excel."
+
+**Reaproveitado 100% o padrão que já existia** no Painel Financeiro
+(`FinancePainel.js`, pedido/implementação anterior) em vez de inventar
+um mecanismo novo:
+
+- **PDF/impressora**: `window.print()` + CSS `@media print` escondendo
+  tudo da tela (`body * { visibility: hidden }`) exceto uma área
+  dedicada (`#finance-record-list-print-area`), montada SÓ na hora de
+  imprimir com uma tabela HTML simples (cabeçalho = `columns` já
+  existente do componente, linhas = os dados no escopo escolhido). O
+  navegador decide se manda pra uma impressora instalada de verdade ou
+  "Salva como PDF" — nenhum PDF é gerado no servidor, igual o Painel já
+  fazia.
+- **Excel**: `XLSX.utils.json_to_sheet` + `XLSX.writeFile`, 100%
+  client-side (biblioteca `xlsx` já era dependência do frontend, usada
+  também em `FinancePainel.js`/`Reports.js`) — usa o valor CRU de cada
+  coluna (`record[col.field]`), não `col.render()` (que pode devolver
+  um componente React, tipo um Chip de status — não dá pra jogar isso
+  numa célula de planilha).
+
+**Escopo "filtrar ou selecionar"**: com alguma linha marcada na seleção
+em massa (seção 123), imprime/exporta só essas; sem nada marcado,
+`getExportRows()` busca TODAS as páginas que batem no filtro/busca
+atual — a tela só tem 20 registros carregados por vez
+(`TablePagination`), então pra realmente pegar "tudo que bate o
+filtro" (não só a página visível) o componente pagina sozinho por trás
+dos panos (`resource.list({..., pageNumber: N})` em loop até
+`hasMore` ser `false`), concatenando os resultados antes de montar a
+tabela/planilha. Por isso os dois botões ficam `disabled` durante
+`exporting` — pode demorar um pouco mais que o normal se o filtro
+pegar muitas páginas.
+
+**Permissão nova, separada de `allowImport`** (seção 122): o cliente
+descreveu o modelo já existente (Admin libera acesso ao módulo
+Financeiro pro usuário comum; dentro disso, cada função específica tem
+seu próprio toggle) e confirmou que imprimir/exportar merece um toggle
+próprio, não reusar o de importar — faz sentido tecnicamente também,
+já que são ações de natureza oposta (uma só lê o que já está na tela,
+a outra grava dado novo no banco). `allowExport` segue exatamente o
+mesmo padrão de `allowImport` (migration, campo no model, atributo em
+`ShowUserService`, `Create`/`UpdateUserService`, `SerializeUser`) —
+com uma diferença importante: **não precisou de checagem no
+backend/`isAuth.ts`**, porque não existe nenhum endpoint novo pra
+proteger (tudo roda no navegador, em cima de dado que a tela já
+buscou pra exibir) — só controla se os botões aparecem.
+
+**Arquivos**: `backend/src/models/User.ts`,
+`backend/src/database/migrations/20261017230000-add-allowexport-to-users.ts`,
+`backend/src/services/UserServices/ShowUserService.ts`,
+`backend/src/services/UserServices/CreateUserService.ts`,
+`backend/src/services/UserServices/UpdateUserService.ts`,
+`backend/src/helpers/SerializeUser.ts`,
+`frontend/src/components/UserModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`. `npx tsc
+--noEmit`, `npx eslint` e build de produção limpos.

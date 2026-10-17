@@ -297,6 +297,7 @@ const UserModal = ({ open, onClose, userId }) => {
 		allowRealTime: "disabled",
 		allowConnections: "disabled",
 		allowImport: "disabled",
+		allowExport: "disabled",
 		// PERMISSÃO NOVA
 		canViewAllContacts: false,
 		// Acesso ao módulo Financeiro (add-on liberado pelo Master via plano) —
@@ -508,6 +509,10 @@ const UserModal = ({ open, onClose, userId }) => {
 		allowImport: {
 			label: "Importar planilha",
 			description: "Permite usar o botão \"Importar planilha\" (Clientes, Fornecedores, Produtos e Vendas).",
+		},
+		allowExport: {
+			label: "Imprimir / Exportar listas",
+			description: "Permite usar \"Imprimir / Exportar PDF\" e \"Exportar Excel\" (Clientes, Fornecedores, Produtos, Contas a Pagar e Contas a Receber).",
 		},
 	};
 
@@ -1062,6 +1067,15 @@ const UserModal = ({ open, onClose, userId }) => {
 															fieldName: "allowImport",
 															label: permissionContent.allowImport.label,
 															description: permissionContent.allowImport.description,
+															values,
+															setFieldValue
+														})}
+													</Grid>
+													<Grid item xs={12} md={6}>
+														{renderPermissionButtonField({
+															fieldName: "allowExport",
+															label: permissionContent.allowExport.label,
+															description: permissionContent.allowExport.description,
 															values,
 															setFieldValue
 														})}

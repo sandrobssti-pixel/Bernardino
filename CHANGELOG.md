@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.147] — Imprimir / Exportar PDF e Excel (Clientes, Fornecedores, Produtos, Contas a Pagar e Contas a Receber) — 2026-10-17
+
+### Adicionado
+- Botões "Imprimir / Exportar PDF" e "Exportar Excel" nas 5 listas do
+  Financeiro — mesma técnica já usada no Painel Financeiro (`window.print()`
+  + `@media print` pro PDF/impressora instalada na máquina; `XLSX.writeFile`
+  direto no navegador pro Excel, sem passar pelo servidor). Com algo marcado
+  na seleção em massa, imprime/exporta só isso; sem nada marcado, busca
+  TODAS as páginas que batem no filtro/busca atual (não só as 20 visíveis).
+- Permissão nova e separada em Usuários → Permissões: **"Imprimir / Exportar
+  listas"** (desligada por padrão, Admin/Master sempre libera) — diferente de
+  "Importar planilha" de propósito, já que são ações diferentes (uma só lê
+  dado já carregado na tela, a outra grava).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 128.
+
 ## [2.3.146] — Ícone de excluir individual removido (Clientes/Fornecedores/Produtos/Contas) — 2026-10-17
 
 ### Removido

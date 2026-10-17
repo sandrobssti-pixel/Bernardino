@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useContext } from "react";
 import { toast } from "react-toastify";
+import * as XLSX from "xlsx";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 
@@ -26,6 +27,7 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import EditIcon from "@material-ui/icons/Edit";
 import PublishIcon from "@material-ui/icons/Publish";
 import GetAppIcon from "@material-ui/icons/GetApp";
+import PrintIcon from "@material-ui/icons/Print";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
@@ -55,6 +57,30 @@ const useStyles = makeStyles((theme) => ({
   tablePaper: {
     borderRadius: 12,
     overflowX: "auto",
+  },
+  printArea: {
+    display: "none",
+  },
+  // Só a área de impressão (tabela simples, montada na hora a partir do
+  // mesmo `columns`/`records` da tela) vai pro papel/PDF — mesma técnica já
+  // usada em FinancePainel/index.js (window.print() + @media print, sem
+  // gerar PDF no servidor). Ver docs/MANUAL_TECNICO.md.
+  "@global": {
+    "@media print": {
+      "body *": {
+        visibility: "hidden",
+      },
+      "#finance-record-list-print-area, #finance-record-list-print-area *": {
+        visibility: "visible",
+      },
+      "#finance-record-list-print-area": {
+        display: "block",
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+      },
+    },
   },
 }));
 
@@ -87,6 +113,9 @@ const FinanceRecordList = ({
   // (ver UserModal.js). Backend também trava (FinanceImportController.ts),
   // isso aqui é só pra não mostrar um botão que vai dar 403.
   const canImport = user?.profile === "admin" || user?.super || user?.allowImport === "enabled";
+  // Imprimir/exportar PDF/Excel — permissão separada de `allowImport`
+  // (UserModal.js). 100% client-side, sem endpoint pra proteger.
+  const canExport = user?.profile === "admin" || user?.super || user?.allowExport === "enabled";
   // Seleção em massa ("selecionar tudo da página" + excluir) é admin-only,
   // sem exceção configurável — pedido explícito do cliente, diferente do
   // `allowImport` acima (esse não tem toggle por usuário).
@@ -99,6 +128,8 @@ const FinanceRecordList = ({
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [printRows, setPrintRows] = useState(null);
   // Valor inicial vem do link que trouxe o usuário pra essa aba (ex.: menu
   // lateral Financeiro > Produtos > Armas nacionais, ver MainListItems.js) —
   // só lido na primeira renderização; a tela troca de filtro navegando de
@@ -252,6 +283,85 @@ const FinanceRecordList = ({
     setDownloadingTemplate(false);
   };
 
+  // Imprimir/exportar — pedido do cliente: "quando filtrar ou selecionar"
+  // ter a opção. Com algo marcado na seleção em massa, usa só isso; sem
+  // nada marcado, busca TODAS as páginas que batem no filtro/busca atual
+  // (a tela só tem 20 por vez carregado) — por isso é assíncrono, com
+  // loading próprio (`exporting`), diferente da lista já carregada em
+  // `records`.
+  const getExportRows = useCallback(async () => {
+    if (selectedIds.length > 0) {
+      return records.filter((r) => selectedIds.includes(r.id));
+    }
+    let all = [];
+    let page = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const data = await resource.list({ searchParam, pageNumber: page, ...filterValues });
+      all = all.concat(data.records || []);
+      if (!data.hasMore) break;
+      page += 1;
+    }
+    return all;
+  }, [selectedIds, records, resource, searchParam, filterValues]);
+
+  // Mesma técnica do Painel Financeiro (FinancePainel.js): monta uma tabela
+  // simples escondida (`#finance-record-list-print-area`) com os dados e
+  // manda `window.print()` — o navegador que decide imprimir de verdade ou
+  // "Salvar como PDF" (não gera PDF no servidor). Um pequeno delay depois de
+  // `setPrintRows` dá tempo do React desenhar a tabela antes de chamar
+  // print — sem isso, a primeira impressão sairia vazia.
+  const handlePrint = async () => {
+    setExporting(true);
+    try {
+      const rows = await getExportRows();
+      if (rows.length === 0) {
+        toast.warn("Nenhum registro pra imprimir.");
+        return;
+      }
+      setPrintRows(rows);
+      setTimeout(() => {
+        window.print();
+        setPrintRows(null);
+      }, 150);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Mesmo padrão já usado em FinancePainel.js/Reports.js —
+  // XLSX.utils.json_to_sheet + XLSX.writeFile, direto no navegador. Usa o
+  // valor "cru" do campo (`record[col.field]`), não `col.render` — colunas
+  // que mostram um chip/ícone na tela (ex. status "Ativo"/"Inativo") vão pro
+  // Excel com o valor original da coluna, não o rótulo formatado.
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const rows = await getExportRows();
+      if (rows.length === 0) {
+        toast.warn("Nenhum registro pra exportar.");
+        return;
+      }
+      const sheetRows = rows.map((record) => {
+        const row = {};
+        columns.forEach((col) => {
+          row[col.label] = record[col.field];
+        });
+        return row;
+      });
+      const sheet = XLSX.utils.json_to_sheet(sheetRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, sheet, title.slice(0, 31) || "Dados");
+      XLSX.writeFile(wb, `${title.toLowerCase().replace(/\s+/g, "-")}.xlsx`);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className={classes.root}>
       <ConfirmationModal
@@ -355,6 +465,32 @@ const FinanceRecordList = ({
               Excluir selecionados ({selectedIds.length})
             </Button>
           )}
+          {canExport && (
+            <>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PrintIcon />}
+                onClick={handlePrint}
+                disabled={exporting}
+              >
+                {selectedIds.length > 0
+                  ? `Imprimir / PDF (${selectedIds.length})`
+                  : "Imprimir / Exportar PDF"}
+              </Button>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<GetAppIcon />}
+                onClick={handleExportExcel}
+                disabled={exporting}
+              >
+                {selectedIds.length > 0
+                  ? `Exportar Excel (${selectedIds.length})`
+                  : "Exportar Excel"}
+              </Button>
+            </>
+          )}
           <Button
             variant="contained"
             color="primary"
@@ -431,6 +567,34 @@ const FinanceRecordList = ({
           labelDisplayedRows={({ from, to, count: total }) => `${from}–${to} de ${total}`}
         />
       </Paper>
+
+      {printRows && (
+        <div id="finance-record-list-print-area" className={classes.printArea}>
+          <h2>{title}</h2>
+          <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                {columns.map((col) => (
+                  <th key={col.field} style={{ textAlign: "left", borderBottom: "1px solid #000" }}>
+                    {col.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {printRows.map((record) => (
+                <tr key={record.id}>
+                  {columns.map((col) => (
+                    <td key={col.field} style={{ borderBottom: "1px solid #ddd" }}>
+                      {col.render ? col.render(record) : record[col.field]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

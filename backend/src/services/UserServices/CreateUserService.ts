@@ -30,6 +30,7 @@ interface CreateUserRequest {
   allowRealTime?: string;
   allowConnections?: string;
   allowImport?: string;
+  allowExport?: string;
   canViewAllContacts?: boolean; // << adicionado
   financialAccess?: boolean;
   blockMultipleLogins?: boolean;
@@ -78,6 +79,7 @@ const CreateUserService = async ({
   allowRealTime,
   allowConnections,
   allowImport,
+  allowExport,
   canViewAllContacts,
   financialAccess,
   blockMultipleLogins = true,
@@ -167,6 +169,7 @@ const CreateUserService = async ({
       allowRealTime,
       allowConnections,
       allowImport,
+      allowExport,
       canViewAllContacts: !!canViewAllContacts, // << persistência do novo campo
       financialAccess: !!financialAccess,
       blockMultipleLogins: !!blockMultipleLogins,

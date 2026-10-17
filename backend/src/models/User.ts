@@ -218,6 +218,14 @@ class User extends Model<User> {
   @Column
   allowImport: string;
 
+  // Permissão separada de `allowImport` — usuário comum só vê os botões
+  // "Imprimir / Exportar PDF"/"Exportar Excel" das listas do Financeiro se
+  // isso for ligado aqui. 100% client-side (sem endpoint pra proteger), só
+  // controla visibilidade de botão — ver FinanceRecordList.js.
+  @Default("disabled")
+  @Column
+  allowExport: string;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   blockMultipleLogins: boolean;
