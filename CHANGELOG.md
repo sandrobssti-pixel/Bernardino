@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.127] — Ícone de olho não dependurava mais a busca de notas fiscais ao só visualizar a venda — 2026-10-17
+
+### Corrigido
+- O ícone de olho ("Ver itens") e o de recibo ("Emitir nota fiscal") na lista de Vendas
+  chamavam a mesma função e caíam direto na seção de notas fiscais (buscando o
+  histórico de tentativas, inclusive erros antigos) mesmo quando o usuário só queria
+  ver os itens da venda. Agora o olho abre só os itens, com um botão "Ver / emitir
+  nota fiscal" pra quem quiser expandir; o recibo já abre direto na seção de emissão,
+  como antes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 108.
+
 ## [2.3.126] — Grupo do PIS/COFINS faltando no item da nota — 2026-10-17
 
 ### Corrigido

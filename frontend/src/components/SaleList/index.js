@@ -72,6 +72,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [sales, setSales] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailFocusFiscal, setDetailFocusFiscal] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [confirmTarget, setConfirmTarget] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -103,8 +104,9 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setModalOpen(true);
   };
 
-  const handleViewDetail = (sale) => {
+  const handleViewDetail = (sale, focusFiscal = false) => {
     setSelectedSale(sale);
+    setDetailFocusFiscal(focusFiscal);
     setDetailOpen(true);
   };
 
@@ -228,6 +230,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         onClose={() => setDetailOpen(false)}
         sale={selectedSale}
         fiscal={fiscal}
+        focusFiscal={detailFocusFiscal}
       />
 
       <Box className={classes.mainHeader}>
@@ -301,13 +304,13 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                   )}
                   {sale.status === "confirmed" && (
                     <>
-                      <Tooltip title="Ver itens e notas fiscais">
-                        <IconButton size="small" onClick={() => handleViewDetail(sale)}>
+                      <Tooltip title="Ver itens da venda">
+                        <IconButton size="small" onClick={() => handleViewDetail(sale, false)}>
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Emitir nota fiscal">
-                        <IconButton size="small" onClick={() => handleViewDetail(sale)}>
+                        <IconButton size="small" onClick={() => handleViewDetail(sale, true)}>
                           <ReceiptIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>

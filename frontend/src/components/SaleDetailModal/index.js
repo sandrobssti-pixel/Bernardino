@@ -69,10 +69,17 @@ const statusChip = (status) => {
 // Detalhe de uma venda confirmada (Fase 3 — módulo fiscal): mostra os itens
 // (travados, não editáveis depois de confirmada) e a seção de notas fiscais
 // — histórico de tentativas de emissão + botões pra emitir uma nova.
-const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
+//
+// `focusFiscal` decide se a seção "Notas fiscais" já abre expandida (ícone
+// de recibo na lista, usuário já quer emitir) ou recolhida atrás de um botão
+// (ícone de olho, só visualizar os itens) — antes os dois ícones chamavam a
+// mesma função e caíam direto no histórico de erro de emissão, mesmo quando
+// o usuário só queria ver a venda (v2.3.127).
+const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) => {
   const classes = useStyles();
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  const [fiscalExpanded, setFiscalExpanded] = useState(focusFiscal);
   const [emitting, setEmitting] = useState(null);
   const [previewing, setPreviewing] = useState(false);
   const [emailDialogDoc, setEmailDialogDoc] = useState(null);
@@ -99,8 +106,12 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
   }, [sale, fiscal]);
 
   useEffect(() => {
-    if (open) fetchDocuments();
-  }, [open, fetchDocuments]);
+    if (open) setFiscalExpanded(focusFiscal);
+  }, [open, focusFiscal, sale?.id]);
+
+  useEffect(() => {
+    if (open && fiscalExpanded) fetchDocuments();
+  }, [open, fiscalExpanded, fetchDocuments]);
 
   const handleEmit = async (type) => {
     setEmitting(type);
@@ -269,7 +280,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
           Notas fiscais
         </Typography>
 
-        {sale.status === "confirmed" ? (
+        {!fiscalExpanded ? (
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<ReceiptIcon fontSize="small" />}
+            onClick={() => setFiscalExpanded(true)}
+          >
+            Ver / emitir nota fiscal
+          </Button>
+        ) : sale.status === "confirmed" ? (
           <Box className={classes.emitButtons}>
             {["nfe", "nfce", "nfse"].map((type) => (
               <Button
@@ -299,7 +319,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal }) => {
           </Typography>
         )}
 
-        {loadingDocs ? (
+        {!fiscalExpanded ? null : loadingDocs ? (
           <Box display="flex" justifyContent="center" my={2}>
             <CircularProgress size={24} />
           </Box>

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.126
-**Etapa:** 6.2 Fase 6 — grupo do PIS/COFINS faltando no item da nota
+**Versão do documento:** 2.3.127
+**Etapa:** 6.2 Fase 6 — olho x recibo na lista de Vendas abriam a mesma tela de notas fiscais
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -7967,3 +7967,47 @@ anterior) por falta de cliente nesse regime testando.
   nota já emitida com sucesso por outro sistema, pra copiar os CSTs
   certos de uma vez em vez de descobrir por tentativa e erro contra a
   Sefaz.
+
+## 108. Ícone de olho x recibo na lista de Vendas abriam a mesma tela (v2.3.127)
+
+### Contexto
+
+Na lista de Vendas (venda confirmada), os ícones de olho ("Ver itens e
+notas fiscais") e de recibo ("Emitir nota fiscal") chamavam a mesma
+função (`handleViewDetail`) — abriam o mesmo modal, que já dispara a
+busca do histórico de notas fiscais (`fetchDocuments`) assim que abre.
+Cliente relatou que o olho, pensado só pra "visualizar as funções" da
+venda, caía direto na tela de notas fiscais — incluindo o erro da
+última tentativa de emissão — dando a impressão de que o sistema tinha
+tentado emitir sozinho.
+
+### Correção
+
+`SaleDetailModal` ganhou a prop `focusFiscal` (default `false`) e um
+estado interno `fiscalExpanded`:
+- Com `focusFiscal=false` (ícone de olho), a seção "Notas fiscais"
+  abre recolhida, atrás de um botão "Ver / emitir nota fiscal" — a
+  busca do histórico (`fetchDocuments`) só dispara quando o usuário
+  clica nesse botão (useEffect agora depende de `open && fiscalExpanded`,
+  não só de `open`).
+- Com `focusFiscal=true` (ícone de recibo), a seção já abre expandida,
+  igual ao comportamento de antes.
+
+`SaleList.js` passa `focusFiscal` de acordo com qual ícone foi clicado
+(`handleViewDetail(sale, focusFiscal)`), e repassa pro modal via prop.
+
+### Arquivos alterados
+
+- `frontend/src/components/SaleDetailModal/index.js`
+- `frontend/src/components/SaleList/index.js`
+
+### Testado
+
+- `npx eslint` limpo nos dois arquivos.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção completo) compilou sem erro.
+- Não testado manualmente no navegador nesta sessão (sem ambiente de
+  browser) — **pendente**: cliente conferir no navegador depois do
+  deploy do frontend que o olho abre só os itens (sem a seção de notas
+  fiscais expandida) e que o recibo continua abrindo direto nos botões
+  de emissão.
