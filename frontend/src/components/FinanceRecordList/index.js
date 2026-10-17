@@ -18,6 +18,7 @@ import Chip from "@material-ui/core/Chip";
 import Box from "@material-ui/core/Box";
 import MenuItem from "@material-ui/core/MenuItem";
 import TablePagination from "@material-ui/core/TablePagination";
+import Checkbox from "@material-ui/core/Checkbox";
 
 import SearchIcon from "@material-ui/icons/Search";
 import AddIcon from "@material-ui/icons/Add";
@@ -86,11 +87,18 @@ const FinanceRecordList = ({
   // (ver UserModal.js). Backend também trava (FinanceImportController.ts),
   // isso aqui é só pra não mostrar um botão que vai dar 403.
   const canImport = user?.profile === "admin" || user?.super || user?.allowImport === "enabled";
+  // Seleção em massa ("selecionar tudo da página" + excluir) é admin-only,
+  // sem exceção configurável — pedido explícito do cliente, diferente do
+  // `allowImport` acima (esse não tem toggle por usuário).
+  const isAdmin = user?.profile === "admin" || !!user?.super;
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [count, setCount] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
   const [searchParam, setSearchParam] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   // Valor inicial vem do link que trouxe o usuário pra essa aba (ex.: menu
   // lateral Financeiro > Produtos > Armas nacionais, ver MainListItems.js) —
   // só lido na primeira renderização; a tela troca de filtro navegando de
@@ -110,6 +118,7 @@ const FinanceRecordList = ({
       const data = await resource.list({ searchParam, pageNumber, ...filterValues });
       setRecords(data.records || []);
       setCount(data.count || 0);
+      setSelectedIds([]);
     } catch (err) {
       toastError(err);
     }
@@ -181,6 +190,49 @@ const FinanceRecordList = ({
     setDeleteTarget(null);
   };
 
+  const allSelectedOnPage = records.length > 0 && records.every((r) => selectedIds.includes(r.id));
+  const someSelectedOnPage = records.some((r) => selectedIds.includes(r.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelectedOnPage ? [] : records.map((r) => r.id));
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]
+    );
+  };
+
+  // Exclui um a um reaproveitando o mesmo `resource.remove` do botão de
+  // excluir individual — mantém qualquer regra de negócio que já exista ali
+  // (ex.: venda com nota de produção não pode ser excluída) em vez de um
+  // endpoint de exclusão em massa novo que precisaria reimplementar tudo
+  // isso. Sequencial de propósito (não Promise.all), pra não sobrecarregar
+  // o servidor numa seleção grande.
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let success = 0;
+    const failures = [];
+    for (const id of selectedIds) {
+      try {
+        await resource.remove(id);
+        success += 1;
+      } catch (err) {
+        failures.push(err?.response?.data?.error || err.message || `Registro #${id}`);
+      }
+    }
+    setBulkDeleting(false);
+    setBulkConfirmOpen(false);
+    if (success > 0) {
+      toast.success(`${success} registro(s) excluído(s) com sucesso.`);
+    }
+    if (failures.length > 0) {
+      toast.warn(`${failures.length} registro(s) não puderam ser excluídos.`);
+      failures.slice(0, 5).forEach((msg) => toast.warn(msg));
+    }
+    fetchRecords();
+  };
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -230,6 +282,15 @@ const FinanceRecordList = ({
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
         onConfirm={handleConfirmDelete}
+      >
+        Essa ação não pode ser desfeita.
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        title={`Excluir ${selectedIds.length} registro(s) selecionado(s)?`}
+        open={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={handleBulkDelete}
       >
         Essa ação não pode ser desfeita.
       </ConfirmationModal>
@@ -315,6 +376,17 @@ const FinanceRecordList = ({
               </Button>
             </>
           )}
+          {isAdmin && selectedIds.length > 0 && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkDeleting}
+            >
+              Excluir selecionados ({selectedIds.length})
+            </Button>
+          )}
           <Button
             variant="contained"
             color="primary"
@@ -330,6 +402,16 @@ const FinanceRecordList = ({
         <Table size="small">
           <TableHead>
             <TableRow>
+              {isAdmin && (
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    indeterminate={someSelectedOnPage && !allSelectedOnPage}
+                    checked={allSelectedOnPage}
+                    onChange={toggleSelectAll}
+                  />
+                </TableCell>
+              )}
               {columns.map((col) => (
                 <TableCell key={col.field}>{col.label}</TableCell>
               ))}
@@ -338,7 +420,16 @@ const FinanceRecordList = ({
           </TableHead>
           <TableBody>
             {records.map((record) => (
-              <TableRow key={record.id}>
+              <TableRow key={record.id} selected={selectedIds.includes(record.id)}>
+                {isAdmin && (
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.includes(record.id)}
+                      onChange={() => toggleSelectOne(record.id)}
+                    />
+                  </TableCell>
+                )}
                 {columns.map((col) => (
                   <TableCell key={col.field}>
                     {col.render ? col.render(record) : record[col.field]}
@@ -354,10 +445,10 @@ const FinanceRecordList = ({
                 </TableCell>
               </TableRow>
             ))}
-            {loading && <TableRowSkeleton columns={columns.length + 1} />}
+            {loading && <TableRowSkeleton columns={columns.length + (isAdmin ? 2 : 1)} />}
             {!loading && records.length === 0 && (
               <TableRow>
-                <TableCell colSpan={columns.length + 1} align="center">
+                <TableCell colSpan={columns.length + (isAdmin ? 2 : 1)} align="center">
                   Nenhum registro encontrado.
                 </TableCell>
               </TableRow>

@@ -224,7 +224,13 @@ const Financeiro = () => {
           resource={finance.products}
           columns={financeProductColumns}
           fields={financeProductFields}
-          filters={financeProductFilters}
+          // Dropdown "Tipo" só aparece quando a tela abriu sem categoria
+          // definida (link "Todos os produtos", ou "/financeiro" direto) —
+          // chegando por um link de categoria específica do menu lateral
+          // (Armas nacionais, Munições/Insumos etc.), já está dentro do
+          // painel daquela categoria, não faz sentido oferecer escolher
+          // outra ali (pedido do cliente).
+          filters={productTypeParam ? [] : financeProductFilters}
           initialFilterValues={{ type: productTypeParam }}
           allowImport
           allowTemplateDownload

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.141
-**Etapa:** 6.2 Fase 6 — permissão "Importar planilha" por usuário
+**Versão do documento:** 2.3.142
+**Etapa:** 6.2 Fase 6 — seleção em massa pra excluir (admin); filtro de Produtos por categoria
 **Última atualização:** 2026-10-17
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8652,3 +8652,71 @@ idiomas ainda.
 `frontend/src/components/SaleList/index.js`,
 `frontend/src/translate/languages/pt.js`. `npx tsc --noEmit`, `npx
 eslint` e build de produção limpos.
+
+## 123. Seleção em massa pra excluir (admin); filtro de Produtos mais limpo por categoria (v2.3.142)
+
+Pedido do cliente, em cima do fim da fase de teste: "selecionar tudo
+por página pra deletar", admin-only (sem exceção configurável por
+usuário — diferente de `allowImport` da seção 122), pra limpar o
+módulo Financeiro inteiro (Clientes, Fornecedores, Produtos, Vendas,
+Contas a Pagar/Receber) e reimportar tudo do zero, agora em modo
+produção, começando a numeração de nota fiscal em 494. Configuração
+Fiscal (tokens, CNPJ da contabilidade, numeração) não é afetada — fica
+de fora de propósito, só os cadastros/transações é que somem.
+
+**Decisão de design**: em vez de um endpoint de exclusão em massa novo
+(que precisaria reimplementar toda regra de negócio de cada exclusão
+individual), a seleção em massa REAPROVEITA o mesmo `resource.remove`/
+`fiscal.sales.remove` que o botão de excluir individual já chama —
+só repete a chamada pra cada id selecionado, sequencialmente (não
+`Promise.all`, pra não sobrecarregar o servidor numa seleção grande),
+juntando sucesso/erro de cada um num resumo (toast). Isso significa
+que toda regra de segurança que já existia continua valendo
+automaticamente — em especial, **venda com nota fiscal de Produção
+continua impossível de excluir** (`SaleService.remove`, guarda
+antiga, seção de paginação de Vendas) — apagar uma nota já autorizada
+pela Sefaz do banco local não cancela o documento fiscal de verdade,
+só faz o sistema "esquecer" dele, então essa trava continua de
+propósito. `SaleList.js` já reflete isso na seleção: a checkbox de uma
+venda não-excluível (`isDeletable`, mesma condição que já decidia se o
+ícone de lixeira individual aparecia) vem desabilitada, pra não deixar
+marcar algo que o servidor vai recusar de qualquer jeito.
+
+**Como usar pra zerar o módulo inteiro**: como a seleção é só "da
+página" (20 registros por vez, não "selecionar tudo que bate o
+filtro"), uma limpeza completa de uma lista com mais de 20 registros
+precisa repetir marcar-tudo + excluir a cada página. Ordem recomendada
+pra evitar erro de FK (registro pai referenciado por um filho que
+ainda existe): Vendas primeiro (isso já leva junto os itens da venda,
+documento fiscal e a conta a receber gerada por ela, via
+`SaleService.remove`), depois Contas a Pagar/Receber restantes
+(nenhuma dependência), por último Clientes/Fornecedores/Produtos.
+
+**Frontend** (`FinanceRecordList.js`/`SaleList.js`, mesmo padrão nos
+dois): `isAdmin = user?.profile === "admin" || !!user?.super` controla
+a coluna de checkbox inteira (nem aparece pra quem não é admin,
+diferente de só desabilitar o botão) + um estado `selectedIds`, limpo
+a cada novo fetch (trocar de página/filtro/busca some com a seleção
+antiga, de propósito — evita excluir por engano algo que não está mais
+visível). Um segundo `ConfirmationModal` (`bulkConfirmOpen`), separado
+do modal de exclusão individual que já existia, confirma antes de
+rodar.
+
+**Filtro de Produtos por categoria** — ajuste pequeno e relacionado
+(mesma leva de pedidos): depois da navegação por categoria ter migrado
+pro menu lateral (seção 117), o dropdown "Tipo" que ainda ficava acima
+da tabela de Produtos virava redundante/confuso quando a tela já tinha
+sido aberta através de um link de categoria específica (ex.: "Armas
+nacionais") — oferecia trocar pra outra categoria ali dentro de um
+painel que já é daquela categoria. `Financeiro/index.js` agora só
+passa `financeProductFilters` pro `FinanceRecordList` quando
+`productTypeParam` (o `type` da URL) está vazio — ou seja, só quando a
+tela abriu via "Todos os produtos" (sem categoria definida); chegando
+por qualquer categoria específica, `filters={[]}`, o seletor nem
+renderiza.
+
+**Arquivos**: `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/pages/Financeiro/index.js`. `npx eslint` e build de
+produção limpos (nenhuma mudança de backend nessa versão — reaproveita
+100% os endpoints de exclusão já existentes).

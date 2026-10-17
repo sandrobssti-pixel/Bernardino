@@ -19,6 +19,7 @@ import Tooltip from "@material-ui/core/Tooltip";
 import TablePagination from "@material-ui/core/TablePagination";
 import TextField from "@material-ui/core/TextField";
 import MenuItem from "@material-ui/core/MenuItem";
+import Checkbox from "@material-ui/core/Checkbox";
 
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
@@ -64,6 +65,14 @@ const isTestSale = (sale, fiscalConfig) => {
   if (documents.length === 0 && fiscalConfig?.productionEnabled) return false;
   return true;
 };
+
+// Mesma regra que já decide se o ícone de excluir individual aparece pra
+// uma venda (rascunho sempre; confirmada/cancelada só se for de teste/
+// Homologação) — reaproveitada pra decidir quais linhas podem entrar na
+// seleção em massa, pra não deixar marcar algo que o backend vai recusar
+// de qualquer jeito (venda com nota de Produção, `SaleService.remove`).
+const isDeletable = (sale, fiscalConfig) =>
+  sale.status === "draft" || isTestSale(sale, fiscalConfig);
 
 // Filtro de período (Hoje/Semana/Mês/Personalizado) — resolve o preset pra
 // um par startDate/endDate ("YYYY-MM-DD", igual `Sale.saleDate`, DATEONLY)
@@ -118,6 +127,9 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   // usuário comum só com `allowImport` ligado no cadastro (UserModal.js).
   // Backend trava também (SaleImportController.ts).
   const canImport = user?.profile === "admin" || user?.super || user?.allowImport === "enabled";
+  // Seleção em massa ("selecionar tudo da página" + excluir) é admin-only,
+  // sem exceção configurável — mesma regra do FinanceRecordList.js.
+  const isAdmin = user?.profile === "admin" || !!user?.super;
   const [loading, setLoading] = useState(false);
   const [sales, setSales] = useState([]);
   const [count, setCount] = useState(0);
@@ -132,6 +144,9 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [periodPreset, setPeriodPreset] = useState("");
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -141,6 +156,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       const data = await fiscal.sales.list({ pageNumber, startDate, endDate });
       setSales(data.records || []);
       setCount(data.count || 0);
+      setSelectedIds([]);
     } catch (err) {
       toastError(err);
     }
@@ -198,6 +214,49 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const requestDelete = (sale) => {
     setConfirmTarget(sale);
     setConfirmAction("delete");
+  };
+
+  const deletableSales = sales.filter((sale) => isDeletable(sale, fiscalConfig));
+  const allSelectedOnPage =
+    deletableSales.length > 0 && deletableSales.every((sale) => selectedIds.includes(sale.id));
+  const someSelectedOnPage = deletableSales.some((sale) => selectedIds.includes(sale.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelectedOnPage ? [] : deletableSales.map((sale) => sale.id));
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((existing) => existing !== id) : [...prev, id]
+    );
+  };
+
+  // Reaproveita o mesmo `fiscal.sales.remove` do excluir individual — vendas
+  // com nota de Produção são recusadas pelo backend mesmo que tenham sido
+  // selecionadas por engano (não deveriam, já que `deletableSales` filtra
+  // isso, mas a checagem real continua no servidor).
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let success = 0;
+    const failures = [];
+    for (const id of selectedIds) {
+      try {
+        await fiscal.sales.remove(id);
+        success += 1;
+      } catch (err) {
+        failures.push(err?.response?.data?.error || err.message || `Venda #${id}`);
+      }
+    }
+    setBulkDeleting(false);
+    setBulkConfirmOpen(false);
+    if (success > 0) {
+      toast.success(`${success} venda(s) excluída(s) com sucesso.`);
+    }
+    if (failures.length > 0) {
+      toast.warn(`${failures.length} venda(s) não puderam ser excluídas.`);
+      failures.slice(0, 5).forEach((msg) => toast.warn(msg));
+    }
+    fetchSales();
   };
 
   const handleConfirmAction = async () => {
@@ -275,6 +334,15 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         onConfirm={handleConfirmAction}
       >
         {confirmModalProps.body}
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        title={`Excluir ${selectedIds.length} venda(s) selecionada(s)?`}
+        open={bulkConfirmOpen}
+        onClose={() => setBulkConfirmOpen(false)}
+        onConfirm={handleBulkDelete}
+      >
+        Essa ação não pode ser desfeita.
       </ConfirmationModal>
 
       <SaleModal
@@ -362,6 +430,17 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               </Tooltip>
             </>
           )}
+          {isAdmin && selectedIds.length > 0 && (
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setBulkConfirmOpen(true)}
+              disabled={bulkDeleting}
+            >
+              Excluir selecionadas ({selectedIds.length})
+            </Button>
+          )}
           <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleOpenNew}>
             Nova venda
           </Button>
@@ -372,6 +451,16 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         <Table size="small">
           <TableHead>
             <TableRow>
+              {isAdmin && (
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    size="small"
+                    indeterminate={someSelectedOnPage && !allSelectedOnPage}
+                    checked={allSelectedOnPage}
+                    onChange={toggleSelectAll}
+                  />
+                </TableCell>
+              )}
               <TableCell>#</TableCell>
               <TableCell>Cliente</TableCell>
               <TableCell>Data</TableCell>
@@ -382,7 +471,17 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
           </TableHead>
           <TableBody>
             {sales.map((sale) => (
-              <TableRow key={sale.id}>
+              <TableRow key={sale.id} selected={selectedIds.includes(sale.id)}>
+                {isAdmin && (
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      size="small"
+                      checked={selectedIds.includes(sale.id)}
+                      disabled={!isDeletable(sale, fiscalConfig)}
+                      onChange={() => toggleSelectOne(sale.id)}
+                    />
+                  </TableCell>
+                )}
                 <TableCell>{sale.id}</TableCell>
                 <TableCell>{sale.customer?.name || "Consumidor não identificado"}</TableCell>
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
@@ -453,10 +552,10 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 </TableCell>
               </TableRow>
             ))}
-            {loading && <TableRowSkeleton columns={6} />}
+            {loading && <TableRowSkeleton columns={isAdmin ? 7 : 6} />}
             {!loading && sales.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={isAdmin ? 7 : 6} align="center">
                   Nenhuma venda registrada ainda.
                 </TableCell>
               </TableRow>

@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.142] — Seleção em massa pra excluir (admin); filtro de Produtos mais limpo por categoria — 2026-10-17
+
+### Adicionado
+- Listas de Clientes, Fornecedores, Produtos, Contas a Pagar, Contas a Receber
+  (`FinanceRecordList.js`) e Vendas (`SaleList.js`) ganharam checkbox "marcar
+  tudo da página" + botão "Excluir selecionados" — **admin-only, sem exceção**
+  (diferente da permissão de importação, essa não tem toggle por usuário). Reusa
+  a exclusão individual já existente registro a registro (mesmas regras de
+  negócio — ex.: venda com nota fiscal de Produção continua recusada).
+
+### Corrigido
+- O dropdown "Tipo" acima da lista de Produtos só aparece agora quando a tela
+  abre sem categoria definida ("Todos os produtos"); chegando por um link de
+  categoria específica do menu lateral (Armas nacionais, Munições/Insumos
+  etc.), o seletor some — já está dentro do painel daquela categoria, não faz
+  sentido oferecer trocar pra outra ali.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 123.
+
 ## [2.3.141] — Permissão "Importar planilha" por usuário — 2026-10-17
 
 ### Adicionado
