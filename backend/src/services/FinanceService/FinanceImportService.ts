@@ -428,10 +428,19 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
   return records;
 };
 
+// `skipSerialRequired` (v2.3.149) — só `true` quando os dados vêm do
+// relatório de estoque da loja anterior (`parseGunStoreReport`), que não
+// tem coluna de número de série (é um catálogo por MODELO com quantidade em
+// estoque, não uma lista de unidades individuais serializadas). Cliente
+// confirmou que quer importar mesmo assim e completar o número de série de
+// cada unidade manualmente depois — o campo continua obrigatório no
+// cadastro manual pela tela e na planilha-modelo oficial (que tem coluna
+// própria pra isso). Ver FinanceProductService.ts/docs/MANUAL_TECNICO.md.
 const upsertProductRecord = async (
   data: Record<string, any>,
   companyId: number,
-  summary: ImportSummary
+  summary: ImportSummary,
+  skipSerialRequired = false
 ): Promise<void> => {
   if (!data.name) {
     summary.invalid += 1;
@@ -445,10 +454,10 @@ const upsertProductRecord = async (
     const existing = await FinanceProduct.findOne({ where });
 
     if (existing) {
-      await FinanceProductService.update(existing.id, data as any, companyId);
+      await FinanceProductService.update(existing.id, data as any, companyId, { skipSerialRequired });
       summary.updated += 1;
     } else {
-      await FinanceProductService.create(data as any, companyId);
+      await FinanceProductService.create(data as any, companyId, { skipSerialRequired });
       summary.created += 1;
     }
   } catch (err: any) {
@@ -473,7 +482,7 @@ export const importProducts = async (
   );
 
   for (const data of records) {
-    await upsertProductRecord(data, companyId, summary);
+    await upsertProductRecord(data, companyId, summary, !!gunStoreRecords);
   }
 
   console.log(`[FinanceImportService] importProducts: concluído ${JSON.stringify(summary)}`);

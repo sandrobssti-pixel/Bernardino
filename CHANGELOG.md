@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.149] — Importação de armas em massa não exige mais número de série — 2026-10-18
+
+### Corrigido
+- Causa real por trás de "Armas nacionais continua vazio" mesmo depois da
+  correção anterior (v2.3.148): o cadastro de arma exige número de série
+  único (regra confirmada com o cliente lá na implantação do módulo,
+  Estatuto do Desarmamento) — mas a planilha de estoque da loja anterior é
+  um catálogo por MODELO (uma linha por SKU, com quantidade em estoque), sem
+  coluna de número de série nenhuma. Toda linha de arma dessa planilha
+  específica estava sendo rejeitada na importação (nunca chegava a ser
+  criada). Confirmado com o cliente: agora a importação **desse relatório
+  específico** aceita arma sem número de série — fica pendente, pra
+  completar manualmente depois, unidade por unidade. O cadastro manual pela
+  tela (e a planilha-modelo oficial, que tem coluna própria pra isso)
+  continuam exigindo o número de série normalmente — nada mudou aí.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 130.
+
 ## [2.3.148] — Importação de armas não preenchia a procedência (nacional/importada) — 2026-10-18
 
 ### Corrigido

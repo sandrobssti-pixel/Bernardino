@@ -54,10 +54,22 @@ interface ProductData {
 // empresa). Munição/insumo não tem número de série individual.
 const SERIAL_NUMBER_REQUIRED_TYPES = ["weapon"];
 
+// `$skipSerialRequired` (contexto do Yup, não campo do produto) — usado só
+// pela importação em massa do relatório de estoque da loja anterior
+// (FinanceImportService.ts, `parseGunStoreReport`), que não tem coluna de
+// número de série nenhuma (é um catálogo por MODELO com quantidade em
+// estoque, não uma lista de unidades individuais serializadas). Sem essa
+// válvula, TODA linha de arma dessa planilha falhava a validação e nunca
+// chegava a ser criada — o cliente confirmou que quer importar mesmo assim
+// e completar o número de série manual depois; o campo continua obrigatório
+// em qualquer outro caminho (cadastro manual pela tela, planilha-modelo
+// oficial que tem coluna própria de número de série). Ver
+// docs/MANUAL_TECNICO.md.
 const productSchema = Yup.object().shape({
   name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2),
-  serialNumber: Yup.string().when("type", {
-    is: (type: string) => SERIAL_NUMBER_REQUIRED_TYPES.includes(type),
+  serialNumber: Yup.string().when(["type", "$skipSerialRequired"], {
+    is: (type: string, skipSerialRequired: boolean) =>
+      SERIAL_NUMBER_REQUIRED_TYPES.includes(type) && !skipSerialRequired,
     then: Yup.string()
       .required("ERR_FINANCE_PRODUCT_SERIAL_REQUIRED")
       .min(1, "ERR_FINANCE_PRODUCT_SERIAL_REQUIRED"),
@@ -157,10 +169,11 @@ export const show = async (
 
 export const create = async (
   data: ProductData,
-  companyId: number
+  companyId: number,
+  options: { skipSerialRequired?: boolean } = {}
 ): Promise<FinanceProduct> => {
   try {
-    await productSchema.validate(data);
+    await productSchema.validate(data, { context: { skipSerialRequired: !!options.skipSerialRequired } });
   } catch (err: any) {
     throw new AppError(err.message);
   }
@@ -181,12 +194,13 @@ export const create = async (
 export const update = async (
   id: string | number,
   data: ProductData,
-  companyId: number
+  companyId: number,
+  options: { skipSerialRequired?: boolean } = {}
 ): Promise<FinanceProduct> => {
   const record = await show(id, companyId);
 
   try {
-    await productSchema.validate(data);
+    await productSchema.validate(data, { context: { skipSerialRequired: !!options.skipSerialRequired } });
   } catch (err: any) {
     throw new AppError(err.message);
   }

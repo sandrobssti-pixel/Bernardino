@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.148
-**Etapa:** 6.2 Fase 6 — origem (nacional/importada) na importação de armas
+**Versão do documento:** 2.3.149
+**Etapa:** 6.2 Fase 6 — importação de armas em massa sem exigir número de série
 **Última atualização:** 2026-10-18
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -8969,3 +8969,56 @@ atualiza (`FinanceProductService.update`), não duplica.
 
 **Arquivo**: `backend/src/services/FinanceService/FinanceImportService.ts`.
 `npx tsc --noEmit` limpo (sem mudança de frontend).
+
+## 130. Importação de armas em massa não exige mais número de série (v2.3.149)
+
+Cliente reimportou a planilha depois da seção 129 e "Armas nacionais"
+continuava vazio — a correção da procedência era real, mas nem chegava
+a ser aplicada, porque a causa de fato era outra, mais funda:
+`FinanceProductService`'s `productSchema` (Yup) exige `serialNumber`
+pra qualquer produto `type === "weapon"` (`SERIAL_NUMBER_REQUIRED_TYPES`)
+— regra confirmada com o cliente desde a implantação original do
+cadastro de armas (seção 80, "número de série único por empresa",
+seguindo o Estatuto do Desarmamento/decretos de controle). A planilha
+de estoque do sistema anterior é um **catálogo por modelo** (uma
+linha por SKU/produto, com `Qtde.` em estoque) — não tem, e
+estruturalmente não poderia ter, uma coluna de número de série por
+unidade individual. Toda linha de arma dessa planilha específica
+sempre falhou essa validação, silenciosamente (virava `summary.invalid`,
+sem nunca ser criada) — nunca teve relação com a correção da seção
+129, que só mexia num campo (`origin`) de produtos que, na prática,
+nunca chegavam a existir.
+
+Perguntado ao cliente como resolver (afeta exigência legal, não dava
+pra decidir sozinho): confirmou que quer importar mesmo sem número de
+série, completando manualmente depois unidade por unidade — mas que o
+campo continua **obrigatório** em qualquer outro caminho (muito
+importante pra ele).
+
+**Fix, escopado só pro relatório de estoque legado** (não afrouxa a
+regra em geral): `productSchema.serialNumber` passou a considerar um
+contexto novo do Yup, `$skipSerialRequired` (`.when(["type",
+"$skipSerialRequired"], ...)`) — só `true` quando
+`FinanceProductService.create`/`update` são chamados com
+`{ skipSerialRequired: true }`, um terceiro parâmetro opcional novo
+(default `{}`/`false` em todo o resto do sistema). `FinanceImportService
+.upsertProductRecord` ganhou um parâmetro `skipSerialRequired` que só
+`importProducts` passa como `true` — e só quando `parseGunStoreReport`
+reconheceu o arquivo como o relatório de estoque legado
+(`!!gunStoreRecords`). A planilha-modelo oficial (`PRODUCT_MAPPINGS`,
+que tem coluna própria de número de série via alias) e o cadastro
+manual pela tela (`FinanceProductController` chama `create`/`update`
+sem esse parâmetro, cai no default `false`) continuam exigindo o
+campo exatamente como antes — nada mudou nesses dois caminhos.
+
+Validado com um teste isolado do Yup (5 cenários: arma sem contexto
+rejeita; arma com `skipSerialRequired: true` sem número passa; arma
+sem nenhum contexto — simulando o cadastro manual — rejeita; munição
+nunca exige; arma com `skipSerialRequired: true` E número preenchido
+continua passando, confirma que não ignora um valor real quando ele
+existe) antes de subir — `node -e` direto com o pacote `yup` já
+instalado, sem precisar rodar o servidor inteiro.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
+`backend/src/services/FinanceService/FinanceImportService.ts`. `npx
+tsc --noEmit` limpo (sem mudança de frontend).
