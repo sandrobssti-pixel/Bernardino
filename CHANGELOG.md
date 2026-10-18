@@ -3,6 +3,37 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.151] — Imprimir/gerar PDF de um registro no formulário de editar — 2026-10-18
+
+### Adicionado
+- Tela de editar Cliente, Fornecedor, Produto, Conta a Pagar e Conta a
+  Receber ganhou o botão "Imprimir / PDF" dentro do próprio formulário
+  (mesma técnica `window.print()` + `@media print` já usada na impressão em
+  lista) — imprime só aquele registro, com todos os campos do cadastro.
+  Mesma permissão **"Imprimir / Exportar listas"** da v2.3.147 (Admin/Master
+  sempre libera); só aparece editando um registro já existente (num cadastro
+  novo ainda não tem nada salvo pra imprimir).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 132.
+
+## [2.3.150] — Taurus também detectada pelo prefixo do SKU; erros de linha visíveis na importação — 2026-10-18
+
+### Corrigido
+- Importação do "Relatório de Produtos" (planilha de loja de armas):
+  produtos cujo nome não cita a palavra "TAURUS" (ex. "PISTOLA G2C...",
+  "PISTOLA GX4...") mas cujo código/SKU começa com o prefixo "TAU" (usado
+  por uma distribuidora que revende produtos Taurus pra loja) agora também
+  são reconhecidos como marca Taurus/procedência nacional. Reimportar a
+  mesma planilha atualiza os produtos existentes (por SKU) com a marca e
+  procedência detectadas agora.
+- `FinanceRecordList.js` (Clientes/Fornecedores/Produtos/Contas a Pagar/
+  Contas a Receber) agora mostra na tela os avisos de linha inválida que a
+  importação já coletava (`summary.errors`) — antes só aparecia o resumo de
+  criados/atualizados/inválidos, sem detalhar o motivo de cada linha
+  ignorada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 131.
+
 ## [2.3.149] — Importação de armas em massa não exige mais número de série — 2026-10-18
 
 ### Corrigido

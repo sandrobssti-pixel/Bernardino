@@ -263,6 +263,9 @@ const FinanceRecordList = ({
       const parts = [`${summary.created} criado(s)`, `${summary.updated} atualizado(s)`];
       if (summary.invalid > 0) parts.push(`${summary.invalid} inválido(s)/ignorado(s)`);
       toast.success(`Importação concluída: ${parts.join(", ")}.`);
+      if (summary.errors?.length) {
+        summary.errors.slice(0, 5).forEach((msg) => toast.warn(msg));
+      }
       fetchRecords();
     } catch (err) {
       toastError(err);
@@ -382,6 +385,7 @@ const FinanceRecordList = ({
         record={selectedRecord}
         finance={finance}
         context={context}
+        canExport={canExport}
       />
 
       <Box className={classes.mainHeader}>

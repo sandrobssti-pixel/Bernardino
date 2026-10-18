@@ -299,6 +299,20 @@ const originFromBrand = (brand?: string): string | undefined => {
   return undefined;
 };
 
+// Sinal extra, só pra quando a marca não apareceu no NOME (ex. "PISTOLA
+// G2C...", "PISTOLA GX4...") — código de modelo Taurus sem a palavra
+// "TAURUS" escrita. Confirmado com o cliente (diferente da decisão
+// original de NÃO inferir por código de modelo no nome, que continua
+// valendo — isso aqui é o prefixo do próprio SKU/código do produto, um
+// sinal mais confiável, não um palpite em cima do texto do nome).
+const BRAND_SKU_PREFIXES: Array<{ prefix: string; brand: string }> = [{ prefix: "TAU", brand: "TAURUS" }];
+
+const brandFromSku = (sku: string): string | undefined => {
+  const upper = sku.toUpperCase();
+  const match = BRAND_SKU_PREFIXES.find(({ prefix }) => upper.startsWith(prefix));
+  return match?.brand;
+};
+
 // Calibre: só padrões de alta confiança (evita marcar um código de modelo
 // ou comprimento de cano como se fosse calibre) — notação com ponto
 // (".38TPC", ".380"), com X (handgun/rifle, "9X19"), bitola de espingarda
@@ -411,7 +425,10 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
     const stockQuantity = parseBrazilianDecimal(row[GUN_STORE_REPORT_COL.QTY]);
     if (stockQuantity !== undefined) data.stockQuantity = stockQuantity;
 
-    const brand = extractBrandFromName(name);
+    let brand = extractBrandFromName(name);
+    if (!brand && type === "weapon") {
+      brand = brandFromSku(sku);
+    }
     if (brand) data.brand = brand;
     if (type === "weapon") {
       const origin = originFromBrand(brand);

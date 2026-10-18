@@ -17,6 +17,7 @@ import Switch from "@material-ui/core/Switch";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Typography from "@material-ui/core/Typography";
 import Divider from "@material-ui/core/Divider";
+import PrintIcon from "@material-ui/icons/Print";
 
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
@@ -52,6 +53,29 @@ const useStyles = makeStyles((theme) => ({
     marginTop: -12,
     marginLeft: -12,
   },
+  printArea: {
+    display: "none",
+  },
+  // Impressão de UM registro (dentro do formulário de editar) — mesma
+  // técnica do FinanceRecordList (window.print() + @media print), com um
+  // id próprio pra não colidir com a área de impressão em massa da lista.
+  "@global": {
+    "@media print": {
+      "body *": {
+        visibility: "hidden",
+      },
+      "#finance-record-modal-print-area, #finance-record-modal-print-area *": {
+        visibility: "visible",
+      },
+      "#finance-record-modal-print-area": {
+        display: "block",
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+      },
+    },
+  },
 }));
 
 const buildInitialValues = (fields, record) => {
@@ -67,6 +91,27 @@ const buildInitialValues = (fields, record) => {
   return values;
 };
 
+// Texto pra exibir um campo na impressão de um registro — mesma ideia do
+// `col.render`/`record[col.field]` já usado na impressão em lista
+// (FinanceRecordList.js), só que lendo os valores ATUAIS do formulário
+// (`values`), não o registro salvo — assim reflete o que está na tela, até
+// antes de salvar.
+const formatFieldValueForPrint = (field, values, record) => {
+  const raw = values[field.name];
+  if (field.type === "switch") return raw ? "Sim" : "Não";
+  if (field.type === "select") {
+    const opt = field.options?.find((o) => String(o.value) === String(raw));
+    return opt ? opt.label : raw || "—";
+  }
+  if (field.type === "asyncSelect") {
+    const singularKey = field.optionsResource?.replace(/s$/, "");
+    const embedded = record?.[singularKey];
+    if (embedded && embedded.id === raw) return embedded.name;
+    return raw || "—";
+  }
+  return raw === "" || raw === null || raw === undefined ? "—" : String(raw);
+};
+
 // Modal genérico de cadastro do módulo Financeiro (Fase 1 — clientes,
 // fornecedores, produtos; Fase 2 — contas a pagar/receber). Recebe um schema
 // de campos declarativo em vez de triplicar o mesmo formulário várias vezes
@@ -77,9 +122,23 @@ const buildInitialValues = (fields, record) => {
 // (`field.optionsResource`, ex.: "suppliers"/"customers") — a lista é
 // buscada uma vez quando o modal abre, via a prop `finance` (o próprio hook,
 // repassado por quem monta o formulário).
-const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, finance, context = {} }) => {
+const FinanceRecordModal = ({
+  open,
+  onClose,
+  onSave,
+  title,
+  fields,
+  record,
+  finance,
+  context = {},
+  canExport = false,
+}) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
+  // Snapshot dos valores no momento de imprimir (não o form inteiro) — só
+  // pra montar a área de impressão escondida fora do <Dialog>, mesma lógica
+  // de `printRows` em FinanceRecordList.js.
+  const [printSnapshot, setPrintSnapshot] = useState(null);
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
@@ -148,6 +207,7 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
   };
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={handleClose}
@@ -165,7 +225,20 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, touched, errors, isSubmitting, setFieldValue }) => (
+        {({ values, touched, errors, isSubmitting, setFieldValue }) => {
+          // Só existe o que imprimir depois de salvo (editando um registro
+          // já existente) — num cadastro novo ainda não tem nada no banco.
+          // Delay igual ao de FinanceRecordList.js: dá tempo do React
+          // desenhar a área escondida antes do `window.print()`.
+          const handlePrintRecord = () => {
+            setPrintSnapshot({ values, record });
+            setTimeout(() => {
+              window.print();
+              setPrintSnapshot(null);
+            }, 150);
+          };
+
+          return (
           <Form>
             <DialogContent dividers={false} className={classes.dialogContent}>
               <Grid container spacing={2}>
@@ -316,6 +389,16 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
               </Grid>
             </DialogContent>
             <DialogActions className={classes.dialogActions}>
+              {record?.id && canExport && (
+                <Button
+                  onClick={handlePrintRecord}
+                  color="primary"
+                  startIcon={<PrintIcon />}
+                  style={{ marginRight: "auto" }}
+                >
+                  Imprimir / PDF
+                </Button>
+              )}
               <Button onClick={handleClose} color="secondary" disabled={isSubmitting}>
                 Cancelar
               </Button>
@@ -334,9 +417,33 @@ const FinanceRecordModal = ({ open, onClose, onSave, title, fields, record, fina
               </div>
             </DialogActions>
           </Form>
-        )}
+          );
+        }}
       </Formik>
     </Dialog>
+    {printSnapshot && (
+      <div id="finance-record-modal-print-area" className={classes.printArea}>
+        <h2>{title}</h2>
+        <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
+          <tbody>
+            {fields
+              .filter((field) => field.type !== "sectionTitle")
+              .filter((field) => !field.visibleWhen || field.visibleWhen(printSnapshot.values))
+              .map((field) => (
+                <tr key={field.name}>
+                  <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", width: "40%" }}>
+                    {field.label}
+                  </th>
+                  <td style={{ borderBottom: "1px solid #ddd" }}>
+                    {formatFieldValueForPrint(field, printSnapshot.values, printSnapshot.record)}
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+    </>
   );
 };
 

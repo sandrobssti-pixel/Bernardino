@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.149
-**Etapa:** 6.2 Fase 6 — importação de armas em massa sem exigir número de série
+**Versão do documento:** 2.3.151
+**Etapa:** 6.2 Fase 6 — Taurus por prefixo de SKU; imprimir/PDF de um registro no formulário
 **Última atualização:** 2026-10-18
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9022,3 +9022,103 @@ instalado, sem precisar rodar o servidor inteiro.
 **Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
 `backend/src/services/FinanceService/FinanceImportService.ts`. `npx
 tsc --noEmit` limpo (sem mudança de frontend).
+
+## 131. Taurus também pelo prefixo do SKU; erros de linha visíveis na importação (v2.3.150)
+
+Depois da seção 130, cliente reimportou a mesma planilha e reportou
+"só importou 11 e a planilha tem mais de 20" (e, numa segunda
+reimportação, "não duplicou mas ficou 1x11 de 11"). Investigado
+simulando `parseGunStoreReport` isoladamente contra o arquivo real: a
+planilha tem 51 linhas válidas (15 munição + 36 arma, 0 SKU
+duplicado), e TODAS as 36 armas já estavam sendo criadas desde a
+seção 130 — não era bug de importação. O filtro "Armas nacionais"
+exige `type=weapon AND origin=national`, e `origin` só é preenchido
+quando `extractBrandFromName` reconhece uma marca no NOME do produto
+(ex. "TAURUS", "CBC") — por desenho (seção 129), não tenta reconhecer
+por código de modelo no nome (ex. "G2C" = Taurus, decisão combinada
+com o cliente, fora de escopo). Resultado: as 11 armas com "CBC"/
+"TAURUS" escrito no nome apareciam em "Armas nacionais"; as outras 25
+(ex. "PISTOLA G2C...", "PISTOLA GX4...") foram importadas normalmente,
+só que sem procedência — ficam visíveis em "Todos os produtos", não
+nos filtros por procedência.
+
+Perguntado ao cliente (AskUserQuestion, já que mexe em como o sistema
+classifica marca/procedência — mesmo cuidado de antes): confirmou que
+o prefixo "TAU" do próprio código/SKU do produto (ex. "TAU00228") é
+usado por uma distribuidora que revende produtos da Taurus pra loja —
+sinal confiável de procedência nacional, mesmo quando o nome não cita
+"TAURUS" escrito. Sobre outras marcas sem nome reconhecido na planilha
+(CBC já é detectado por nome; Pavie/Sambura não estavam na lista):
+cliente confirmou que o SKU "é universal, pode deixar" — ou seja, só o
+prefixo "TAU" tem esse significado de distribuidora; pra qualquer outra
+marca não detectada automaticamente, o cadastro fica sem procedência e
+é corrigido manualmente depois, pela tela de editar (fluxo que já
+existia) — não pediu detecção automática de Pavie/Sambura.
+
+**Fix 1 — `backend/src/services/FinanceService/FinanceImportService.ts`**:
+novo `BRAND_SKU_PREFIXES` (hoje só `{ prefix: "TAU", brand: "TAURUS" }`)
+e `brandFromSku(sku)`, que casa o prefixo (case-insensitive) no início
+do SKU. Em `parseGunStoreReport`, pra linhas `type === "weapon"`: se
+`extractBrandFromName(name)` não achou nada, cai pro `brandFromSku(sku)`
+como sinal extra — só então passa por `originFromBrand` normalmente
+(mesma função da seção 129, sem mudança). Não mexe em munição nem em
+produto comum, e não muda o reconhecimento por nome já existente (nome
+continua tendo prioridade sobre o SKU).
+
+**Fix 2 — `frontend/src/components/FinanceRecordList/index.js`**: o
+backend já coletava `summary.errors` (motivo de cada linha
+inválida/ignorada) desde a Fase 6 original, mas a tela só mostrava os
+totais (criados/atualizados/inválidos) — `SaleList.js` já exibia esses
+erros na importação de Vendas, só `FinanceRecordList.js` não.
+`handleImportFile` agora também mostra até 5 desses avisos via toast,
+igual ao padrão do SaleList — ajuda a diagnosticar linha por linha da
+próxima vez, sem precisar simular a planilha à parte.
+
+Reimportar a mesma planilha (`armas_atualizadas.xlsx`) atualiza por
+SKU os produtos já existentes, preenchendo marca/procedência nos que
+tinham código "TAU..." sem o nome "TAURUS".
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceImportService.ts`
+(`npx tsc --noEmit` limpo), `frontend/src/components/FinanceRecordList/index.js`
+(lint e build limpos).
+
+## 132. Imprimir/gerar PDF de um registro no formulário de editar (v2.3.151)
+
+Pedido do cliente: além de imprimir/exportar a LISTA (filtrada ou
+selecionada, seção 128), também poder imprimir/gerar PDF de UM
+registro só, direto na tela de editar — "edita um cliente e tenha
+opção de imprimir ou gerar pdf, a mesma coisa para fornecedor e
+produto".
+
+**Implementação**: `FinanceRecordModal.js` (modal de editar/criar
+compartilhado por Clientes, Fornecedores, Produtos, Contas a Pagar e
+Contas a Receber — por isso o botão aparece nos 5, não só nos 3
+citados) ganhou um botão "Imprimir / PDF" no rodapé do formulário,
+reaproveitando a mesma técnica já usada na lista (`window.print()` +
+`@media print`, sem gerar PDF no servidor) — mesma permissão
+**"Imprimir / Exportar listas"** da v2.3.147 (`canExport`, repassada
+pelo `FinanceRecordList.js` pai; Admin/Master sempre libera). Só
+aparece editando um registro já salvo (`record?.id`); num cadastro
+novo ainda não tem nada no banco pra imprimir.
+
+A área de impressão é montada a partir de um snapshot dos valores
+ATUAIS do formulário no momento do clique (`values` do Formik, não
+precisa resalvar antes) — mesmo padrão de `printRows` em
+`FinanceRecordList.js`: `setTimeout` de 150ms antes do
+`window.print()` pra dar tempo do React desenhar a tabela escondida.
+Fica fora do `<Dialog>` (irmão dele no JSX, não filho) de propósito —
+a regra CSS `@media print` escondendo `body *` e só liberando o id
+`#finance-record-modal-print-area` funciona pela especificidade do
+seletor (ID bate qualquer combinação `body *`), mas manter fora do
+Dialog evita depender de como o MUI porta o conteúdo do modal pro
+`document.body`.
+
+Cada campo do formulário vira uma linha "Rótulo: valor" na impressão;
+campos tipo `select`/`asyncSelect` mostram o rótulo da opção (ou o
+nome do registro associado), não o valor cru salvo no banco; campo
+`switch` mostra "Sim"/"Não"; `sectionTitle` e campos escondidos por
+`visibleWhen` não entram.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js` (só repassa
+`canExport` pro modal). Lint e build (`craco build`) limpos.
