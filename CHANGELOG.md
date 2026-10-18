@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.148] — Importação de armas não preenchia a procedência (nacional/importada) — 2026-10-18
+
+### Corrigido
+- O importador de "Relatório de Produtos" (planilha de loja de armas,
+  `parseGunStoreReport`) detectava o tipo certo (arma/munição) a partir da
+  coluna "Categoria", mas nunca preenchia a `origin` (procedência) — a
+  planilha não tem essa coluna. Resultado: produto importado como "arma"
+  nunca aparecia nos filtros "Armas nacionais"/"Armas importadas" (que
+  dependem desse campo), mesmo com o tipo certo. Agora a procedência é
+  deduzida a partir da MARCA já detectada no nome do produto (mesma lista já
+  usada pra extrair marca): Taurus/CBC/Imbel/Imbramun/Rossi/Braztech/Boito →
+  nacional; Glock/Beretta/Sig Sauer/Colt/Smith & Wesson/Walther/Mossberg/
+  Winchester/Remington/Savage/Ruger/Heckler & Koch/FN/CZ → importada. Produto
+  cujo nome não cita nenhuma marca reconhecida continua sem procedência
+  (preenche manual, como já acontecia). Reimportar a mesma planilha já
+  corrige os produtos existentes (atualiza por SKU).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 129.
+
 ## [2.3.147] — Imprimir / Exportar PDF e Excel (Clientes, Fornecedores, Produtos, Contas a Pagar e Contas a Receber) — 2026-10-17
 
 ### Adicionado

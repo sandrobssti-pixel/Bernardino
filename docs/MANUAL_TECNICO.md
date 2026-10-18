@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.147
-**Etapa:** 6.2 Fase 6 — imprimir/exportar PDF e Excel (Financeiro)
-**Última atualização:** 2026-10-17
+**Versão do documento:** 2.3.148
+**Etapa:** 6.2 Fase 6 — origem (nacional/importada) na importação de armas
+**Última atualização:** 2026-10-18
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -8918,3 +8918,54 @@ buscou pra exibir) — só controla se os botões aparecem.
 `frontend/src/components/UserModal/index.js`,
 `frontend/src/components/FinanceRecordList/index.js`. `npx tsc
 --noEmit`, `npx eslint` e build de produção limpos.
+
+## 129. Importação de armas não preenchia a procedência, nacional/importada (v2.3.148)
+
+Cliente reportou: importou `armas_atualizadas.xlsx` (relatório de
+produtos de loja de armas, mesmo formato de `parseGunStoreReport` —
+`Cód. Produto`/`Nome Produto`/`Categoria`/... em posição fixa de
+coluna) direto na categoria "Armas nacionais" do menu lateral (seção
+117), e os produtos "não sincronizavam" ali.
+
+Investigando a planilha de verdade enviada: o tipo é detectado
+corretamente pela coluna "Categoria" (CARABINA/ESPINGARDA/PISTOLA/
+REVÓLVER/RIFLE/ARMA → `type: "weapon"`; MUNIÇÃO/ESPOLETA/CARTELA →
+`type: "ammunition"`) — isso sempre funcionou. O problema é que esse
+relatório **não tem nenhuma coluna de procedência/origem**, e
+`parseGunStoreReport` nunca preenchia `FinanceProduct.origin` — então
+o produto virava "arma" certinho, mas o filtro "Armas nacionais"
+(`type="weapon"` + `origin="national"`, seção 115) nunca batia porque
+faltava a segunda metade da condição. Não dava pra simplesmente supor
+"tudo nacional" — a planilha real mistura marca nacional (Taurus, CBC)
+com importada (ex. duas pistolas Glock no mesmo arquivo).
+
+**Fix**: deduzir `origin` a partir da MARCA já extraída do nome do
+produto (`extractBrandFromName`, usa a mesma lista `KNOWN_BRANDS` que
+já existia) — `originFromBrand()` novo, com duas listas fixas
+(`NATIONAL_BRANDS`/`IMPORTED_BRANDS`, as mesmas marcas de
+`KNOWN_BRANDS` já reclassificadas, nenhum fabricante novo adicionado):
+Taurus/CBC/Imbel/Imbramun/Rossi/Braztech/Boito → `"national"`;
+Glock/Beretta/Sig Sauer/Sig/Colt/Smith & Wesson/Walther/Mossberg/
+Winchester/Remington/Savage/Ruger/Heckler & Koch/FN/CZ → `"imported"`.
+Só aplicado quando `type === "weapon"` (munição não tem esse filtro na
+UI). Produto cujo nome não cita marca nenhuma reconhecida (ex. SKU
+"TAU00228" mas nome só "PISTOLA GX4; CAL. .38TPC...", sem a palavra
+"TAURUS" escrita) continua sem `origin` — mesma limitação que já
+existia pra detecção de marca (comentário original: "NÃO tenta
+reconhecer por código de modelo... produto cuja descrição não cita a
+marca fica em branco pra preencher manual"), não é algo novo que essa
+correção piorou ou tentou resolver.
+
+**Limitação conhecida (pré-existente, não introduzida aqui)**: a
+detecção de marca é por substring simples no nome
+(`upper.includes(brand)`) — um nome que contenha a sigla "CZ" por
+outro motivo (não a marca checa CZ) pode casar por engano. Risco baixo
+e já existia antes desta correção (só ganhou mais uma consequência:
+agora também define origem, não só a marca mostrada).
+
+Reimportar a mesma planilha corrige os produtos já criados/importados
+antes dessa versão — `upsertProductRecord` localiza por SKU e
+atualiza (`FinanceProductService.update`), não duplica.
+
+**Arquivo**: `backend/src/services/FinanceService/FinanceImportService.ts`.
+`npx tsc --noEmit` limpo (sem mudança de frontend).

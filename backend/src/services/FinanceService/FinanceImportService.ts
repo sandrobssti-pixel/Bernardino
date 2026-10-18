@@ -276,6 +276,29 @@ const extractBrandFromName = (name: string): string | undefined => {
   return undefined;
 };
 
+// Procedência (nacional/importada) a partir da marca já detectada acima —
+// esse relatório (parseGunStoreReport) não tem coluna de origem nenhuma
+// (conferido com o cliente numa planilha real, "armas_atualizadas.xlsx"),
+// e sem isso o produto nunca aparecia nos filtros "Armas nacionais"/
+// "Armas importadas" (que cruzam `type="weapon"` com `origin`, seção
+// 115/117) mesmo com o tipo certo — só não tinha como escolher qual dos
+// dois. Mesma lista de marcas de `KNOWN_BRANDS`, sem inventar fabricante
+// novo nenhum; marca sem classificação aqui (nenhuma nova foi adicionada
+// desde o pedido original) fica sem origem, pra preencher manual — igual
+// já acontecia (e continua acontecendo) quando a marca nem é reconhecida.
+const NATIONAL_BRANDS = new Set(["TAURUS", "CBC", "IMBRAMUN", "IMBEL", "ROSSI", "BRAZTECH", "BOITO"]);
+const IMPORTED_BRANDS = new Set([
+  "GLOCK", "BERETTA", "SIG SAUER", "SIG", "COLT", "SMITH & WESSON", "WALTHER",
+  "MOSSBERG", "WINCHESTER", "REMINGTON", "SAVAGE", "RUGER", "HECKLER & KOCH", "FN", "CZ"
+]);
+
+const originFromBrand = (brand?: string): string | undefined => {
+  if (!brand) return undefined;
+  if (NATIONAL_BRANDS.has(brand)) return "national";
+  if (IMPORTED_BRANDS.has(brand)) return "imported";
+  return undefined;
+};
+
 // Calibre: só padrões de alta confiança (evita marcar um código de modelo
 // ou comprimento de cano como se fosse calibre) — notação com ponto
 // (".38TPC", ".380"), com X (handgun/rifle, "9X19"), bitola de espingarda
@@ -390,6 +413,10 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
 
     const brand = extractBrandFromName(name);
     if (brand) data.brand = brand;
+    if (type === "weapon") {
+      const origin = originFromBrand(brand);
+      if (origin) data.origin = origin;
+    }
     if (type === "weapon" || type === "ammunition") {
       const caliber = extractCaliberFromName(name);
       if (caliber) data.caliber = caliber;
