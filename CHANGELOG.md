@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.152] — Taurus também pelo código do modelo (sem nome nem prefixo de SKU) — 2026-10-18
+
+### Corrigido
+- Mesmo problema da v2.3.150, mais fundo: depois do fix do prefixo "TAU",
+  a planilha real do cliente ainda mostrava só 13 de 36 armas com
+  procedência ("eram pra ser 25"). Causa: a maioria das Taurus dessa
+  planilha usa só o **código do modelo** no nome (G2C, G3, G3C, GX2,
+  GX4SC, TH380, TX22, RT66, RT889, 59S) — sem a palavra "TAURUS" escrita
+  e com SKU numérico próprio da planilha legada (não "TAU..."). Confirmado
+  com o cliente (reverte, só pra essa lista fechada de modelos já vistos
+  na planilha real, a decisão original de não reconhecer por código de
+  modelo): esses 10 códigos agora também contam como marca Taurus/
+  procedência nacional, como último sinal (só depois de tentar nome e
+  prefixo do SKU, só pra tipo arma). Com isso, as 36 armas da planilha
+  real do cliente ficam todas com procedência (33 nacional + 3 importada,
+  confirmado simulando a planilha de novo). Reimportar a mesma planilha
+  atualiza os produtos existentes.
+- ⚠️ Atenção registrada: "G3" sozinho colide com o fuzil G3 da Heckler &
+  Koch (arma importada) — aceito porque o catálogo desse cliente é loja
+  de tiro esportivo civil, sem fuzil militar; se isso mudar, precisa
+  revisar essa lista.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 133.
+
 ## [2.3.151] — Imprimir/gerar PDF de um registro no formulário de editar — 2026-10-18
 
 ### Adicionado

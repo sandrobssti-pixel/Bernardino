@@ -260,7 +260,11 @@ const parseBrazilianDecimal = (raw: any): number | undefined => {
 // quando a marca aparece explícita (ex. "MUN CBC...", "PISTOLA GLOCK...").
 // NÃO tenta reconhecer por código de modelo (ex. "G2C" = Taurus) — fora do
 // escopo combinado com o cliente ("só se tiver no arquivo"); produto cuja
-// descrição não cita a marca fica em branco pra preencher manual.
+// descrição não cita a marca fica em branco pra preencher manual. (Ver
+// `WEAPON_MODEL_CODES` abaixo — pra uma lista FECHADA de modelos Taurus
+// específicos, essa regra foi revertida sob confirmação explícita do
+// cliente, depois de uma planilha real mostrar que a maioria das armas
+// Taurus dela usa só o código do modelo, sem a palavra "TAURUS" escrita.)
 const KNOWN_BRANDS = [
   "TAURUS", "CBC", "GLOCK", "IMBRAMUN", "IMBEL", "ROSSI", "BRAZTECH",
   "BERETTA", "SIG SAUER", "SIG", "COLT", "SMITH & WESSON", "S&W",
@@ -311,6 +315,26 @@ const brandFromSku = (sku: string): string | undefined => {
   const upper = sku.toUpperCase();
   const match = BRAND_SKU_PREFIXES.find(({ prefix }) => upper.startsWith(prefix));
   return match?.brand;
+};
+
+// Último sinal, só pra ARMA (não munição/produto comum) e só quando nem o
+// nome nem o SKU bateram — lista FECHADA de códigos de modelo Taurus
+// vistos de fato na planilha real do cliente (não é um padrão genérico tipo
+// "qualquer letra+número"). Confirmado com o cliente depois de conferir
+// que 20 das 36 armas dessa planilha específica são modelos Taurus sem a
+// palavra "TAURUS" escrita e sem prefixo "TAU" no SKU (código numérico
+// próprio da planilha legada, ex. "10034336"). Atenção: "G3" sozinho
+// colide com o fuzil G3 da Heckler & Koch (arma importada) — aceito aqui
+// porque o catálogo desse cliente é de loja de tiro esportivo civil, sem
+// fuzil militar; se um G3 da HK (ou outro modelo com nome parecido) entrar
+// no catálogo, precisa revisar isso.
+const WEAPON_MODEL_CODES = [
+  "G2C", "G3C", "G3", "GX2", "GX4SC", "TH380", "TX22", "RT66", "RT889", "59S"
+];
+
+const brandFromModelCode = (name: string): string | undefined => {
+  const upper = name.toUpperCase();
+  return WEAPON_MODEL_CODES.some((code) => upper.includes(code)) ? "TAURUS" : undefined;
 };
 
 // Calibre: só padrões de alta confiança (evita marcar um código de modelo
@@ -427,7 +451,7 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
 
     let brand = extractBrandFromName(name);
     if (!brand && type === "weapon") {
-      brand = brandFromSku(sku);
+      brand = brandFromSku(sku) || brandFromModelCode(name);
     }
     if (brand) data.brand = brand;
     if (type === "weapon") {

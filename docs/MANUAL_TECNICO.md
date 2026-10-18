@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.151
-**Etapa:** 6.2 Fase 6 — Taurus por prefixo de SKU; imprimir/PDF de um registro no formulário
+**Versão do documento:** 2.3.152
+**Etapa:** 6.2 Fase 6 — Taurus por código de modelo (fecha a lacuna da planilha real do cliente)
 **Última atualização:** 2026-10-18
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9122,3 +9122,59 @@ nome do registro associado), não o valor cru salvo no banco; campo
 **Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
 `frontend/src/components/FinanceRecordList/index.js` (só repassa
 `canExport` pro modal). Lint e build (`craco build`) limpos.
+
+## 133. Taurus também pelo código do modelo — fecha a lacuna da planilha real (v2.3.152)
+
+Depois da v2.3.150 (prefixo "TAU" do SKU), cliente reimportou e reportou
+"aumentou de 11 para 13 itens e são 25" — ou seja, o prefixo do SKU só
+fechou 2 dos ~14 que faltavam. Investigado rodando a mesma lógica do
+sistema (nome + prefixo do SKU) contra a planilha real
+(`armas_atualizadas.xlsx`, 36 linhas de arma):
+
+- 13 com procedência (nome "TAURUS"/"CBC", ou SKU "TAU...")
+- 3 com procedência (marca importada reconhecida no nome)
+- **20 sem procedência nenhuma** — todas Taurus pelo nome, mas só com
+  código de modelo (G2C, G3, G3C, GX2, GX4SC, TH380/TH380C, TX22, RT66/
+  RT66C, RT889, 59S/PT59S), sem a palavra "TAURUS" e com SKU numérico
+  próprio da planilha legada (ex. "10034336", "75008418") — não bate
+  com o prefixo "TAU".
+
+Isso esbarra direto na decisão original do módulo (seção/comentário em
+`extractBrandFromName`): "NÃO tenta reconhecer por código de modelo —
+fora do escopo combinado com o cliente". Perguntado de novo
+(AskUserQuestion, pelo mesmo motivo de cautela das seções 130/131 —
+mexe em como o sistema classifica procedência): cliente confirmou que
+quer reverter isso **só pra essa lista fechada de 10 códigos**,
+realmente vistos na planilha dele ("Sim, reconhecer esses modelos
+Taurus"), e depois, perguntado se seguia pra frente mesmo com o que
+sobrasse sem bater: "adiciona tudo, o que não der eu preencho manual,
+vou fazer uma revisão".
+
+**Fix — `backend/src/services/FinanceService/FinanceImportService.ts`**:
+novo `WEAPON_MODEL_CODES` (`["G2C", "G3C", "G3", "GX2", "GX4SC", "TH380",
+"TX22", "RT66", "RT889", "59S"]`, substring simples no nome, mesmo
+estilo de `extractBrandFromName`) e `brandFromModelCode(name)`. Em
+`parseGunStoreReport`, pra linhas `type === "weapon"`: a cadeia de
+sinais agora é nome → prefixo do SKU → código do modelo (só tenta o
+próximo se o anterior não achou nada) — `brand = extractBrandFromName(name)
+|| (type === "weapon" && (brandFromSku(sku) || brandFromModelCode(name)))`.
+Simulado de novo contra a planilha real depois do fix: **33 nacional + 3
+importada = todas as 36 armas com procedência**, nenhuma mais em branco.
+
+⚠️ **Risco documentado, não resolvido**: o código "G3" sozinho colide
+com o fuzil G3 da Heckler & Koch (arma importada, uso militar/
+paramilitar) — um produto chamado "FUZIL G3" entraria errado como
+Taurus/nacional. Aceito aqui porque o catálogo desse cliente é loja de
+tiro esportivo civil (pistolas/revólveres/carabinas Taurus e CBC,
+munição e acessórios), sem fuzil de uso militar no estoque. Se isso
+mudar no futuro (cliente passar a vender fuzil importado, G3 da HK
+incluso), essa lista precisa ser revisada — não é um padrão genérico de
+reconhecimento, é uma lista fechada pra essa planilha/cliente específico.
+
+Reimportar a mesma planilha atualiza por SKU os produtos existentes.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceImportService.ts`.
+`npx tsc --noEmit` limpo. Validado simulando a lógica contra a planilha
+real (`armas_atualizadas.xlsx`) com um script Python isolado, antes de
+subir — mesma prática já usada nas seções 129/130/131, pra confirmar
+contra dado real em vez de só confiar no código.

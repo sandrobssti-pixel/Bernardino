@@ -152,6 +152,17 @@ do Coolify, que não se aplica mais aqui). Detalhes completos em
 `docs/MANUAL_TECNICO.md`, seção 32 ("Deploy do AtendeFlow via Coolify",
 histórico) e seções 35-36 (a migração real pra esse fluxo SSH).
 
+⚠️ **Nunca encurtar esse comando pra `docker compose build frontend
+backend` (sem `-f docker-compose.coolify.yml --env-file .env`) num
+deploy rápido passado por chat** — já aconteceu (outubro/2026) de dar
+exatamente isso de memória, sem reler essa seção antes: o `docker
+compose` sem `-f` cai no `docker-compose.yml` da raiz do repo (que só
+tem `postgres`/`redis`, serve pra dev local), e falha com `no such
+service: frontend`/`no such service: backend` — build nunca roda,
+cliente reporta "ficou igual" depois de um push que devia ter mudado
+alguma coisa. Sempre copiar o comando completo (com `-f` e
+`--env-file`) direto dessa seção, não resumir de cabeça.
+
 ## 7. Antes de assumir que um fix "não pegou": confira se o servidor bate com o GitHub
 
 Já aconteceu (outubro/2026) do `~/atendeflow` do servidor ter **divergido**
