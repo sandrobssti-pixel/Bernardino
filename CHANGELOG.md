@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.162] — Despachante Bélico: rotas HTTP, permissão por plano (Fase 2A) — 2026-10-19
+
+### Adicionado
+- Rotas HTTP completas pro Despachante Bélico — cadastro de Cliente
+  (CRUD + salvar/ler senha do gov.br, sempre auditado), Processo (CRUD +
+  mover de etapa na esteira) e Agendamento (psicoteste/laudo de tiro).
+- Permissão por plano (`Plan.useWeaponDispatch`) + liberação por usuário
+  dentro da empresa (`User.weaponDispatchAccess`), mesmo padrão já usado
+  em RH/Painel Vigia — toggle já disponível em `PlansManager.js` (tela do
+  Master).
+
+A tela (esteira estilo Kanban) ainda não existe — por isso o módulo ainda
+não aparece no menu lateral; é a próxima entrega. Detalhes em
+`docs/MANUAL_TECNICO.md`, seção 141.
+
 ## [2.3.161] — Catálogo oficial de serviços do Despachante Bélico + painel de Serviço mais limpo — 2026-10-19
 
 ### Adicionado

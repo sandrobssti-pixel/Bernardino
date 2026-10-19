@@ -575,6 +575,7 @@ const ALL_FEATURES = [
   { key: "useHR", label: "RH — Recrutamento (add-on)" },
   { key: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
   { key: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
+  { key: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -596,6 +597,7 @@ const FEATURE_FIELDS = [
   { name: "useHR", label: "RH — Recrutamento (add-on)" },
   { name: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
   { name: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
+  { name: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
 ];
 
 export function PlanManagerForm(props) {
@@ -608,7 +610,7 @@ export function PlanManagerForm(props) {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, isPublic: true,
   });
 
   useEffect(() => { setRecord(initialValue); }, [initialValue]);
@@ -1002,7 +1004,7 @@ export default function PlansManager() {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, isPublic: true,
   });
 
   useEffect(() => {
@@ -1081,6 +1083,7 @@ export default function PlansManager() {
       useHR: row.useHR === true,
       usePayment: row.usePayment === true,
       useFlowbuilder: row.useFlowbuilder === true,
+      useWeaponDispatch: row.useWeaponDispatch === true,
       isPublic: row.isPublic,
     });
     setShowConfirmDialog(true);
@@ -1107,6 +1110,7 @@ export default function PlansManager() {
       useHR: data.useHR === true,
       usePayment: data.usePayment === true,
       useFlowbuilder: data.useFlowbuilder === true,
+      useWeaponDispatch: data.useWeaponDispatch === true,
       isPublic: data.isPublic,
     });
     setPlanModalOpen(true);

@@ -255,6 +255,15 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   supervisorPanelAccess: boolean;
 
+  // Acesso ao Despachante Bélico (gestão de processo CAC/Posse-Porte/
+  // Militar) — mesmo padrão do financialAccess/hrAccess/
+  // supervisorPanelAccess: só tem efeito se o plano incluir
+  // (Plan.useWeaponDispatch); Admin e Master sempre têm acesso quando o
+  // módulo está ativo, independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  weaponDispatchAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

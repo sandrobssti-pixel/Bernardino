@@ -30,7 +30,8 @@ const ShowPlanCompanyService = async (id: string | number): Promise<Company> => 
                     "useOpenAi",
                     "useIntegrations",
                     "useFinancial",
-                    "useFlowbuilder"
+                    "useFlowbuilder",
+                    "useWeaponDispatch"
                 ]
             },
         ]

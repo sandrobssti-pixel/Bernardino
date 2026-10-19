@@ -65,6 +65,7 @@ import financeRoutes from "./financeRoutes";
 import fiscalRoutes from "./fiscalRoutes";
 import hrRoutes from "./hrRoutes";
 import supervisorPanelRoutes from "./supervisorPanelRoutes";
+import weaponDispatchRoutes from "./weaponDispatchRoutes";
 
 const routes = Router();
 
@@ -135,5 +136,6 @@ routes.use(financeRoutes);
 routes.use(fiscalRoutes);
 routes.use(hrRoutes);
 routes.use(supervisorPanelRoutes);
+routes.use(weaponDispatchRoutes);
 
 export default routes;

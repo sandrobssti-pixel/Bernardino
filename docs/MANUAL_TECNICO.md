@@ -9861,3 +9861,73 @@ limpo; catálogo novo testado de ponta a ponta num smoke test contra
 Postgres descartável (processo CAC e processo Militar criados, troca de
 etapa validada contra a trilha certa); lint e `craco build` do frontend
 limpos.
+
+## 141. Despachante Bélico — rotas HTTP e permissão por plano (Fase 2A, v2.3.162)
+
+Usuário confirmou ("vamos") seguir pra próxima etapa depois da modelagem
+do banco (seção 138) e do catálogo oficial (seção 140): destravar o
+módulo com rotas HTTP de verdade e permissão por plano, mesmo padrão já
+usado em RH/Painel Vigia (`EnsureHRAccess`/`EnsureSupervisorPanelAccess`)
+— **independente do Financeiro** (não exige `Plan.useFinancial` ativo,
+diferente de Fiscal/Pagamento, que dependem do Financeiro por usar os
+cadastros de cliente/produto dele).
+
+**Permissão**: `User.weaponDispatchAccess` (migration
+`20261019190000-add-weapondispatchaccess-to-users.ts`) + `EnsureWeapon
+DispatchAccess.ts` — Master tem acesso total; dentro de uma empresa com
+o add-on (`Plan.useWeaponDispatch`) ativo, Admin sempre tem acesso, um
+usuário comum só se o Admin liberou. `WeaponDispatchAccessController`
+expõe `GET /weapon-dispatch/access` (`{planHasModule, hasAccess}`, mesmo
+formato de Financeiro/Fiscal/Pagamento/RH) — é esse endpoint que o
+frontend vai usar pra decidir se mostra o módulo (tela ainda não
+construída, ver "Pendente" abaixo).
+
+**Rotas** (`weaponDispatchRoutes.ts`, todas atrás de `isAuth` + o
+`ensureAccess` de cada controller):
+- `/weapon-dispatch/catalog` — devolve o catálogo fixo (trilhas/etapas/
+  tipos de processo, `WeaponDispatchStageCatalog.ts`) pro frontend montar
+  selects e colunas da esteira sem duplicar essa lista em JS.
+- `/weapon-dispatch/clients` (CRUD) — `PUT .../gov-password` grava a
+  senha do gov.br sempre cifrada; `POST .../gov-password/reveal` lê o
+  valor decifrado, SEMPRE com `reason` no corpo (vira linha de auditoria
+  antes de devolver o valor — ver `WeaponDispatchClientService.
+  getGovPassword`, seção 138).
+- `/weapon-dispatch/processes` (CRUD) + `PUT .../stage` (único jeito de
+  mover o card na esteira — `update` genérico bloqueia `stage` de
+  propósito, ver seção 138).
+- `/weapon-dispatch/processes/:processId/appointments` (GET) +
+  `/weapon-dispatch/appointments` (POST/PUT/DELETE).
+
+**`ShowPlanCompanyService.ts` — gotcha já documentado (seção anterior,
+`useFlowbuilder`) evitado de propósito**: esse service tem um `attributes`
+whitelist explícito no include do `Plan` — qualquer flag novo usado pro
+menu lateral (`MainListItems.js`, padrão `planConfigs.plan.useX`) precisa
+estar nessa lista, senão lê sempre `undefined`/`false` mesmo com o valor
+certo no banco. `useWeaponDispatch` já foi adicionado agora, antes de
+precisar dele de verdade.
+
+**Pendente pra próxima etapa (Fase 2B)**: a TELA em si — esteira estilo
+Kanban, formulário de Cliente/Processo/Agendamento. Por isso o menu
+lateral (`MainListItems.js`) e o toggle de `PlansManager.js` (já
+adicionado ao catálogo de features, mas sem link nenhum pra clicar ainda)
+não têm uma página de verdade pra apontar — decisão deliberada de NÃO
+adicionar um item de menu que levaria a uma tela inexistente (link morto)
+só pra "aparecer" mais cedo.
+
+**Validação**: `npx tsc --noEmit` limpo; migration nova testada contra a
+cadeia completa de migrations num Postgres local descartável; smoke test
+de ponta a ponta do `EnsureWeaponDispatchAccess` (5 cenários: plano sem
+o add-on, plano com o add-on + admin, usuário comum sem liberação,
+usuário comum com liberação, Master acessando empresa sem o add-on — os
+5 bateram certo); lint e `craco build` do frontend limpos
+(`PlansManager.js`).
+
+**Arquivos**: `backend/src/models/User.ts`, `backend/src/database/
+migrations/20261019190000-add-weapondispatchaccess-to-users.ts`,
+`backend/src/services/WeaponDispatchService/EnsureWeaponDispatchAccess.ts`
+(novo), `backend/src/controllers/WeaponDispatchAccessController.ts`,
+`WeaponDispatchClientController.ts`, `WeaponDispatchProcessController.ts`,
+`WeaponDispatchAppointmentController.ts` (todos novos),
+`backend/src/routes/weaponDispatchRoutes.ts` (novo), `routes/index.ts`,
+`backend/src/services/CompanyService/ShowPlanCompanyService.ts`,
+`frontend/src/components/PlansManager/index.js`.
