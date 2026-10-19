@@ -10142,3 +10142,106 @@ desta entrega, não são deste commit); `craco build` de produção limpo.
 `frontend/src/components/WeaponDispatchClientModal/index.js` (novo),
 `frontend/src/routes/index.js`, `frontend/src/layout/MainListItems.js`,
 `frontend/src/translate/languages/{pt,en,es,esES}.js`.
+
+## 144. Campos fiscais da Venda — indicadores NF-e/NFC-e pedidos pelo contador (v2.3.166)
+
+Pedido do cliente, citando explicitamente o contador: uma lista de campos
+que faltavam na Venda "pra não ter problema com o fisco". Antes de
+implementar, usei `AskUserQuestion` pra resolver 4 pontos genuinamente
+ambíguos do pedido original (CLAUDE.md deste repositório pede isso quando
+há mais de um caminho razoável) — respostas do cliente:
+
+1. **Escopo**: os valores deviam ir DE VERDADE no XML mandado pra Focus
+   NFe/Sefaz, não só ficar guardado na venda — cliente escolheu o caminho
+   de maior risco/impacto explicitamente.
+2. SIGMA/SINARM, lote de munição, ID de embalagem: por ITEM da venda
+   (resolvido sem perguntar — único jeito que faz sentido quando uma
+   venda tem mais de uma arma/munição).
+3. "Status NF" amarelo: status NOVO (`pending_correction`), marcado
+   manualmente — não uma cor nova pro "processando" que já existia.
+4. "Destinatário: Tipo — Cliente ou Fornecedor": resolvido por padrão
+   (não travou no fluxo de pergunta) como classificação informativa — a
+   venda continua sempre pegando o destinatário do cadastro de Clientes
+   (`Sale.customerId`/`FinanceCustomer`), nunca de Fornecedor de verdade.
+   Sinalizado explicitamente ao cliente; se a intenção era outra (um
+   Fornecedor real poder ser destinatário), é um pedido à parte.
+
+**Campos novos em `Sale.ts`** (nível da venda inteira, não por item):
+`operationType` (idDest: internal/interstate/foreign → "1"/"2"/"3"),
+`operationNature` (natureza_operacao, texto livre — antes vinha sempre
+fixo "Venda"/"Venda ao consumidor" hardcoded no `FocusNFeService.ts`),
+`consumerPresence` (indPres — "0","1","2","3","5","9", os códigos exatos
+que o cliente passou, batem com a tabela oficial da Sefaz),
+`intermediaryType` (indIntermed: none/own_site/marketplace),
+`finalConsumerType` (indFinal: normal/final), `recipientType`
+(classificação Cliente/Fornecedor, ver ponto 4 acima),
+`ieIndicator` (indIEDest: contributor/exempt/non_contributor),
+`paymentMethod` (forma de pagamento/tPag — ver tabela abaixo).
+
+**Campos novos em `SaleItem.ts`** (só relevantes quando o item é Arma ou
+Munição — `product.type`): `sigmaSinarm`, `ammoLot` ("Lote munição"),
+`packageId` ("ID embalagem") — todos texto livre (alfanumérico),
+nenhum formato fixo documentado pelo cliente. Como não existe campo
+próprio pra isso no schema padrão da NF-e, vão como texto dentro de
+`informacoes_adicionais_produto` (infAdProd) no payload da Focus NFe —
+prática comum pra dado regulatório sem campo dedicado no XML.
+
+**Tabela de forma de pagamento** (`PAYMENT_METHOD_CODES`,
+`FocusNFeService.ts`) — o cliente passou a lista exata do contador, com
+duas entradas que colidem no mesmo código oficial da Sefaz:
+
+| Opção (como o cliente passou) | Código Sefaz (tPag) |
+|---|---|
+| À vista | 01 |
+| Dinheiro | 01 (mesmo código de "À vista") |
+| Cartão de Crédito | 03 |
+| Cartão de Débito | 04 |
+| PIX | 17 |
+| Sem pagamento | 90 |
+| Importado do XML | 99 (Outros — não corresponde a nenhum código oficial conhecido; sinalizado como incerto, ver aviso abaixo) |
+
+**⚠️ Nível de confiança, explícito pro cliente repassar ao contador antes
+de ir pra Produção**: os CÓDIGOS oficiais da Sefaz usados acima (indPres,
+indFinal, indIEDest, idDest, tPag) têm confiança alta — conferidos contra
+o schema público da NF-e/NFC-e. O que **não** tem o mesmo nível de
+confiança é (a) o NOME exato de cada chave que a Focus NFe espera no
+JSON — mesma ressalva que já existia pra todo o resto do adapter desde a
+Fase 3 (nunca testado contra uma conta de Homologação de verdade,
+`FocusNFeService.ts`, topo do arquivo) — e (b) especificamente o mapeamento
+de "Importado do XML", que não corresponde a nenhum código Sefaz conhecido.
+Testar emitindo uma nota de teste em Homologação com cada combinação de
+campo antes de confiar nisso em Produção.
+
+**"Status NF" — terceiro estado visual**: `FiscalDocument.status` ganhou
+um valor novo, `"pending_correction"` (nenhuma migração precisou —
+coluna já era string livre, sem CHECK constraint de banco). Novo endpoint
+`POST /fiscal-documents/:id/toggle-pending-correction`
+(`FiscalDocumentService.togglePendingCorrection`) alterna entre
+`"error"` ⇄ `"pending_correction"` — só permitido nesses dois estados,
+nunca a partir de "processando"/"autorizada"/"cancelada". É uma anotação
+manual (o usuário marca "já vi esse erro, vou corrigir a venda antes de
+reenviar"), não afeta nem é afetada pela comunicação real com o gateway
+— reemitir sempre cria um `FiscalDocument` NOVO (mesmo padrão já
+documentado antes), nunca reaproveita o registro marcado.
+`SaleDetailModal.js`: chip amarelo "Precisa corrigir" + botão de
+bandeira pra marcar/desmarcar num documento com erro; "Processando"
+mudou de amarelo pra azul (`#3b82f6`) pra não ficar ambíguo com o
+amarelo novo, que agora tem um significado específico.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as duas migrations
+novas (`20261019230000-...`, `20261019240000-...`) testadas (up e down)
+contra Postgres local rodando a cadeia completa; `npx eslint` limpo nos
+arquivos tocados do frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/Sale.ts`, `backend/src/models/
+SaleItem.ts`, `backend/src/models/FiscalDocument.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/controllers/FiscalDocumentController.ts`,
+`backend/src/routes/fiscalRoutes.ts`,
+`backend/src/database/migrations/20261019230000-*.ts`,
+`20261019240000-*.ts` (novos), `frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js` (novas constantes
+`SALE_*_OPTIONS`), `frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`.

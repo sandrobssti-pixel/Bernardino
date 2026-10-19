@@ -84,6 +84,12 @@ const useFiscal = () => {
       const { data } = await api.post(`/fiscal-documents/${id}/refresh-status`);
       return data;
     },
+    // Marca/desmarca uma nota com erro como "pendente de correção"
+    // (amarelo) — ver comentário completo em FiscalDocumentService.ts.
+    togglePendingCorrection: async (id) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/toggle-pending-correction`);
+      return data;
+    },
     cancel: async (id, justification) => {
       const { data } = await api.post(`/fiscal-documents/${id}/cancel`, { justification });
       return data;

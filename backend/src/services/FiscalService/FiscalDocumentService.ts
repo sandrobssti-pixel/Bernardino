@@ -148,6 +148,31 @@ export const refreshStatus = async (
   return document;
 };
 
+// Marca/desmarca uma nota com erro como "pendente de correção" (v2.3.166)
+// — pedido do cliente pra ter um terceiro estado visual (amarelo) além de
+// autorizada (verde) e erro (vermelho): depois de ver o erro, o usuário
+// marca a nota como "vou corrigir a venda antes de tentar de novo", pra
+// distinguir visualmente das notas com erro ainda não olhadas. É só uma
+// anotação manual — reemitir de verdade (`emit`, acima) sempre cria um
+// FiscalDocument NOVO (nunca reaproveita este registro), então marcar/
+// desmarcar aqui não desfaz nem repete nenhuma chamada ao gateway.
+export const togglePendingCorrection = async (
+  id: string | number,
+  companyId: number
+): Promise<FiscalDocument> => {
+  const document = await show(id, companyId);
+
+  if (document.status === "error") {
+    await document.update({ status: "pending_correction" });
+  } else if (document.status === "pending_correction") {
+    await document.update({ status: "error" });
+  } else {
+    throw new AppError("ERR_FISCAL_DOCUMENT_NOT_FLAGGABLE");
+  }
+
+  return document;
+};
+
 export const cancel = async (
   id: string | number,
   justification: string,

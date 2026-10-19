@@ -41,6 +41,15 @@ export const refreshStatus = async (req: Request, res: Response): Promise<Respon
   return res.status(200).json(document);
 };
 
+export const togglePendingCorrection = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+
+  const document = await FiscalDocumentService.togglePendingCorrection(id, companyId);
+  return res.status(200).json(document);
+};
+
 export const remove = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;

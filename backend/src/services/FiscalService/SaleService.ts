@@ -38,6 +38,9 @@ interface SaleItemData {
   unit?: string;
   quantity: string | number;
   unitPrice: string | number;
+  sigmaSinarm?: string;
+  ammoLot?: string;
+  packageId?: string;
 }
 
 interface SaleData {
@@ -45,7 +48,40 @@ interface SaleData {
   notes?: string;
   customerId?: number | null;
   items: SaleItemData[];
+  // Campos fiscais pedidos pelo contador do cliente (v2.3.166) — ver
+  // comentário completo em Sale.ts e a tabela de códigos em
+  // FocusNFeService.ts.
+  operationType?: string;
+  operationNature?: string;
+  consumerPresence?: string;
+  intermediaryType?: string;
+  finalConsumerType?: string;
+  recipientType?: string;
+  ieIndicator?: string;
+  paymentMethod?: string;
 }
+
+// Mesmo padrão de `fields`/defaultValue usado no resto do Financeiro —
+// centraliza os defaults pra não duplicar entre `create`/`update`.
+const FISCAL_FIELD_DEFAULTS: Record<string, string> = {
+  operationType: "internal",
+  operationNature: "Venda",
+  consumerPresence: "1",
+  intermediaryType: "none",
+  finalConsumerType: "final",
+  recipientType: "customer",
+  ieIndicator: "non_contributor",
+  paymentMethod: ""
+};
+
+const buildFiscalFields = (data: SaleData): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  Object.keys(FISCAL_FIELD_DEFAULTS).forEach(key => {
+    const value = (data as any)[key];
+    fields[key] = value !== undefined && value !== null ? String(value) : FISCAL_FIELD_DEFAULTS[key];
+  });
+  return fields;
+};
 
 const includeOptions = [
   {
@@ -197,7 +233,10 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
       unitPrice: String(unitPrice),
       totalPrice: String(totalPrice),
       costPrice: product?.costPrice ?? "0",
-      taxRate: product?.taxRate ?? "0"
+      taxRate: product?.taxRate ?? "0",
+      sigmaSinarm: item.sigmaSinarm || "",
+      ammoLot: item.ammoLot || "",
+      packageId: item.packageId || ""
     };
 
     if (reformEnabled) {
@@ -240,6 +279,7 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
     customerId: data.customerId || null,
     totalValue: String(total),
     status: "draft",
+    ...buildFiscalFields(data),
     companyId
   } as any);
 
@@ -271,7 +311,8 @@ export const update = async (
     saleDate: data.saleDate || null,
     notes: data.notes || "",
     customerId: data.customerId || null,
-    totalValue: String(total)
+    totalValue: String(total),
+    ...buildFiscalFields(data)
   });
 
   // Substitui os itens inteiros (mais simples e seguro que tentar

@@ -3,6 +3,35 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.166] — Campos fiscais da Venda (indicadores NF-e/NFC-e) — 2026-10-19
+
+### Adicionado
+- Pedido do contador do cliente, "obrigatório pra não ter problema com o
+  fisco": nova seção "Dados fiscais da nota" em Nova/Editar venda — Tipo de
+  operação (Interna/Interestadual/Exterior), Natureza da operação (texto
+  livre, antes vinha sempre fixo "Venda"), Presença do consumidor (0/1/2/
+  3/5/9, códigos oficiais Sefaz), Tipo de intermediador (Sem operação/Site
+  próprio/Marketplace), Tipo consumidor (Normal/Final), Destinatário: Tipo
+  (Cliente/Fornecedor — classificação informativa, não muda de qual
+  cadastro o destinatário vem), Indicador IE (Contribuinte/Não contribuinte/
+  Contribuinte Isento) e Forma de pagamento (À vista/Cartão Crédito/Cartão
+  Débito/Dinheiro/Importado do XML/PIX/Sem pagamento).
+- SIGMA/SINARM, Lote de munição e ID de embalagem — campos novos por ITEM
+  da venda, aparecem só quando o item é Arma ou Munição.
+- Esses valores agora vão de verdade no payload mandado pra Focus NFe
+  (NF-e/NFC-e) — ⚠️ os códigos oficiais da Sefaz usados têm confiança alta,
+  mas o NOME exato de cada campo no JSON da Focus (e principalmente o
+  mapeamento de forma de pagamento) não foi validado contra uma nota de
+  Homologação de verdade ainda — ver aviso detalhado em
+  `FocusNFeService.ts`. Testar em Homologação antes de confiar em Produção.
+- "Status NF" ganhou um terceiro estado visual, amarelo ("Precisa
+  corrigir") — marcado manualmente numa nota com erro, pra distinguir das
+  notas com erro ainda não revisadas. "Processando" (gateway ainda
+  respondendo) passou de amarelo pra azul, já que o amarelo agora tem
+  esse significado específico.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 144.
+
 ## [2.3.165] — Despachante Bélico: ficha de cliente (Fase 2B — frontend) — 2026-10-19
 
 ### Adicionado

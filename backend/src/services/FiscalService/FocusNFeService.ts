@@ -19,6 +19,18 @@ import Company from "../../models/Company";
 // (`parseDocumentResponse`) e ajustar se necessário. Erros da API ficam
 // registrados no campo `errorMessage` do FiscalDocument pra facilitar esse
 // ajuste sem precisar instrumentar nada na hora.
+//
+// v2.3.166 — indicadores fiscais pedidos pelo contador do cliente (tipo de
+// operação/idDest, natureza da operação, presença do consumidor/indPres,
+// intermediador/indIntermed, consumidor final/indFinal, indicador IE do
+// destinatário, forma de pagamento/tPag) — ver `buildIndicadores` e
+// `IE_INDICATOR_CODES`/`OPERATION_TYPE_CODES`/`INTERMEDIARY_CODES`/
+// `PAYMENT_METHOD_CODES` mais abaixo. Os CÓDIGOS oficiais da Sefaz usados
+// aí têm confiança alta (conferidos contra o schema público); o NOME de
+// cada chave no JSON que a Focus NFe espera é que carrega o mesmo nível de
+// incerteza do resto deste adapter — testar contra Homologação antes de
+// confiar isso em Produção, já que o contador tratou esses campos como
+// obrigatórios pra evitar problema com o fisco.
 // Exportados pra FiscalDocumentService.resolveDocumentUrls poder prefixar
 // caminho_danfe/caminho_xml_nota_fiscal (relativos) sem duplicar os hosts.
 export const BASE_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
@@ -125,6 +137,21 @@ const normalizeNcm = (ncm: string | null | undefined): string => {
 // Monta o payload de itens compartilhado entre NF-e e NFC-e — estruturalmente
 // muito parecidas na API da Focus NFe (a NFC-e é uma NF-e simplificada pro
 // consumidor final).
+// SIGMA/SINARM, lote de munição e ID de embalagem (v2.3.166) — exigidos
+// pela legislação de controle de armas/munições (Exército/Polícia
+// Federal), mas não existem como campo próprio no schema padrão da
+// NF-e/NFC-e — vão como texto nas informações adicionais do PRODUTO
+// (infAdProd), prática comum pra dado regulatório sem campo dedicado.
+// Só gera texto quando pelo menos um dos três estiver preenchido (a
+// maioria dos itens de uma venda não é arma/munição).
+const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefined => {
+  const parts: string[] = [];
+  if (item.sigmaSinarm) parts.push(`SIGMA/SINARM: ${item.sigmaSinarm}`);
+  if (item.ammoLot) parts.push(`Lote de munição: ${item.ammoLot}`);
+  if (item.packageId) parts.push(`ID de embalagem: ${item.packageId}`);
+  return parts.length > 0 ? parts.join(" | ") : undefined;
+};
+
 const buildItemsPayload = (sale: Sale) =>
   (sale.items || []).map((item, index) => ({
     numero_item: index + 1,
@@ -134,6 +161,7 @@ const buildItemsPayload = (sale: Sale) =>
     // produto" que a Sefaz/o cliente espera ver na nota.
     codigo_produto: item.sku || (item.productId ? String(item.productId) : `ITEM-${index + 1}`),
     descricao: item.description,
+    informacoes_adicionais_produto: buildItemAdditionalInfo(item),
     codigo_ncm: normalizeNcm(item.ncm),
     cfop: item.cfop || "5102",
     unidade_comercial: item.unit || "UN",
@@ -165,6 +193,18 @@ const buildItemsPayload = (sale: Sale) =>
     cofins_valor: 0
   }));
 
+// indIEDest (Sefaz) — "1" Contribuinte ICMS, "2" Contribuinte isento de
+// Inscrição, "9" Não Contribuinte. Código confirmado contra o schema
+// público da NF-e; o NOME do campo que a Focus NFe espera no JSON
+// (`indicador_ie`) é um palpite consistente com o resto do adapter
+// (nunca testado contra conta de homologação de verdade — mesmo aviso do
+// topo do arquivo).
+const IE_INDICATOR_CODES: Record<string, string> = {
+  contributor: "1",
+  exempt: "2",
+  non_contributor: "9"
+};
+
 const buildDestinatario = (sale: Sale) => {
   const customer = sale.customer;
   if (!customer) return {};
@@ -182,8 +222,81 @@ const buildDestinatario = (sale: Sale) => {
     bairro_destinatario: customer.neighborhood || undefined,
     municipio_destinatario: customer.city || undefined,
     uf_destinatario: customer.state || undefined,
-    cep_destinatario: (customer.zipCode || "").replace(/\D/g, "") || undefined
+    cep_destinatario: (customer.zipCode || "").replace(/\D/g, "") || undefined,
+    indicador_ie: IE_INDICATOR_CODES[sale.ieIndicator] || IE_INDICATOR_CODES.non_contributor
   };
+};
+
+// ⚠️ Campos fiscais pedidos pelo contador do cliente (v2.3.166) — cada
+// indicador abaixo tem um código OFICIAL da Sefaz (conferido contra o
+// schema público da NF-e/NFC-e, confiança alta nesse código em si), mas o
+// NOME EXATO que a Focus NFe espera pra cada chave no JSON não veio de
+// nenhum exemplo real testado (mesma ressalva do topo do arquivo) —
+// validar contra uma nota de Homologação de verdade antes de confiar em
+// Produção, e ajustar o nome da chave aqui se a Focus devolver erro de
+// campo desconhecido.
+//
+// idDest (Identificador de local de destino da operação): 1-Interna,
+// 2-Interestadual, 3-Exterior.
+const OPERATION_TYPE_CODES: Record<string, string> = {
+  internal: "1",
+  interstate: "2",
+  foreign: "3"
+};
+
+// indIntermed: 0-Operação sem intermediador, 1-Operação em site ou
+// plataforma de terceiro. "none" (sem int./site próprio) não manda o
+// campo — só obrigatório quando existe de fato uma plataforma de
+// terceiro envolvida.
+const INTERMEDIARY_CODES: Record<string, string> = {
+  own_site: "0",
+  marketplace: "1"
+};
+
+// Forma de pagamento (tPag) — tabela oficial da Sefaz. "cash_upfront"
+// ("À vista") e "money" ("Dinheiro") foram pedidos como DUAS opções
+// separadas pelo cliente, mas a Sefaz só tem um código de dinheiro ("01")
+// — mapeadas iguais aqui de propósito. "imported_xml" ("Importado do
+// XML") não corresponde a nenhum código oficial conhecido — tratado como
+// "99" (Outros) até o contador confirmar o que esse caso realmente
+// significa pra nota fiscal.
+const PAYMENT_METHOD_CODES: Record<string, string> = {
+  cash_upfront: "01",
+  money: "01",
+  credit_card: "03",
+  debit_card: "04",
+  pix: "17",
+  no_payment: "90",
+  imported_xml: "99"
+};
+
+const buildIndicadores = (sale: Sale) => {
+  const fields: Record<string, unknown> = {
+    natureza_operacao: sale.operationNature || "Venda",
+    id_destino: OPERATION_TYPE_CODES[sale.operationType] || OPERATION_TYPE_CODES.internal,
+    consumidor_final: sale.finalConsumerType === "normal" ? "0" : "1"
+  };
+
+  if (sale.intermediaryType && sale.intermediaryType !== "none") {
+    // Quando a venda é por marketplace/plataforma de terceiro, a Sefaz
+    // também exige CNPJ + identificador do intermediador — não coletado
+    // ainda (não fazia parte do pedido original), então só o indicador
+    // vai por enquanto. Terminar isso exige um campo novo se algum
+    // cliente usar NFC-e via marketplace de verdade.
+    fields.indicador_intermediador = INTERMEDIARY_CODES[sale.intermediaryType] || "0";
+  }
+
+  const paymentCode = PAYMENT_METHOD_CODES[sale.paymentMethod];
+  if (paymentCode) {
+    fields.formas_pagamento = [
+      {
+        forma_pagamento: paymentCode,
+        valor_pagamento: paymentCode === "90" ? 0 : Number(sale.totalValue) || 0
+      }
+    ];
+  }
+
+  return fields;
 };
 
 const buildEmitente = (company: Company, config: FiscalConfig) => ({
@@ -212,7 +325,6 @@ const buildEmitente = (company: Company, config: FiscalConfig) => ({
 });
 
 const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  natureza_operacao: "Venda",
   data_emissao: new Date().toISOString(),
   tipo_documento: "1",
   finalidade_emissao: "1",
@@ -223,16 +335,22 @@ const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => 
   // bruta da Focus NFe). "9" = sem frete/sem ocorrência de transporte, o
   // padrão certo pra venda de balcão sem transportadora.
   modalidade_frete: "9",
+  // indPres (presença do consumidor) — nome de campo usado aqui
+  // (`indicador_presenca`) é diferente do usado em NFC-e
+  // (`presenca_comprador`, convenção já existente antes desta entrega);
+  // ver aviso de confiança em `buildIndicadores`.
+  indicador_presenca: sale.consumerPresence || "1",
+  ...buildIndicadores(sale),
   ...buildEmitente(company, config),
   ...buildDestinatario(sale),
   items: buildItemsPayload(sale)
 });
 
 const buildNfcePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  natureza_operacao: "Venda ao consumidor",
   data_emissao: new Date().toISOString(),
-  presenca_comprador: "1",
+  presenca_comprador: sale.consumerPresence || "1",
   serie: config.nfceSeries,
+  ...buildIndicadores(sale),
   ...buildEmitente(company, config),
   ...buildDestinatario(sale),
   items: buildItemsPayload(sale)

@@ -23,7 +23,17 @@ import { money } from "../../utils/financeFormat";
 import MenuItem from "@material-ui/core/MenuItem";
 import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
-import { PRODUCT_TYPE_LABELS, PRODUCT_TYPE_OPTIONS } from "../../pages/Financeiro/financeConfig";
+import {
+  PRODUCT_TYPE_LABELS,
+  PRODUCT_TYPE_OPTIONS,
+  SALE_OPERATION_TYPE_OPTIONS,
+  SALE_CONSUMER_PRESENCE_OPTIONS,
+  SALE_INTERMEDIARY_TYPE_OPTIONS,
+  SALE_FINAL_CONSUMER_TYPE_OPTIONS,
+  SALE_RECIPIENT_TYPE_OPTIONS,
+  SALE_IE_INDICATOR_OPTIONS,
+  SALE_PAYMENT_METHOD_OPTIONS,
+} from "../../pages/Financeiro/financeConfig";
 
 // Mostra o Tipo junto do nome NA LISTA de resultados da busca de item da
 // venda (não no campo já preenchido, que fica compacto só com o nome) —
@@ -73,12 +83,26 @@ const emptyItem = {
   unit: "UN",
   quantity: 1,
   unitPrice: 0,
+  sigmaSinarm: "",
+  ammoLot: "",
+  packageId: "",
 };
 
 const buildInitialValues = (sale, defaultCfop) => ({
   customerId: sale?.customerId || "",
   saleDate: sale?.saleDate || new Date().toISOString().slice(0, 10),
   notes: sale?.notes || "",
+  // Campos fiscais pedidos pelo contador do cliente (v2.3.166) — defaults
+  // iguais aos do backend (Sale.ts), pra uma venda nova já nascer com o
+  // valor mais comum pré-selecionado em vez de vazio.
+  operationType: sale?.operationType || "internal",
+  operationNature: sale?.operationNature || "Venda",
+  consumerPresence: sale?.consumerPresence || "1",
+  intermediaryType: sale?.intermediaryType || "none",
+  finalConsumerType: sale?.finalConsumerType || "final",
+  recipientType: sale?.recipientType || "customer",
+  ieIndicator: sale?.ieIndicator || "non_contributor",
+  paymentMethod: sale?.paymentMethod || "",
   items:
     sale?.items?.length > 0
       ? sale.items.map((item) => ({
@@ -90,6 +114,9 @@ const buildInitialValues = (sale, defaultCfop) => ({
           unit: item.unit || "UN",
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
+          sigmaSinarm: item.sigmaSinarm || "",
+          ammoLot: item.ammoLot || "",
+          packageId: item.packageId || "",
         }))
       : [{ ...emptyItem, cfop: defaultCfop || "5102" }],
 });
@@ -252,7 +279,12 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                 <FieldArray name="items">
                   {({ push, remove }) => (
                     <>
-                      {values.items.map((item, index) => (
+                      {values.items.map((item, index) => {
+                        const selectedProduct = products.find((p) => p.id === item.productId);
+                        const isWeaponOrAmmo =
+                          selectedProduct?.type === "weapon" || selectedProduct?.type === "ammunition";
+
+                        return (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
                           <Grid item xs={12} sm={3}>
                             <TextField
@@ -369,8 +401,48 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               {money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
                             </Typography>
                           </Grid>
+
+                          {/* SIGMA/SINARM, lote de munição e ID de embalagem
+                              (v2.3.166) — só aparecem quando o item é Arma ou
+                              Munição (controle exigido por lei pra esses dois
+                              tipos, pedido do contador do cliente). */}
+                          {isWeaponOrAmmo && (
+                            <>
+                              <Grid item xs={12} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="SIGMA/SINARM"
+                                  name={`items.${index}.sigmaSinarm`}
+                                />
+                              </Grid>
+                              <Grid item xs={6} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="Lote munição"
+                                  name={`items.${index}.ammoLot`}
+                                />
+                              </Grid>
+                              <Grid item xs={6} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="ID embalagem"
+                                  name={`items.${index}.packageId`}
+                                />
+                              </Grid>
+                            </>
+                          )}
                         </Grid>
-                      ))}
+                        );
+                      })}
                       <Button
                         size="small"
                         startIcon={<AddIcon />}
@@ -381,6 +453,143 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     </>
                   )}
                 </FieldArray>
+
+                <Divider style={{ margin: "16px 0" }} />
+
+                <Typography variant="subtitle2" gutterBottom>
+                  Dados fiscais da nota
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo de operação"
+                      name="operationType"
+                    >
+                      {SALE_OPERATION_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={8}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Natureza da operação"
+                      name="operationNature"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Presença do consumidor"
+                      name="consumerPresence"
+                    >
+                      {SALE_CONSUMER_PRESENCE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo de intermediador"
+                      name="intermediaryType"
+                    >
+                      {SALE_INTERMEDIARY_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo consumidor"
+                      name="finalConsumerType"
+                    >
+                      {SALE_FINAL_CONSUMER_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Destinatário: Tipo"
+                      name="recipientType"
+                    >
+                      {SALE_RECIPIENT_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Indicador IE"
+                      name="ieIndicator"
+                    >
+                      {SALE_IE_INDICATOR_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Forma de pagamento"
+                      name="paymentMethod"
+                    >
+                      {SALE_PAYMENT_METHOD_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                </Grid>
 
                 <Field
                   as={TextField}

@@ -34,7 +34,9 @@ class FiscalDocument extends Model<FiscalDocument> {
   @Column
   type: string;
 
-  // "processing" | "authorized" | "error" | "cancelled"
+  // "processing" | "authorized" | "error" | "cancelled" | "pending_correction"
+  // (último, v2.3.166 — marcação manual sobre um "error", ver
+  // FiscalDocumentService.togglePendingCorrection; nunca vem do gateway)
   @Default("processing")
   @Column
   status: string;

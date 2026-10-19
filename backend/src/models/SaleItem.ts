@@ -121,6 +121,23 @@ class SaleItem extends Model<SaleItem> {
   @Column
   ivaIbsCityValue: string;
 
+  // Campos de controle de arma/munição (v2.3.166, pedido do cliente junto
+  // com os campos fiscais do contador) — só fazem sentido quando o item é
+  // Arma/Munição (`product.type`), mas ficam disponíveis em qualquer item
+  // (o frontend que decide quando mostrar, ver SaleModal.js). Todos texto
+  // livre (alfanumérico) — nenhum dos três tem formato fixo documentado.
+  @Default("")
+  @Column
+  sigmaSinarm: string;
+
+  @Default("")
+  @Column
+  ammoLot: string;
+
+  @Default("")
+  @Column
+  packageId: string;
+
   @ForeignKey(() => Sale)
   @AllowNull(false)
   @Column

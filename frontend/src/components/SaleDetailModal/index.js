@@ -32,6 +32,8 @@ import EditIcon from "@material-ui/icons/Edit";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import CodeIcon from "@material-ui/icons/Code";
+import FlagIcon from "@material-ui/icons/Flag";
+import FlagOutlinedIcon from "@material-ui/icons/FlagOutlined";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -61,11 +63,19 @@ const useStyles = makeStyles((theme) => ({
 const DOC_TYPE_LABEL = { nfe: "NF-e", nfce: "NFC-e", nfse: "NFS-e" };
 const DOC_TYPE_ICON = { nfe: <DescriptionIcon fontSize="small" />, nfce: <ShoppingCartIcon fontSize="small" />, nfse: <BuildIcon fontSize="small" /> };
 
+// "Status NF" (v2.3.166, pedido do cliente): verde = autorizada, vermelho =
+// erro (já mostrava o tipo do erro logo abaixo do chip, ver JSX mais
+// embaixo), amarelo = "precisa modificar alguma informação"
+// (`pending_correction`, novo — marcado manualmente, ver
+// `togglePendingCorrection` abaixo). "Processando" passou de amarelo pra
+// azul pra não ficar ambíguo com o amarelo novo, que agora tem um
+// significado específico (não é só "aguardando resposta do gateway").
 const statusChip = (status) => {
   if (status === "authorized") return <Chip size="small" label="Autorizada" style={{ backgroundColor: "#10b981", color: "#fff" }} />;
   if (status === "error") return <Chip size="small" label="Erro" style={{ backgroundColor: "#ef4444", color: "#fff" }} />;
+  if (status === "pending_correction") return <Chip size="small" label="Precisa corrigir" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />;
   if (status === "cancelled") return <Chip size="small" label="Cancelada" style={{ backgroundColor: "#6b7280", color: "#fff" }} />;
-  return <Chip size="small" label="Processando" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />;
+  return <Chip size="small" label="Processando" style={{ backgroundColor: "#3b82f6", color: "#fff" }} />;
 };
 
 // Detalhe de uma venda confirmada (Fase 3 — módulo fiscal): mostra os itens
@@ -132,6 +142,17 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   const handleRefresh = async (id) => {
     try {
       await fiscal.fiscalDocuments.refreshStatus(id);
+      await fetchDocuments();
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  // Marca/desmarca "Precisa corrigir" (amarelo) numa nota com erro —
+  // v2.3.166, ver comentário em FiscalDocumentService.ts.
+  const handleTogglePendingCorrection = async (id) => {
+    try {
+      await fiscal.fiscalDocuments.togglePendingCorrection(id);
       await fetchDocuments();
     } catch (err) {
       toastError(err);
@@ -344,7 +365,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                   <TableCell>{DOC_TYPE_LABEL[doc.type] || doc.type}</TableCell>
                   <TableCell>
                     {statusChip(doc.status)}
-                    {doc.status === "error" && doc.errorMessage && (
+                    {(doc.status === "error" || doc.status === "pending_correction") && doc.errorMessage && (
                       <Typography
                         variant="caption"
                         color="error"
@@ -359,10 +380,24 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                     {doc.accessKey || "—"}
                   </TableCell>
                   <TableCell align="right">
-                    {doc.status === "error" && doc.raw && (
+                    {(doc.status === "error" || doc.status === "pending_correction") && doc.raw && (
                       <Tooltip title="Ver resposta completa do gateway">
                         <IconButton size="small" onClick={() => setRawDialogDoc(doc)}>
                           <CodeIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {doc.status === "error" && (
+                      <Tooltip title="Marcar como 'precisa corrigir' (amarelo)">
+                        <IconButton size="small" onClick={() => handleTogglePendingCorrection(doc.id)}>
+                          <FlagOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {doc.status === "pending_correction" && (
+                      <Tooltip title="Desmarcar 'precisa corrigir' (volta pra Erro)">
+                        <IconButton size="small" onClick={() => handleTogglePendingCorrection(doc.id)}>
+                          <FlagIcon fontSize="small" style={{ color: "#f59e0b" }} />
                         </IconButton>
                       </Tooltip>
                     )}

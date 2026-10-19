@@ -450,3 +450,58 @@ export const financeReceivableFields = [
 export const financeReceivableFilters = [
   { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...RECEIVABLE_STATUS_OPTIONS] },
 ];
+
+// Campos fiscais da Venda pedidos pelo contador do cliente (v2.3.166) — ver
+// comentário completo (e os códigos Sefaz usados) em Sale.ts/
+// FocusNFeService.ts. Vivem aqui (não em SaleModal.js) só pra manter as
+// listas de opção no mesmo lugar dos outros `_OPTIONS` deste módulo.
+export const SALE_OPERATION_TYPE_OPTIONS = [
+  { value: "internal", label: "Interna (mesmo estado)" },
+  { value: "interstate", label: "Interestadual" },
+  { value: "foreign", label: "Exterior" },
+];
+
+export const SALE_CONSUMER_PRESENCE_OPTIONS = [
+  { value: "0", label: "0 - Não se aplica" },
+  { value: "1", label: "1 - Presencial" },
+  { value: "2", label: "2 - Não Pres. (Internet)" },
+  { value: "3", label: "3 - Não Pres. (TeleAt.)" },
+  { value: "5", label: "5 - Pres. Fora Estabelec." },
+  { value: "9", label: "9 - Não Pres. (outros)" },
+];
+
+export const SALE_INTERMEDIARY_TYPE_OPTIONS = [
+  { value: "none", label: "Sem operação" },
+  { value: "own_site", label: "Sem intermediador (Site Próprio)" },
+  { value: "marketplace", label: "Site ou Plataforma de Terceiros (marketplace)" },
+];
+
+export const SALE_FINAL_CONSUMER_TYPE_OPTIONS = [
+  { value: "normal", label: "Normal" },
+  { value: "final", label: "Final" },
+];
+
+export const SALE_RECIPIENT_TYPE_OPTIONS = [
+  { value: "customer", label: "Cliente" },
+  { value: "supplier", label: "Fornecedor" },
+];
+
+export const SALE_IE_INDICATOR_OPTIONS = [
+  { value: "contributor", label: "Contribuinte" },
+  { value: "non_contributor", label: "Não contribuinte" },
+  { value: "exempt", label: "Contribuinte Isento" },
+];
+
+// Forma de pagamento — lista exatamente como o contador passou (duas
+// opções, "À vista" e "Dinheiro", mapeiam pro mesmo código Sefaz "01" no
+// backend; ver PAYMENT_METHOD_CODES em FocusNFeService.ts).
+export const SALE_PAYMENT_METHOD_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "cash_upfront", label: "À vista" },
+  { value: "credit_card", label: "Cartão de Crédito" },
+  { value: "debit_card", label: "Cartão de Débito" },
+  { value: "money", label: "Dinheiro" },
+  { value: "imported_xml", label: "Importado do XML" },
+  { value: "pix", label: "PIX" },
+  { value: "no_payment", label: "Sem pagamento" },
+];

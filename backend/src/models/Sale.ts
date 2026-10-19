@@ -51,6 +51,57 @@ class Sale extends Model<Sale> {
   @Column(DataType.TEXT)
   notes: string;
 
+  // Campos fiscais pedidos pelo contador do cliente (v2.3.166) — cada um
+  // mapeia pra um indicador real do schema da NF-e/NFC-e, ver comentário
+  // detalhado + tabela de códigos em FocusNFeService.ts (`buildIndicadores`).
+  // "internal" | "interstate" | "foreign" — idDest.
+  @Default("internal")
+  @Column
+  operationType: string;
+
+  // Texto livre (natureza_operacao) — antes vinha sempre fixo "Venda"/"Venda
+  // ao consumidor" no FocusNFeService, agora editável por venda.
+  @Default("Venda")
+  @Column
+  operationNature: string;
+
+  // indPres — "0","1","2","3","5","9" (códigos oficiais da Sefaz, sem
+  // tradução: ver WEAPON_DISPATCH... não, ver FocusNFeService.ts).
+  @Default("1")
+  @Column
+  consumerPresence: string;
+
+  // "none" | "own_site" | "marketplace" — indIntermed.
+  @Default("none")
+  @Column
+  intermediaryType: string;
+
+  // "normal" | "final" — indFinal.
+  @Default("final")
+  @Column
+  finalConsumerType: string;
+
+  // "customer" | "supplier" — classificação informativa de quem é o
+  // destinatário desta venda. NÃO troca de cadastro (o destinatário
+  // continua vindo sempre de FinanceCustomer, `customerId` abaixo) — é só
+  // uma marcação visível na tela/impressão, pedida pelo cliente junto com
+  // os outros campos fiscais. Ver seção 144 do manual técnico sobre essa
+  // decisão.
+  @Default("customer")
+  @Column
+  recipientType: string;
+
+  // "contributor" | "exempt" | "non_contributor" — indIEDest.
+  @Default("non_contributor")
+  @Column
+  ieIndicator: string;
+
+  // "cash_upfront" | "credit_card" | "debit_card" | "money" |
+  // "imported_xml" | "pix" | "no_payment" — forma_pagamento (tPag).
+  @Default("")
+  @Column
+  paymentMethod: string;
+
   @ForeignKey(() => FinanceCustomer)
   @Column
   customerId: number;
