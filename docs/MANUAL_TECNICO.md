@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.156
-**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), texto separado por painel
+**Versão do documento:** 2.3.157
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), selo de marca por painel
 **Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9445,3 +9445,37 @@ terceiro/quarto gateway: "dá pra ficar 4 painéis em uma tela" — registrado
 na skill `atendeflow-dev` como padrão a seguir sem perguntar de novo
 (ajustar a largura da coluna só quando o próximo gateway entrar, não
 adiantar breakpoint fixo agora com só 2 provedores).
+
+Terceira rodada do mesmo pedido (v2.3.157): "coloque a logomarca de cada
+um no painel". O cliente colou as duas imagens (logo oficial do Asaas e
+do Mercado Pago) direto na conversa — mas este ambiente de
+desenvolvimento **não tem como acessar esses arquivos**: tentei localizar
+em todo o sistema de arquivos (`/root/.claude/uploads/...`, diretório de
+scratchpad de imagens, busca por arquivo modificado nas últimas 2 horas
+em qualquer lugar do disco) e nenhum dos dois apareceu — imagem colada
+direto na mensagem fica só como conteúdo multimodal da conversa, não vira
+arquivo em disco que o código consiga ler/copiar (diferente de upload de
+planilha/PDF via Lista de Arquivos do AtendeFlow, que grava de verdade em
+`/root/.claude/uploads/...` e já foi usado várias vezes nesta sessão).
+Sem rede liberada pros domínios oficiais (mercadopago.com.br, asaas.com)
+pra baixar os logos direto de lá também (mesma restrição já documentada
+nas seções anteriores).
+
+**Solução aplicada**: em vez do logo oficial (ícone + tipografia exatos),
+um selo (`Box` com `className` dinâmico, `brandBadgeMercadoPago`/
+`brandBadgeAsaas`) com o nome do gateway nas cores reais da marca — vistas
+diretamente nas imagens que o cliente mandou (confirmado visualmente,
+mesmo sem conseguir salvar o arquivo): Mercado Pago usa azul claro
+`#009ee3` + azul petróleo escuro `#2d3277` pro texto "mercado"/"pago" (o
+mesmo efeito bicolor do logo real, sem o ícone do aperto de mãos — esse
+não foi reproduzido à mão por risco de sair impreciso); Asaas usa fundo
+azul vívido `#0b2eff` sólido com o texto "ASAAS" em branco. Substitui o
+título simples em texto (`Typography variant="h6"`) que existia antes —
+`gatewayTitle` (classe CSS) virou código morto e foi removido.
+
+Fica pendente, caso o cliente consiga mandar os arquivos de verdade por
+upload (não colado direto na conversa) num momento futuro: trocar o selo
+de texto pelos `<img>` com os logos oficiais.
+
+**Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
+Lint e `craco build` limpos.

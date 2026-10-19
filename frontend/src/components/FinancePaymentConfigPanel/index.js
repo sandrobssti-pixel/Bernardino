@@ -44,10 +44,30 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: 12,
     height: "100%",
   },
-  gatewayTitle: {
-    fontWeight: 700,
+  // Selo com o nome de cada gateway na cor característica da marca — não é
+  // o logo oficial em si (sem acesso ao arquivo de imagem, ver comentário
+  // acima de `BrandBadge`), só uma referência visual rápida.
+  brandBadge: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 auto",
     marginBottom: theme.spacing(1.5),
-    textAlign: "center",
+    padding: theme.spacing(0.75, 2.5),
+    borderRadius: 8,
+    width: "fit-content",
+    fontWeight: 700,
+    fontSize: "1.05rem",
+    letterSpacing: "0.03em",
+  },
+  brandBadgeMercadoPago: {
+    background: "#fff",
+    border: "2px solid #009ee3",
+    color: "#2d3277",
+  },
+  brandBadgeAsaas: {
+    background: "#0b2eff",
+    color: "#fff",
   },
   // Pedido do cliente: texto dentro dos campos de credencial centralizado
   // (não alinhado à esquerda, padrão do MUI) — os rótulos (label) continuam
@@ -167,9 +187,10 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                   outro ocupando a largura toda. */}
               <Grid item xs={12} md={6}>
                 <Paper variant="outlined" className={classes.gatewayColumn}>
-                  <Typography variant="h6" className={classes.gatewayTitle}>
-                    Mercado Pago
-                  </Typography>
+                  <Box className={`${classes.brandBadge} ${classes.brandBadgeMercadoPago}`}>
+                    <span>mercado</span>
+                    <span style={{ color: "#009ee3", marginLeft: 4 }}>pago</span>
+                  </Box>
                   <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
                     Credenciais do Mercado Pago — gera Pix/boleto por esse gateway.
                   </Typography>
@@ -246,9 +267,9 @@ const FinancePaymentConfigPanel = ({ finance }) => {
 
               <Grid item xs={12} md={6}>
                 <Paper variant="outlined" className={classes.gatewayColumn}>
-                  <Typography variant="h6" className={classes.gatewayTitle}>
-                    Asaas
-                  </Typography>
+                  <Box className={`${classes.brandBadge} ${classes.brandBadgeAsaas}`}>
+                    ASAAS
+                  </Box>
                   <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
                     Credenciais do Asaas — gera Pix/boleto por esse gateway.
                   </Typography>

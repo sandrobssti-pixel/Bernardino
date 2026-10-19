@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.157] — Selo de marca (Mercado Pago/Asaas) nos painéis — 2026-10-19
+
+### Adicionado
+- Cada painel da Configuração de Pagamento ganhou um selo com o nome do
+  gateway na cor característica da marca (Mercado Pago: branco com borda/
+  texto azul; Asaas: azul sólido com texto branco), no lugar do título em
+  texto simples — pedido do cliente, que mandou os logos oficiais, mas
+  este ambiente não consegue acessar arquivo de imagem colado direto na
+  conversa (sem acesso de rede nem persistência em disco pra isso,
+  confirmado tentando localizar o arquivo antes de desistir). Fica
+  registrado como pendência caso o cliente consiga enviar os arquivos de
+  logo por outro caminho (upload de verdade) no futuro.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 136.
+
 ## [2.3.156] — Texto de cada gateway separado por painel — 2026-10-19
 
 ### Corrigido
