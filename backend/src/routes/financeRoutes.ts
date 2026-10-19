@@ -11,6 +11,7 @@ import * as FinanceExpenseController from "../controllers/FinanceExpenseControll
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
 import * as FinanceImportController from "../controllers/FinanceImportController";
+import * as FinancePaymentConfigController from "../controllers/FinancePaymentConfigController";
 
 const upload = multer(uploadConfig);
 
@@ -76,6 +77,22 @@ financeRoutes.get("/finance/receivables/:id", isAuth, FinanceReceivableControlle
 financeRoutes.post("/finance/receivables", isAuth, FinanceReceivableController.store);
 financeRoutes.put("/finance/receivables/:id", isAuth, FinanceReceivableController.update);
 financeRoutes.delete("/finance/receivables/:id", isAuth, FinanceReceivableController.remove);
+
+// Cobrança via gateway (Pix/boleto, Mercado Pago — Fase 1) — ver
+// FinanceReceivablePaymentService e docs/MANUAL_TECNICO.md.
+financeRoutes.post(
+  "/finance/receivables/:id/pix",
+  isAuth,
+  FinanceReceivableController.generatePix
+);
+financeRoutes.post(
+  "/finance/receivables/:id/boleto",
+  isAuth,
+  FinanceReceivableController.generateBoleto
+);
+
+financeRoutes.get("/finance/payment-config", isAuth, FinancePaymentConfigController.show);
+financeRoutes.put("/finance/payment-config", isAuth, FinancePaymentConfigController.update);
 
 // Importação via planilha Excel (detecção automática de coluna) — ver
 // docs/MANUAL_TECNICO.md, seção 6.2 (Fase 6).

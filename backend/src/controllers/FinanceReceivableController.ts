@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import AppError from "../errors/AppError";
 import EnsureFinancialAccess from "../services/FinanceService/EnsureFinancialAccess";
 import * as FinanceReceivableService from "../services/FinanceService/FinanceReceivableService";
+import * as FinanceReceivablePaymentService from "../services/FinanceService/FinanceReceivablePaymentService";
 
 const ensureAccess = async (req: Request): Promise<void> => {
   const allowed = await EnsureFinancialAccess(req.user as any);
@@ -62,4 +63,24 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
 
   await FinanceReceivableService.remove(id, companyId);
   return res.status(200).json({ message: "FinanceReceivable deleted" });
+};
+
+// Gera cobrança via gateway (Mercado Pago, Fase 1) — ver
+// FinanceReceivablePaymentService e docs/MANUAL_TECNICO.md.
+export const generatePix = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+
+  const record = await FinanceReceivablePaymentService.generatePixCharge(id, companyId);
+  return res.status(200).json(record);
+};
+
+export const generateBoleto = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+
+  const record = await FinanceReceivablePaymentService.generateBoletoCharge(id, companyId);
+  return res.status(200).json(record);
 };

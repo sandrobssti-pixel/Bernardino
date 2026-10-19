@@ -1890,6 +1890,12 @@ const messages = {
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
         ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
+        ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED:
+          "Configure o token do Mercado Pago em Configuração de Pagamento antes de gerar cobrança.",
+        ERR_FINANCE_PAYMENT_NO_CUSTOMER:
+          "Vincule um cliente a esta conta antes de gerar a cobrança.",
+        ERR_FINANCE_PAYMENT_INVALID_VALUE:
+          "Informe um valor maior que zero antes de gerar a cobrança.",
         ERR_NO_IMPORT_PERMISSION: "Seu usuário não tem permissão pra importar planilha. Peça pro administrador liberar em Usuários.",
         ERR_NO_HR_MODULE_ACCESS: "Seu plano não inclui o módulo de RH.",
         ERR_CONTACT_REGISTRATION_REQUIRED: "Complete o cadastro do cliente e escolha a coluna do Kanban antes de fechar o atendimento.",

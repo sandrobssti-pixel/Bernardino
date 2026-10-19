@@ -3,6 +3,32 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.153] — Cobrança Pix/boleto via Mercado Pago em Contas a Receber (Fase 1) — 2026-10-19
+
+### Adicionado
+- Nova tela **Configuração de Pagamento** (Financeiro → Configuração de
+  Pagamento) pra cadastrar as credenciais do Mercado Pago (Homologação/
+  Produção, mesmo padrão já usado em Configuração Fiscal), a URL de webhook
+  pronta pra colar no painel deles, e o segredo de assinatura do webhook.
+- Editando uma Conta a Receber, botões **"Gerar Pix"** e **"Gerar boleto"**
+  — chamam o Mercado Pago e mostram o QR Code/código copia-e-cola (Pix) ou
+  o link do boleto direto no formulário.
+- Webhook novo (`/webhook/mercadopago/:companyId`, uma URL por empresa)
+  marca a conta como recebida automaticamente quando o Mercado Pago avisa
+  que o pagamento foi aprovado — valida a assinatura do webhook (header
+  `x-signature`) e NUNCA confia no corpo da notificação sozinho: sempre
+  rebusca o status de verdade na API deles antes de mudar qualquer coisa.
+- Fase 2 (próximo passo, mesma estrutura): Asaas como segundo gateway.
+
+⚠️ Mesma ressalva já registrada pra Focus NFe (seção 6.2): esta integração
+foi implementada a partir da documentação pública do Mercado Pago, mas
+**ainda não foi testada ponta a ponta** contra uma chave de teste real
+(sem saída de rede pra `api.mercadopago.com` neste ambiente de
+desenvolvimento) — testar com uma cobrança de teste de verdade antes de
+confiar em produção.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 134.
+
 ## [2.3.152] — Taurus também pelo código do modelo (sem nome nem prefixo de SKU) — 2026-10-18
 
 ### Corrigido

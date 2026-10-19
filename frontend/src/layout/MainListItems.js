@@ -1487,6 +1487,14 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       />
                       <ListItemLink
                         small
+                        to="/financeiro?tab=paymentConfig"
+                        primary="💳 Configuração de Pagamento"
+                        icon={<MonetizationOnIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
                         to="/financeiro?tab=sales"
                         primary="🛒 Vendas"
                         icon={<ShoppingCartIcon />}

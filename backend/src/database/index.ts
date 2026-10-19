@@ -66,6 +66,7 @@ import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceReceivable from "../models/FinanceReceivable";
+import FinancePaymentConfig from "../models/FinancePaymentConfig";
 import FiscalConfig from "../models/FiscalConfig";
 import Sale from "../models/Sale";
 import SaleItem from "../models/SaleItem";
@@ -149,6 +150,7 @@ const models = [
   FinanceProduct,
   FinanceExpense,
   FinanceReceivable,
+  FinancePaymentConfig,
   FiscalConfig,
   Sale,
   SaleItem,

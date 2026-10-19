@@ -108,6 +108,35 @@ const useFinance = () => {
     return data;
   };
 
+  // Gerar cobrança (Pix/boleto) via gateway — Fase 1, só Mercado Pago, só em
+  // Contas a Receber. Separado de `makeResource` porque não é um verbo
+  // genérico de CRUD (os outros cadastros não têm isso).
+  const receivables = {
+    ...makeResource("receivables"),
+    generatePix: async (id) => {
+      const { data } = await api.post(`/finance/receivables/${id}/pix`);
+      return data;
+    },
+    generateBoleto: async (id) => {
+      const { data } = await api.post(`/finance/receivables/${id}/boleto`);
+      return data;
+    },
+  };
+
+  // Configuração do gateway de cobrança (token Mercado Pago etc.) — um
+  // registro por empresa, mesmo padrão de get/upsert já usado em
+  // Configuração Fiscal (não é uma lista).
+  const paymentConfig = {
+    show: async () => {
+      const { data } = await api.get("/finance/payment-config");
+      return data;
+    },
+    update: async (payload) => {
+      const { data } = await api.put("/finance/payment-config", payload);
+      return data;
+    },
+  };
+
   return {
     getAccess,
     getCustomerByContact,
@@ -116,7 +145,8 @@ const useFinance = () => {
     suppliers: makeResource("suppliers"),
     products: makeResource("products"),
     expenses: makeResource("expenses"),
-    receivables: makeResource("receivables"),
+    receivables,
+    paymentConfig,
     reports,
   };
 };

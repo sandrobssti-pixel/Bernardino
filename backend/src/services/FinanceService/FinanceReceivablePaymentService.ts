@@ -1,0 +1,108 @@
+import AppError from "../../errors/AppError";
+import FinanceReceivable from "../../models/FinanceReceivable";
+import FinanceCustomer from "../../models/FinanceCustomer";
+import * as FinancePaymentConfigService from "./FinancePaymentConfigService";
+import * as MercadoPagoGatewayService from "./MercadoPagoGatewayService";
+import type { MercadoPagoChargeResult } from "./MercadoPagoGatewayService";
+
+// Orquestra "gerar cobrança" numa Conta a Receber via gateway configurado —
+// Fase 1 só tem Mercado Pago; `paymentProvider` gravado no registro já
+// deixa o campo pronto pra outro provedor (Asaas, Fase 2) sem precisar de
+// migração nova. Ver docs/MANUAL_TECNICO.md.
+const loadReceivableWithCustomer = async (
+  id: string | number,
+  companyId: number
+): Promise<{ receivable: FinanceReceivable; customer: FinanceCustomer }> => {
+  const receivable = await FinanceReceivable.findOne({ where: { id, companyId } });
+  if (!receivable) {
+    throw new AppError("ERR_FINANCE_RECEIVABLE_NOT_FOUND", 404);
+  }
+  if (!receivable.customerId) {
+    throw new AppError("ERR_FINANCE_PAYMENT_NO_CUSTOMER", 400);
+  }
+  const customer = await FinanceCustomer.findOne({
+    where: { id: receivable.customerId, companyId }
+  });
+  if (!customer) {
+    throw new AppError("ERR_FINANCE_PAYMENT_NO_CUSTOMER", 400);
+  }
+  if (Number(receivable.value) <= 0) {
+    throw new AppError("ERR_FINANCE_PAYMENT_INVALID_VALUE", 400);
+  }
+  return { receivable, customer };
+};
+
+const applyChargeResult = async (
+  receivable: FinanceReceivable,
+  provider: string,
+  result: MercadoPagoChargeResult
+): Promise<FinanceReceivable> => {
+  await receivable.update({
+    paymentProvider: provider,
+    paymentExternalId: result.externalId,
+    paymentStatus: result.status,
+    pixQrCode: result.pixQrCode,
+    pixQrCodeBase64: result.pixQrCodeBase64,
+    pixExpiresAt: result.pixExpiresAt,
+    boletoUrl: result.boletoUrl
+  });
+  return receivable;
+};
+
+export const generatePixCharge = async (
+  id: string | number,
+  companyId: number
+): Promise<FinanceReceivable> => {
+  const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
+  const config = await FinancePaymentConfigService.show(companyId);
+
+  if (!MercadoPagoGatewayService.isConfigured(config)) {
+    throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+  }
+
+  const result = await MercadoPagoGatewayService.createPixCharge(receivable, customer, config);
+  return applyChargeResult(receivable, "mercadopago", result);
+};
+
+export const generateBoletoCharge = async (
+  id: string | number,
+  companyId: number
+): Promise<FinanceReceivable> => {
+  const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
+  const config = await FinancePaymentConfigService.show(companyId);
+
+  if (!MercadoPagoGatewayService.isConfigured(config)) {
+    throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+  }
+
+  const result = await MercadoPagoGatewayService.createBoletoCharge(receivable, customer, config);
+  return applyChargeResult(receivable, "mercadopago", result);
+};
+
+// Chamado pelo webhook (PaymentWebhookController) — NUNCA confia no corpo
+// da notificação pra decidir se foi pago: usa só o `data.id` pra buscar o
+// status de verdade na API do Mercado Pago (`getPayment`), com o token
+// desta empresa, e casa pelo `paymentExternalId` já gravado (não pelo id da
+// notificação sozinho, que pode não bater com nenhuma conta nossa — webhook
+// de outra cobrança da mesma conta Mercado Pago, por exemplo).
+export const handleMercadoPagoWebhook = async (
+  companyId: number,
+  dataId: string
+): Promise<void> => {
+  const config = await FinancePaymentConfigService.show(companyId);
+  if (!MercadoPagoGatewayService.isConfigured(config)) return;
+
+  const receivable = await FinanceReceivable.findOne({
+    where: { companyId, paymentProvider: "mercadopago", paymentExternalId: String(dataId) }
+  });
+  if (!receivable) return;
+
+  const result = await MercadoPagoGatewayService.getPayment(dataId, config);
+
+  const updates: Record<string, unknown> = { paymentStatus: result.status };
+  if (result.status === "approved" && receivable.status !== "received") {
+    updates.status = "received";
+    updates.receivedDate = new Date();
+  }
+  await receivable.update(updates);
+};

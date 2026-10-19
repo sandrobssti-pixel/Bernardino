@@ -132,6 +132,7 @@ const FinanceRecordModal = ({
   finance,
   context = {},
   canExport = false,
+  enablePayments = false,
 }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
@@ -139,9 +140,16 @@ const FinanceRecordModal = ({
   // pra montar a área de impressão escondida fora do <Dialog>, mesma lógica
   // de `printRows` em FinanceRecordList.js.
   const [printSnapshot, setPrintSnapshot] = useState(null);
+  // Cobrança (Pix/boleto) gerada nesta sessão do modal — sobrescreve o que
+  // já veio salvo no `record` (ver `paymentInfo` abaixo) assim que o botão
+  // "Gerar Pix"/"Gerar boleto" é clicado, sem precisar fechar/reabrir o
+  // modal pra ver o resultado novo.
+  const [paymentResult, setPaymentResult] = useState(null);
+  const [generatingPayment, setGeneratingPayment] = useState(null);
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
+    setPaymentResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
@@ -205,6 +213,47 @@ const FinanceRecordModal = ({
       toastError(err);
     }
   };
+
+  // Gerar cobrança (Pix/boleto) — Fase 1, só Mercado Pago, só em Contas a
+  // Receber (`enablePayments`, repassado por FinanceRecordList.js só na aba
+  // de Contas a Receber). Usa o registro já SALVO (`record.id`) — não dá
+  // pra gerar cobrança de um cadastro novo ainda não existente no banco.
+  const handleGeneratePix = async () => {
+    setGeneratingPayment("pix");
+    try {
+      const updated = await finance.receivables.generatePix(record.id);
+      setPaymentResult(updated);
+      toast.success("Cobrança Pix gerada.");
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setGeneratingPayment(null);
+    }
+  };
+
+  const handleGenerateBoleto = async () => {
+    setGeneratingPayment("boleto");
+    try {
+      const updated = await finance.receivables.generateBoleto(record.id);
+      setPaymentResult(updated);
+      toast.success("Boleto gerado.");
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setGeneratingPayment(null);
+    }
+  };
+
+  const copyPixCode = (code) => {
+    navigator.clipboard?.writeText(code);
+    toast.success("Código Pix copiado.");
+  };
+
+  // `paymentResult` (gerado nesta sessão do modal) tem prioridade sobre o
+  // que já veio salvo em `record` (cobrança gerada numa sessão anterior).
+  const paymentInfo = paymentResult || record;
+  const hasPixCharge = enablePayments && !!paymentInfo?.pixQrCode;
+  const hasBoletoCharge = enablePayments && !!paymentInfo?.boletoUrl;
 
   return (
     <>
@@ -387,6 +436,97 @@ const FinanceRecordModal = ({
                   );
                 })}
               </Grid>
+
+              {enablePayments && record?.id && (
+                <>
+                  <Divider style={{ margin: "16px 0 12px" }} />
+                  <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
+                    Cobrança (Mercado Pago)
+                  </Typography>
+                  <Grid container spacing={1}>
+                    <Grid item>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={handleGeneratePix}
+                        disabled={!!generatingPayment}
+                      >
+                        {generatingPayment === "pix" ? "Gerando..." : "Gerar Pix"}
+                      </Button>
+                    </Grid>
+                    <Grid item>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        size="small"
+                        onClick={handleGenerateBoleto}
+                        disabled={!!generatingPayment}
+                      >
+                        {generatingPayment === "boleto" ? "Gerando..." : "Gerar boleto"}
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  {hasPixCharge && (
+                    <Grid container spacing={1} style={{ marginTop: 8 }} alignItems="center">
+                      {paymentInfo.pixQrCodeBase64 && (
+                        <Grid item>
+                          <img
+                            src={`data:image/png;base64,${paymentInfo.pixQrCodeBase64}`}
+                            alt="QR Code Pix"
+                            width={140}
+                            height={140}
+                          />
+                        </Grid>
+                      )}
+                      <Grid item xs>
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={2}
+                          variant="outlined"
+                          size="small"
+                          label="Código Pix copia e cola"
+                          value={paymentInfo.pixQrCode}
+                          InputProps={{ readOnly: true }}
+                        />
+                        <Button
+                          size="small"
+                          color="primary"
+                          style={{ marginTop: 4 }}
+                          onClick={() => copyPixCode(paymentInfo.pixQrCode)}
+                        >
+                          Copiar código
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  )}
+
+                  {hasBoletoCharge && (
+                    <Grid container style={{ marginTop: 8 }}>
+                      <Grid item>
+                        <Button
+                          size="small"
+                          color="primary"
+                          variant="outlined"
+                          href={paymentInfo.boletoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Abrir boleto (PDF)
+                        </Button>
+                      </Grid>
+                    </Grid>
+                  )}
+
+                  {(hasPixCharge || hasBoletoCharge) && paymentInfo.paymentStatus && (
+                    <Typography variant="caption" color="textSecondary" style={{ display: "block", marginTop: 6 }}>
+                      Status no gateway: {paymentInfo.paymentStatus}
+                    </Typography>
+                  )}
+                </>
+              )}
             </DialogContent>
             <DialogActions className={classes.dialogActions}>
               {record?.id && canExport && (

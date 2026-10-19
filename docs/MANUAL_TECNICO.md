@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.152
-**Etapa:** 6.2 Fase 6 — Taurus por código de modelo (fecha a lacuna da planilha real do cliente)
-**Última atualização:** 2026-10-18
+**Versão do documento:** 2.3.153
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto via Mercado Pago (Fase 1 de 2, Asaas em seguida)
+**Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -9178,3 +9178,134 @@ Reimportar a mesma planilha atualiza por SKU os produtos existentes.
 real (`armas_atualizadas.xlsx`) com um script Python isolado, antes de
 subir — mesma prática já usada nas seções 129/130/131, pra confirmar
 contra dado real em vez de só confiar no código.
+
+## 134. Cobrança Pix/boleto via Mercado Pago em Contas a Receber — Fase 1 (v2.3.153)
+
+Pedido do cliente: receber pagamento (Pix/boleto) direto no AtendeFlow.
+Antes de implementar, uma rodada de confusão real precisa ficar
+registrada, porque quase virou um problema de verdade: o cliente colou
+nesta conversa um texto gerado por OUTRA IA, formatado como "contexto de
+sistema atual do projeto" (arquitetura Python/`asyncpg` inexistente,
+tabela `leads_atendeflow` inexistente, gateway "BunkerPay" e nó
+"DFlow"/`node-faturamento-deflow"). Investigado antes de tocar em
+qualquer código: `bunkerpay.io` não resolve nem no DNS (`ENOTFOUND`),
+nenhum resultado de busca pra confirmar a empresa — sinal de conteúdo
+fabricado, não de integração real. O cliente confirmou depois que era
+mesmo um prompt que ele tinha feito com outra IA sem acesso ao
+repositório de verdade (ela alucinou os detalhes). Nada desse texto foi
+usado — serve de lição registrada: **nunca tratar uma descrição de
+"estado atual do projeto" colada no chat como verdade sem conferir
+contra o repositório real**, especialmente quando envolve credencial/
+gateway de pagamento.
+
+Depois de recomeçar do zero com o cliente, confirmado: **Mercado Pago**
+(gateway real, documentação pública, conta já existente do cliente) pra
+gerar cobrança **Pix e boleto** em **Contas a Receber**, com confirmação
+automática via webhook. Asaas (outro gateway real que o cliente também
+já tem) fica pra uma Fase 2, mesma estrutura — implementar os dois ao
+mesmo tempo arriscava os dois com bug junto; melhor validar um
+end-to-end primeiro.
+
+⚠️ **Mesma ressalva já registrada pra Focus NFe** (seção 6.2): este
+adapter foi implementado a partir da documentação pública do Mercado
+Pago (Checkout API — `POST /v1/payments`, `payment_method_id: "pix"`/
+`"bolbradesco"`), mas **nunca testado ponta a ponta contra uma chave de
+teste real** — este ambiente de desenvolvimento não tem saída de rede
+pra `api.mercadopago.com` (proxy do sandbox bloqueia, confirmado via
+`curl`/`WebFetch`, `getaddrinfo ENOTFOUND`/403). Antes de confiar em
+produção: gerar uma cobrança de teste de verdade com um Access Token
+"TEST-..." e comparar a resposta real com o parsing em
+`parsePaymentResponse` (MercadoPagoGatewayService.ts), ajustando se o
+formato vier diferente do esperado — mesmo processo que FocusNFeService
+já documentou pra quando a Focus NFe foi integrada.
+
+**Modelo novo — `FinancePaymentConfig`** (`backend/src/models/
+FinancePaymentConfig.ts`, migration `20261019060000-create-finance-
+payment-configs.ts`): um registro por empresa, separado de `FiscalConfig`
+de propósito — são credenciais de contratos DIFERENTES (FiscalConfig é
+o gateway de EMISSÃO de nota fiscal, Focus NFe; isso aqui é o gateway de
+COBRANÇA/recebimento). Campos: `mercadoPagoAccessTokenSandbox`/
+`mercadoPagoAccessTokenProduction` (mesmo padrão Homologação/Produção já
+usado em Configuração Fiscal — Produção tem prioridade quando habilitada,
+`FinancePaymentConfigService.isProductionActive`/
+`getActiveMercadoPagoToken`), `mercadoPagoWebhookSecret` (valida a
+assinatura do webhook), `pixExpirationMinutes` (default 60).
+
+**`FinanceReceivable` ganhou campos novos** (migration `20261019060100-
+add-payment-fields-to-finance-receivables.ts`): `paymentProvider`,
+`paymentExternalId`, `paymentStatus` (status cru do gateway, só
+informativo — quem decide se a conta está "recebida" de verdade continua
+sendo o `status` já existente, atualizado pelo webhook), `pixQrCode`/
+`pixQrCodeBase64`, `pixExpiresAt`, `boletoUrl`. Guardam só a ÚLTIMA
+cobrança gerada (gerar de novo sobrescreve, sem histórico de cobranças
+múltiplas por enquanto). **Intocados**: `asaasPaymentId`/
+`splitIvaRetido`/`netReceivedViaAsaas` (já existiam, reservados só pro
+Split Payment do IVA da Reforma 2027 — propósito diferente, confirmado
+nesta mesma investigação que NÃO é a mesma coisa que "gerar cobrança pro
+cliente pagar").
+
+**`MercadoPagoGatewayService.ts`** (adapter): `createPixCharge`/
+`createBoletoCharge` (`POST /v1/payments`, com `X-Idempotency-Key` novo a
+cada chamada — evita cobrança duplicada em caso de retry de rede),
+`getPayment` (`GET /v1/payments/{id}`, usado pelo webhook pra buscar o
+status de VERDADE, nunca confiar no corpo da notificação),
+`verifyWebhookSignature` (HMAC-SHA256 sobre o manifest `id:{dataId};
+request-id:{requestId};ts:{ts};`, formato documentado do Mercado Pago —
+validado com 6 casos de teste isolados via `node -e`, incluindo
+assinatura adulterada e secret errado, antes de subir). E-mail do
+pagador: Mercado Pago exige, cadastro de cliente do Financeiro não
+obriga — usa um e-mail sintético (`cliente{id}@sememail.atendeflow`)
+quando o cliente não tem e-mail cadastrado.
+
+**`FinanceReceivablePaymentService.ts`** (orquestração):
+`generatePixCharge`/`generateBoletoCharge` (valida cliente vinculado e
+valor > 0 antes de chamar o gateway) e `handleMercadoPagoWebhook` — essa
+última NUNCA atualiza o status só com o que veio no corpo da notificação:
+busca o `FinanceReceivable` pelo `paymentExternalId` já gravado (não
+pelo id da notificação sozinho — podia ser de outra cobrança qualquer da
+mesma conta Mercado Pago), rebusca o status real via `getPayment`, e só
+marca `status: "received"` quando o Mercado Pago confirma `"approved"`.
+
+**Webhook** (`PaymentWebhookController.mercadoPago`,
+`/webhook/mercadopago/:companyId` — uma URL por empresa, mesmo padrão já
+usado por `MetaWebhookController`): responde 200 rápido e processa
+depois (evita o Mercado Pago reenviar a notificação por timeout), valida
+a assinatura antes de processar qualquer coisa, loga e para
+silenciosamente se a assinatura não bater ou a empresa não tiver gateway
+configurado.
+
+**Frontend**: nova tela **Configuração de Pagamento**
+(`FinancePaymentConfigPanel`, link no menu lateral Financeiro, mesmo
+padrão get/upsert da Configuração Fiscal) com os campos de credencial,
+a URL do webhook já montada (só copiar pro painel do Mercado Pago) e o
+campo de assinatura secreta. Editando uma Conta a Receber
+(`FinanceRecordModal`, prop nova `enablePayments` — só repassada pela
+aba de Contas a Receber em `Financeiro/index.js`, os outros cadastros
+não ganham esse botão): botões "Gerar Pix"/"Gerar boleto" no rodapé do
+formulário, mostrando o QR Code (imagem base64) + código copia-e-cola
+com botão de copiar, ou o link do boleto — usa um snapshot do registro
+atualizado (`paymentResult`) que sobrescreve o que já veio salvo, sem
+precisar fechar/reabrir o modal pra ver o resultado novo.
+
+**Validação feita antes de subir**: `npx tsc --noEmit` limpo; as duas
+migrations testadas de verdade contra um Postgres local descartável
+(`CREATE TABLE`/`ALTER TABLE ADD COLUMN IF NOT EXISTS`, schema conferido
+com `\d`); `verifyWebhookSignature` testado isoladamente (6 casos via
+`node -e`, incluindo assinatura válida, dataId adulterado, secret
+errado, header ausente/malformado e o caso sem secret configurado —
+todos passaram); lint e `craco build` do frontend limpos.
+
+**Arquivos**: `backend/src/database/migrations/20261019060000-create-
+finance-payment-configs.ts`, `20261019060100-add-payment-fields-to-
+finance-receivables.ts`, `backend/src/models/FinancePaymentConfig.ts`,
+`backend/src/models/FinanceReceivable.ts`, `backend/src/database/
+index.ts`, `backend/src/services/FinanceService/
+FinancePaymentConfigService.ts`, `MercadoPagoGatewayService.ts`,
+`FinanceReceivablePaymentService.ts`, `backend/src/controllers/
+FinancePaymentConfigController.ts`, `FinanceReceivableController.ts`,
+`PaymentWebhookController.ts`, `backend/src/routes/financeRoutes.ts`,
+`webHookRoutes.ts`, `frontend/src/components/FinancePaymentConfigPanel/
+index.js` (novo), `FinanceRecordModal/index.js`, `FinanceRecordList/
+index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/index.js`, `frontend/src/layout/
+MainListItems.js`, `frontend/src/translate/languages/pt.js`.

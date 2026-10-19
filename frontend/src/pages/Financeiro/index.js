@@ -12,6 +12,7 @@ import useFiscal from "../../hooks/useFiscal";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
 import FiscalConfigPanel from "../../components/FiscalConfigPanel";
+import FinancePaymentConfigPanel from "../../components/FinancePaymentConfigPanel";
 import FiscalSalesPanel from "../../components/FiscalSalesPanel";
 import {
   financeCustomerColumns,
@@ -166,8 +167,12 @@ const Financeiro = () => {
           fields={financeReceivableFields}
           filters={financeReceivableFilters}
           finance={finance}
+          enablePayments
         />
       );
+    }
+    if (financeTab === "paymentConfig") {
+      return <FinancePaymentConfigPanel key={financeTab} finance={finance} />;
     }
     if (financeTab === "sales" || financeTab === "fiscalConfig") {
       if (!showFiscalTabs) {

@@ -105,6 +105,7 @@ const FinanceRecordList = ({
   allowTemplateDownload = false,
   templateFilename,
   context = {},
+  enablePayments = false,
 }) => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
@@ -386,6 +387,7 @@ const FinanceRecordList = ({
         finance={finance}
         context={context}
         canExport={canExport}
+        enablePayments={enablePayments}
       />
 
       <Box className={classes.mainHeader}>
