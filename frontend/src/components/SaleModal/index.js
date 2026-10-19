@@ -20,9 +20,10 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
+import MenuItem from "@material-ui/core/MenuItem";
 import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
-import { PRODUCT_TYPE_LABELS } from "../../pages/Financeiro/financeConfig";
+import { PRODUCT_TYPE_LABELS, PRODUCT_TYPE_OPTIONS } from "../../pages/Financeiro/financeConfig";
 
 // Mostra o Tipo junto do nome NA LISTA de resultados da busca de item da
 // venda (não no campo já preenchido, que fica compacto só com o nome) —
@@ -32,6 +33,15 @@ import { PRODUCT_TYPE_LABELS } from "../../pages/Financeiro/financeConfig";
 // espaço com arma/munição na mesma busca).
 const renderProductOption = (opt) =>
   opt?.type ? `${opt.name} — ${PRODUCT_TYPE_LABELS[opt.type] || opt.type}` : opt?.name || "";
+
+// Filtro de Tipo por item da venda — não é um dado que a venda guarda (o
+// que fica salvo é só o `productId` escolhido), por isso vive em estado
+// local do componente (por índice da linha), não no Formik/`emptyItem`.
+// Pedido explícito do cliente: a busca de "Produto/serviço" misturava
+// tudo (arma, munição, serviço...) na mesma lista, e mostrar o Tipo no
+// texto do resultado (acima) não bastou — ele queria conseguir RESTRINGIR
+// a busca de verdade, não só identificar visualmente o que já apareceu.
+const PRODUCT_TYPE_FILTER_OPTIONS = [{ value: "", label: "Todos os tipos" }, ...PRODUCT_TYPE_OPTIONS];
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -124,6 +134,9 @@ const calculateIvaPreview = (items, product, customer) => {
 const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop, finance, reform2027Enabled }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(null, defaultCfop));
+  // Filtro de Tipo por linha de item (ver comentário de
+  // PRODUCT_TYPE_FILTER_OPTIONS acima) — chave é o índice da linha.
+  const [itemTypeFilters, setItemTypeFilters] = useState({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(sale, defaultCfop));
@@ -165,9 +178,10 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     return records || [];
   };
 
-  const fetchProductOptions = async (searchParam) => {
+  const fetchProductOptions = async (index, searchParam) => {
     if (!finance) return products;
-    const { records } = await finance.products.list({ searchParam });
+    const type = itemTypeFilters[index] || undefined;
+    const { records } = await finance.products.list({ searchParam, type });
     return records || [];
   };
 
@@ -241,14 +255,33 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                       {values.items.map((item, index) => (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
                           <Grid item xs={12} sm={3}>
+                            <TextField
+                              select
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              label="Tipo"
+                              value={itemTypeFilters[index] || ""}
+                              onChange={(e) =>
+                                setItemTypeFilters((prev) => ({ ...prev, [index]: e.target.value }))
+                              }
+                              style={{ marginBottom: 4 }}
+                            >
+                              {PRODUCT_TYPE_FILTER_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </MenuItem>
+                              ))}
+                            </TextField>
                             <FinanceAsyncAutocomplete
+                              key={`product-${index}-${itemTypeFilters[index] || ""}`}
                               label="Produto/serviço"
                               placeholder="Nome ou SKU (vazio = item avulso)"
                               value={products.find((p) => p.id === item.productId) || null}
                               initialOptions={products}
                               getOptionLabel={(opt) => opt?.name || ""}
                               renderOption={renderProductOption}
-                              fetchOptions={fetchProductOptions}
+                              fetchOptions={(searchParam) => fetchProductOptions(index, searchParam)}
                               onChange={(e, newValue) =>
                                 handleProductChange(index, newValue, setFieldValue)
                               }

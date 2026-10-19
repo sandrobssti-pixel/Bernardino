@@ -105,7 +105,7 @@ export const financeSupplierFields = [
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
 
-const PRODUCT_TYPE_OPTIONS = [
+export const PRODUCT_TYPE_OPTIONS = [
   { value: "product", label: "Produto" },
   { value: "service", label: "Serviço" },
   { value: "weapon", label: "Arma" },

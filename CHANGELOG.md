@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.164] — Filtro de Tipo de verdade na busca de item da Venda — 2026-10-19
+
+### Adicionado
+- Em "Nova venda", cada item agora tem um seletor de Tipo (Produto,
+  Serviço, Arma, Munição/Insumo, Acessórios, Caça & Pesca, Todos) que
+  REALMENTE restringe a busca — antes só mostrava o Tipo no texto do
+  resultado (v2.3.163), mas buscava em cima de tudo misturado. Escolher
+  "Serviço" ali busca só entre os produtos cadastrados como Serviço.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 142 (atualizada).
+
 ## [2.3.163] — Cadastro de Produto por categoria + distinção Produto/Serviço na Venda — 2026-10-19
 
 ### Corrigido

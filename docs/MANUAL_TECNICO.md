@@ -9998,3 +9998,26 @@ do `visibleWhen` (descartado depois, não é parte da suíte permanente).
 typo do Acessórios), `frontend/src/pages/Financeiro/index.js`,
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/FinanceAsyncAutocomplete/index.js`.
+
+**Atualização (v2.3.164)**: mostrar o Tipo no texto do resultado não foi
+suficiente — cliente queria RESTRINGIR a busca de verdade, não só
+identificar visualmente o que já aparecia misturado. Adicionado um
+seletor de Tipo por linha de item (`PRODUCT_TYPE_FILTER_OPTIONS`,
+"Todos os tipos" + `PRODUCT_TYPE_OPTIONS`, agora também exportado) —
+estado local por índice da linha (`itemTypeFilters`, não entra no
+payload da venda, é só filtro de busca), repassado como `type` pro
+`finance.products.list()` (o backend, `FinanceProductService.list`, já
+aceitava esse filtro desde a v2.3.133/134, não precisou de nada novo no
+backend). O `FinanceAsyncAutocomplete` da linha remonta
+(`key={`product-${index}-${tipo}`}`) toda vez que o Tipo muda, pra
+descartar os resultados antigos e buscar de novo do zero com o filtro
+certo, em vez de esperar o próximo caractere digitado.
+
+**Pendente, fora do escopo**: NCM/CFOP continuam aparecendo iguais pra
+todo item da venda, independente do Tipo escolhido — diferente do
+cadastro de Produto (seção 142 acima), que já esconde NCM pra Serviço.
+Não mexi nisso aqui de propósito: CFOP de operação de serviço tem código
+próprio (faixa 5933/5949 etc.), diferente do de mercadoria — decidir
+isso errado quebraria dado fiscal de verdade, então fica como pergunta
+em aberto pro cliente confirmar antes de qualquer mudança nesses dois
+campos especificamente.
