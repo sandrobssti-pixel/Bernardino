@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.163] — Cadastro de Produto por categoria + distinção Produto/Serviço na Venda — 2026-10-19
+
+### Corrigido
+- "Acessório" tinha o S plural faltando no seletor de Tipo (sidebar já
+  dizia "Acessórios").
+- Abrir "Novo(a) Produto" a partir de uma categoria específica do menu
+  (ex. "Armas nacionais") agora já abre com Tipo (e Procedência, quando
+  for o caso) pré-selecionados pro contexto — antes sempre abria em
+  "Produto", obrigando reescolher toda vez. O campo continua um seletor
+  completo: dá pra trocar pra outro Tipo sem fechar o modal (ex. cadastrar
+  a munição logo depois da arma).
+- Em "Nova venda", o campo "Produto/serviço" buscava tudo junto (arma,
+  munição, serviço...) sem nenhuma pista visual de qual é qual — agora a
+  lista de resultados mostra o Tipo ao lado do nome.
+
+Testado com um teste automatizado (React Testing Library) que a troca de
+Tipo dentro do mesmo formulário aberto esconde/mostra os campos certos
+na hora — confirmado que o mecanismo já funciona corretamente. Detalhes
+em `docs/MANUAL_TECNICO.md`, seção 142.
+
 ## [2.3.162] — Despachante Bélico: rotas HTTP, permissão por plano (Fase 2A) — 2026-10-19
 
 ### Adicionado

@@ -20,8 +20,8 @@ import {
   financeSupplierColumns,
   financeSupplierFields,
   financeProductColumns,
-  financeProductFields,
   financeProductFilters,
+  getProductFieldsForCategory,
   financeExpenseColumns,
   financeExpenseFields,
   financeExpenseFilters,
@@ -253,7 +253,7 @@ const Financeiro = () => {
           title="Produto"
           resource={finance.products}
           columns={financeProductColumns}
-          fields={financeProductFields}
+          fields={getProductFieldsForCategory(productTypeParam)}
           // Dropdown "Tipo" só aparece quando a tela abriu sem categoria
           // definida (link "Todos os produtos", ou "/financeiro" direto) —
           // chegando por um link de categoria específica do menu lateral

@@ -22,6 +22,7 @@ const FinanceAsyncAutocomplete = ({
   onChange,
   fetchOptions,
   getOptionLabel,
+  renderOption,
   initialOptions = [],
   size = "small",
   disabled = false,
@@ -87,6 +88,7 @@ const FinanceAsyncAutocomplete = ({
         if (options.length <= initialOptions.length) runSearch("");
       }}
       getOptionLabel={getOptionLabel}
+      renderOption={renderOption}
       noOptionsText="Nenhum resultado"
       loadingText="Buscando..."
       renderInput={(params) => (

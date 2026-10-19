@@ -22,6 +22,16 @@ import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
 import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
+import { PRODUCT_TYPE_LABELS } from "../../pages/Financeiro/financeConfig";
+
+// Mostra o Tipo junto do nome NA LISTA de resultados da busca de item da
+// venda (não no campo já preenchido, que fica compacto só com o nome) —
+// sem isso, Produto/Serviço/Arma/Munição apareciam todos misturados sem
+// nenhuma pista visual de qual é qual (pedido do cliente, depois que o
+// catálogo de Serviços do Despachante Bélico cresceu e passou a dividir
+// espaço com arma/munição na mesma busca).
+const renderProductOption = (opt) =>
+  opt?.type ? `${opt.name} — ${PRODUCT_TYPE_LABELS[opt.type] || opt.type}` : opt?.name || "";
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -237,6 +247,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               value={products.find((p) => p.id === item.productId) || null}
                               initialOptions={products}
                               getOptionLabel={(opt) => opt?.name || ""}
+                              renderOption={renderProductOption}
                               fetchOptions={fetchProductOptions}
                               onChange={(e, newValue) =>
                                 handleProductChange(index, newValue, setFieldValue)

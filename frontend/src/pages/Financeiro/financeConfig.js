@@ -110,11 +110,11 @@ const PRODUCT_TYPE_OPTIONS = [
   { value: "service", label: "Serviço" },
   { value: "weapon", label: "Arma" },
   { value: "ammunition", label: "Munição / Insumo" },
-  { value: "accessory", label: "Acessório" },
+  { value: "accessory", label: "Acessórios" },
   { value: "hunting_fishing", label: "Caça & Pesca" },
 ];
 
-const PRODUCT_TYPE_LABELS = PRODUCT_TYPE_OPTIONS.reduce((acc, opt) => {
+export const PRODUCT_TYPE_LABELS = PRODUCT_TYPE_OPTIONS.reduce((acc, opt) => {
   acc[opt.value] = opt.label;
   return acc;
 }, {});
@@ -293,6 +293,37 @@ export const financeProductFields = [
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
+
+// Entrando por um link de categoria específica do menu lateral (ex.: "Armas
+// nacionais"), o botão "Novo(a) Produto" já abre com Tipo (e Procedência,
+// quando for o caso) pré-selecionados pro contexto da tela — pedido do
+// cliente pra não precisar escolher de novo algo que já está implícito em
+// qual lista ele está. O campo continua um <select> completo (nenhuma opção
+// removida): se o cliente quiser cadastrar outra coisa sem fechar o modal
+// (ex.: abrir "Novo Produto" em Armas nacionais mas cadastrar a munição que
+// acompanha), ele troca o Tipo ali mesmo e o registro salva na categoria
+// escolhida, não na da tela onde abriu.
+const PRODUCT_CATEGORY_DEFAULTS = {
+  "": { type: "product" },
+  product: { type: "product" },
+  service: { type: "service" },
+  "weapon:national": { type: "weapon", origin: "national" },
+  "weapon:imported": { type: "weapon", origin: "imported" },
+  ammunition: { type: "ammunition" },
+  accessory: { type: "accessory" },
+  hunting_fishing: { type: "hunting_fishing" },
+};
+
+export const getProductFieldsForCategory = (categoryParam) => {
+  const defaults = PRODUCT_CATEGORY_DEFAULTS[categoryParam || ""] || { type: "product" };
+  return financeProductFields.map((field) => {
+    if (field.name === "type") return { ...field, defaultValue: defaults.type };
+    if (field.name === "origin" && defaults.origin) {
+      return { ...field, defaultValue: defaults.origin };
+    }
+    return field;
+  });
+};
 
 // Segmentação de produtos por tipo (produto/serviço/arma/munição) na
 // listagem — o dado já vem segmentado desde a importação (`type` do

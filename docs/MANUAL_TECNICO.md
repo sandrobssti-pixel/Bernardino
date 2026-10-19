@@ -9931,3 +9931,70 @@ migrations/20261019190000-add-weapondispatchaccess-to-users.ts`,
 `backend/src/routes/weaponDispatchRoutes.ts` (novo), `routes/index.ts`,
 `backend/src/services/CompanyService/ShowPlanCompanyService.ts`,
 `frontend/src/components/PlansManager/index.js`.
+
+## 142. Cadastro de Produto por categoria + distinção Produto/Serviço na Venda (v2.3.163)
+
+Duas observações do cliente testando o módulo de Produtos/Serviços na
+prática, na mesma sessão de testes do Despachante Bélico (ele avisou
+explicitamente: "estou sendo bem minucioso porque esses sistemas vão
+pra outros clientes e não posso me dar o luxo de ficar fazendo suporte
+por coisas simples o dia todo" — padrão de rigor a manter pra qualquer
+ajuste de UI deste módulo daqui pra frente, não só esta entrega).
+
+**1) Typo**: o seletor de Tipo mostrava "Acessório" (singular), enquanto
+o menu lateral já dizia "Acessórios" (plural) — corrigido pra bater.
+
+**2) "Novo(a) Produto" não aproveitava o contexto da categoria**: abrir
+o cadastro a partir de um link específico do menu (ex. "Armas
+nacionais") sempre abria com Tipo="Produto" por padrão, obrigando
+reescolher "Arma" toda vez — repetitivo pra quem está cadastrando vários
+itens da mesma categoria em sequência. `getProductFieldsForCategory`
+(novo, `financeConfig.js`) mapeia o `productTypeParam` da URL (mesmo
+parâmetro que já filtra a lista) pro `defaultValue` certo do campo
+`type` — e também de `origin` ("Procedência"), pro caso específico de
+"Armas nacionais"/"Armas importadas" (`weapon:national`/
+`weapon:imported`, que já cruzava `type`+`origin` antes). O campo
+continua sendo um `<select>` completo com todas as opções — nenhuma
+removida — porque o cliente avisou explicitamente que às vezes vai
+cadastrar a munição de uma arma logo em seguida sem fechar o modal, só
+trocando o Tipo ali mesmo; a troca salva no Tipo escolhido na hora de
+salvar, não no Tipo da categoria onde o modal foi aberto.
+
+**Investigação à parte, motivada pelo relato do cliente** ("troquei o
+Tipo pra Serviço e os campos de arma continuaram aparecendo"): antes de
+mexer em qualquer coisa, escrevi um teste automatizado (React Testing
+Library, descartável — não ficou no repositório) que monta
+`FinanceRecordModal` de verdade, abre com Tipo="Arma", simula o clique
+pra trocar o `<select>` pra "Serviço" e confere se o campo só-de-arma
+(`caliber`) sai do DOM. **O mecanismo já funciona certo** — a primeira
+tentativa do teste deu falso-negativo por um detalhe do próprio teste
+(`getByText` bateu em DUAS ocorrências do mesmo texto de label, porque o
+MUI outlined duplica o texto — uma vez no `<label>` visível, outra
+escondida dentro do `<legend>` da moldura notched — não é bug do
+formulário); trocando a consulta pra `document.querySelector('input
+[name="caliber"]')`, o teste passou limpo. Conclusão: o relato do
+cliente batia com o comportamento da versão JÁ IMPLANTADA (sem o
+default por categoria desta entrega), não com um bug de reatividade do
+`visibleWhen` — o próprio ajuste acima (1) já resolve o cenário descrito
+por completo.
+
+**3) "Nova venda" misturava tudo**: o campo "Produto/serviço" buscava em
+cima de TODOS os tipos (arma, munição, serviço...) sem nenhuma distinção
+visual — ficou mais confuso depois que o catálogo de Serviços do
+Despachante Bélico cresceu pra 37 itens (seção 140) dividindo espaço com
+arma/munição na mesma busca. `FinanceAsyncAutocomplete` ganhou suporte a
+`renderOption` (prop nova, opcional, repassada direto pro `Autocomplete`
+do MUI — não quebra nenhum uso existente que não passa essa prop) — a
+LISTA de resultados agora mostra "Nome — Tipo" (`PRODUCT_TYPE_LABELS`,
+agora exportado de `financeConfig.js`), enquanto o campo já preenchido
+continua compacto, só com o nome (`getOptionLabel` não mudou).
+
+**Validação**: `npx eslint` limpo nos quatro arquivos tocados; `craco
+build` de produção limpo; teste automatizado confirmando a reatividade
+do `visibleWhen` (descartado depois, não é parte da suíte permanente).
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`
+(`getProductFieldsForCategory` novo, `PRODUCT_TYPE_LABELS` exportado,
+typo do Acessórios), `frontend/src/pages/Financeiro/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/FinanceAsyncAutocomplete/index.js`.
