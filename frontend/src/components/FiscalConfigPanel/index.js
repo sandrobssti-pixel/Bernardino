@@ -25,6 +25,7 @@ import TableRow from "@material-ui/core/TableRow";
 import toastError from "../../errors/toastError";
 import CfopAutocomplete from "../CfopAutocomplete";
 import { UF_LIST, MUNICIPIOS_BY_UF, UF_BY_CODE_PREFIX } from "../../data/municipiosBrasil";
+import { fetchAddressByCep } from "../../utils/cep";
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -350,6 +351,18 @@ const FiscalConfigPanel = ({ fiscal }) => {
     setSubmitting(false);
   };
 
+  // Autopreenchimento do endereço do emitente por CEP (ViaCEP) — mesma
+  // lógica do FinanceRecordModal.js, aplicada aqui porque esta tela não
+  // usa o modal genérico.
+  const handleEmitterCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    if (address.street) setFieldValue("emitterStreet", address.street);
+    if (address.neighborhood) setFieldValue("emitterNeighborhood", address.neighborhood);
+    if (address.city) setFieldValue("emitterCity", address.city);
+    if (address.state) setFieldValue("emitterState", address.state);
+  };
+
   if (loading || !config) {
     return (
       <Box className={classes.loadingBox}>
@@ -372,7 +385,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
       </Typography>
 
       <Formik initialValues={config} enableReinitialize onSubmit={handleSubmit}>
-        {({ values, setFieldValue }) => (
+        {({ values, setFieldValue, handleBlur }) => (
           <Form>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={6}>
@@ -509,6 +522,10 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   size="small"
                   name="emitterZipCode"
                   label="CEP"
+                  onBlur={(e) => {
+                    handleBlur(e);
+                    handleEmitterCepBlur(e, setFieldValue);
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={6}>

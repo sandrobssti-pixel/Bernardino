@@ -10468,3 +10468,50 @@ limpo nos arquivos tocados do frontend; `craco build` de produção limpo.
 `frontend/src/components/FinanceRecordModal/index.js`
 (`field.embeddedKey`), `frontend/src/components/SaleModal/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 147. Autopreenchimento de endereço por CEP (ViaCEP, v2.3.169)
+
+Pedido do cliente: em qualquer cadastro que tenha CEP, digitar o número
+já preenche Rua/Bairro/Cidade/Estado sozinho. Implementado com a ViaCEP
+(`https://viacep.com.br/ws/{cep}/json/`) — serviço público, gratuito,
+sem necessidade de chave/cadastro, já bem estabelecido pra esse uso em
+sistemas brasileiros. Função única e reaproveitada,
+`fetchAddressByCep(cep)` (`frontend/src/utils/cep.js`): valida que o CEP
+tem 8 dígitos, busca, e devolve `null` em qualquer falha (CEP não
+encontrado, API fora do ar, erro de rede) — nunca trava o formulário;
+quem usa o sistema sempre pode digitar o endereço manualmente como já
+fazia antes.
+
+Precisou de três integrações separadas, uma por tela (não existe um
+único formulário de endereço no sistema):
+
+1. **`FinanceRecordModal.js`** (modal genérico — Cliente e Fornecedor
+   usam o mesmo `ADDRESS_FIELDS` em `financeConfig.js`): o campo de
+   texto padrão ganhou um `onBlur` especial só quando `field.name ===
+   "zipCode"`, que chama `handleBlur` do Formik (pra não perder o
+   `touched` que já existia) e depois `handleCepBlur` — essa só
+   preenche `street`/`neighborhood`/`city`/`state` se esses nomes
+   realmente existirem na lista `fields` do formulário atual
+   (`fields.some(...)`), pra não quebrar nenhum cadastro futuro que
+   tenha CEP sem os outros campos de endereço.
+2. **`SaleModal.js`** (`deliveryZipCode`, seção "Local de entrega" da
+   Venda, v2.3.168): mesma lógica, função própria
+   (`handleDeliveryCepBlur`) porque esse formulário não usa o
+   `FinanceRecordModal` genérico.
+3. **`FiscalConfigPanel.js`** (`emitterZipCode`, endereço do emitente —
+   obrigatório pra NF-e): mesma lógica, função própria
+   (`handleEmitterCepBlur`), mesmo motivo do item 2.
+
+Não mexi no cadastro do Despachante Bélico (`WeaponDispatchClientModal`)
+— o campo "Endereço completo" lá é texto livre único (pedido explícito
+do cliente, ver seção 143), não tem CEP/rua/cidade separados pra
+preencher.
+
+**Validação**: `npx eslint` limpo nos 4 arquivos tocados; `craco build`
+de produção limpo. Sem mudança nenhuma no backend (nenhum campo novo,
+nenhuma migration) — é só autopreenchimento de campos que já existiam.
+
+**Arquivos**: `frontend/src/utils/cep.js` (novo),
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/FiscalConfigPanel/index.js`.

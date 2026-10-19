@@ -20,6 +20,7 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
+import { fetchAddressByCep } from "../../utils/cep";
 import MenuItem from "@material-ui/core/MenuItem";
 import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
@@ -238,6 +239,19 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     }
   };
 
+  // Autopreenchimento do "Local de entrega" por CEP (ViaCEP) — mesma
+  // lógica do FinanceRecordModal.js (Cliente/Fornecedor), aplicada aqui
+  // porque o endereço de entrega da venda é um formulário próprio, não o
+  // genérico.
+  const handleDeliveryCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    if (address.street) setFieldValue("deliveryAddress", address.street);
+    if (address.neighborhood) setFieldValue("deliveryNeighborhood", address.neighborhood);
+    if (address.city) setFieldValue("deliveryCity", address.city);
+    if (address.state) setFieldValue("deliveryState", address.state);
+  };
+
   const handleProductChange = (index, product, setFieldValue, operationType) => {
     setFieldValue(`items.${index}.productId`, product?.id || "");
     if (product) {
@@ -279,7 +293,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     >
       <DialogTitle>{sale?.id ? `Editar venda #${sale.id}` : "Nova venda"}</DialogTitle>
       <Formik initialValues={initialValues} enableReinitialize onSubmit={handleSubmit}>
-        {({ values, setFieldValue, isSubmitting }) => {
+        {({ values, setFieldValue, isSubmitting, handleBlur }) => {
           const total = values.items.reduce(
             (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
             0
@@ -765,7 +779,18 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="deliveryState" />
                   </Grid>
                   <Grid item xs={4} sm={2}>
-                    <Field as={TextField} fullWidth variant="outlined" size="small" label="CEP" name="deliveryZipCode" />
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="CEP"
+                      name="deliveryZipCode"
+                      onBlur={(e) => {
+                        handleBlur(e);
+                        handleDeliveryCepBlur(e, setFieldValue);
+                      }}
+                    />
                   </Grid>
                   <Grid item xs={4} sm={2}>
                     <Field as={TextField} fullWidth variant="outlined" size="small" label="Telefone" name="deliveryPhone" />

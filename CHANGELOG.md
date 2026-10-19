@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.169] — Autopreenchimento de endereço por CEP — 2026-10-19
+
+### Adicionado
+- Em qualquer cadastro com CEP (Cliente, Fornecedor, Configuração
+  Fiscal — endereço do emitente, Venda — local de entrega), digitar o
+  CEP e sair do campo já preenche Rua, Bairro, Cidade e Estado sozinho
+  (ViaCEP, serviço público gratuito, sem chave de API). Nunca trava o
+  formulário se o CEP não for encontrado ou a API estiver fora do ar —
+  continua dando pra digitar o endereço na mão como sempre.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 147.
+
 ## [2.3.168] — Fornecedor/Produção + Dados Gerais do Produto, Finalidade da Emissão e Transporte da Venda — 2026-10-19
 
 ### Adicionado

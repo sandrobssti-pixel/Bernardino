@@ -24,6 +24,7 @@ import ImageIcon from "@material-ui/icons/Image";
 
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
+import { fetchAddressByCep } from "../../utils/cep";
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -281,6 +282,27 @@ const FinanceRecordModal = ({
     setPhotoPreview(URL.createObjectURL(file));
   };
 
+  // Autopreenchimento de endereço por CEP (ViaCEP) — pedido do cliente,
+  // vale pra qualquer cadastro que tenha os campos padrão de endereço
+  // (`street`/`neighborhood`/`city`/`state`, mesmos nomes em
+  // ADDRESS_FIELDS, financeConfig.js). Só preenche os campos que o
+  // formulário atual realmente tem (`fields.some`) — nunca sobrescreve o
+  // que a pessoa já digitou manualmente se o CEP não for encontrado.
+  const handleCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    [
+      ["street", address.street],
+      ["neighborhood", address.neighborhood],
+      ["city", address.city],
+      ["state", address.state],
+    ].forEach(([name, value]) => {
+      if (value && fields.some((f) => f.name === name)) {
+        setFieldValue(name, value);
+      }
+    });
+  };
+
   // Gerar cobrança (Pix/boleto) — Fase 1, só Mercado Pago, só em Contas a
   // Receber (`enablePayments`, repassado por FinanceRecordList.js só na aba
   // de Contas a Receber). Usa o registro já SALVO (`record.id`) — não dá
@@ -341,7 +363,7 @@ const FinanceRecordModal = ({
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
-        {({ values, touched, errors, isSubmitting, setFieldValue }) => {
+        {({ values, touched, errors, isSubmitting, setFieldValue, handleBlur }) => {
           // Só existe o que imprimir depois de salvo (editando um registro
           // já existente) — num cadastro novo ainda não tem nada no banco.
           // Delay igual ao de FinanceRecordList.js: dá tempo do React
@@ -531,6 +553,14 @@ const FinanceRecordModal = ({
                         type={field.type === "number" ? "number" : "text"}
                         inputProps={field.type === "number" && field.step ? { step: field.step } : undefined}
                         disabled={isDisabled}
+                        {...(field.name === "zipCode"
+                          ? {
+                              onBlur: (e) => {
+                                handleBlur(e);
+                                handleCepBlur(e, setFieldValue);
+                              },
+                            }
+                          : {})}
                         error={touched[field.name] && Boolean(errors[field.name])}
                         helperText={
                           (touched[field.name] && errors[field.name]) ||
