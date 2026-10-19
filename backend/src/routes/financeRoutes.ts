@@ -2,6 +2,7 @@ import { Router } from "express";
 import multer from "multer";
 import isAuth from "../middleware/isAuth";
 import uploadConfig from "../config/upload";
+import financeProductPhotoUpload from "../config/financeProductPhotoUpload";
 
 import * as FinanceAccessController from "../controllers/FinanceAccessController";
 import * as FinanceCustomerController from "../controllers/FinanceCustomerController";
@@ -15,6 +16,7 @@ import * as FinancePaymentConfigController from "../controllers/FinancePaymentCo
 import * as FinancePaymentAccessController from "../controllers/FinancePaymentAccessController";
 
 const upload = multer(uploadConfig);
+const productPhotoUpload = multer(financeProductPhotoUpload);
 
 const financeRoutes = Router();
 
@@ -65,6 +67,12 @@ financeRoutes.get("/finance/products/:id", isAuth, FinanceProductController.show
 financeRoutes.post("/finance/products", isAuth, FinanceProductController.store);
 financeRoutes.put("/finance/products/:id", isAuth, FinanceProductController.update);
 financeRoutes.delete("/finance/products/:id", isAuth, FinanceProductController.remove);
+financeRoutes.post(
+  "/finance/products/:id/photo",
+  isAuth,
+  productPhotoUpload.single("photo"),
+  FinanceProductController.uploadPhoto
+);
 
 // Fase 2 — Financeiro operacional (custos, contas a pagar/receber, relatórios)
 financeRoutes.get("/finance/expenses", isAuth, FinanceExpenseController.index);

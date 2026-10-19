@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.167] — Dados Fiscais do Produto + foto + auto-preenchimento da Venda — 2026-10-19
+
+### Adicionado
+- Nova seção "Dados Fiscais" no cadastro de Produto: Isento de ICMS,
+  ICMS por Substituição Tributária, Origem, Tipo Tributação ICMS
+  (Contribuinte/Não Contribuinte — CSOSN completo), Modalidade de
+  determinação da BC do ICMS/ICMS-ST, ICMS (%), ICMS ECF, ICMS Desoner.,
+  ICMS ST (%), IVA-ST, Un. Medida Trib., CFOP Principal/Fora UF, Artigo,
+  Cód. Benefício Fiscal, FCP e Desconto Condicional na NFe/NFCe —
+  confirmados contra 4 notas fiscais reais do cliente (venda a
+  consumidor final + compras de fornecedores CBC/Pavei/Inbramun).
+- Esses valores agora alimentam de verdade o ICMS/CSOSN/Origem por item
+  no payload mandado pra Focus NFe — o CSOSN usado troca sozinho
+  conforme o destinatário for Contribuinte ou não (mesmo indicador já
+  adicionado na v2.3.166).
+- Foto no cadastro de Produto (upload, igual já existia no Despachante
+  Bélico) — aparece na lista e no formulário.
+- "Nova venda": ao escolher o Cliente, os campos "Indicador IE" e "Tipo
+  Consumidor" já vêm pré-preenchidos pelo tipo de documento (CPF = Não
+  Contribuinte/Final, CNPJ = Contribuinte/Normal) — continuam editáveis.
+  O CFOP do item também passa a vir do Produto (interno ou fora da BA,
+  conforme o Tipo de operação da venda).
+- IPI e PIS/COFINS ficaram de fora dessa entrega a pedido do cliente
+  (não são destacados pelo regime Simples Nacional dele).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 145.
+
 ## [2.3.166] — Campos fiscais da Venda (indicadores NF-e/NFC-e) — 2026-10-19
 
 ### Adicionado

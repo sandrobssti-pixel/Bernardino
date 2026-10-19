@@ -155,7 +155,19 @@ const useFinance = () => {
     linkContactAsCustomer,
     customers: makeResource("customers"),
     suppliers: makeResource("suppliers"),
-    products: makeResource("products"),
+    products: {
+      ...makeResource("products"),
+      // Foto do produto (v2.3.167) — só depois do produto já existir (o
+      // record precisa de um id pra saber em qual pasta gravar).
+      uploadPhoto: async (id, file) => {
+        const formData = new FormData();
+        formData.append("photo", file);
+        const { data } = await api.post(`/finance/products/${id}/photo`, formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        return data;
+      },
+    },
     expenses: makeResource("expenses"),
     receivables,
     paymentConfig,

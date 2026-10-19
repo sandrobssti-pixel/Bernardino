@@ -188,7 +188,27 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     }
   };
 
-  const handleProductChange = (index, product, setFieldValue) => {
+  // Ao escolher o Cliente, pré-preenche os campos fiscais que dependem de
+  // quem é o destinatário (v2.3.167, pedido do cliente: "digita o nome do
+  // cliente e preenche automaticamente os campos relacionados") — CPF
+  // nunca é Contribuinte do ICMS nem tem Inscrição Estadual (regra geral,
+  // pessoa física não é contribuinte), então é um default seguro; CNPJ
+  // fica como "Contribuinte"/"Normal" por padrão, mas ambos continuam
+  // campos de select completos, editáveis se o caso real for diferente
+  // (ex.: produtor rural pessoa física com IE, ou CNPJ isento).
+  const handleCustomerChange = (customer, setFieldValue) => {
+    setFieldValue("customerId", customer?.id || "");
+    if (!customer) return;
+    if (customer.documentType === "cpf") {
+      setFieldValue("ieIndicator", "non_contributor");
+      setFieldValue("finalConsumerType", "final");
+    } else {
+      setFieldValue("ieIndicator", "contributor");
+      setFieldValue("finalConsumerType", "normal");
+    }
+  };
+
+  const handleProductChange = (index, product, setFieldValue, operationType) => {
     setFieldValue(`items.${index}.productId`, product?.id || "");
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
@@ -196,6 +216,12 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
       setFieldValue(`items.${index}.ncm`, product.ncm || "");
       setFieldValue(`items.${index}.unit`, product.unit || "UN");
       setFieldValue(`items.${index}.unitPrice`, Number(product.price) || 0);
+      // CFOP padrão do produto (aba Dados Fiscais, v2.3.167) — interno ou
+      // fora da BA conforme o "Tipo de operação" já escolhido na venda.
+      // Continua editável por item (CfopAutocomplete logo abaixo).
+      const defaultProductCfop =
+        operationType === "interstate" ? product.cfopOutState : product.cfopPrincipal;
+      setFieldValue(`items.${index}.cfop`, defaultProductCfop || "5102");
     }
   };
 
@@ -253,7 +279,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                       initialOptions={sale?.customer ? [sale.customer, ...customers] : customers}
                       getOptionLabel={(opt) => opt?.name || ""}
                       fetchOptions={fetchCustomerOptions}
-                      onChange={(e, newValue) => setFieldValue("customerId", newValue?.id || "")}
+                      onChange={(e, newValue) => handleCustomerChange(newValue, setFieldValue)}
                     />
                   </Grid>
                   <Grid item xs={12} sm={4}>
@@ -315,7 +341,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               renderOption={renderProductOption}
                               fetchOptions={(searchParam) => fetchProductOptions(index, searchParam)}
                               onChange={(e, newValue) =>
-                                handleProductChange(index, newValue, setFieldValue)
+                                handleProductChange(index, newValue, setFieldValue, values.operationType)
                               }
                             />
                           </Grid>

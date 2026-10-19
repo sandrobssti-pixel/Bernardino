@@ -112,7 +112,31 @@ const includeOptions = [
     model: SaleItem,
     as: "items",
     include: [
-      { model: FinanceProduct, as: "product", attributes: ["id", "name", "sku", "controlStock", "stockQuantity"] }
+      {
+        model: FinanceProduct,
+        as: "product",
+        // Campos fiscais da aba "Dados Fiscais" do Produto (v2.3.167) —
+        // precisam vir junto pra `FocusNFeService.buildItemsPayload`
+        // conseguir montar o ICMS/CSOSN/CFOP de verdade por item, em vez
+        // de hardcoded.
+        attributes: [
+          "id",
+          "name",
+          "sku",
+          "controlStock",
+          "stockQuantity",
+          "icmsExempt",
+          "icmsSubstitution",
+          "icmsOrigin",
+          "csosnContribuinte",
+          "csosnNaoContribuinte",
+          "icmsBcModality",
+          "icmsStBcModality",
+          "icmsRate",
+          "icmsStRate",
+          "icmsStMva"
+        ]
+      }
     ]
   },
   { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] },

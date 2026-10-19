@@ -106,6 +106,7 @@ const FinanceRecordList = ({
   templateFilename,
   context = {},
   enablePayments = false,
+  enablePhotoUpload = false,
 }) => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
@@ -193,14 +194,16 @@ const FinanceRecordList = ({
   };
 
   const handleSave = async (values) => {
+    let saved;
     if (selectedRecord?.id) {
-      await resource.update(selectedRecord.id, values);
+      saved = await resource.update(selectedRecord.id, values);
       toast.success("Registro atualizado com sucesso.");
     } else {
-      await resource.save(values);
+      saved = await resource.save(values);
       toast.success("Registro adicionado com sucesso.");
     }
     fetchRecords();
+    return saved;
   };
 
   const allSelectedOnPage = records.length > 0 && records.every((r) => selectedIds.includes(r.id));
@@ -388,6 +391,8 @@ const FinanceRecordList = ({
         context={context}
         canExport={canExport}
         enablePayments={enablePayments}
+        enablePhotoUpload={enablePhotoUpload}
+        onUploadPhoto={enablePhotoUpload ? resource.uploadPhoto : undefined}
       />
 
       <Box className={classes.mainHeader}>

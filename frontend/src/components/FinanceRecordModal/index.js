@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import * as Yup from "yup";
 import { Formik, Form, Field } from "formik";
 import { toast } from "react-toastify";
@@ -17,7 +17,10 @@ import Switch from "@material-ui/core/Switch";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Typography from "@material-ui/core/Typography";
 import Divider from "@material-ui/core/Divider";
+import Avatar from "@material-ui/core/Avatar";
 import PrintIcon from "@material-ui/icons/Print";
+import PhotoCameraIcon from "@material-ui/icons/PhotoCamera";
+import ImageIcon from "@material-ui/icons/Image";
 
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
@@ -56,6 +59,17 @@ const useStyles = makeStyles((theme) => ({
   printArea: {
     display: "none",
   },
+  photoBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(2),
+    marginBottom: theme.spacing(1),
+  },
+  photoAvatar: {
+    width: 64,
+    height: 64,
+    cursor: "pointer",
+  },
   // Impressão de UM registro (dentro do formulário de editar) — mesma
   // técnica do FinanceRecordList (window.print() + @media print), com um
   // id próprio pra não colidir com a área de impressão em massa da lista.
@@ -81,7 +95,7 @@ const useStyles = makeStyles((theme) => ({
 const buildInitialValues = (fields, record) => {
   const values = {};
   fields.forEach((field) => {
-    if (field.type === "sectionTitle") return;
+    if (field.type === "sectionTitle" || field.type === "photo") return;
     if (field.type === "switch") {
       values[field.name] = record?.[field.name] ?? field.defaultValue ?? false;
     } else {
@@ -133,9 +147,19 @@ const FinanceRecordModal = ({
   context = {},
   canExport = false,
   enablePayments = false,
+  enablePhotoUpload = false,
+  onUploadPhoto,
 }) => {
   const classes = useStyles();
+  const fileInputRef = useRef(null);
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
+  // Foto (v2.3.167, só quando `enablePhotoUpload` — hoje só o cadastro de
+  // Produto usa) — fica FORA do Formik de propósito: não é um campo do
+  // payload JSON do registro, é um arquivo enviado numa chamada separada
+  // (`onUploadPhoto`) depois que o registro já tem um id. Mesmo padrão do
+  // WeaponDispatchClientModal.
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
   // Snapshot dos valores no momento de imprimir (não o form inteiro) — só
   // pra montar a área de impressão escondida fora do <Dialog>, mesma lógica
   // de `printRows` em FinanceRecordList.js.
@@ -160,6 +184,8 @@ const FinanceRecordModal = ({
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
     setPaymentResult(null);
+    setPhotoFile(null);
+    setPhotoPreview(record?.photoUrl || null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
@@ -235,13 +261,24 @@ const FinanceRecordModal = ({
 
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
-      await onSave(stripHiddenFieldValues(values));
+      const saved = await onSave(stripHiddenFieldValues(values));
+      const savedId = saved?.id || record?.id;
+      if (enablePhotoUpload && photoFile && savedId) {
+        await onUploadPhoto(savedId, photoFile);
+      }
       setSubmitting(false);
       handleClose();
     } catch (err) {
       setSubmitting(false);
       toastError(err);
     }
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   // Gerar cobrança (Pix/boleto) — Fase 1, só Mercado Pago, só em Contas a
@@ -346,6 +383,37 @@ const FinanceRecordModal = ({
                             {field.helperText}
                           </Typography>
                         )}
+                      </Grid>
+                    );
+                  }
+
+                  if (field.type === "photo") {
+                    return (
+                      <Grid item xs={12} key={field.name}>
+                        <div className={classes.photoBox}>
+                          <Avatar
+                            src={photoPreview || undefined}
+                            className={classes.photoAvatar}
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            {!photoPreview && <ImageIcon />}
+                          </Avatar>
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            style={{ display: "none" }}
+                            onChange={handlePhotoChange}
+                          />
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            startIcon={<PhotoCameraIcon />}
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            {photoPreview ? "Trocar foto" : "Anexar foto"}
+                          </Button>
+                        </div>
                       </Grid>
                     );
                   }

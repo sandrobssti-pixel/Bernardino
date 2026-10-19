@@ -1,5 +1,7 @@
 import React from "react";
 import Chip from "@material-ui/core/Chip";
+import Avatar from "@material-ui/core/Avatar";
+import ImageIcon from "@material-ui/icons/Image";
 import moment from "moment";
 import { ActiveChip } from "../../components/FinanceRecordList";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -185,7 +187,68 @@ const WEAPON_STATUS_OPTIONS = [
   { value: "decommissioned", label: "Baixada / Inutilizada" },
 ];
 
+// Aba "2 - Dados Fiscais" do Produto (v2.3.167) — modelo exato do sistema
+// de referência que o cliente mandou (print de tela), confirmado contra 4
+// notas fiscais reais (venda a consumidor + 3 compras de fornecedor). Ver
+// FinanceProduct.ts e docs/MANUAL_TECNICO.md, seção 145.
+const icmsExemptOn = (values) => !!values.icmsExempt;
+const icmsSubstitutionOff = (values) => !values.icmsSubstitution;
+
+// Origem da mercadoria (Sefaz) — tabela oficial completa.
+const ICMS_ORIGIN_OPTIONS = [
+  { value: "0", label: "0 - Nacional, exceto as indicadas nos códigos 3 a 5" },
+  { value: "1", label: "1 - Estrangeira - Importação direta" },
+  { value: "2", label: "2 - Estrangeira - Adquirida no mercado interno" },
+  { value: "3", label: "3 - Nacional, Conteúdo de Importação superior a 40%" },
+  { value: "4", label: "4 - Nacional, produção conforme processos produtivos básicos" },
+  { value: "5", label: "5 - Nacional, Conteúdo de Importação inferior ou igual a 40%" },
+  { value: "6", label: "6 - Estrangeira - Importação direta, sem similar nacional" },
+  { value: "7", label: "7 - Estrangeira - Adquirida no mercado interno, sem similar nacional" },
+  { value: "8", label: "8 - Nacional, Conteúdo de Importação superior a 70%" },
+];
+
+// CSOSN (Simples Nacional) — tabela oficial completa (NT 2015/003).
+const CSOSN_OPTIONS = [
+  { value: "101", label: "101 - Tributada c/ permissão de crédito" },
+  { value: "102", label: "102 - Tributada s/ permissão de crédito" },
+  { value: "103", label: "103 - Isenção (faixa de receita bruta)" },
+  { value: "201", label: "201 - Tributada c/ crédito e c/ cobrança do ICMS por ST" },
+  { value: "202", label: "202 - Tributada s/ crédito e c/ cobrança do ICMS por ST" },
+  { value: "203", label: "203 - Isenção (faixa de receita) e c/ cobrança do ICMS por ST" },
+  { value: "300", label: "300 - Imune" },
+  { value: "400", label: "400 - Não tributada pelo Simples Nacional" },
+  { value: "500", label: "500 - ICMS cobrado anteriormente por ST ou antecipação" },
+  { value: "900", label: "900 - Outros" },
+];
+
+const ICMS_BC_MODALITY_OPTIONS = [
+  { value: "0", label: "0 - Margem Valor Agregado (%)" },
+  { value: "1", label: "1 - Pauta (valor)" },
+  { value: "2", label: "2 - Preço Tabelado Máx. (valor)" },
+  { value: "3", label: "3 - Valor da Operação" },
+];
+
+const ICMS_ST_BC_MODALITY_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "0", label: "0 - Preço tabelado ou máximo sugerido" },
+  { value: "1", label: "1 - Lista Negativa (valor)" },
+  { value: "2", label: "2 - Lista Positiva (valor)" },
+  { value: "3", label: "3 - Lista Neutra (valor)" },
+  { value: "4", label: "4 - Margem Valor Agregado (%)" },
+  { value: "5", label: "5 - Pauta (valor)" },
+  { value: "6", label: "6 - Valor da Operação" },
+];
+
 export const financeProductColumns = [
+  {
+    field: "photoUrl",
+    label: "",
+    render: (r) => (
+      <Avatar src={r.photoUrl || undefined} style={{ width: 32, height: 32 }}>
+        {!r.photoUrl && <ImageIcon fontSize="small" />}
+      </Avatar>
+    ),
+  },
   { field: "name", label: "Nome" },
   { field: "type", label: "Tipo", render: (r) => PRODUCT_TYPE_LABELS[r.type] || "Produto" },
   {
@@ -201,6 +264,7 @@ export const financeProductColumns = [
 ];
 
 export const financeProductFields = [
+  { name: "photoUrl", type: "photo", gridSize: 12 },
   { name: "name", label: "Nome do produto/serviço", gridSize: 8 },
   { name: "type", label: "Tipo", type: "select", options: PRODUCT_TYPE_OPTIONS, defaultValue: "product", gridSize: 4 },
   { name: "sku", label: "SKU / Código", gridSize: 4 },
@@ -289,6 +353,40 @@ export const financeProductFields = [
   { name: "weaponStatus", label: "Situação da arma", type: "select", options: WEAPON_STATUS_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
   { name: "manufacturingLotNumber", label: "Número do lote de fabricação", gridSize: 6, visibleWhen: isAmmunition },
   { name: "packageBarcode", label: "Código de barras / embalagem", gridSize: 6, visibleWhen: isAmmunition },
+
+  {
+    type: "sectionTitle",
+    label: "Dados Fiscais",
+    helperText: "Confirmado contra notas fiscais reais do cliente — ver docs/MANUAL_TECNICO.md, seção 145.",
+    visibleWhen: isNotService,
+  },
+  { name: "icmsExempt", label: "Produto Isento de ICMS", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "icmsSubstitution", label: "ICMS por Substituição Tributária", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "icmsOrigin", label: "Origem", type: "select", options: ICMS_ORIGIN_OPTIONS, defaultValue: "0", gridSize: 12, visibleWhen: isNotService },
+  { name: "csosnContribuinte", label: "Tipo Tributação ICMS (Contribuinte)", type: "select", options: CSOSN_OPTIONS, defaultValue: "101", gridSize: 6, visibleWhen: isNotService },
+  { name: "csosnNaoContribuinte", label: "Tipo Tributação ICMS (Não Contribuinte)", type: "select", options: CSOSN_OPTIONS, defaultValue: "102", gridSize: 6, visibleWhen: isNotService },
+  { name: "icmsBcModality", label: "Modalidade de determinação da BC do ICMS", type: "select", options: ICMS_BC_MODALITY_OPTIONS, defaultValue: "3", gridSize: 6, visibleWhen: isNotService },
+  {
+    name: "icmsStBcModality",
+    label: "Modalidade de determinação da BC do ICMS-ST",
+    type: "select",
+    options: ICMS_ST_BC_MODALITY_OPTIONS,
+    gridSize: 6,
+    visibleWhen: isNotService,
+    disabledWhen: icmsSubstitutionOff,
+  },
+  { name: "icmsRate", label: "ICMS (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService, disabledWhen: icmsExemptOn },
+  { name: "icmsEcf", label: "ICMS ECF", gridSize: 4, visibleWhen: isNotService },
+  { name: "icmsDesoneration", label: "ICMS Desoner. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
+  { name: "icmsStRate", label: "ICMS ST (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
+  { name: "icmsStMva", label: "IVA - ST (MVA %)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
+  { name: "taxableUnit", label: "Un. Medida Trib.", gridSize: 4, visibleWhen: isNotService },
+  { name: "cfopPrincipal", label: "CFOP Principal (venda interna)", defaultValue: "5102", gridSize: 4, visibleWhen: isNotService },
+  { name: "cfopOutState", label: "CFOP Fora UF (interestadual)", defaultValue: "6102", gridSize: 4, visibleWhen: isNotService },
+  { name: "taxArticle", label: "Artigo", gridSize: 6, visibleWhen: isNotService },
+  { name: "fiscalBenefitCode", label: "Cód. Benefício Fiscal", gridSize: 6, visibleWhen: isNotService },
+  { name: "usesFcp", label: "Utilizar Alíq. de Fundo de Combate à Pobreza (FCP)", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "conditionalDiscountNfe", label: "Desconto Condicional na NFe/NFCe", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
 
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },

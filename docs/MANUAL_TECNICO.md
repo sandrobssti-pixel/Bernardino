@@ -10245,3 +10245,139 @@ SaleItem.ts`, `backend/src/models/FiscalDocument.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js` (novas constantes
 `SALE_*_OPTIONS`), `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/SaleDetailModal/index.js`.
+
+## 145. Dados Fiscais do Produto + foto + auto-preenchimento da Venda (v2.3.167)
+
+Continuação direta da seção 144 — o cliente mandou um print de tela de um
+sistema de referência (aba "2 - Dados Fiscais" do cadastro de Produto) e
+pediu o mesmo conjunto de campos aqui. Antes de implementar, pedi (e
+recebi) **documentos fiscais reais do cliente** pra validar os valores —
+não dava pra confiar em nenhuma tabela genérica de alíquota/código
+tributário sem risco real de rejeição de nota ou recolhimento errado de
+imposto.
+
+**Documentos reais analisados** (4 notas + 2 Guias de Tráfego do
+Exército, todas do cliente de verdade):
+1. NF-e 491 — venda de uma pistola a um CONSUMIDOR FINAL (CPF), emitida
+   pelo próprio cliente.
+2. NF-e (XML completo) — compra de munição/espingarda da CBC Brasil
+   (fornecedor, SP → BA).
+3. NF-e 0001390013 (PDF) — outra compra da CBC (munição/espoleta/arma).
+4. NF-e 6.007 — compra de munição/espoleta/6 armas da Pavei Brasil
+   (fornecedor, SP → BA), com detalhamento por item mais completo (Origem
+   variando por produto, ICMS% por linha).
+5. NF-e 000.002.823 (INBRAMUN, fabricante de pólvora/espoleta, PR → BA) —
+   mostrou IPI alto (25% espoleta, 16,25% pólvora), mas o cliente pediu
+   explicitamente pra DEIXAR DE FORA (IPI e PIS/COFINS "zerados" — regime
+   Simples Nacional do cliente não destaca esses impostos nota a nota).
+
+**Achados confirmados contra as notas (usados como default/validação)**:
+- CSOSN **102** (Tributada pelo Simples Nacional sem permissão de
+  crédito) na venda real a consumidor final (CPF) — bate com
+  `csosnNaoContribuinte` default.
+- CFOP **5102** nessa mesma venda (interna, dentro da BA).
+- Nas 3 compras de fornecedor: CFOP **6101** (fabricante vendendo
+  produção própria, Inbramun) ou **6102** (distribuidor revendendo, CBC/
+  Pavei) — confirma que CFOP interno/fora-UF precisa ser dois campos
+  diferentes por produto (`cfopPrincipal`/`cfopOutState`), não um só.
+  ICMS **7%** nas 4 compras, sem exceção — alíquota oficial do Senado
+  (Resolução 22/89) pra operação Sul/Sudeste → Nordeste.
+- **Nenhuma das 4 notas teve FCP ou ICMS-ST destacado** — um prompt
+  anterior (não deste agente, colado pelo cliente) afirmava "20,5% ICMS +
+  2% FCP = 22,5%" pra armas/munições na Bahia; as notas reais contradizem
+  isso. `usesFcp`/`icmsStRate`/`icmsStMva` ficam implementados (campo
+  existe, select completo), mas **não têm nenhum valor confirmado contra
+  nota real** — ver aviso de confiança abaixo.
+- **Origem** varia de verdade por produto: "0" (nacional) na maioria,
+  "5" (nacional, conteúdo de importação ≤40%) na espoleta da nota da
+  Pavei — confirma que não dá pra fixar um valor só pro cadastro inteiro.
+- Grupo de arma da NF-e confirmado via XML de verdade: `<arma>` (singular,
+  um por item), campos `tpArma`/`nSerie`/`nCano`/`descr` — já usado desde
+  a v2.3.166 como texto em `informacoes_adicionais_produto` (a Focus NFe
+  pode ter um campo estruturado próprio pra isso; não confirmado, ver
+  aviso). Munição e insumo (pólvora/espoleta) nas notas reais NÃO tiveram
+  grupo de rastreabilidade (`rastro`) — contradiz outro ponto do mesmo
+  prompt anterior ("rastro obrigatório pra munição").
+
+**Campos novos em `FinanceProduct.ts`** (19 campos, nomes e opções
+exatamente como o cliente ditou): `icmsExempt`, `icmsSubstitution`,
+`icmsOrigin` (tabela 0-8 completa), `csosnContribuinte`/
+`csosnNaoContribuinte` (tabela CSOSN completa — 101/102/103/201/202/203/
+300/400/500/900), `icmsBcModality` (0-3), `icmsStBcModality` (0-6),
+`icmsRate`, `icmsEcf` (texto livre, formato não documentado pelo
+cliente, sem uso no payload), `icmsDesoneration`, `icmsStRate`,
+`icmsStMva`, `taxableUnit`, `cfopPrincipal` (default "5102"),
+`cfopOutState` (default "6102"), `taxArticle`, `fiscalBenefitCode`,
+`usesFcp`, `conditionalDiscountNfe`. Mais `photoUrl` (foto do produto,
+ver abaixo). Migration `20261019250000-*.ts` (19 campos fiscais) +
+`20261019260000-*.ts` (foto), testadas (up/down) contra Postgres local.
+
+**Wiring no `FocusNFeService.ts` (`buildItemIcms`, novo)**: por item da
+venda, lê `item.product.*` (precisou expandir o `attributes` do include
+de Produto em `SaleService.ts`, que antes só trazia
+id/name/sku/controlStock/stockQuantity) e monta `icms_origem`/
+`icms_situacao_tributaria` — o CSOSN usado é `csosnContribuinte` ou
+`csosnNaoContribuinte` dependendo de `Sale.ieIndicator` (campo da seção
+144) ser "contributor" ou não, mesma lógica do sistema de referência do
+cliente. `icms_percentual`/`icms_modalidade_base_calculo` só entram
+quando o produto não está isento e tem uma alíquota > 0 configurada; os
+campos de ICMS-ST só entram quando `icmsSubstitution` está marcado E tem
+`icmsStRate`/`icmsStMva` > 0 — **esse caminho nunca foi validado contra
+nenhuma nota real** (nenhuma das 4 teve ICMS-ST), só contra o schema
+público da NF-e, mesmo nível de confiança do resto do adapter desde a
+Fase 3.
+
+**Foto do Produto**: mesmo padrão já usado no Despachante Bélico
+(`WeaponDispatchClient.photoUrl`/`uploadPhoto`) — endpoint dedicado
+`POST /finance/products/:id/photo` (multer, só imagem, 5MB), guardado em
+`public/company{id}/finance-product-photos/`. No frontend, isso exigiu
+estender o `FinanceRecordModal.js` GENÉRICO (reusado por clientes/
+fornecedores/produtos/contas) com um novo tipo de campo declarativo,
+`"photo"` — igual aos outros tipos (`sectionTitle`, `switch`,
+`asyncSelect`...), mas fora do Formik de propósito (é um arquivo enviado
+numa chamada separada, não um campo do JSON do registro). O modal
+precisou aprender a capturar o `id` do registro recém-criado (antes o
+retorno de `onSave` era ignorado) pra poder fazer o upload logo em
+seguida, no mesmo clique de "Salvar". Dois novos props opcionais,
+`enablePhotoUpload`/`onUploadPhoto`, ligados só na aba Produtos
+(`Financeiro/index.js`) — nenhum outro cadastro (cliente/fornecedor/
+contas) foi afetado.
+
+**Auto-preenchimento na Venda** (pedido do cliente: "digita o nome do
+cliente e preenche automaticamente os campos relacionados"): escolher o
+Cliente em "Nova venda" agora pré-preenche `ieIndicator`/
+`finalConsumerType` com base no `documentType` do cadastro — CPF vira
+"Não Contribuinte"/"Final" (pessoa física não é contribuinte do ICMS,
+regra geral sem exceção prática), CNPJ vira "Contribuinte"/"Normal".
+Continuam campos de select completos, editáveis (ex.: produtor rural
+pessoa física com IE, ou CNPJ isento). Escolher um Produto também passa
+a pré-preencher o CFOP do item com `product.cfopPrincipal` ou
+`product.cfopOutState`, conforme o "Tipo de operação" já escolhido na
+venda (seção 144) — também editável por item, sem travar.
+
+**Fora de escopo, por pedido explícito do cliente**: IPI e PIS/COFINS
+("ipi zerado", "cofins tmb" — regime Simples Nacional do cliente não
+destaca nenhum dos dois nota a nota, apesar de aparecerem significativos
+nas notas de COMPRA de fabricante/distribuidor). "Destinatário: Tipo —
+Cliente ou Fornecedor" continua sendo só uma classificação informativa
+(`Sale.recipientType`, seção 144) — a venda não passou a aceitar um
+Fornecedor de verdade como destinatário.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 3 migrations novas
+testadas (up e down) contra Postgres local rodando a cadeia completa;
+`npx eslint` limpo nos arquivos tocados do frontend; `craco build` de
+produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/controllers/FinanceProductController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`backend/src/config/financeProductPhotoUpload.ts` (novo),
+`backend/src/database/migrations/20261019250000-*.ts`,
+`20261019260000-*.ts` (novos), `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/FinanceRecordModal/index.js` (tipo de campo
+`"photo"` novo), `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/pages/Financeiro/index.js`.

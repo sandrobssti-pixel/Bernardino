@@ -152,6 +152,53 @@ const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefine
   return parts.length > 0 ? parts.join(" | ") : undefined;
 };
 
+// ICMS por item (v2.3.167) — lido da aba "Dados Fiscais" do Produto
+// (`FinanceProduct`), confirmado contra 4 notas fiscais reais do cliente
+// (venda a consumidor final + 3 compras de fornecedores CBC/Pavei/
+// Inbramun): CSOSN 101/102 pro regime Simples Nacional (mesmo regime já
+// assumido em `buildEmitente`), Origem variando de verdade por produto
+// ("0" e "5" vistos em notas reais, nunca fixo), CFOP 5102 interno / 61xx
+// interestadual. O CSOSN usado depende de quem é o destinatário
+// (`sale.ieIndicator` — Contribuinte usa `csosnContribuinte`, os outros
+// dois usam `csosnNaoContribuinte`, mesma lógica do sistema de
+// referência do cliente). ICMS-ST (base/alíquota/MVA) só entra quando o
+// produto tem `icmsSubstitution` marcado — nenhuma das 4 notas reais
+// teve ICMS-ST, então esse caminho nunca foi validado contra nota de
+// verdade, só contra o schema público — mesmo aviso de confiança do
+// resto do arquivo.
+const buildItemIcms = (item: Sale["items"][number], sale: Sale) => {
+  const product = item.product;
+  const csosn =
+    sale.ieIndicator === "contributor"
+      ? product?.csosnContribuinte || "101"
+      : product?.csosnNaoContribuinte || "102";
+
+  const fields: Record<string, unknown> = {
+    icms_origem: product?.icmsOrigin || "0",
+    icms_situacao_tributaria: csosn
+  };
+
+  if (!product?.icmsExempt) {
+    const rate = Number(product?.icmsRate) || 0;
+    if (rate > 0) {
+      fields.icms_percentual = rate;
+      fields.icms_modalidade_base_calculo = product?.icmsBcModality || "3";
+    }
+  }
+
+  if (product?.icmsSubstitution) {
+    const stRate = Number(product?.icmsStRate) || 0;
+    const mva = Number(product?.icmsStMva) || 0;
+    if (stRate > 0 || mva > 0) {
+      fields.icms_modalidade_base_calculo_st = product?.icmsStBcModality || "4";
+      if (mva > 0) fields.icms_percentual_margem_valor_adicionado_st = mva;
+      if (stRate > 0) fields.icms_aliquota_st = stRate;
+    }
+  }
+
+  return fields;
+};
+
 const buildItemsPayload = (sale: Sale) =>
   (sale.items || []).map((item, index) => ({
     numero_item: index + 1,
@@ -171,18 +218,15 @@ const buildItemsPayload = (sale: Sale) =>
     unidade_tributavel: item.unit || "UN",
     quantidade_tributavel: Number(item.quantity) || 0,
     valor_unitario_tributavel: Number(item.unitPrice) || 0,
-    icms_origem: "0",
-    // "102" é o CSOSN certo pro regime Simples Nacional (venda tributada
-    // pelo Simples, sem crédito) — mesmo regime assumido em
-    // buildEmitente (regime_tributario_emitente "1"). Empresa fora do
-    // Simples precisaria de um CST (não CSOSN) diferente aqui; não
-    // implementado ainda porque não há cliente nesse regime testando.
-    icms_situacao_tributaria: "102",
+    ...buildItemIcms(item, sale),
     // Grupo do PIS/COFINS, que faltava por completo (rejeição Sefaz 745,
     // "NF-e sem grupo do PIS", v2.3.126) — a Sefaz exige o grupo mesmo
     // quando não há valor a destacar. "99" = Outras Operações, o CST
     // correto pra regime Simples Nacional (PIS/COFINS são recolhidos via
-    // DAS, não destacados nota a nota).
+    // DAS, não destacados nota a nota — confirmado: nenhuma das 4 notas
+    // reais usadas pra validar esta entrega teve PIS/COFINS destacado
+    // nas vendas do cliente, só nas compras de fornecedor que não é
+    // Simples — esse lado, de quem RECEBE a nota, não é modelado aqui).
     pis_situacao_tributaria: "99",
     pis_valor_base_calculo: 0,
     pis_aliquota_porcentual: 0,

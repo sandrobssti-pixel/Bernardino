@@ -266,6 +266,7 @@ const Financeiro = () => {
           allowTemplateDownload
           templateFilename="modelo-importacao-produtos.xlsx"
           context={financeRecordContext}
+          enablePhotoUpload
         />
       );
     }
