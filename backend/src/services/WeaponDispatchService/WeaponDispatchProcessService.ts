@@ -128,8 +128,9 @@ export const update = async (
   }
 
   // `type`/`track` não mudam por aqui — trocar o tipo de processo depois
-  // de criado (ex. de "CR" pra "GT") muda a esteira inteira por baixo, o
-  // que exigiria decidir pra qual stage a nova trilha deveria começar;
+  // de criado (ex. de um "CRAF" pra uma "Renovação de Porte") muda a
+  // esteira inteira por baixo, o que exigiria decidir pra qual stage a
+  // nova trilha deveria começar;
   // não é um caso real pedido ainda, então fica bloqueado por enquanto
   // (criar um processo novo é o caminho certo quando isso acontecer).
   const { type, track, stage, ...safeData } = data as any;

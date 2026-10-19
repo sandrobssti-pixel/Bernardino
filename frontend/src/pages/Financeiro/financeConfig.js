@@ -137,6 +137,12 @@ const isWeapon = (values) => WEAPON_TYPES.includes(values.type);
 const isAmmunition = (values) => AMMUNITION_TYPES.includes(values.type);
 const isWeaponOrAmmunition = (values) => WEAPON_OR_AMMUNITION_TYPES.includes(values.type);
 const hasStockControl = (values) => !!values.controlStock;
+// Serviço não é mercadoria — NCM é classificação fiscal de bem físico
+// (Nomenclatura Comum do Mercosul), e "Controlar estoque" não faz sentido
+// pra algo que não tem unidade física guardada (ex. "Renovação de CRAF",
+// "Filiação") — pedido do cliente: painel de Serviço "tem que ser
+// diferente do de Produto", sem esses campos de mercadoria no meio.
+const isNotService = (values) => values.type !== "service";
 
 const WEAPON_TYPE_OPTIONS = [
   { value: "pistol", label: "Pistola" },
@@ -199,7 +205,7 @@ export const financeProductFields = [
   { name: "type", label: "Tipo", type: "select", options: PRODUCT_TYPE_OPTIONS, defaultValue: "product", gridSize: 4 },
   { name: "sku", label: "SKU / Código", gridSize: 4 },
   { name: "unit", label: "Unidade (UN, KG, H...)", defaultValue: "UN", gridSize: 4 },
-  { name: "ncm", label: "NCM (uso futuro fiscal)", gridSize: 4 },
+  { name: "ncm", label: "NCM (uso futuro fiscal)", gridSize: 4, visibleWhen: isNotService },
   { name: "price", label: "Preço de venda (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   {
@@ -210,7 +216,7 @@ export const financeProductFields = [
     defaultValue: "0",
     gridSize: 6,
   },
-  { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6 },
+  { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6, visibleWhen: isNotService },
   {
     type: "sectionTitle",
     label: "Reforma Tributária (IVA 2027)",

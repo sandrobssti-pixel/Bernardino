@@ -9794,3 +9794,70 @@ FinanceReceivablePaymentService.ts`, `backend/src/models/FinanceCustomer.ts`,
 customers.ts`, `frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc
 --noEmit` limpo; a migration nova testada contra um Postgres local
 descartável (cadeia completa); lint e `craco build` do frontend limpos.
+
+## 140. Catálogo oficial de serviços do Despachante Bélico + trilha Militar/Policial + painel de Serviço mais limpo (v2.3.161)
+
+Cliente mandou o catálogo oficial completo de serviços cobráveis por um
+analista de processo dentro do clube de tiro — bem mais detalhado e
+correto que o que eu tinha colocado em `WeaponDispatchStageCatalog.ts`
+(seção 138), que foi um chute baseado só no pedido original genérico.
+Cobre três públicos: CAC (Exército/SisGCorp), Posse/Porte (Polícia
+Federal/Sinarm) e — categoria nova que o catálogo do sistema ainda não
+tinha — Policial Militar/Militar das Forças Armadas (gerencia arma via
+SIGMA/SisGCorp, mesmo sistema do CAC, mas é cliente institucional, não
+atirador esportivo).
+
+**Perguntei antes de mexer** (duas decisões que só o cliente podia tomar):
+1. Policial/Militar vira trilha própria (3ª esteira) ou entra dentro da
+   trilha CAC já existente? Cliente escolheu **trilha própria**.
+2. Os ~37 serviços da lista vão ser cadastrados já como item cobrável em
+   Financeiro → Produtos (Tipo = Serviço), ou isso é só pro catálogo
+   interno do Despachante Bélico por enquanto? Cliente escolheu **cadastrar
+   já, com preço R$ 0** pra ele preencher depois.
+
+**Fix — `WeaponDispatchStageCatalog.ts` reescrito**:
+`WeaponDispatchTrack` ganhou o terceiro valor `"military"`, com a própria
+lista de etapas (`MILITARY_STAGES` — igual ao CAC, mas SEM "Agendamentos
+pendentes (Psico/Tiro)", porque processo institucional não tem o
+checklist de atirador esportivo de filiação a clube/laudo). Os três
+`crIssued`/`approved` das trilhas foram unificados pro mesmo nome de
+chave (`approved`) nas três trilhas — só o `label` muda por trilha —
+porque não havia motivo pra manter nomes de chave diferentes pra
+conceito idêntico ("foi aprovado"). `WEAPON_DISPATCH_PROCESS_TYPES`
+reescrito do zero com os 37 tipos reais, cada `key` com prefixo da
+trilha (`CAC_`/`CIVIL_`/`MIL_`) porque vários nomes se repetem entre
+trilhas (ex. "Renovação de CRAF" existe nas três) e colidiriam sem o
+prefixo.
+
+**Fix — painel de Serviço "tem que ser diferente do de Produto"**:
+pedido seguinte do cliente, ao ver que cadastrar um serviço (ex.
+"Filiação", ou qualquer um dos 37 novos) ainda mostrava campo de arma
+(calibre, SIGMA...) — na real, esses JÁ eram escondidos via `visibleWhen`
+pra Tipo = Serviço (`isWeapon`/`isAmmunition`/`isWeaponOrAmmunition`),
+mas faltavam dois campos que só fazem sentido pra mercadoria física:
+"NCM" (classificação fiscal de BEM, não existe NCM de serviço — isso é
+NBS, fora de escopo aqui) e "Controlar estoque" (serviço não tem unidade
+física guardada). Perguntei o escopo exato antes de mexer (`AskUserQuestion`):
+cliente confirmou que quer só o formulário/lista mais limpos — continua
+sendo o mesmo cadastro de Produto (Tipo=Serviço), NÃO uma entidade nova
+no banco — então o fix foi só mais um `visibleWhen: isNotService` nesses
+dois campos, mesmo padrão já usado nos campos de arma.
+
+**Planilha de importação**: gerada com os 37 serviços (Nome prefixado
+por categoria — "CAC - ...", "Civil - ...", "Militar - ..." — pra não
+colidir nome repetido entre trilhas, igual aos `key` do catálogo),
+`Tipo = Serviço`, `Preço Venda = 0`. Testada contra o parser real de
+importação (`FinanceImportService.ts`, mesma normalização de cabeçalho)
+antes de entregar — todas as 37 linhas reconhecidas certo. Entregue
+direto pro cliente (não fica commitada no repo — é dado de um cliente
+específico, não parte do código genérico do produto), pra importar via
+Financeiro → Produtos → Importar planilha.
+
+**Arquivos**: `backend/src/services/WeaponDispatchService/
+WeaponDispatchStageCatalog.ts`, `WeaponDispatchProcessService.ts`
+(comentário só),
+`frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc --noEmit`
+limpo; catálogo novo testado de ponta a ponta num smoke test contra
+Postgres descartável (processo CAC e processo Militar criados, troca de
+etapa validada contra a trilha certa); lint e `craco build` do frontend
+limpos.

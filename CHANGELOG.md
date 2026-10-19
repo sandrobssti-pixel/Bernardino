@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.161] — Catálogo oficial de serviços do Despachante Bélico + painel de Serviço mais limpo — 2026-10-19
+
+### Adicionado
+- Catálogo de "Tipo de processo" do Despachante Bélico reescrito com a
+  lista oficial completa de serviços (CAC/Exército-SisGCorp, Posse-Porte/
+  Polícia Federal-Sinarm, e uma trilha NOVA — Policial/Militar via
+  SIGMA/SisGCorp) — 37 tipos de processo organizados pelas mesmas etapas
+  que o Exército/PF usam.
+- Planilha com os 37 serviços pronta pra importar em Financeiro →
+  Produtos (Tipo = Serviço, preço R$ 0 pra preencher).
+
+### Corrigido
+- Cadastro de Produto (Financeiro) escondia os campos de arma quando o
+  Tipo era Serviço, mas ainda mostrava "NCM" e "Controlar estoque" — dois
+  campos que só fazem sentido pra mercadoria física, não pra um serviço
+  como "Renovação de CRAF" ou "Filiação". Agora esses dois também somem
+  quando Tipo = Serviço.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 140.
+
 ## [2.3.160] — Confirmação automática de cobrança já paga na criação + WhatsApp no cliente — 2026-10-19
 
 ### Corrigido
