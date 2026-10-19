@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.153
-**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto via Mercado Pago (Fase 1 de 2, Asaas em seguida)
+**Versão do documento:** 2.3.154
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas) com permissão por plano
 **Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9309,3 +9309,102 @@ index.js` (novo), `FinanceRecordModal/index.js`, `FinanceRecordList/
 index.js`, `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/pages/Financeiro/index.js`, `frontend/src/layout/
 MainListItems.js`, `frontend/src/translate/languages/pt.js`.
+
+## 135. Asaas (Fase 2) + permissão de plano pro módulo de Pagamento (v2.3.154)
+
+Dois pedidos do cliente na sequência, logo depois da Fase 1 (Mercado
+Pago, seção 134) subir:
+
+**1) Asaas como segundo gateway** — ele confirmou que já tem conta tanto
+no Mercado Pago quanto no Asaas, e quer os dois disponíveis. Implementado
+com a mesma estrutura da Fase 1, reaproveitando os campos genéricos já
+criados em `FinanceReceivable` (`paymentProvider`, `paymentExternalId`,
+`pixQrCode`/`pixQrCodeBase64`, `boletoUrl`, `paymentStatus` — nenhum
+campo novo precisou ser criado nessa tabela). `FinancePaymentConfig`
+ganhou um campo `provider` (`"mercadopago"`/`"asaas"`, mesmo padrão de
+`FiscalConfig.gatewayProvider`) que decide qual gateway gera a PRÓXIMA
+cobrança — trocar não afeta cobranças já geradas (cada uma guarda o
+provider usado na hora, tanto pra exibir o resultado quanto pro webhook
+de cada gateway só processar o que é dele).
+
+Diferença importante do Asaas em relação ao Mercado Pago: ele exige um
+**cadastro de cliente no próprio sistema deles** antes de gerar qualquer
+cobrança (não dá pra mandar os dados do pagador direto no payload do
+pagamento, como no Mercado Pago). `AsaasGatewayService.ensureAsaasCustomer`
+busca por CPF/CNPJ antes de criar, pra não duplicar cliente no Asaas a
+cada cobrança gerada pro mesmo `FinanceCustomer` local. O QR Code do Pix
+também vem de uma chamada separada (`GET /payments/{id}/pixQrCode`), não
+na criação do pagamento. Webhook do Asaas não usa HMAC como o Mercado
+Pago — valida por um token fixo (`asaasWebhookToken`) reenviado no header
+`asaas-access-token`, configurado igual nos dois lados (painel deles +
+Configuração de Pagamento aqui); mesmo princípio de segurança do Mercado
+Pago continua valendo: `handleAsaasWebhook` NUNCA confia no
+`payment.status` do corpo da notificação, sempre rebusca na API deles
+antes de marcar como recebido.
+
+⚠️ Mesma ressalva da Fase 1: implementado a partir da documentação
+pública do Asaas, nunca testado ponta a ponta contra uma chave de teste
+real (mesma limitação de rede deste ambiente de desenvolvimento).
+
+**2) Permissão de plano pro módulo de Pagamento** — cliente explicou o
+modelo de negócio completo: o sistema básico é só multiatendimento por
+WhatsApp (Baileys); todo o resto (Assistente IA, módulo API, Financeiro
+básico, Financeiro com cobrança/split de pagamento, RH, Flowbuilder,
+Chat Interno, Campanhas, módulo Fiscal...) é add-on que o Master libera
+por contrato, conforme o cliente paga por mais. A maioria desses módulos
+já seguia esse padrão (`Plan.useFinancial`, `useFiscal`, `useHR`,
+`useOpenAi`, `useCampaigns`, `useInternalChat` — Master habilita por
+plano, confirmado nesta mesma investigação que já estavam cobertos); só
+faltava o módulo de Pagamento que acabou de ser construído (Fases 1/2
+acima) ainda não ter o próprio flag — ficaria liberado pra qualquer
+empresa com Financeiro ativo, sem o Master poder vender separado.
+
+**Fix, mesmo padrão exato de `useFiscal`/`EnsureFiscalAccess`**:
+`Plan.usePayment` (migration `20261019080000-add-usepayment-flag-to-
+plans.ts`, default `false`) + `EnsurePaymentAccess.ts` (SEMPRE exige
+`useFinancial` também ativo, já que a cobrança nasce de uma Conta a
+Receber) + `FinancePaymentAccessController`/rota `GET /finance/payment-
+access` (mesmo formato `{ planHasModule, hasAccess }` que o Financeiro/
+Fiscal já usam) + gate aplicado em `FinancePaymentConfigController`
+(trocado de `EnsureFinancialAccess` pra `EnsurePaymentAccess`) e nas duas
+ações novas de `FinanceReceivableController` (`generatePix`/
+`generateBoleto`, que agora checam os dois: acesso ao Financeiro E ao
+Pagamento). Frontend: `Financeiro/index.js` busca `paymentAccess` junto
+com `fiscalAccess` (mesmo efeito, mesma hora), deriva `showPaymentTab`, e
+usa isso pra (a) mostrar uma tela de "não disponível" na aba Configuração
+de Pagamento, igual já acontecia com Fiscal, e (b) só passar
+`enablePayments` pro `FinanceRecordList` de Contas a Receber quando
+`showPaymentTab` for verdadeiro (escondendo os botões "Gerar Pix"/"Gerar
+boleto" de quem não tem o add-on). `PlansManager.js` (tela do Master pra
+editar planos) ganhou o toggle "Pagamento — Pix/boleto (add-on)" nas duas
+listas que já existiam (resumo em chips + formulário), mesmo padrão
+declarativo dos outros add-ons — sem precisar duplicar JSX.
+
+**Pendente, fora do escopo desse pedido**: o cliente também pediu pra
+conferir Flowbuilder, Chat Interno, Campanha e módulo Fiscal — Chat
+Interno/Campanha/Fiscal já tinham permissão de plano (confirmado acima);
+só o **Flowbuilder não tem trava nenhuma hoje** (menu aparece pra
+qualquer empresa). Cliente pediu explicitamente pra não mexer em nada
+que seja "obrigatório" pro sistema rodar (ex.: se uma automação de fluxo
+já configurada depender do motor de execução do Flowbuilder rodando por
+baixo, gatear o módulo não pode quebrar isso) — investigação de como o
+Flowbuilder se encaixa no fluxo de mensagem (execução de fluxo já ativo
+vs. só a tela de criar/editar) em andamento antes de implementar, pra
+não arriscar derrubar automação de um cliente já em produção.
+
+**Arquivos**: `backend/src/database/migrations/20261019070000-add-asaas-
+fields-to-finance-payment-configs.ts`, `20261019080000-add-usepayment-
+flag-to-plans.ts`, `backend/src/models/FinancePaymentConfig.ts`,
+`Plan.ts`, `backend/src/services/FinanceService/AsaasGatewayService.ts`
+(novo), `FinancePaymentConfigService.ts`, `FinanceReceivablePaymentService.ts`,
+`EnsurePaymentAccess.ts` (novo), `backend/src/controllers/
+FinancePaymentAccessController.ts` (novo), `FinancePaymentConfigController.ts`,
+`FinanceReceivableController.ts`, `PaymentWebhookController.ts`,
+`backend/src/routes/financeRoutes.ts`, `webHookRoutes.ts`,
+`backend/src/services/PlanService/CreatePlanService.ts`,
+`UpdatePlanService.ts`, `frontend/src/components/FinancePaymentConfigPanel/
+index.js`, `PlansManager/index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/index.js`, `frontend/src/translate/
+languages/pt.js`. `npx tsc --noEmit` limpo; as duas migrations novas
+testadas contra um Postgres local descartável; lint e `craco build` do
+frontend limpos.

@@ -95,6 +95,10 @@ const Financeiro = () => {
   // FiscalConfigService.show: evitar criar uma linha de config fiscal vazia
   // pra empresa que só abre o Financeiro, sem usar o módulo fiscal).
   const [fiscalConfig, setFiscalConfig] = useState(null);
+  // Cobrança via gateway (Pix/boleto) é um add-on SEPARADO do Financeiro
+  // (Plan.usePayment, mesmo padrão de fiscalAccess acima) — o Master decide
+  // por plano se o cliente paga por esse serviço extra.
+  const [paymentAccess, setPaymentAccess] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
   const location = useLocation();
 
@@ -133,11 +137,18 @@ const Financeiro = () => {
       } catch (err) {
         setFiscalAccess({ planHasModule: false, hasAccess: false });
       }
+      try {
+        const access = await finance.getPaymentAccess();
+        setPaymentAccess(access);
+      } catch (err) {
+        setPaymentAccess({ planHasModule: false, hasAccess: false });
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showFiscalTabs = user.super || !!fiscalAccess?.hasAccess;
+  const showPaymentTab = user.super || !!paymentAccess?.hasAccess;
   const financeRecordContext = { reform2027Enabled };
 
   const renderPanel = () => {
@@ -167,11 +178,25 @@ const Financeiro = () => {
           fields={financeReceivableFields}
           filters={financeReceivableFilters}
           finance={finance}
-          enablePayments
+          enablePayments={showPaymentTab}
         />
       );
     }
     if (financeTab === "paymentConfig") {
+      if (!showPaymentTab) {
+        return (
+          <Box className={classes.lockedBox}>
+            <Typography variant="h6" gutterBottom>
+              Cobrança via gateway não disponível
+            </Typography>
+            <Typography variant="body2">
+              {paymentAccess?.planHasModule
+                ? "Peça para o administrador da sua empresa liberar seu acesso."
+                : "Esse serviço é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
+            </Typography>
+          </Box>
+        );
+      }
       return <FinancePaymentConfigPanel key={financeTab} finance={finance} />;
     }
     if (financeTab === "sales" || financeTab === "fiscalConfig") {

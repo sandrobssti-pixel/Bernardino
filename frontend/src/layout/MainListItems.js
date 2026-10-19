@@ -468,6 +468,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   const [showSchedules, setShowSchedules] = useState(false);
   const [showInternalChat, setShowInternalChat] = useState(false);
   const [showExternalApi, setShowExternalApi] = useState(false);
+  const [showFlowbuilder, setShowFlowbuilder] = useState(false);
   const [hasTicketUnread, setHasTicketUnread] = useState(false);
   const [hasTaskNotification, setHasTaskNotification] = useState(false);
 
@@ -601,6 +602,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
           setShowSchedules(true);
           setShowInternalChat(true);
           setShowExternalApi(true);
+          setShowFlowbuilder(true);
         } else {
           // Empresa sem plano vinculado (dado legado — ver
           // docs/MANUAL_TECNICO.md sobre o bug de "não aparece o plano"):
@@ -615,6 +617,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
           setShowSchedules(!!plan?.useSchedules);
           setShowInternalChat(!!plan?.useInternalChat);
           setShowExternalApi(!!plan?.useExternalApi);
+          setShowFlowbuilder(!!plan?.useFlowbuilder);
         }
       } catch (error) {
         if (error?.response?.status !== 401) {
@@ -1227,21 +1230,23 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               />
             )}
 
-            <Can
-              role={user.profile}
-              perform="dashboard:view"
-              yes={() => (
-                <ListItemLink
-                  to="/flowbuilders/conversation"
-                  primary={i18n.t(
-                    "mainDrawer.listItems.flowbuilder"
-                  )}
-                  icon={<Webhook />}
-                  iconKey="flowbuilder"
-                  tooltip={collapsed}
-                />
-              )}
-            />
+            {showFlowbuilder && (
+              <Can
+                role={user.profile}
+                perform="dashboard:view"
+                yes={() => (
+                  <ListItemLink
+                    to="/flowbuilders/conversation"
+                    primary={i18n.t(
+                      "mainDrawer.listItems.flowbuilder"
+                    )}
+                    icon={<Webhook />}
+                    iconKey="flowbuilder"
+                    tooltip={collapsed}
+                  />
+                )}
+              />
+            )}
 
             {user.super && (
               <ListItemLink
@@ -1488,7 +1493,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=paymentConfig"
-                        primary="💳 Configuração de Pagamento"
+                        primary="💳 Config. Pagamento"
                         icon={<MonetizationOnIcon />}
                         iconKey="financial"
                         tooltip={collapsed}

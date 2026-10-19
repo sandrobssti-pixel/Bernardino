@@ -26,6 +26,10 @@ interface PlanData {
   useOpenAi?: boolean;
   useIntegrations?: boolean;
   useFinancial?: boolean;
+  useFiscal?: boolean;
+  useHR?: boolean;
+  usePayment?: boolean;
+  useFlowbuilder?: boolean;
   isPublic?: boolean;
 }
 

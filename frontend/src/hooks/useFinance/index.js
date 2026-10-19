@@ -137,6 +137,15 @@ const useFinance = () => {
     },
   };
 
+  // Cobrança via gateway é um add-on SEPARADO do Financeiro (Plan.usePayment,
+  // mesmo padrão de useFiscal) — o Master decide, por plano, se o cliente
+  // paga por esse serviço. Usado pra mostrar/esconder a aba Configuração de
+  // Pagamento e os botões "Gerar Pix"/"Gerar boleto" em Contas a Receber.
+  const getPaymentAccess = async () => {
+    const { data } = await api.get("/finance/payment-access");
+    return data;
+  };
+
   return {
     getAccess,
     getCustomerByContact,
@@ -147,6 +156,7 @@ const useFinance = () => {
     expenses: makeResource("expenses"),
     receivables,
     paymentConfig,
+    getPaymentAccess,
     reports,
   };
 };

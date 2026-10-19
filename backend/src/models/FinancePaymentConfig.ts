@@ -56,6 +56,31 @@ class FinancePaymentConfig extends Model<FinancePaymentConfig> {
   @Column
   pixExpirationMinutes: number;
 
+  // Qual gateway gera a PRÓXIMA cobrança quando o Admin clica "Gerar Pix"/
+  // "Gerar boleto" numa Conta a Receber — "mercadopago" (Fase 1) ou "asaas"
+  // (Fase 2). Mesmo padrão de FiscalConfig.gatewayProvider. Trocar de
+  // gateway não afeta cobranças já geradas (ficam com o `paymentProvider`
+  // gravado na hora, em FinanceReceivable).
+  @Default("mercadopago")
+  @Column
+  provider: string;
+
+  @Default("")
+  @Column
+  asaasApiKeySandbox: string;
+
+  @Default("")
+  @Column
+  asaasApiKeyProduction: string;
+
+  // Asaas não assina o webhook como o Mercado Pago (HMAC) — a validação
+  // deles é um token fixo configurado no painel ("Webhooks" > "Token de
+  // autenticação"), reenviado em todo POST no header `asaas-access-token`.
+  // Comparado por igualdade simples (ver AsaasGatewayService.verifyWebhookToken).
+  @Default("")
+  @Column
+  asaasWebhookToken: string;
+
   @AllowNull(false)
   @ForeignKey(() => Company)
   @Column

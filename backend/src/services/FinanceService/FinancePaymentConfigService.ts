@@ -6,6 +6,10 @@ interface FinancePaymentConfigData {
   mercadoPagoWebhookSecret?: string;
   productionEnabled?: boolean;
   pixExpirationMinutes?: number;
+  provider?: string;
+  asaasApiKeySandbox?: string;
+  asaasApiKeyProduction?: string;
+  asaasWebhookToken?: string;
 }
 
 // Um registro de configuração de cobrança por empresa — get/upsert simples,
@@ -36,3 +40,6 @@ export const getActiveMercadoPagoToken = (config: FinancePaymentConfig): string 
   isProductionActive(config)
     ? config.mercadoPagoAccessTokenProduction
     : config.mercadoPagoAccessTokenSandbox;
+
+export const getActiveAsaasApiKey = (config: FinancePaymentConfig): string =>
+  isProductionActive(config) ? config.asaasApiKeyProduction : config.asaasApiKeySandbox;

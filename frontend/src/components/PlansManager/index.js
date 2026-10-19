@@ -573,6 +573,8 @@ const ALL_FEATURES = [
   { key: "useFinancial", label: "Financeiro (add-on)" },
   { key: "useFiscal", label: "Fiscal — NF-e/NFC-e/NFS-e (add-on)" },
   { key: "useHR", label: "RH — Recrutamento (add-on)" },
+  { key: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
+  { key: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -592,6 +594,8 @@ const FEATURE_FIELDS = [
   { name: "useFinancial", label: "Financeiro (add-on)" },
   { name: "useFiscal", label: "Fiscal — NF-e/NFC-e/NFS-e (add-on)" },
   { name: "useHR", label: "RH — Recrutamento (add-on)" },
+  { name: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
+  { name: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
 ];
 
 export function PlanManagerForm(props) {
@@ -604,7 +608,7 @@ export function PlanManagerForm(props) {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, isPublic: true,
   });
 
   useEffect(() => { setRecord(initialValue); }, [initialValue]);
@@ -998,7 +1002,7 @@ export default function PlansManager() {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, isPublic: true,
   });
 
   useEffect(() => {
@@ -1075,6 +1079,8 @@ export default function PlansManager() {
       useFinancial: row.useFinancial === true,
       useFiscal: row.useFiscal === true,
       useHR: row.useHR === true,
+      usePayment: row.usePayment === true,
+      useFlowbuilder: row.useFlowbuilder === true,
       isPublic: row.isPublic,
     });
     setShowConfirmDialog(true);
@@ -1099,6 +1105,8 @@ export default function PlansManager() {
       useFinancial: data.useFinancial === true,
       useFiscal: data.useFiscal === true,
       useHR: data.useHR === true,
+      usePayment: data.usePayment === true,
+      useFlowbuilder: data.useFlowbuilder === true,
       isPublic: data.isPublic,
     });
     setPlanModalOpen(true);

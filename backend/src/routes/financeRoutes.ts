@@ -12,6 +12,7 @@ import * as FinanceReceivableController from "../controllers/FinanceReceivableCo
 import * as FinanceReportController from "../controllers/FinanceReportController";
 import * as FinanceImportController from "../controllers/FinanceImportController";
 import * as FinancePaymentConfigController from "../controllers/FinancePaymentConfigController";
+import * as FinancePaymentAccessController from "../controllers/FinancePaymentAccessController";
 
 const upload = multer(uploadConfig);
 
@@ -91,6 +92,7 @@ financeRoutes.post(
   FinanceReceivableController.generateBoleto
 );
 
+financeRoutes.get("/finance/payment-access", isAuth, FinancePaymentAccessController.show);
 financeRoutes.get("/finance/payment-config", isAuth, FinancePaymentConfigController.show);
 financeRoutes.put("/finance/payment-config", isAuth, FinancePaymentConfigController.update);
 

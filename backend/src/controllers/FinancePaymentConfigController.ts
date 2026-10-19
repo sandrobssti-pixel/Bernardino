@@ -1,12 +1,12 @@
 import { Request, Response } from "express";
 import AppError from "../errors/AppError";
-import EnsureFinancialAccess from "../services/FinanceService/EnsureFinancialAccess";
+import EnsurePaymentAccess from "../services/FinanceService/EnsurePaymentAccess";
 import * as FinancePaymentConfigService from "../services/FinanceService/FinancePaymentConfigService";
 
 const ensureAccess = async (req: Request): Promise<void> => {
-  const allowed = await EnsureFinancialAccess(req.user as any);
+  const allowed = await EnsurePaymentAccess(req.user as any);
   if (!allowed) {
-    throw new AppError("ERR_NO_FINANCIAL_MODULE_ACCESS", 403);
+    throw new AppError("ERR_NO_PAYMENT_MODULE_ACCESS", 403);
   }
 };
 

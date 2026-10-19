@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.154] — Asaas (Fase 2) + permissão de plano pro módulo de Pagamento — 2026-10-19
+
+### Adicionado
+- **Asaas** como segundo gateway de cobrança, ao lado do Mercado Pago (Fase
+  1, v2.3.153) — mesmo recurso (Pix/boleto em Contas a Receber), um
+  seletor novo em Configuração de Pagamento decide qual dos dois gera a
+  próxima cobrança. Diferente do Mercado Pago, o Asaas exige cadastro de
+  cliente no sistema deles antes de cobrar — feito automaticamente (busca
+  por CPF/CNPJ, cria se não existir).
+- **Permissão por plano pro módulo de Pagamento** (`Plan.usePayment`,
+  mesmo padrão do módulo Fiscal): o Master decide, por contrato, se o
+  cliente paga por esse serviço — sem isso habilitado, a aba Configuração
+  de Pagamento e os botões "Gerar Pix"/"Gerar boleto" ficam bloqueados
+  (backend e frontend), mesmo com o Financeiro básico ativo.
+
+⚠️ Mesma ressalva do Mercado Pago (v2.3.153): adapter do Asaas implementado
+a partir da documentação pública, ainda sem teste ponta a ponta contra uma
+chave real.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 135.
+
 ## [2.3.153] — Cobrança Pix/boleto via Mercado Pago em Contas a Receber (Fase 1) — 2026-10-19
 
 ### Adicionado

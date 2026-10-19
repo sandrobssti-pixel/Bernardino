@@ -3,12 +3,16 @@ import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import * as FinancePaymentConfigService from "./FinancePaymentConfigService";
 import * as MercadoPagoGatewayService from "./MercadoPagoGatewayService";
+import * as AsaasGatewayService from "./AsaasGatewayService";
 import type { MercadoPagoChargeResult } from "./MercadoPagoGatewayService";
+import type { AsaasChargeResult } from "./AsaasGatewayService";
 
 // Orquestra "gerar cobrança" numa Conta a Receber via gateway configurado —
-// Fase 1 só tem Mercado Pago; `paymentProvider` gravado no registro já
-// deixa o campo pronto pra outro provedor (Asaas, Fase 2) sem precisar de
-// migração nova. Ver docs/MANUAL_TECNICO.md.
+// Mercado Pago (Fase 1) ou Asaas (Fase 2), decidido por
+// `FinancePaymentConfig.provider`. Cada cobrança grava o `paymentProvider`
+// usado NA HORA — trocar o provider depois não muda cobranças já geradas
+// (o webhook de cada gateway só processa quem casa o próprio nome). Ver
+// docs/MANUAL_TECNICO.md.
 const loadReceivableWithCustomer = async (
   id: string | number,
   companyId: number
@@ -35,7 +39,7 @@ const loadReceivableWithCustomer = async (
 const applyChargeResult = async (
   receivable: FinanceReceivable,
   provider: string,
-  result: MercadoPagoChargeResult
+  result: MercadoPagoChargeResult | AsaasChargeResult
 ): Promise<FinanceReceivable> => {
   await receivable.update({
     paymentProvider: provider,
@@ -56,10 +60,17 @@ export const generatePixCharge = async (
   const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
   const config = await FinancePaymentConfigService.show(companyId);
 
+  if (config.provider === "asaas") {
+    if (!AsaasGatewayService.isConfigured(config)) {
+      throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+    }
+    const result = await AsaasGatewayService.createPixCharge(receivable, customer, config);
+    return applyChargeResult(receivable, "asaas", result);
+  }
+
   if (!MercadoPagoGatewayService.isConfigured(config)) {
     throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
   }
-
   const result = await MercadoPagoGatewayService.createPixCharge(receivable, customer, config);
   return applyChargeResult(receivable, "mercadopago", result);
 };
@@ -71,20 +82,28 @@ export const generateBoletoCharge = async (
   const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
   const config = await FinancePaymentConfigService.show(companyId);
 
+  if (config.provider === "asaas") {
+    if (!AsaasGatewayService.isConfigured(config)) {
+      throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+    }
+    const result = await AsaasGatewayService.createBoletoCharge(receivable, customer, config);
+    return applyChargeResult(receivable, "asaas", result);
+  }
+
   if (!MercadoPagoGatewayService.isConfigured(config)) {
     throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
   }
-
   const result = await MercadoPagoGatewayService.createBoletoCharge(receivable, customer, config);
   return applyChargeResult(receivable, "mercadopago", result);
 };
 
-// Chamado pelo webhook (PaymentWebhookController) — NUNCA confia no corpo
-// da notificação pra decidir se foi pago: usa só o `data.id` pra buscar o
-// status de verdade na API do Mercado Pago (`getPayment`), com o token
-// desta empresa, e casa pelo `paymentExternalId` já gravado (não pelo id da
-// notificação sozinho, que pode não bater com nenhuma conta nossa — webhook
-// de outra cobrança da mesma conta Mercado Pago, por exemplo).
+// Chamado pelo webhook do Mercado Pago (PaymentWebhookController.mercadoPago)
+// — NUNCA confia no corpo da notificação pra decidir se foi pago: usa só o
+// `data.id` pra buscar o status de verdade na API do Mercado Pago
+// (`getPayment`), com o token desta empresa, e casa pelo
+// `paymentExternalId` já gravado (não pelo id da notificação sozinho, que
+// pode não bater com nenhuma conta nossa — webhook de outra cobrança da
+// mesma conta Mercado Pago, por exemplo).
 export const handleMercadoPagoWebhook = async (
   companyId: number,
   dataId: string
@@ -101,6 +120,32 @@ export const handleMercadoPagoWebhook = async (
 
   const updates: Record<string, unknown> = { paymentStatus: result.status };
   if (result.status === "approved" && receivable.status !== "received") {
+    updates.status = "received";
+    updates.receivedDate = new Date();
+  }
+  await receivable.update(updates);
+};
+
+// Mesma lógica do Mercado Pago acima, mas pro Asaas: rebusca o pagamento
+// de verdade (`getPayment`) em vez de confiar no `payment.status` que já
+// vem no corpo do webhook — mesmo princípio de segurança, dois gateways
+// diferentes.
+export const handleAsaasWebhook = async (
+  companyId: number,
+  paymentId: string
+): Promise<void> => {
+  const config = await FinancePaymentConfigService.show(companyId);
+  if (!AsaasGatewayService.isConfigured(config)) return;
+
+  const receivable = await FinanceReceivable.findOne({
+    where: { companyId, paymentProvider: "asaas", paymentExternalId: String(paymentId) }
+  });
+  if (!receivable) return;
+
+  const result = await AsaasGatewayService.getPayment(paymentId, config);
+
+  const updates: Record<string, unknown> = { paymentStatus: result.status };
+  if (AsaasGatewayService.isPaidStatus(result.status) && receivable.status !== "received") {
     updates.status = "received";
     updates.receivedDate = new Date();
   }

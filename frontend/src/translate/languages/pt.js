@@ -1890,6 +1890,8 @@ const messages = {
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
         ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
+        ERR_NO_PAYMENT_MODULE_ACCESS: "Seu plano não inclui a cobrança via gateway (Pix/boleto).",
+        ERR_NO_FLOWBUILDER_MODULE_ACCESS: "Seu plano não inclui criar/editar fluxos no Flowbuilder.",
         ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED:
           "Configure o token do Mercado Pago em Configuração de Pagamento antes de gerar cobrança.",
         ERR_FINANCE_PAYMENT_NO_CUSTOMER:

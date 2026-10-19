@@ -116,6 +116,27 @@ class Plan extends Model<Plan> {
   @Column
   useFiscal: boolean;
 
+  // Cobrança via gateway (Pix/boleto, Mercado Pago/Asaas) — add-on SEPARADO
+  // do Financeiro, mesmo padrão de `useFiscal` logo acima: o Master decide,
+  // por plano, se o cliente paga por esse serviço extra. Sempre exige
+  // `useFinancial` também ativo (checado em EnsurePaymentAccess), já que a
+  // cobrança é gerada a partir de uma Conta a Receber. Ver
+  // docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  usePayment: boolean;
+
+  // Flowbuilder (criar/editar fluxo de automação) — add-on separado, mesmo
+  // padrão acima. Trava só a tela/API de criar e editar fluxo
+  // (EnsureFlowbuilderAccess); a EXECUÇÃO de um fluxo já configurado
+  // continua rodando pra qualquer empresa (wbotMessageListener e
+  // equivalentes leem o fluxo direto do banco, sem passar por essa
+  // permissão) — ver migration `20261019090000-add-useflowbuilder-flag-
+  // to-plans.ts` pro motivo completo.
+  @Default(false)
+  @Column
+  useFlowbuilder: boolean;
+
   // Módulo de RH/recrutamento (vagas, candidaturas, efetivação — Fase 5) —
   // add-on separado, independente do Financeiro/Fiscal (não usa nenhum
   // cadastro deles). Ver docs/MANUAL_TECNICO.md, seção 6.2.

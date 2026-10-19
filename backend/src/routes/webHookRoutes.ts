@@ -15,4 +15,6 @@ webHooksRoutes.post("/meta/:metaConnectionId", MetaWebhookController.receive);
 // ao salvar a configuração no painel.
 webHooksRoutes.post("/mercadopago/:companyId", PaymentWebhookController.mercadoPago);
 webHooksRoutes.get("/mercadopago/:companyId", PaymentWebhookController.mercadoPago);
+// Webhook do Asaas (Fase 2) — mesmo padrão, uma URL por empresa.
+webHooksRoutes.post("/asaas/:companyId", PaymentWebhookController.asaas);
 export default webHooksRoutes;
