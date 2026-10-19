@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.170] — Removido o aviso de "Nova versão disponível" — 2026-10-19
+
+### Removido
+- O toast "Nova versão disponível / Atualizar agora" (service worker) foi
+  removido — pedido do cliente: o botão recarregava a página inteira e
+  derrubava o operador de volta pra tela inicial no meio de um
+  atendimento, obrigando a procurar o ticket de novo. O app continua
+  atualizando sozinho em segundo plano; a aba só passa a usar a versão
+  nova na próxima vez que recarregar por conta própria (login, F5
+  manual), nunca forçado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 148.
+
 ## [2.3.169] — Autopreenchimento de endereço por CEP — 2026-10-19
 
 ### Adicionado

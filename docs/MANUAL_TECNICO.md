@@ -10515,3 +10515,38 @@ nenhuma migration) — é só autopreenchimento de campos que já existiam.
 `frontend/src/components/FinanceRecordModal/index.js`,
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 148. Removido o aviso de "Nova versão disponível" (v2.3.170)
+
+Reclamação do cliente com print de tela: o toast "Nova versão disponível
+/ Atualize para ver as últimas novidades" (`frontend/src/serviceWorker.js`)
+tinha um botão "Atualizar agora" que chamava `window.location.reload()`
+— um reload de página inteira, que sempre derruba o SPA de volta pra
+rota inicial (dashboard), não pra onde o operador estava (ex.: um
+atendimento específico aberto). "Atrapalha o operador pq volta pra tela
+inicial e a pessoa tem que voltar pra tela onde estava trabalhando".
+
+**Causa raiz**: `public/service-worker.js` usa `self.skipWaiting()` (no
+`install`) + `self.clients.claim()` (no `activate`) — combinação padrão
+de PWA que faz o novo Service Worker assumir o controle de TODAS as
+abas abertas imediatamente após um deploy, sem esperar elas fecharem.
+Isso dispara o evento `controllerchange` em toda aba aberta na hora,
+mesmo no meio de um atendimento — e era esse evento que acionava o
+toast.
+
+**Fix**: removida a função `notifyUpdateAvailable()` e o listener de
+`controllerchange` inteiro de `serviceWorker.js` — não sobrou nenhum
+código morto. `public/service-worker.js` continua exatamente igual
+(skipWaiting/clients.claim() não mudaram, intencionalmente): o Service
+Worker novo continua assumindo controle em segundo plano normalmente,
+só que agora SEM avisar nem oferecer reload — a aba aberta continua
+rodando o bundle JS que já tinha carregado em memória (reload só muda o
+que o SERVICE WORKER serve pras PRÓXIMAS requisições, não o código já
+executando), e só passa a usar a versão nova organicamente na próxima
+vez que a pessoa recarregar por conta própria (login do dia seguinte, F5
+manual) — nunca interrompendo um atendimento em andamento.
+
+**Validação**: `npx eslint` limpo; `craco build` de produção limpo (bundle
+559 bytes menor, só removeu código). Nenhuma mudança no backend.
+
+**Arquivos**: `frontend/src/serviceWorker.js`.
