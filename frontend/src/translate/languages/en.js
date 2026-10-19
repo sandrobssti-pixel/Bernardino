@@ -959,6 +959,7 @@ const messages = {
           chats: "Internal Chat",
           financeiro: "Financial",
           rh: "HR",
+          weaponDispatch: "Weapon Dispatch",
           queueIntegration: "Integrations",
           version: "Version",
           kanban: "CRM / Kanban",

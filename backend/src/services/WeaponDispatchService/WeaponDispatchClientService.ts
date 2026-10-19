@@ -22,6 +22,10 @@ interface ClientData {
   cpf?: string;
   email?: string;
   whatsapp?: string;
+  phone?: string;
+  rg?: string;
+  profession?: string;
+  address?: string;
   notes?: string;
   contactId?: number | null;
 }

@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.165] — Despachante Bélico: ficha de cliente (Fase 2B — frontend) — 2026-10-19
+
+### Adicionado
+- Tela nova "Despachante Bélico" (menu lateral, ícone de escudo) — lista
+  de clientes com busca por nome/CPF/WhatsApp e botão "Novo cliente".
+- Ficha de cadastro do cliente com os campos pedidos: Nº da OS (exibição
+  automática, não é um campo digitado), foto (upload), nome completo,
+  CPF, identidade (RG), profissão, endereço completo, telefone, WhatsApp
+  e observação.
+- Campo "Tipo de serviço" (repetível, pode pedir vários de uma vez) puxa
+  direto do cadastro real de Financeiro → Produtos → Serviços — ao
+  escolher um serviço já cadastrado, valor e nome vêm preenchidos
+  sozinhos; ainda dá pra cadastrar serviços novos pela tela de Produtos
+  normalmente. Cada serviço escolhido tem um campo "Forma de pagamento"
+  (Pix/Cartão/Boleto/Espécie) e vira um processo novo na esteira do
+  Despachante Bélico ao salvar.
+- Botão "Imprimir / PDF" na ficha (mesma técnica `window.print()` já
+  usada no resto do Financeiro).
+- Novos campos no cadastro do cliente (`phone`, `rg`, `profession`,
+  `address`, `photoUrl`) e do processo (`value`, `paymentMethod`,
+  `productId` com vínculo ao Produto escolhido).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 143.
+
 ## [2.3.164] — Filtro de Tipo de verdade na busca de item da Venda — 2026-10-19
 
 ### Adicionado

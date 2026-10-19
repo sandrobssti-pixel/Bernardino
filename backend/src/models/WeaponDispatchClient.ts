@@ -45,6 +45,35 @@ class WeaponDispatchClient extends Model<WeaponDispatchClient> {
   @Column
   whatsapp: string;
 
+  // Telefone de contato — separado do WhatsApp de propósito (o cliente pode
+  // ter um número fixo/outro além do WhatsApp usado pra notificação).
+  @Default("")
+  @Column
+  phone: string;
+
+  @Default("")
+  @Column
+  rg: string;
+
+  @Default("")
+  @Column
+  profession: string;
+
+  // Endereço completo num campo só (texto livre), não estruturado em
+  // rua/número/bairro/cidade/UF como o FinanceCustomer — pedido explícito
+  // do cliente, modelo de ficha que ele mandou tinha "Endereço completo"
+  // como um único campo.
+  @Default("")
+  @Column(DataType.TEXT)
+  address: string;
+
+  // Caminho da foto (upload), servido estaticamente igual a qualquer outro
+  // arquivo em public/company{id}/... — ver WeaponDispatchClientController.
+  // uploadPhoto / rota POST .../clients/:id/photo.
+  @Default("")
+  @Column
+  photoUrl: string;
+
   // Senha do gov.br do cliente, CRIPTOGRAFADA (AES-256-GCM, ver
   // ../utils/weaponDispatchCrypto.ts) — NUNCA em texto puro (era assim no
   // Notion antes, campo "SENHA GOV"; corrigido a pedido explícito do

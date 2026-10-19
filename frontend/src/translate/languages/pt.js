@@ -1004,6 +1004,7 @@ const messages = {
           chats: "Chat Interno",
           financeiro: "Financeiro",
           rh: "RH",
+          weaponDispatch: "Despachante Bélico",
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",

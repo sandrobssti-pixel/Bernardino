@@ -11,6 +11,7 @@ import Connections from "../pages/Connections";
 import SettingsCustom from "../pages/SettingsCustom";
 import Financeiro from "../pages/Financeiro";
 import RH from "../pages/RH";
+import WeaponDispatch from "../pages/WeaponDispatch";
 import PublicJobBoard from "../pages/PublicJobBoard";
 import Users from "../pages/Users";
 import Contacts from "../pages/Contacts";
@@ -91,6 +92,7 @@ const Routes = () => {
               <LoggedInLayout>
                 <Route exact path="/financeiro" component={Financeiro} isPrivate />
                 <Route exact path="/rh" component={RH} isPrivate />
+                <Route exact path="/weapon-dispatch" component={WeaponDispatch} isPrivate />
 
                 <Route exact path="/companies" component={Companies} isPrivate />
                 <Route exact path="/" isPrivate render={(props) => (

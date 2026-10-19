@@ -50,6 +50,7 @@ import FlagIcon from "@material-ui/icons/Flag";
 import PublicIcon from "@material-ui/icons/Public";
 import BuildIcon from "@material-ui/icons/Build";
 import NatureIcon from "@material-ui/icons/Nature";
+import SecurityIcon from "@material-ui/icons/Security";
 import {
   AllInclusive,
   AttachFile,
@@ -1654,6 +1655,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<WorkOutlineIcon />}
                   iconKey="rh"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/weapon-dispatch"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.weaponDispatch"
+                  )}
+                  icon={<SecurityIcon />}
+                  iconKey="weaponDispatch"
                   tooltip={collapsed}
                 />
               )}

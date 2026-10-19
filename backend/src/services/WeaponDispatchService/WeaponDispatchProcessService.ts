@@ -19,6 +19,9 @@ interface ListRequest {
 interface ProcessData {
   type: string;
   clientId: number;
+  value?: string;
+  paymentMethod?: string;
+  productId?: number | null;
   priority?: number;
   isAffiliatedClub?: boolean;
   hasPsychTest?: boolean;

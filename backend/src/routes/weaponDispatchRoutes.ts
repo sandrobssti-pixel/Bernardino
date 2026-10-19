@@ -1,5 +1,7 @@
 import { Router } from "express";
+import multer from "multer";
 import isAuth from "../middleware/isAuth";
+import weaponDispatchPhotoUpload from "../config/weaponDispatchPhotoUpload";
 
 import * as WeaponDispatchAccessController from "../controllers/WeaponDispatchAccessController";
 import * as WeaponDispatchClientController from "../controllers/WeaponDispatchClientController";
@@ -7,6 +9,7 @@ import * as WeaponDispatchProcessController from "../controllers/WeaponDispatchP
 import * as WeaponDispatchAppointmentController from "../controllers/WeaponDispatchAppointmentController";
 
 const weaponDispatchRoutes = Router();
+const photoUpload = multer(weaponDispatchPhotoUpload);
 
 // Despachante Bélico — gestão de processo CAC/Posse-Porte/Militar. Ver
 // docs/MANUAL_TECNICO.md.
@@ -55,6 +58,12 @@ weaponDispatchRoutes.post(
   "/weapon-dispatch/clients/:id/gov-password/reveal",
   isAuth,
   WeaponDispatchClientController.getGovPassword
+);
+weaponDispatchRoutes.post(
+  "/weapon-dispatch/clients/:id/photo",
+  isAuth,
+  photoUpload.single("photo"),
+  WeaponDispatchClientController.uploadPhoto
 );
 
 weaponDispatchRoutes.get(

@@ -10021,3 +10021,124 @@ próprio (faixa 5933/5949 etc.), diferente do de mercadoria — decidir
 isso errado quebraria dado fiscal de verdade, então fica como pergunta
 em aberto pro cliente confirmar antes de qualquer mudança nesses dois
 campos especificamente.
+
+## 143. Despachante Bélico — ficha de cliente e tela de lista (Fase 2B, v2.3.165)
+
+Primeira tela de verdade do módulo Despachante Bélico — até aqui (seções
+138-141) só existia backend (modelo, catálogo de 37 serviços, rotas
+HTTP, permissão por plano). O cliente mandou um modelo de formulário com
+campos específicos e, numa pergunta de desambiguação (`AskUserQuestion`),
+confirmou que "Tipo de serviço" deveria puxar direto do cadastro real de
+Financeiro → Produtos → Serviços (com valor e forma de pagamento já
+vindo preenchidos), em vez de usar só o catálogo fixo de 37 tipos
+(seção 140) ou manter uma lista duplicada.
+
+**Modelo de dados — campos novos**:
+- `WeaponDispatchClient`: `phone` (telefone, separado de `whatsapp` de
+  propósito — cliente pode ter número fixo diferente do WhatsApp),
+  `rg`, `profession`, `address` (texto livre, um campo só — diferente do
+  `FinanceCustomer`, que estrutura em rua/número/bairro/cidade/UF;
+  decisão deliberada porque o modelo que o cliente mandou tinha
+  "Endereço completo" como campo único), `photoUrl`.
+- `WeaponDispatchProcess`: `value` (snapshot do preço do Produto no
+  momento da escolha — editar o preço do Produto depois não muda
+  processos já criados, mesmo padrão de `SaleItem` com Produto, seção
+  11), `paymentMethod` ("pix"/"card"/"boleto"/"cash" — registro
+  informativo, não dispara cobrança de verdade; isso já existe em Contas
+  a Receber via Configuração de Pagamento, seção 134), `productId` (FK
+  opcional pra `FinanceProduct`, só pra rastrear de qual Produto o
+  processo nasceu — quem decide a trilha/esteira é o `type`, que grava o
+  NOME do produto no momento, não o id).
+- Três migrations novas (`20261019200000-...`, `20261019210000-...`,
+  `20261019220000-...`), todas com `ADD COLUMN IF NOT EXISTS` — testadas
+  (up e down) contra um Postgres local rodando a cadeia completa de
+  migrations antes de subir.
+
+**`getTrackForProcessType` (`WeaponDispatchStageCatalog.ts`) passou a
+aceitar dois formatos de `type`**: a chave fixa do catálogo (ex.
+`"CAC_CR_CONCESSAO"`, usada por quem cria um processo direto da lista
+fixa) OU o nome de um Produto de verdade, reconhecido pelo prefixo
+"CAC -"/"Civil -"/"Militar -" (mesma convenção da planilha de 37
+serviços gerada na seção 140) — assim um processo criado a partir da
+ficha nova (que grava o nome do Produto escolhido, não uma chave fixa)
+ainda cai na trilha certa.
+
+**Frontend — telas novas**:
+- `useWeaponDispatch` (hook, mesmo padrão de `useFinance`/`useHR`):
+  `getAccess`, `catalog`, `clients.*` (CRUD + `uploadPhoto`/
+  `setGovPassword`/`getGovPassword`), `processes.*` (CRUD +
+  `changeStage`).
+- `pages/WeaponDispatch/index.js`: lista de clientes (busca por nome/
+  CPF/WhatsApp, coluna de foto, coluna "OS" = `id` com zero à esquerda)
+  com o mesmo bloqueio de acesso já usado em RH (`planHasModule`/
+  `hasAccess` — tela de "módulo não disponível" quando falta um dos
+  dois).
+- `components/WeaponDispatchClientModal/index.js`: a ficha em si.
+  Campos pedidos pelo cliente, verbatim: número da OS (só exibição —
+  `id` do cliente com zero à esquerda, NÃO é uma coluna nova no banco),
+  foto (upload, caixa com `Avatar` clicável no topo), nome completo,
+  endereço completo, CPF, identidade, profissão, número de contato,
+  número de WhatsApp, "Tipo de serviços" repetível (`FieldArray`, mesmo
+  padrão dos itens de `SaleModal`) com botão "Adicionar serviço",
+  observação, "Imprimir ou gerar PDF".
+  - Cada linha de serviço usa `FinanceAsyncAutocomplete` buscando em
+    `finance.products.list({ searchParam, type: "service" })` — ao
+    escolher, `value` (preço) e o nome vêm preenchidos automaticamente
+    (`handleServiceProductChange`); ainda dá pra cadastrar um serviço
+    novo que não existe ainda, pela tela normal de Produtos (fora desta
+    ficha) e escolher ele aqui depois.
+  - Um select de "Forma de pagamento" (Pix/Cartão/Boleto/Espécie) por
+    linha de serviço — pedido explícito do cliente na resposta à
+    pergunta de desambiguação.
+  - Editando um cliente que já tem processos, eles aparecem numa lista
+    separada ("Serviços já solicitados", somente leitura, com a etapa
+    atual) ANTES do `FieldArray` de serviços novos — o `FieldArray`
+    sempre representa pedidos NOVOS a criar neste salvamento, nunca edita
+    um processo já existente (mudar tipo/valor de um processo já em
+    andamento na esteira é um caso que ainda não foi pedido; se
+    acontecer, criar um processo novo é o caminho, igual já documentado
+    em `WeaponDispatchProcessService.update`).
+  - Salvar faz, em sequência: cria/atualiza o `WeaponDispatchClient` com
+    os campos pessoais → se uma foto nova foi escolhida, faz o upload
+    (`uploadPhoto`, precisa do `id` do cliente já existir) → cria um
+    `WeaponDispatchProcess` pra cada linha de serviço com um Produto
+    selecionado.
+  - "Imprimir / PDF" não exige que o cliente já esteja salvo (diferente
+    do `FinanceRecordModal`, que só libera depois de salvo) — monta a
+    área de impressão escondida a partir dos valores atuais do
+    formulário (mesma técnica `window.print()` + `@media print`, com um
+    id de área próprio pra não colidir com a impressão de outro modal
+    aberto ao mesmo tempo).
+- Rota `/weapon-dispatch` registrada em `routes/index.js`; item de menu
+  novo em `MainListItems.js` (ícone `SecurityIcon`, sempre visível pra
+  quem tem `dashboard:view`, mesmo padrão do item "RH" — a página em si
+  mostra o bloqueio de acesso quando falta plano/liberação, o menu não
+  esconde o item condicionalmente). Chave de tradução
+  `mainDrawer.listItems.weaponDispatch` adicionada nos quatro idiomas
+  (pt/en/es/esES).
+
+**Fora do escopo desta entrega** (não pedido ainda): a esteira/Kanban
+visual com as colunas de etapa, robô de consulta de protocolo,
+notificação por WhatsApp/e-mail na mudança de etapa.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as três migrations
+novas testadas (up e down) contra Postgres local rodando a cadeia
+completa; `npx eslint` nos arquivos novos/tocados do frontend (sem erro
+novo — os erros de `import/first` em `routes/index.js` já existiam antes
+desta entrega, não são deste commit); `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/WeaponDispatchClient.ts`,
+`backend/src/models/WeaponDispatchProcess.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchClientService.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchProcessService.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchStageCatalog.ts`,
+`backend/src/controllers/WeaponDispatchClientController.ts`,
+`backend/src/routes/weaponDispatchRoutes.ts`,
+`backend/src/config/weaponDispatchPhotoUpload.ts` (novo),
+`backend/src/database/migrations/20261019200000-*.ts`,
+`20261019210000-*.ts`, `20261019220000-*.ts` (novos),
+`frontend/src/hooks/useWeaponDispatch/index.js` (novo),
+`frontend/src/pages/WeaponDispatch/index.js` (novo),
+`frontend/src/components/WeaponDispatchClientModal/index.js` (novo),
+`frontend/src/routes/index.js`, `frontend/src/layout/MainListItems.js`,
+`frontend/src/translate/languages/{pt,en,es,esES}.js`.

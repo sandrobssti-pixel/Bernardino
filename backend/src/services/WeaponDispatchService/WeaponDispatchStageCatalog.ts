@@ -161,7 +161,22 @@ export const isValidStage = (track: WeaponDispatchTrack, stage: string): boolean
 export const getDefaultStage = (track: WeaponDispatchTrack): string =>
   getStagesForTrack(track)[0]?.key || "preAnalysis";
 
+// Aceita duas formas de `type` (v2.3.165): a chave fixa do catálogo acima
+// (ex. "CAC_CR_CONCESSAO", uso direto do catálogo) OU o nome de um Produto
+// de verdade cadastrado em Financeiro → Produtos → Serviços, escolhido na
+// ficha do cliente — esses nomes são gerados com o mesmo prefixo da
+// trilha ("CAC - ...", "Civil - ...", "Militar - ...", mesma convenção da
+// planilha de importação, ver seção 140 do manual técnico), então dá pra
+// reconhecer a trilha pelo prefixo sem precisar que o nome bata
+// exatamente com nenhuma `label` do catálogo.
 export const getTrackForProcessType = (type: string): WeaponDispatchTrack => {
   const found = WEAPON_DISPATCH_PROCESS_TYPES.find((t) => t.key === type);
-  return found ? found.track : "cac";
+  if (found) return found.track;
+
+  const normalized = (type || "").trim().toLowerCase();
+  if (normalized.startsWith("cac -") || normalized.startsWith("cac-")) return "cac";
+  if (normalized.startsWith("civil -") || normalized.startsWith("civil-")) return "civil";
+  if (normalized.startsWith("militar -") || normalized.startsWith("militar-")) return "military";
+
+  return "cac";
 };

@@ -14,6 +14,7 @@ import {
 } from "sequelize-typescript";
 import Company from "./Company";
 import User from "./User";
+import FinanceProduct from "./FinanceProduct";
 import WeaponDispatchClient from "./WeaponDispatchClient";
 
 // Um processo (card da esteira) do Despachante Bélico — 1 Cliente pode ter
@@ -33,11 +34,15 @@ class WeaponDispatchProcess extends Model<WeaponDispatchProcess> {
   @Column
   id: number;
 
+  // Nome do serviço escolhido (snapshot do `name` do Produto, quando vem
+  // de `productId` — ver abaixo) ou uma das chaves fixas do catálogo
+  // (`WEAPON_DISPATCH_PROCESS_TYPES`), quando criado sem vínculo com
+  // Produto. `getTrackForProcessType` aceita os dois formatos.
   @AllowNull(false)
   @Column
   type: string;
 
-  // "cac" | "civil" — ver WeaponDispatchTrack em WeaponDispatchStageCatalog.ts
+  // "cac" | "civil" | "military" — ver WeaponDispatchTrack em WeaponDispatchStageCatalog.ts
   @AllowNull(false)
   @Column
   track: string;
@@ -67,6 +72,37 @@ class WeaponDispatchProcess extends Model<WeaponDispatchProcess> {
   @Default(false)
   @Column
   documentsComplete: boolean;
+
+  // Valor do serviço — mesmo padrão de FinanceProduct.price (string, não
+  // float, pra não arriscar erro de arredondamento vindo do frontend).
+  // Snapshot no momento da escolha (igual SaleItem com Produto, ver skill
+  // atendeflow-dev seção 11) — editar o preço do Produto depois não muda
+  // processos já criados.
+  @Default("0")
+  @Column
+  value: string;
+
+  // "pix" | "card" | "boleto" | "cash" — como o cliente vai pagar esse
+  // serviço específico. Só um registro informativo por enquanto, não
+  // dispara cobrança de verdade (isso já existe em Contas a Receber via
+  // Configuração de Pagamento — ver seção 134 do manual técnico).
+  @Default("")
+  @Column
+  paymentMethod: string;
+
+  // Vínculo opcional com o item de verdade cadastrado em Financeiro →
+  // Produtos → Serviços — pedido do cliente: escolher o "Tipo de Serviço"
+  // na ficha puxa nome/valor já cadastrados ali, em vez de digitar tudo de
+  // novo ou manter uma lista separada. `type` (abaixo) grava o NOME do
+  // produto escolhido no momento (snapshot, não o id) — é o que decide a
+  // trilha/esteira (`getTrackForProcessType`, reconhece pelo prefixo
+  // "CAC -"/"Civil -"/"Militar -" do nome, ver WeaponDispatchStageCatalog.ts).
+  @ForeignKey(() => FinanceProduct)
+  @Column
+  productId: number;
+
+  @BelongsTo(() => FinanceProduct)
+  product: FinanceProduct;
 
   @Default("")
   @Column

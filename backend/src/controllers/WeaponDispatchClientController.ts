@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import AppError from "../errors/AppError";
 import EnsureWeaponDispatchAccess from "../services/WeaponDispatchService/EnsureWeaponDispatchAccess";
 import * as WeaponDispatchClientService from "../services/WeaponDispatchService/WeaponDispatchClientService";
+import WeaponDispatchClient from "../models/WeaponDispatchClient";
 
 const ensureAccess = async (req: Request): Promise<void> => {
   const allowed = await EnsureWeaponDispatchAccess(req.user as any);
@@ -85,4 +86,34 @@ export const getGovPassword = async (req: Request, res: Response): Promise<Respo
     reason
   );
   return res.status(200).json({ password });
+};
+
+// Foto do cliente — `weaponDispatchPhotoUpload` (multer) já grava o arquivo
+// em disco antes de chegar aqui; só falta confirmar que o cliente é desta
+// empresa e gravar o caminho público. `encodeURIComponent` no nome do
+// arquivo ao montar a URL — nome pode ter acento/espaço (só sanitizado,
+// não removido, no multer), e sem isso um link com caractere assim quebra
+// na hora de abrir (mesma lição já registrada pra mídia de mensagem, ver
+// Message.ts/mediaUrl e docs/MANUAL_TECNICO.md seção 79).
+export const uploadPhoto = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+  const file = req.file as Express.Multer.File | undefined;
+
+  if (!file) {
+    throw new AppError("ERR_WEAPON_DISPATCH_CLIENT_NO_PHOTO_SENT", 400);
+  }
+
+  const record = await WeaponDispatchClient.findOne({ where: { id, companyId } });
+  if (!record) {
+    throw new AppError("ERR_WEAPON_DISPATCH_CLIENT_NOT_FOUND", 404);
+  }
+
+  const photoUrl = `${process.env.BACKEND_URL}/public/company${companyId}/weapon-dispatch-photos/${encodeURIComponent(
+    file.filename
+  )}`;
+  await record.update({ photoUrl });
+
+  return res.status(200).json({ photoUrl });
 };
