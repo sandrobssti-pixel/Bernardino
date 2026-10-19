@@ -76,6 +76,11 @@ import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
+import WeaponDispatchClient from "../models/WeaponDispatchClient";
+import WeaponDispatchProcess from "../models/WeaponDispatchProcess";
+import WeaponDispatchStatusHistory from "../models/WeaponDispatchStatusHistory";
+import WeaponDispatchAppointment from "../models/WeaponDispatchAppointment";
+import WeaponDispatchGovPasswordAccessLog from "../models/WeaponDispatchGovPasswordAccessLog";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -159,7 +164,12 @@ const models = [
   JobPosting,
   JobApplication,
   SlaRule,
-  Notification
+  Notification,
+  WeaponDispatchClient,
+  WeaponDispatchProcess,
+  WeaponDispatchStatusHistory,
+  WeaponDispatchAppointment,
+  WeaponDispatchGovPasswordAccessLog
 ];
 
 sequelize.addModels(models);

@@ -9580,3 +9580,160 @@ FinancePaymentConfigService.ts`, `FinanceReceivablePaymentService.ts`,
 limpo; as duas migrations testadas contra um Postgres local descartável
 (pegou e corrigiu o bug do backfill do `asaasEnabled` descrito acima);
 lint e `craco build` do frontend limpos.
+
+## 138. Despachante Bélico — modelagem do banco (Fase 1, v2.3.159)
+
+Cliente pediu um módulo novo pra gerir processo de CAC/Sigma (Exército) e
+Posse/Porte/Sinarm (Polícia Federal) — hoje controlado manualmente numa
+base do Notion ("muito falho", nas palavras dele). Colou um prompt
+genérico (escrito com outra IA) sugerindo Prisma, Python/Playwright e
+microsserviços separados — stack diferente de tudo que já existe no
+AtendeFlow (Sequelize/TypeScript/React, multiempresa, Baileys). Antes de
+desenhar qualquer tabela, segui a regra do `CLAUDE.md` (pedido ambíguo →
+perguntar antes de codar) e investiguei a base real do cliente no Notion
+(conector Notion desta sessão, bases "PROCESSOS" e "AGENDA AVALIAÇÕES
+PSICO - TIRO") antes de perguntar, pra fazer perguntas informadas em vez
+de genéricas.
+
+**O que a investigação no Notion mudou do pedido original**:
+- `Tipo de processo` lá é **multi-seleção**, com quase 20 valores (CR,
+  PDC, CRAF, GT, RENOVAÇÃO DO CR, RENOVAÇÃO DE CRAF, TRANSFERENCIA,
+  MUDANÇA END, REENVIO DE CR, REVALIDAÇÃO DE AUTORIZAÇÃO, PF - POSSE...)
+  — ou seja, um mesmo cliente passa por VÁRIOS processos ao longo do
+  tempo (CR novo → Autorização de Compra → GT → anos depois, Renovação),
+  não só "CAC xor Posse/Porte" como o prompt genérico sugeria.
+- `STATUS` lá mistura **etapa da esteira** (`INICIAR`, `Pronto pra
+  envio`, `ENVIADO`, `EM ANÁLISE`, `FINALIZADO`) com **tags que não são
+  etapa** (`URGENTE`, `PROVA DE TIRO`) — parte do "muito falho".
+- Existe uma base de agendamento separada (psico/tiro) **sem vínculo
+  estruturado** com o cliente — casava só por nome digitado.
+- Tem um campo **`SENHA GOV`, com a senha do gov.br do cliente em texto
+  puro** — risco real de LGPD + credencial de portal do governo, usado
+  (presumivelmente) pra consultar/agir em nome do cliente nos portais
+  oficiais.
+
+Perguntei 3 coisas com `AskUserQuestion` antes de desenhar (pedido
+permitia mais de um caminho razoável em cada uma, regra do
+`CLAUDE.md`/skill seção 0):
+1. **Arquitetura** — integrar ao AtendeFlow (recomendado) ou
+   microsserviço(s) separado(s) como o prompt genérico sugeria. Cliente
+   escolheu **integrar ao AtendeFlow**.
+2. **Cliente x Processo** — 1 Cliente → N Processos (histórico completo)
+   ou 1 processo ativo por cliente. Cliente escolheu **1 → N, histórico
+   completo** (bate com o uso real do Notion).
+3. **Senha do gov.br** — parar de guardar, guardar criptografada com log
+   de acesso, ou "não sei". Cliente escolheu **guardar criptografada,
+   com log de acesso**.
+
+**Esta etapa entrega só a Fase 1 do pedido original (modelagem do
+banco)** — rotas HTTP, a tela de esteira (Kanban) e o robô de consulta de
+protocolo (Fases 2/3/4/5 do pedido original) ficam pra próximas etapas,
+depois que o cliente validar esse desenho.
+
+**Modelo de dados** (todos os novos, prefixo `WeaponDispatch`, migrations
+`20261019120000` a `20261019170000`):
+- `Plan.useWeaponDispatch` — add-on separado, mesmo padrão de
+  `useFiscal`/`usePayment`/`useFlowbuilder`.
+- `WeaponDispatchClient` — cliente do despachante (não é o mesmo cadastro
+  de `FinanceCustomer`, que é do módulo Financeiro/venda — este aqui é
+  quem está TRAMITANDO um processo, pode nem ter comprado nada ainda).
+  Vínculo opcional com `Contact` (mesmo padrão de
+  `FinanceCustomer.contactId`). CPF único por empresa, mas só quando
+  preenchido (índice único parcial, mesmo padrão de
+  `FinanceProduct.serialNumber`).
+- `WeaponDispatchProcess` — 1 card da esteira. `type` (o que o cliente
+  pediu — CR, GT, renovação...) é diferente de `track` (“cac” ou
+  “civil” — decide qual conjunto de `stage` é válido) e de `stage` (em
+  que ponto da esteira está agora). Essa separação resolve a mistura
+  etapa-vs-tag que o Notion tinha: `stage` só pode ser um dos valores do
+  catálogo (`WeaponDispatchStageCatalog.ts`), tags como "URGENTE" viram
+  `priority`/`observations`, não um valor de `stage`.
+- `WeaponDispatchStatusHistory` — auditoria de toda troca de `stage`
+  (igual já é feito noutros módulos, ex. padrão de
+  `FiscalDocument.environment`/histórico): `previousStage`, `newStage`,
+  `changedByUserId` (nulo = automação/robô), e já com os campos
+  `notificationSent`/`notificationChannel` prontos pra quando a Fase de
+  notificação (WhatsApp/e-mail) for implementada — sem precisar de
+  migration nova depois.
+- `WeaponDispatchAppointment` — agendamento de psicoteste/laudo de tiro,
+  sempre vinculado a um `WeaponDispatchProcess` de verdade (FK) — corrige
+  a falta de vínculo estruturado que a base solta do Notion tinha.
+- `WeaponDispatchGovPasswordAccessLog` — uma linha por LEITURA da senha
+  decifrada (quem, quando, por quê). Nunca grava a senha aqui (nem
+  cifrada), só o registro do acesso.
+
+**Senha do gov.br — como funciona a criptografia**: AES-256-GCM
+(`backend/src/utils/weaponDispatchCrypto.ts`), chave vinda de
+`WEAPON_DISPATCH_ENCRYPTION_KEY` (variável de ambiente, 32 bytes em
+base64, nunca no código/git — gerar com `openssl rand -base64 32`).
+Formato armazenado: `"<iv>:<authTag>:<ciphertext>"`, tudo em base64.
+`WeaponDispatchClientService.ts` é o ÚNICO ponto de entrada permitido:
+- `setGovPassword` grava sempre cifrado — nunca uma escrita direta no
+  model.
+- `getGovPassword` grava uma linha em
+  `WeaponDispatchGovPasswordAccessLog` ANTES de devolver o valor
+  decifrado, nunca depois — queremos registrar a TENTATIVA de acesso,
+  mesmo que o decrypt falhe por chave trocada/corrompida.
+- Qualquer `list`/`show` genérico de cliente exclui
+  `govBrPasswordEncrypted` dos atributos retornados
+  (`attributes: { exclude: [...] }`) — o campo cifrado nem aparece numa
+  listagem comum, só é lido através do fluxo de auditoria acima.
+
+**Transição de etapa**: `WeaponDispatchProcessService.changeStage` é o
+único jeito permitido de mudar `stage` (o `update` genérico bloqueia
+`type`/`track`/`stage` de propósito) — valida que a nova etapa pertence
+à trilha (`track`) do processo (`isValidStage`, catálogo fixo) antes de
+aplicar, e grava a troca em `WeaponDispatchStatusHistory` na mesma
+chamada. `changedByUserId` nulo identifica uma troca automática (robô de
+consulta de protocolo, ainda não implementado).
+
+**Bug pego pelo smoke test, não só pelo `tsc`**: os dois models de
+auditoria (`WeaponDispatchStatusHistory`,
+`WeaponDispatchGovPasswordAccessLog`) foram desenhados sem `updatedAt`
+(são tabelas de log, imutáveis por natureza) — mas o `@Table` do
+sequelize-typescript assume `timestamps: true` (cria+atualiza) por
+padrão mesmo sem o decorator `@UpdatedAt` declarado no model, e tentava
+inserir na coluna `updatedAt` que a migration não tinha criado
+(`column "updatedAt" of relation ... does not exist`). `tsc --noEmit`
+não pega esse tipo de erro (é um erro de runtime do Sequelize, não de
+tipo) — só apareceu rodando um teste de ponta a ponta de verdade contra
+Postgres. Fix: em vez de introduzir uma exceção nova no projeto
+(`@Table({ updatedAt: false })`, sem nenhum precedente no código já
+existente), segui o padrão já estabelecido — toda tabela tem
+`createdAt`+`updatedAt` — e adicionei a coluna que faltava nos dois
+models/migrations.
+
+**Validação**: `npx tsc --noEmit` limpo; as 6 migrations novas
+(`20261019120000` a `20261019170000`) testadas rodando a cadeia REAL
+completa de todas as migrations do projeto (não só as novas) contra um
+Postgres local descartável, via `sequelize-cli db:migrate` de verdade
+(não só SQL copiado à mão) — útil justamente porque pegou o bug do
+`updatedAt` acima; um script de ponta a ponta (criar cliente, salvar/ler
+senha com criptografia, criar processo, mover de etapa, confirmar
+rejeição de etapa inválida pra trilha errada, confirmar linhas de
+histórico/auditoria gravadas) confirmou o fluxo completo antes de
+remover o banco descartável.
+
+**Arquivos**: `backend/src/models/Plan.ts`,
+`WeaponDispatchClient.ts` (novo), `WeaponDispatchProcess.ts` (novo),
+`WeaponDispatchStatusHistory.ts` (novo), `WeaponDispatchAppointment.ts`
+(novo), `WeaponDispatchGovPasswordAccessLog.ts` (novo),
+`backend/src/database/migrations/20261019120000-...ts` a
+`20261019170000-...ts` (6 novas), `backend/src/database/index.ts`,
+`backend/src/utils/weaponDispatchCrypto.ts` (novo),
+`backend/src/services/WeaponDispatchService/WeaponDispatchStageCatalog.ts`,
+`WeaponDispatchClientService.ts`, `WeaponDispatchProcessService.ts`,
+`WeaponDispatchAppointmentService.ts` (todos novos),
+`backend/src/services/PlanService/CreatePlanService.ts`,
+`UpdatePlanService.ts`.
+
+**Pendente pra próximas etapas** (fora do escopo desta entrega):
+controllers/rotas HTTP; tela de esteira estilo Kanban no frontend
+(incluindo o toggle do add-on em `PlansManager.js`/sidebar, mesmo padrão
+dos outros módulos); robô de consulta de protocolo (Fase de automação —
+precisa decidir ainda COMO ele autentica no portal oficial usando a
+senha do cliente, dado que isso envolve logar num serviço do governo em
+nome de outra pessoa — prática normal de despachante com autorização do
+cliente, mas o desenho técnico exato ainda não foi discutido); disparo
+de notificação WhatsApp/e-mail na troca de etapa (os campos já existem
+em `WeaponDispatchStatusHistory`, só a lógica de envio que falta).

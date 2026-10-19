@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.159] — Despachante Bélico: modelagem do banco (Fase 1) — 2026-10-19
+
+### Adicionado
+- Novo módulo add-on (`Plan.useWeaponDispatch`, mesmo padrão de
+  `useFiscal`/`usePayment`/`useFlowbuilder`) pra gestão de processo
+  CAC/Sigma (Exército) e Posse/Porte/Sinarm (Polícia Federal) — substitui
+  a base hoje mantida manualmente no Notion do cliente.
+- Modelos novos: `WeaponDispatchClient` (cliente, com senha do gov.br
+  SEMPRE criptografada — nunca em texto puro, diferente do Notion antes —
+  e nunca exposta em consulta normal), `WeaponDispatchProcess` (1 cliente
+  pode ter N processos ao longo do tempo — CR, Autorização de Compra, GT,
+  renovação... cada um na própria esteira), `WeaponDispatchStatusHistory`
+  (auditoria de toda troca de etapa), `WeaponDispatchAppointment`
+  (agendamento de psicoteste/laudo de tiro, vinculado de verdade ao
+  processo — a planilha solta do Notion não tinha esse vínculo) e
+  `WeaponDispatchGovPasswordAccessLog` (toda LEITURA da senha decifrada do
+  gov.br fica registrada: quem acessou, quando, por quê).
+- Catálogo fixo das duas esteiras (CAC/Exército x Civil/Polícia Federal),
+  derivado do pedido original e enriquecido com os ~20 tipos de processo
+  reais já em uso no Notion do cliente (renovação, transferência, mudança
+  de endereço etc.).
+
+Esta etapa é só a modelagem do banco (models + migrations + services
+básicos de CRUD/transição de etapa) — rotas HTTP, tela (esteira estilo
+Kanban) e o robô de consulta de protocolo ainda não existem, ficam pra
+próximas etapas. Detalhes em `docs/MANUAL_TECNICO.md`, seção 138.
+
 ## [2.3.158] — Mercado Pago e Asaas 100% independentes na Configuração de Pagamento — 2026-10-19
 
 ### Alterado

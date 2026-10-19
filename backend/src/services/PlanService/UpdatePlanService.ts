@@ -28,6 +28,7 @@ interface PlanData {
   useHR?: boolean;
   usePayment?: boolean;
   useFlowbuilder?: boolean;
+  useWeaponDispatch?: boolean;
   isPublic?: boolean;
 }
 

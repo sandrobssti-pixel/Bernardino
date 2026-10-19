@@ -813,3 +813,54 @@ que eram esquecimento:
     outro módulo deste projeto ganhar mais de um provedor/gateway no
     futuro, aplicar esse mesmo princípio sem perguntar de novo: cada
     painel 100% autocontido, nada que mude um afeta o outro.
+
+## 12. Segredo criptografado em repouso + log de acesso — padrão reaproveitável
+
+Primeiro caso no projeto: senha do gov.br do cliente, no módulo
+Despachante Bélico (v2.3.159, seção 138 do manual técnico) — antes vivia
+em texto puro numa planilha/Notion. Qualquer campo novo, em qualquer
+módulo, que precise guardar uma credencial de verdade (senha de outro
+sistema, token de API de terceiro informado pelo cliente final, etc. —
+diferente de token de GATEWAY que a própria empresa configura, como
+Mercado Pago/Asaas/Focus NFe, esses não precisam desse padrão) segue a
+mesma receita, sem precisar perguntar de novo:
+
+- **Criptografia simétrica (AES-256-GCM)**, chave só em variável de
+  ambiente (nunca no código/git), nunca um "ofuscamento" (base64 sozinho,
+  XOR, etc.) — ver `backend/src/utils/weaponDispatchCrypto.ts`
+  (`encryptSecret`/`decryptSecret`) como referência direta a copiar.
+  Formato armazenado: `"<iv>:<authTag>:<ciphertext>"`, tudo em base64,
+  numa coluna `TEXT` só (não 3 colunas separadas).
+- **Escrever é livre, LER o valor decifrado é sempre auditado** — a
+  função que descriptografa (ex. `getGovPassword`) grava uma linha numa
+  tabela de log (quem, quando, por quê) ANTES de devolver o valor, nunca
+  depois (registra a tentativa mesmo se o decrypt falhar por chave
+  errada/corrompida) — nunca chamar `decryptSecret` fora dessa função
+  única, nem no controller nem em outro service.
+- **O campo cifrado nunca aparece numa listagem/show genérico** —
+  `attributes: { exclude: ["campoEncriptado"] }` em todo `findAll`/
+  `findOne` do cadastro, mesmo padrão já usado em
+  `WeaponDispatchClientService.ts`. Só a função de leitura auditada tem
+  permissão de buscar esse campo.
+- Antes de decidir ENTRE "guardar criptografado" e "não guardar a senha
+  nenhuma" (a alternativa mais segura de todas, zero risco de vazamento),
+  perguntar ao cliente — não é uma decisão técnica, é uma decisão de
+  produto/risco que só ele pode tomar (ver `AskUserQuestion` na seção 138
+  do manual técnico, onde o cliente escolheu continuar guardando, mas
+  com esse padrão).
+
+## 13. "1 Cliente → N Processos/registros ao longo do tempo" — não presumir "1 ativo por vez"
+
+Lição do mesmo módulo (Despachante Bélico): antes de desenhar uma tabela
+pra algo que parece "um registro ativo por cliente" (um processo, uma
+assinatura, uma matrícula...), checar como o cliente usa isso NA VIDA
+REAL hoje (planilha, Notion, sistema antigo) antes de presumir. Aqui, a
+base real do Notion mostrava claramente que o mesmo cliente volta pra
+vários processos ao longo do tempo (CR novo → Autorização de Compra → GT
+→ anos depois, Renovação) — um modelo "1 processo ativo por cliente"
+perderia esse histórico ou forçaria recriar o cliente a cada novo
+processo. Padrão: entidade "quem" (Cliente) separada da entidade "o
+quê/quando" (Processo, N por cliente, cada um com a própria esteira/
+status/protocolo), nunca campos de processo direto no cadastro do
+cliente — mesmo princípio já usado em outros módulos deste projeto
+(`FinanceCustomer` 1 → N `FinanceReceivable`/`Sale`).

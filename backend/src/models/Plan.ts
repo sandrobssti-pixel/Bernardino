@@ -137,6 +137,14 @@ class Plan extends Model<Plan> {
   @Column
   useFlowbuilder: boolean;
 
+  // Despachante Bélico (gestão de processo CAC/Sigma e Posse/Porte/Sinarm —
+  // esteira estilo Kanban, checklist de laudos/filiação, agendamentos,
+  // histórico de status, consulta automática de protocolo) — add-on
+  // separado, mesmo padrão acima. Ver docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  useWeaponDispatch: boolean;
+
   // Módulo de RH/recrutamento (vagas, candidaturas, efetivação — Fase 5) —
   // add-on separado, independente do Financeiro/Fiscal (não usa nenhum
   // cadastro deles). Ver docs/MANUAL_TECNICO.md, seção 6.2.
