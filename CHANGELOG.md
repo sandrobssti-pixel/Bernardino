@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.155] — Configuração de Pagamento: Mercado Pago e Asaas lado a lado — 2026-10-19
+
+### Corrigido
+- Tela Configuração de Pagamento reorganizada: Mercado Pago e Asaas agora
+  ficam em duas colunas lado a lado (era um embaixo do outro, ocupando a
+  largura toda cada um) — pedido do cliente. Texto digitado nos campos de
+  credencial/URL de webhook agora centralizado (estava alinhado à
+  esquerda, padrão do Material-UI, e parecia desalinhado ao lado dos
+  títulos/rótulos centralizados dos cartões).
+
 ## [2.3.154] — Asaas (Fase 2) + permissão de plano pro módulo de Pagamento — 2026-10-19
 
 ### Adicionado

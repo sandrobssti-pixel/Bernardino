@@ -8,7 +8,6 @@ import Grid from "@material-ui/core/Grid";
 import TextField from "@material-ui/core/TextField";
 import MenuItem from "@material-ui/core/MenuItem";
 import Button from "@material-ui/core/Button";
-import FormControlLabel from "@material-ui/core/FormControlLabel";
 import Switch from "@material-ui/core/Switch";
 import Typography from "@material-ui/core/Typography";
 import Divider from "@material-ui/core/Divider";
@@ -22,7 +21,7 @@ const useStyles = makeStyles((theme) => ({
   root: {
     padding: theme.spacing(3),
     borderRadius: 12,
-    maxWidth: 900,
+    maxWidth: 1200,
   },
   sectionTitle: {
     fontWeight: 700,
@@ -40,7 +39,30 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "center",
     padding: theme.spacing(6),
   },
+  gatewayColumn: {
+    padding: theme.spacing(2),
+    borderRadius: 12,
+    height: "100%",
+  },
+  gatewayTitle: {
+    fontWeight: 700,
+    marginBottom: theme.spacing(1.5),
+    textAlign: "center",
+  },
+  // Pedido do cliente: texto dentro dos campos de credencial centralizado
+  // (não alinhado à esquerda, padrão do MUI) — os rótulos (label) continuam
+  // alinhados à esquerda normalmente, só o VALOR digitado centraliza.
+  centeredInput: {
+    textAlign: "center",
+  },
 }));
+
+// Pra não repetir `InputProps`/`inputProps` em cada <Field>/<TextField> de
+// credencial — centraliza o texto digitado, pedido do cliente ("para não
+// ficar descentralizadas").
+const centeredFieldProps = {
+  inputProps: { style: { textAlign: "center" } },
+};
 
 // Configuração do gateway de COBRANÇA (Pix/boleto) — Mercado Pago (Fase 1)
 // e Asaas (Fase 2), decidido pelo campo `provider`. Separado da
@@ -114,96 +136,14 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                   name="provider"
                   label="Gateway ativo (gera a próxima cobrança)"
                   helperText="Trocar aqui não muda cobranças já geradas — cada uma guarda o gateway usado na hora."
+                  SelectProps={{ MenuProps: { getContentAnchorEl: null } }}
+                  inputProps={{ style: { textAlign: "center" } }}
                 >
                   <MenuItem value="mercadopago">Mercado Pago</MenuItem>
                   <MenuItem value="asaas">Asaas</MenuItem>
                 </Field>
               </Grid>
-
-              <Grid item xs={12}>
-                <Divider className={classes.divider} />
-                <Typography variant="subtitle1" style={{ fontWeight: 700, marginBottom: 4 }}>
-                  Mercado Pago
-                </Typography>
-              </Grid>
-
               <Grid item xs={12} sm={6}>
-                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
-                  <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
-                    Homologação (testes)
-                  </Typography>
-                  <Field
-                    as={TextField}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    name="mercadoPagoAccessTokenSandbox"
-                    label="Access Token de teste"
-                    helperText='Painel do Mercado Pago → "Suas integrações" → credenciais de teste (começa com "TEST-")'
-                  />
-                </Paper>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
-                  <Box display="flex" alignItems="center" justifyContent="space-between" mb={1}>
-                    <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
-                      Produção
-                    </Typography>
-                    <FormControlLabel
-                      labelPlacement="start"
-                      control={
-                        <Switch
-                          checked={!!values.productionEnabled}
-                          onChange={(e) => setFieldValue("productionEnabled", e.target.checked)}
-                          color="primary"
-                        />
-                      }
-                      label="Habilitada"
-                    />
-                  </Box>
-                  <Field
-                    as={TextField}
-                    fullWidth
-                    variant="outlined"
-                    size="small"
-                    name="mercadoPagoAccessTokenProduction"
-                    label="Access Token de produção"
-                    disabled={!values.productionEnabled}
-                    helperText="Credenciais de produção (sem prefixo TEST-). Vale pros dois gateways — o mesmo liga/desliga de Produção serve tanto pro Mercado Pago quanto pro Asaas."
-                  />
-                </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
-                  Cadastre esta URL no painel do Mercado Pago ("Suas
-                  integrações" → sua aplicação → Webhooks), e cole aqui a
-                  "Assinatura secreta" mostrada lá, pra validar que a
-                  notificação é de verdade antes de marcar como pago.
-                </Typography>
-                <TextField
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  label="URL do webhook (Mercado Pago)"
-                  value={`${process.env.REACT_APP_BACKEND_URL || ""}/webhook/mercadopago/${
-                    config.companyId
-                  }`}
-                  InputProps={{ readOnly: true }}
-                  style={{ marginBottom: 12 }}
-                  onFocus={(e) => e.target.select()}
-                />
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="mercadoPagoWebhookSecret"
-                  label="Assinatura secreta do webhook"
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={4}>
                 <Field
                   as={TextField}
                   fullWidth
@@ -212,78 +152,162 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                   type="number"
                   name="pixExpirationMinutes"
                   label="Expiração do Pix (minutos, só Mercado Pago)"
-                  helperText="O Asaas controla a expiração do próprio QR Code — esse campo não se aplica a ele."
+                  helperText="O Asaas controla a expiração do próprio QR Code."
+                  {...centeredFieldProps}
                 />
               </Grid>
 
               <Grid item xs={12}>
                 <Divider className={classes.divider} />
-                <Typography variant="subtitle1" style={{ fontWeight: 700, marginBottom: 4 }}>
-                  Asaas
-                </Typography>
               </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
-                  <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
-                    Homologação (sandbox)
+              {/* Os dois gateways lado a lado (pedido do cliente) — cada
+                  coluna com os próprios cartões Homologação/Produção
+                  empilhados, em vez de Mercado Pago e Asaas um embaixo do
+                  outro ocupando a largura toda. */}
+              <Grid item xs={12} md={6}>
+                <Paper variant="outlined" className={classes.gatewayColumn}>
+                  <Typography variant="h6" className={classes.gatewayTitle}>
+                    Mercado Pago
                   </Typography>
+
+                  <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
+                    <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8, textAlign: "center" }}>
+                      Homologação (testes)
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      name="mercadoPagoAccessTokenSandbox"
+                      label="Access Token de teste"
+                      helperText='Painel do Mercado Pago → "Suas integrações" → credenciais de teste (começa com "TEST-")'
+                      {...centeredFieldProps}
+                    />
+                  </Paper>
+
+                  <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
+                    <Box display="flex" alignItems="center" justifyContent="center" style={{ gap: 12 }} mb={1}>
+                      <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                        Produção
+                      </Typography>
+                      <Switch
+                        checked={!!values.productionEnabled}
+                        onChange={(e) => setFieldValue("productionEnabled", e.target.checked)}
+                        color="primary"
+                      />
+                    </Box>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      name="mercadoPagoAccessTokenProduction"
+                      label="Access Token de produção"
+                      disabled={!values.productionEnabled}
+                      helperText="Sem prefixo TEST-. O mesmo liga/desliga vale pros dois gateways."
+                      {...centeredFieldProps}
+                    />
+                  </Paper>
+
+                  <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8, textAlign: "center" }}>
+                    Cole esta URL no painel do Mercado Pago ("Suas
+                    integrações" → Webhooks) e a "Assinatura secreta" de lá
+                    no campo abaixo.
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    label="URL do webhook (Mercado Pago)"
+                    value={`${process.env.REACT_APP_BACKEND_URL || ""}/webhook/mercadopago/${
+                      config.companyId
+                    }`}
+                    InputProps={{ readOnly: true }}
+                    inputProps={{ style: { textAlign: "center" } }}
+                    style={{ marginBottom: 12 }}
+                    onFocus={(e) => e.target.select()}
+                  />
                   <Field
                     as={TextField}
                     fullWidth
                     variant="outlined"
                     size="small"
-                    name="asaasApiKeySandbox"
-                    label="API Key de sandbox"
-                    helperText='Painel do Asaas (sandbox.asaas.com) → "Integrações" → chave de API'
+                    name="mercadoPagoWebhookSecret"
+                    label="Assinatura secreta do webhook"
+                    {...centeredFieldProps}
                   />
                 </Paper>
               </Grid>
-              <Grid item xs={12} sm={6}>
-                <Paper variant="outlined" style={{ padding: 16, height: "100%" }}>
-                  <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
-                    Produção
+
+              <Grid item xs={12} md={6}>
+                <Paper variant="outlined" className={classes.gatewayColumn}>
+                  <Typography variant="h6" className={classes.gatewayTitle}>
+                    Asaas
                   </Typography>
+
+                  <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
+                    <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8, textAlign: "center" }}>
+                      Homologação (sandbox)
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      name="asaasApiKeySandbox"
+                      label="API Key de sandbox"
+                      helperText='Painel do Asaas (sandbox.asaas.com) → "Integrações" → chave de API'
+                      {...centeredFieldProps}
+                    />
+                  </Paper>
+
+                  <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
+                    <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8, textAlign: "center" }}>
+                      Produção
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      name="asaasApiKeyProduction"
+                      label="API Key de produção"
+                      disabled={!values.productionEnabled}
+                      helperText="Usa o mesmo liga/desliga de Produção do Mercado Pago, ao lado."
+                      {...centeredFieldProps}
+                    />
+                  </Paper>
+
+                  <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8, textAlign: "center" }}>
+                    Cole esta URL no painel do Asaas ("Integrações" →
+                    Webhooks) e o "Token de autenticação" de lá no campo
+                    abaixo.
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    variant="outlined"
+                    size="small"
+                    label="URL do webhook (Asaas)"
+                    value={`${process.env.REACT_APP_BACKEND_URL || ""}/webhook/asaas/${
+                      config.companyId
+                    }`}
+                    InputProps={{ readOnly: true }}
+                    inputProps={{ style: { textAlign: "center" } }}
+                    style={{ marginBottom: 12 }}
+                    onFocus={(e) => e.target.select()}
+                  />
                   <Field
                     as={TextField}
                     fullWidth
                     variant="outlined"
                     size="small"
-                    name="asaasApiKeyProduction"
-                    label="API Key de produção"
-                    disabled={!values.productionEnabled}
-                    helperText="Usa o mesmo liga/desliga de Produção configurado acima pro Mercado Pago"
+                    name="asaasWebhookToken"
+                    label="Token de autenticação do webhook"
+                    {...centeredFieldProps}
                   />
                 </Paper>
-              </Grid>
-
-              <Grid item xs={12}>
-                <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
-                  Cadastre esta URL no painel do Asaas ("Integrações" →
-                  Webhooks), e cole aqui o mesmo "Token de autenticação" que
-                  você configurar lá (o Asaas reenvia esse token em todo
-                  aviso, pra confirmar que é de verdade).
-                </Typography>
-                <TextField
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  label="URL do webhook (Asaas)"
-                  value={`${process.env.REACT_APP_BACKEND_URL || ""}/webhook/asaas/${
-                    config.companyId
-                  }`}
-                  InputProps={{ readOnly: true }}
-                  style={{ marginBottom: 12 }}
-                  onFocus={(e) => e.target.select()}
-                />
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="asaasWebhookToken"
-                  label="Token de autenticação do webhook"
-                />
               </Grid>
             </Grid>
 

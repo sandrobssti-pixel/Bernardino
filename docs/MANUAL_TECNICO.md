@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.154
-**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas) com permissão por plano
+**Versão do documento:** 2.3.155
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), layout lado a lado
 **Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9408,3 +9408,27 @@ index.js`, `PlansManager/index.js`, `frontend/src/hooks/useFinance/index.js`,
 languages/pt.js`. `npx tsc --noEmit` limpo; as duas migrations novas
 testadas contra um Postgres local descartável; lint e `craco build` do
 frontend limpos.
+
+## 136. Configuração de Pagamento: Mercado Pago e Asaas lado a lado (v2.3.155)
+
+Ajuste de layout pedido pelo cliente depois de ver a tela no ar: "deixa
+os dois painéis um do lado do outro e centraliza as palavras nos campos
+para não ficar descentralizadas". Antes, Mercado Pago e Asaas ficavam
+cada um ocupando a largura toda da tela, um embaixo do outro (cada
+seção com seus próprios cartões Homologação/Produção lado a lado dentro
+dela) — virava uma tela bem comprida de rolar.
+
+**Fix**: `FinancePaymentConfigPanel.js` reestruturado em duas colunas
+(`Grid item md={6}` cada) — Mercado Pago à esquerda, Asaas à direita,
+cada coluna com os próprios cartões Homologação/Produção empilhados
+dentro dela (`maxWidth` do painel aumentado de 900 pra 1200px, senão as
+duas colunas ficavam espremidas). Texto digitado nos campos de
+credencial e nas URLs de webhook (somente leitura) agora centralizado
+(`inputProps: { style: { textAlign: "center" } }`, via um objeto
+`centeredFieldProps` reaproveitado em cada campo pra não repetir) — só o
+VALOR digitado, os rótulos (`label`) continuam no lugar padrão do
+Material-UI (flutuando saindo da borda), que é como o próprio componente
+espera.
+
+**Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
+Lint e `craco build` limpos.
