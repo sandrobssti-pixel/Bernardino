@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.160] — Confirmação automática de cobrança já paga na criação + WhatsApp no cliente — 2026-10-19
+
+### Corrigido
+- Cobrança gerada (Pix/boleto) que o gateway já devolve como PAGA na própria
+  criação (aconteceu na prática testando o Asaas em sandbox) não marcava a
+  Conta a Receber como recebida — só o webhook (que só chega numa cobrança
+  paga DEPOIS) fazia essa transição. Agora o mesmo critério de "é um status
+  pago?" é aplicado também no momento da criação da cobrança.
+
+### Adicionado
+- Campo **WhatsApp** no cadastro de Cliente (Financeiro), separado do
+  Telefone — número usado pra disparo de cobrança/lembrete automático.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 139.
+
 ## [2.3.159] — Despachante Bélico: modelagem do banco (Fase 1) — 2026-10-19
 
 ### Adicionado

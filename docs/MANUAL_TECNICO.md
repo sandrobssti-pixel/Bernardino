@@ -9737,3 +9737,60 @@ nome de outra pessoa — prática normal de despachante com autorização do
 cliente, mas o desenho técnico exato ainda não foi discutido); disparo
 de notificação WhatsApp/e-mail na troca de etapa (os campos já existem
 em `WeaponDispatchStatusHistory`, só a lógica de envio que falta).
+
+## 139. Cobrança já paga na criação não confirmava sozinha + WhatsApp no Cliente (v2.3.160)
+
+Cliente testou gerar Pix de verdade pelo Asaas (sandbox) pra validar a Fase
+1/2 (seções 134/135) — o QR Code saiu certo, mas o `Status` da Conta a
+Receber continuou "Pendente" mesmo o painel mostrando
+`Status no gateway: RECEIVED`. Investigando: o sandbox do Asaas liquidou a
+cobrança de teste na hora da criação (comportamento real observado, não
+documentado explicitamente pela Asaas) — `applyChargeResult`
+(`FinanceReceivablePaymentService.ts`) grava o `paymentStatus` vindo da
+resposta de criação, mas só `handleMercadoPagoWebhook`/`handleAsaasWebhook`
+tinham a lógica de "se status é pago, marca `status: received`". Pra uma
+cobrança real (paga depois, por um cliente de verdade), isso nunca seria um
+problema — mas qualquer gateway que confirme na própria criação (sandbox de
+teste, ou futuramente um Pix que liquida instantâneo) ficava preso em
+"Pendente" pra sempre, porque nenhum webhook novo chegaria pra corrigir o
+que já tinha acontecido na criação.
+
+**Fix**: extraído `isProviderPaidStatus(provider, status)` — único critério
+de "isso é um status pago?" por gateway (Mercado Pago: `"approved"`; Asaas:
+`AsaasGatewayService.isPaidStatus`), reaproveitado nos TRÊS pontos que
+precisam dessa decisão (criação da cobrança E os dois webhooks), em vez de
+cada um ter a própria cópia da regra (como estava antes, com risco de
+divergir com o tempo).
+
+Na mesma rodada, cliente pediu (junto com uma ideia maior de campanha de
+cobrança pra clube de tiro — membro "Filiado Inadimplente" recebe lembrete
+de renovação em massa por WhatsApp, fica registrado como ideia de roadmap,
+não implementado ainda) um campo de **WhatsApp separado do Telefone** no
+cadastro de Cliente — o Telefone já existia, mas não necessariamente é o
+número usado pra campanha/notificação automática. `FinanceCustomer` ganhou
+`whatsapp` (migration `20261019180000-add-whatsapp-to-finance-customers.ts`,
+mesmo padrão `ADD COLUMN IF NOT EXISTS`), exposto em
+`financeCustomerFields`/`financeCustomerColumns`.
+
+Também esclarecido pro cliente (sem mudança de código, já existia):
+"Filiação" é um Serviço, não um Produto — `PRODUCT_TYPE_OPTIONS` já tem a
+opção `service`, e o menu lateral já tem o atalho "🔧 Serviços"
+(`Financeiro → Produtos → Serviços`, filtro `type=service`), no mesmo
+padrão das outras categorias (Armas/Munições/Acessórios/Caça & Pesca).
+
+**Pendente** (fora do escopo desta entrega, ideia só registrada): campanha
+de cobrança recorrente — visão tipo Kanban "Filiados Inadimplentes" que
+puxa WhatsApp/e-mail de todos de uma vez e dispara uma mensagem padrão
+(ex. "renovação de filiação", mesmo valor pra todos). Depende de um motor
+de recorrência que ainda não existe no Financeiro (contas a receber hoje
+são sempre lançadas uma a uma) — avaliar junto com o que já existe em
+Campanhas (`CampaignShipping`/disparo em massa) antes de desenhar algo
+novo, pra não duplicar a lógica de fila/disparo que já existe.
+
+**Arquivos**: `backend/src/services/FinanceService/
+FinanceReceivablePaymentService.ts`, `backend/src/models/FinanceCustomer.ts`,
+`backend/src/services/FinanceService/FinanceCustomerService.ts`,
+`backend/src/database/migrations/20261019180000-add-whatsapp-to-finance-
+customers.ts`, `frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc
+--noEmit` limpo; a migration nova testada contra um Postgres local
+descartável (cadeia completa); lint e `craco build` do frontend limpos.

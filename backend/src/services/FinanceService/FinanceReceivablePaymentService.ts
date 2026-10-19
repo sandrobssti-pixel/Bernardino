@@ -67,12 +67,21 @@ const resolveProvider = (config: FinancePaymentConfig, requestedProvider?: strin
   throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
 };
 
+// Único critério de "pago" por gateway — reaproveitado tanto na criação da
+// cobrança (`applyChargeResult`, abaixo) quanto nos dois webhooks, pra não
+// ter duas lógicas que podem divergir com o tempo.
+const isProviderPaidStatus = (provider: string, status: string): boolean => {
+  if (provider === "mercadopago") return status === "approved";
+  if (provider === "asaas") return AsaasGatewayService.isPaidStatus(status);
+  return false;
+};
+
 const applyChargeResult = async (
   receivable: FinanceReceivable,
   provider: string,
   result: MercadoPagoChargeResult | AsaasChargeResult
 ): Promise<FinanceReceivable> => {
-  await receivable.update({
+  const updates: Record<string, unknown> = {
     paymentProvider: provider,
     paymentExternalId: result.externalId,
     paymentStatus: result.status,
@@ -80,7 +89,20 @@ const applyChargeResult = async (
     pixQrCodeBase64: result.pixQrCodeBase64,
     pixExpiresAt: result.pixExpiresAt,
     boletoUrl: result.boletoUrl
-  });
+  };
+
+  // O gateway pode devolver a cobrança já PAGA na própria criação (não é só
+  // teoria — bateu na prática no sandbox do Asaas, que às vezes liquida a
+  // cobrança de teste na hora). Sem isso, só o webhook (que só chega numa
+  // cobrança paga DEPOIS, de verdade) marcava como recebida — esse caso de
+  // "já nasceu pago" ficava preso em "Pendente" pra sempre, porque nenhum
+  // evento de webhook novo viria confirmar o que já tinha acontecido.
+  if (isProviderPaidStatus(provider, result.status) && receivable.status !== "received") {
+    updates.status = "received";
+    updates.receivedDate = new Date();
+  }
+
+  await receivable.update(updates);
   return receivable;
 };
 
@@ -154,7 +176,7 @@ export const handleMercadoPagoWebhook = async (
   const result = await MercadoPagoGatewayService.getPayment(dataId, config);
 
   const updates: Record<string, unknown> = { paymentStatus: result.status };
-  if (result.status === "approved" && receivable.status !== "received") {
+  if (isProviderPaidStatus("mercadopago", result.status) && receivable.status !== "received") {
     updates.status = "received";
     updates.receivedDate = new Date();
   }
@@ -180,7 +202,7 @@ export const handleAsaasWebhook = async (
   const result = await AsaasGatewayService.getPayment(paymentId, config);
 
   const updates: Record<string, unknown> = { paymentStatus: result.status };
-  if (AsaasGatewayService.isPaidStatus(result.status) && receivable.status !== "received") {
+  if (isProviderPaidStatus("asaas", result.status) && receivable.status !== "received") {
     updates.status = "received";
     updates.receivedDate = new Date();
   }

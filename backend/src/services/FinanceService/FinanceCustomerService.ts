@@ -22,6 +22,7 @@ interface CustomerData {
   document?: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
   zipCode?: string;
   street?: string;
   number?: string;

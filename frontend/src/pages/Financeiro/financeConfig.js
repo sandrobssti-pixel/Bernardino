@@ -30,6 +30,7 @@ export const financeCustomerColumns = [
   { field: "document", label: "CPF/CNPJ" },
   { field: "email", label: "E-mail" },
   { field: "phone", label: "Telefone" },
+  { field: "whatsapp", label: "WhatsApp" },
   { field: "active", label: "Status", render: (r) => <ActiveChip active={r.active} /> },
 ];
 
@@ -51,6 +52,12 @@ export const financeCustomerFields = [
   { name: "document", label: "CPF/CNPJ", gridSize: 6 },
   { name: "email", label: "E-mail", gridSize: 6 },
   { name: "phone", label: "Telefone", gridSize: 6 },
+  {
+    name: "whatsapp",
+    label: "WhatsApp",
+    gridSize: 6,
+    helperText: "Número usado pra disparo de cobrança/lembrete automático.",
+  },
   { name: "active", label: "Cliente ativo", type: "switch", defaultValue: true, gridSize: 6 },
   ...ADDRESS_FIELDS,
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },

@@ -49,6 +49,14 @@ class FinanceCustomer extends Model<FinanceCustomer> {
   @Column
   phone: string;
 
+  // Separado de `phone` de propósito — pedido do cliente (Despachante
+  // Bélico): o número de WhatsApp é o que alimenta disparo automático de
+  // cobrança/lembrete (campanha de inadimplência, notificação de troca de
+  // status), nem sempre é o mesmo telefone de contato geral cadastrado.
+  @Default("")
+  @Column
+  whatsapp: string;
+
   @Default("")
   @Column
   zipCode: string;
