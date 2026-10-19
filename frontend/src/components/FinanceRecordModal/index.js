@@ -146,12 +146,42 @@ const FinanceRecordModal = ({
   // modal pra ver o resultado novo.
   const [paymentResult, setPaymentResult] = useState(null);
   const [generatingPayment, setGeneratingPayment] = useState(null);
+  // Quais gateways estão ligados nesta empresa (Configuração de Pagamento,
+  // v2.3.158 — Mercado Pago e Asaas ligam independente, os dois podem estar
+  // ativos ao mesmo tempo) — decide se mostra o seletor de gateway abaixo
+  // dos botões "Gerar Pix"/"Gerar boleto" ou se manda sem perguntar (só um
+  // ligado, backend resolve sozinho).
+  const [paymentGateways, setPaymentGateways] = useState({
+    mercadoPagoEnabled: false,
+    asaasEnabled: false,
+  });
+  const [selectedProvider, setSelectedProvider] = useState("mercadopago");
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
     setPaymentResult(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
+
+  useEffect(() => {
+    if (!open || !enablePayments) return;
+    (async () => {
+      try {
+        const config = await finance.paymentConfig.show();
+        setPaymentGateways({
+          mercadoPagoEnabled: !!config?.mercadoPagoEnabled,
+          asaasEnabled: !!config?.asaasEnabled,
+        });
+        setSelectedProvider(config?.mercadoPagoEnabled ? "mercadopago" : "asaas");
+      } catch (err) {
+        toastError(err);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, enablePayments]);
+
+  const bothGatewaysEnabled =
+    paymentGateways.mercadoPagoEnabled && paymentGateways.asaasEnabled;
 
   // O campo "principal" (obrigatório, mín. 2 caracteres) varia por cadastro:
   // clientes/fornecedores/produtos usam "name", contas a pagar/receber (Fase
@@ -221,7 +251,7 @@ const FinanceRecordModal = ({
   const handleGeneratePix = async () => {
     setGeneratingPayment("pix");
     try {
-      const updated = await finance.receivables.generatePix(record.id);
+      const updated = await finance.receivables.generatePix(record.id, selectedProvider);
       setPaymentResult(updated);
       toast.success("Cobrança Pix gerada.");
     } catch (err) {
@@ -234,7 +264,7 @@ const FinanceRecordModal = ({
   const handleGenerateBoleto = async () => {
     setGeneratingPayment("boleto");
     try {
-      const updated = await finance.receivables.generateBoleto(record.id);
+      const updated = await finance.receivables.generateBoleto(record.id, selectedProvider);
       setPaymentResult(updated);
       toast.success("Boleto gerado.");
     } catch (err) {
@@ -441,9 +471,25 @@ const FinanceRecordModal = ({
                 <>
                   <Divider style={{ margin: "16px 0 12px" }} />
                   <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8 }}>
-                    Cobrança (Mercado Pago)
+                    Cobrança
                   </Typography>
-                  <Grid container spacing={1}>
+                  <Grid container spacing={1} alignItems="center">
+                    {bothGatewaysEnabled && (
+                      <Grid item>
+                        <TextField
+                          select
+                          variant="outlined"
+                          size="small"
+                          label="Gateway"
+                          value={selectedProvider}
+                          onChange={(e) => setSelectedProvider(e.target.value)}
+                          style={{ minWidth: 150 }}
+                        >
+                          <MenuItem value="mercadopago">Mercado Pago</MenuItem>
+                          <MenuItem value="asaas">Asaas</MenuItem>
+                        </TextField>
+                      </Grid>
+                    )}
                     <Grid item>
                       <Button
                         variant="outlined"

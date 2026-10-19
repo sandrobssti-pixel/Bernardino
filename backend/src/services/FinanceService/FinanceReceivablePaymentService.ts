@@ -1,6 +1,7 @@
 import AppError from "../../errors/AppError";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
+import FinancePaymentConfig from "../../models/FinancePaymentConfig";
 import * as FinancePaymentConfigService from "./FinancePaymentConfigService";
 import * as MercadoPagoGatewayService from "./MercadoPagoGatewayService";
 import * as AsaasGatewayService from "./AsaasGatewayService";
@@ -8,11 +9,16 @@ import type { MercadoPagoChargeResult } from "./MercadoPagoGatewayService";
 import type { AsaasChargeResult } from "./AsaasGatewayService";
 
 // Orquestra "gerar cobrança" numa Conta a Receber via gateway configurado —
-// Mercado Pago (Fase 1) ou Asaas (Fase 2), decidido por
-// `FinancePaymentConfig.provider`. Cada cobrança grava o `paymentProvider`
-// usado NA HORA — trocar o provider depois não muda cobranças já geradas
-// (o webhook de cada gateway só processa quem casa o próprio nome). Ver
-// docs/MANUAL_TECNICO.md.
+// Mercado Pago (Fase 1) e Asaas (Fase 2) ligam/desligam DE FORMA
+// INDEPENDENTE (`mercadoPagoEnabled`/`asaasEnabled`, v2.3.158 — pedido do
+// cliente: "cada painel fica exclusivo para cada banco", sem um seletor só
+// decidindo "o ativo" pro sistema inteiro). Os dois podem estar ligados ao
+// mesmo tempo — quem gera a cobrança escolhe qual usar nessa hora
+// (`provider`, vindo do botão clicado no frontend); se só um estiver
+// ligado, usa esse direto sem precisar escolher. Cada cobrança grava o
+// `paymentProvider` usado NA HORA — trocar a configuração depois não muda
+// cobranças já geradas (o webhook de cada gateway só processa quem casa o
+// próprio nome). Ver docs/MANUAL_TECNICO.md.
 const loadReceivableWithCustomer = async (
   id: string | number,
   companyId: number
@@ -36,6 +42,31 @@ const loadReceivableWithCustomer = async (
   return { receivable, customer };
 };
 
+// Decide qual gateway usar nesta cobrança: respeita o que o frontend pediu
+// (`requestedProvider`, do botão clicado), desde que esse gateway esteja
+// ligado; sem pedido explícito, só resolve sozinho quando exatamente UM
+// gateway está ligado (não adivinha entre dois ligados — exige escolha
+// explícita do frontend nesse caso, ver ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED).
+const resolveProvider = (config: FinancePaymentConfig, requestedProvider?: string): string => {
+  const mercadoPagoEnabled = !!config.mercadoPagoEnabled;
+  const asaasEnabled = !!config.asaasEnabled;
+
+  if (requestedProvider === "mercadopago" || requestedProvider === "asaas") {
+    const enabled = requestedProvider === "mercadopago" ? mercadoPagoEnabled : asaasEnabled;
+    if (!enabled) {
+      throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+    }
+    return requestedProvider;
+  }
+
+  if (mercadoPagoEnabled && !asaasEnabled) return "mercadopago";
+  if (asaasEnabled && !mercadoPagoEnabled) return "asaas";
+  if (mercadoPagoEnabled && asaasEnabled) {
+    throw new AppError("ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED", 400);
+  }
+  throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
+};
+
 const applyChargeResult = async (
   receivable: FinanceReceivable,
   provider: string,
@@ -55,12 +86,14 @@ const applyChargeResult = async (
 
 export const generatePixCharge = async (
   id: string | number,
-  companyId: number
+  companyId: number,
+  requestedProvider?: string
 ): Promise<FinanceReceivable> => {
   const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
   const config = await FinancePaymentConfigService.show(companyId);
+  const provider = resolveProvider(config, requestedProvider);
 
-  if (config.provider === "asaas") {
+  if (provider === "asaas") {
     if (!AsaasGatewayService.isConfigured(config)) {
       throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
     }
@@ -77,12 +110,14 @@ export const generatePixCharge = async (
 
 export const generateBoletoCharge = async (
   id: string | number,
-  companyId: number
+  companyId: number,
+  requestedProvider?: string
 ): Promise<FinanceReceivable> => {
   const { receivable, customer } = await loadReceivableWithCustomer(id, companyId);
   const config = await FinancePaymentConfigService.show(companyId);
+  const provider = resolveProvider(config, requestedProvider);
 
-  if (config.provider === "asaas") {
+  if (provider === "asaas") {
     if (!AsaasGatewayService.isConfigured(config)) {
       throw new AppError("ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED", 400);
     }

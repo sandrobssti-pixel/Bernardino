@@ -9479,3 +9479,104 @@ de texto pelos `<img>` com os logos oficiais.
 
 **Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
 Lint e `craco build` limpos.
+
+## 137. Mercado Pago e Asaas 100% independentes — sem seletor único de "gateway ativo" (v2.3.158)
+
+Continuação direta da seção 136: depois de separar layout e texto de
+cada painel, o cliente reparou que o campo que ainda faltava separar era
+o mais importante — "Ativo" e "Produção" continuavam sendo um campo só
+(`provider`/`productionEnabled`) valendo pros dois gateways, então os
+painéis pareciam separados visualmente mas por baixo ainda eram uma
+coisa só com um seletor "qual dos dois está ligado agora". O pedido
+evoluiu em várias mensagens curtas e às vezes contraditórias à primeira
+leitura — registrado aqui pra não se perder, já que isso é raciocínio
+que vale reaproveitar se um terceiro gateway entrar:
+
+1. Primeira tentativa (errada): interpretei "essa campo gateway ativo
+   deixa um para cada" como "cada painel vira um botão de rádio
+   mutuamente exclusivo" (marcar um desmarca o outro, só mudando onde o
+   controle mora visualmente). O cliente corrigiu na mensagem seguinte:
+   **"não deixa um so, deixa a opcao de colocar os dois colocando um
+   para cada... não precisa essa caixa"** — ou seja, nada de
+   exclusividade, cada painel com o próprio liga/desliga independente, e
+   a "caixa" de escolher-um deixa de existir.
+2. Perguntei (`AskUserQuestion`) se os dois ficariam configurados e
+   disponíveis ao mesmo tempo, com a escolha de qual usar acontecendo na
+   hora de gerar a cobrança — confirmado: **"no painel mercado pago
+   coloca um botaão ativa desativa o mesmo para o asaas, fica mais facil
+   para trabalhar o oprador desativa e ativa quando quiser e o painel
+   fica exclusivo para cada banco"**, reforçado depois com "essa opcao
+   de escolher não vai existir pois vai ser exclusiva para cada painel".
+3. Com o `provider`/liga-desliga já corrigido, o cliente reparou que o
+   campo "Expiração do Pix" (que já tinha o próprio rótulo dizendo "só
+   Mercado Pago") continuava solto no topo da tela, fora de qualquer
+   painel — **"por isso que vc não separou as duas caixas... tem que
+   duplicar para cada painel"** (nesse caso "duplicar" quer dizer mover
+   pra dentro do painel que o usa, não copiar o campo pros dois — só o
+   Mercado Pago precisa dele).
+4. Por fim, **"e separa eles como um todo"** — o botão "Produção", que
+   também era um campo só compartilhado pelos dois painéis, teve que
+   virar dois campos independentes também, fechando a separação completa
+   (os dois painéis não compartilham mais nenhum campo, só o
+   título/texto geral da página).
+
+**Fix — modelo/banco**: `FinancePaymentConfig` ganhou
+`mercadoPagoEnabled`/`asaasEnabled` (migration `20261019100000-add-per-
+gateway-enabled-to-finance-payment-configs.ts`) e
+`mercadoPagoProductionEnabled`/`asaasProductionEnabled` (migration
+`20261019110000-add-per-gateway-production-to-finance-payment-
+configs.ts`), ambas com `UPDATE` de backfill a partir das colunas
+antigas (`provider`/`productionEnabled`, que ficam na tabela sem uso
+novo — mesmo padrão de coluna descontinuada já usado no projeto, ex.
+`FiscalConfig.gatewayToken`). Testadas contra um Postgres local
+descartável antes de subir — e essa validação pegou um bug real: o
+backfill de `asaasEnabled` usava `provider = 'asaas'`, que em SQL
+avalia pra `NULL` (não `false`) quando `provider` já estiver `NULL` em
+alguma linha, violando a constraint `NOT NULL` da coluna nova. Corrigido
+pra `COALESCE(provider, '') = 'asaas'` antes de subir.
+
+**Fix — como o backend decide qual gateway usar**: `resolveProvider()`,
+dentro de `FinanceReceivablePaymentService.ts`, substitui o antigo
+`if (config.provider === "asaas")`. Regra: se o frontend mandou um
+`requestedProvider` explícito (usuário escolheu no seletor), usa esse,
+desde que esse gateway esteja ligado (senão `ERR_FINANCE_PAYMENT_
+GATEWAY_NOT_CONFIGURED`); sem escolha explícita, resolve sozinho só
+quando exatamente UM gateway está ligado; com os dois ligados e sem
+escolha, lança o erro novo `ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED` (o
+backend se recusa a adivinhar entre dois gateways ativos). `isProduction
+Active` de `FinancePaymentConfigService.ts` virou duas funções
+(`isMercadoPagoProductionActive`/`isAsaasProductionActive`), e
+`MercadoPagoGatewayService.buildClient`/`AsaasGatewayService.buildClient`
+passaram a chamar a função do próprio gateway em vez da única
+compartilhada.
+
+**Fix — frontend**: `FinancePaymentConfigPanel.js` — removido o
+`<Select>` compartilhado de `provider` e o parágrafo de texto que
+explicava a exclusividade (não existe mais); cada painel ganhou o
+próprio `Switch` "Ativo" (`mercadoPagoEnabled`/`asaasEnabled`) e o
+próprio `Switch` "Produção" (`mercadoPagoProductionEnabled`/
+`asaasProductionEnabled`); o campo "Expiração do Pix" saiu do topo
+compartilhado e foi pra dentro do painel do Mercado Pago, no próprio
+cartão de Homologação/Produção. `FinanceRecordModal.js` (botões "Gerar
+Pix"/"Gerar boleto" em Contas a Receber) passou a buscar
+`finance.paymentConfig.show()` quando abre com `enablePayments`, pra
+saber se os dois gateways estão ligados; se sim, mostra um `<TextField
+select>` "Gateway" (Mercado Pago/Asaas) ao lado dos botões antes de
+gerar a cobrança — com só um ligado, manda sem perguntar e o backend
+resolve sozinho. `useFinance.receivables.generatePix/generateBoleto`
+agora aceitam um segundo parâmetro `provider`, enviado no corpo do
+POST. Nova entrada em `pt.js` pro erro
+`ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED`.
+
+**Arquivos**: `backend/src/models/FinancePaymentConfig.ts`,
+`backend/src/database/migrations/20261019100000-...ts`,
+`20261019110000-...ts`, `backend/src/services/FinanceService/
+FinancePaymentConfigService.ts`, `FinanceReceivablePaymentService.ts`,
+`MercadoPagoGatewayService.ts`, `AsaasGatewayService.ts`,
+`backend/src/controllers/FinanceReceivableController.ts`,
+`frontend/src/components/FinancePaymentConfigPanel/index.js`,
+`FinanceRecordModal/index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/translate/languages/pt.js`. `npx tsc --noEmit` (backend)
+limpo; as duas migrations testadas contra um Postgres local descartável
+(pegou e corrigiu o bug do backfill do `asaasEnabled` descrito acima);
+lint e `craco build` do frontend limpos.

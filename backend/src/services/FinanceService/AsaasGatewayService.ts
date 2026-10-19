@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from "axios";
 import FinancePaymentConfig from "../../models/FinancePaymentConfig";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
-import { getActiveAsaasApiKey, isProductionActive } from "./FinancePaymentConfigService";
+import { getActiveAsaasApiKey, isAsaasProductionActive } from "./FinancePaymentConfigService";
 
 // Adapter pro Asaas (`/v3/customers`, `/v3/payments`) — gateway de
 // COBRANÇA, Fase 2 (ao lado do Mercado Pago, Fase 1 — ver
@@ -32,7 +32,7 @@ export interface AsaasChargeResult {
 }
 
 const buildClient = (config: FinancePaymentConfig): AxiosInstance => {
-  const isProduction = isProductionActive(config);
+  const isProduction = isAsaasProductionActive(config);
   const baseURL = isProduction ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
   const apiKey = getActiveAsaasApiKey(config);
   return axios.create({

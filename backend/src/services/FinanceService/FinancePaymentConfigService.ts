@@ -4,9 +4,11 @@ interface FinancePaymentConfigData {
   mercadoPagoAccessTokenSandbox?: string;
   mercadoPagoAccessTokenProduction?: string;
   mercadoPagoWebhookSecret?: string;
-  productionEnabled?: boolean;
   pixExpirationMinutes?: number;
-  provider?: string;
+  mercadoPagoEnabled?: boolean;
+  asaasEnabled?: boolean;
+  mercadoPagoProductionEnabled?: boolean;
+  asaasProductionEnabled?: boolean;
   asaasApiKeySandbox?: string;
   asaasApiKeyProduction?: string;
   asaasWebhookToken?: string;
@@ -32,14 +34,19 @@ export const update = async (
 };
 
 // Produção ligada tem prioridade sobre Homologação — mesmo critério de
-// FiscalConfigService.isProductionActive/getActiveGatewayToken.
-export const isProductionActive = (config: FinancePaymentConfig): boolean =>
-  !!config.productionEnabled;
+// FiscalConfigService.isProductionActive/getActiveGatewayToken, mas agora
+// independente por gateway (v2.3.158 — "separa eles como um todo"): o
+// painel de cada banco tem o próprio botão "Produção", sem afetar o outro.
+export const isMercadoPagoProductionActive = (config: FinancePaymentConfig): boolean =>
+  !!config.mercadoPagoProductionEnabled;
+
+export const isAsaasProductionActive = (config: FinancePaymentConfig): boolean =>
+  !!config.asaasProductionEnabled;
 
 export const getActiveMercadoPagoToken = (config: FinancePaymentConfig): string =>
-  isProductionActive(config)
+  isMercadoPagoProductionActive(config)
     ? config.mercadoPagoAccessTokenProduction
     : config.mercadoPagoAccessTokenSandbox;
 
 export const getActiveAsaasApiKey = (config: FinancePaymentConfig): string =>
-  isProductionActive(config) ? config.asaasApiKeyProduction : config.asaasApiKeySandbox;
+  isAsaasProductionActive(config) ? config.asaasApiKeyProduction : config.asaasApiKeySandbox;

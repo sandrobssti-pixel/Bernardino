@@ -108,17 +108,20 @@ const useFinance = () => {
     return data;
   };
 
-  // Gerar cobrança (Pix/boleto) via gateway — Fase 1, só Mercado Pago, só em
-  // Contas a Receber. Separado de `makeResource` porque não é um verbo
-  // genérico de CRUD (os outros cadastros não têm isso).
+  // Gerar cobrança (Pix/boleto) via gateway — Mercado Pago e/ou Asaas, em
+  // Contas a Receber. `provider` só é obrigatório quando os dois gateways
+  // estão ligados ao mesmo tempo (ver FinancePaymentConfigPanel/
+  // FinanceRecordModal) — com um só ligado, o backend resolve sozinho.
+  // Separado de `makeResource` porque não é um verbo genérico de CRUD (os
+  // outros cadastros não têm isso).
   const receivables = {
     ...makeResource("receivables"),
-    generatePix: async (id) => {
-      const { data } = await api.post(`/finance/receivables/${id}/pix`);
+    generatePix: async (id, provider) => {
+      const { data } = await api.post(`/finance/receivables/${id}/pix`, { provider });
       return data;
     },
-    generateBoleto: async (id) => {
-      const { data } = await api.post(`/finance/receivables/${id}/boleto`);
+    generateBoleto: async (id, provider) => {
+      const { data } = await api.post(`/finance/receivables/${id}/boleto`, { provider });
       return data;
     },
   };

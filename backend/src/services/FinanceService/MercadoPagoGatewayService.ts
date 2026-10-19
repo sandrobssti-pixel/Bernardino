@@ -4,7 +4,10 @@ import { v4 as uuidv4 } from "uuid";
 import FinancePaymentConfig from "../../models/FinancePaymentConfig";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
-import { getActiveMercadoPagoToken, isProductionActive } from "./FinancePaymentConfigService";
+import {
+  getActiveMercadoPagoToken,
+  isMercadoPagoProductionActive
+} from "./FinancePaymentConfigService";
 
 // Adapter pro Mercado Pago (Checkout API, `/v1/payments`) — gateway de
 // COBRANÇA (Pix/boleto), Fase 1 da integração de pagamento pedida pelo
@@ -193,4 +196,4 @@ export const verifyWebhookSignature = (
 export const isConfigured = (config: FinancePaymentConfig): boolean =>
   !!getActiveMercadoPagoToken(config);
 
-export { isProductionActive };
+export { isMercadoPagoProductionActive };

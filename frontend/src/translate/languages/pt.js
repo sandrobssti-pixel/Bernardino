@@ -1894,6 +1894,8 @@ const messages = {
         ERR_NO_FLOWBUILDER_MODULE_ACCESS: "Seu plano não inclui criar/editar fluxos no Flowbuilder.",
         ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED:
           "Configure o token do Mercado Pago em Configuração de Pagamento antes de gerar cobrança.",
+        ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED:
+          "Mercado Pago e Asaas estão ativos ao mesmo tempo — escolha qual gateway usar nesta cobrança.",
         ERR_FINANCE_PAYMENT_NO_CUSTOMER:
           "Vincule um cliente a esta conta antes de gerar a cobrança.",
         ERR_FINANCE_PAYMENT_INVALID_VALUE:

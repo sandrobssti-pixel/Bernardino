@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.158] — Mercado Pago e Asaas 100% independentes na Configuração de Pagamento — 2026-10-19
+
+### Alterado
+- O botão "Ativo" de cada gateway deixou de ser um seletor único que
+  marcava qual dos dois gera a próxima cobrança (marcar um desmarcava o
+  outro). Agora `mercadoPagoEnabled`/`asaasEnabled` ligam/desligam cada
+  painel de forma independente — os dois podem ficar ativos ao mesmo
+  tempo. Quando só um está ligado, gerar Pix/boleto numa Conta a Receber
+  usa esse direto; com os dois ligados, um seletor de gateway aparece no
+  modal de edição da Conta a Receber pra escolher qual usar naquela
+  cobrança (campo `provider`, novo parâmetro aceito pelas rotas
+  `/finance/receivables/:id/pix` e `/boleto`).
+- O botão "Produção" (sandbox x produção), que também era um campo único
+  valendo pros dois gateways, virou dois independentes
+  (`mercadoPagoProductionEnabled`/`asaasProductionEnabled`) — ligar
+  Produção no Mercado Pago não afeta mais o Asaas, e vice-versa.
+- "Expiração do Pix (minutos)" — que só faz sentido pro Mercado Pago —
+  saiu do topo compartilhado da tela e foi pra dentro do painel do
+  Mercado Pago.
+- Campos antigos `provider` e `productionEnabled` ficam na tabela sem uso
+  novo (mesmo padrão de coluna descontinuada já usado no projeto).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 137.
+
 ## [2.3.157] — Selo de marca (Mercado Pago/Asaas) nos painéis — 2026-10-19
 
 ### Adicionado

@@ -798,3 +798,18 @@ que eram esquecimento:
     vazia com só 2 provedores) — o teto é 4 painéis numa tela só antes de
     rolar/quebrar linha. Não precisa perguntar de novo quando isso
     acontecer, só redimensionar (`md={4}` pra 3, `md={3}` pra 4).
+  - **Painel lado a lado NÃO significa "layout separado, estado
+    compartilhado"** — leva um tempo pro cliente perceber e corrigir isso
+    se não ficar claro de cara (v2.3.158, seção 137 do manual técnico):
+    liga/desliga, modo Produção, e qualquer campo que só faz sentido pra
+    UM gateway (ex. "Expiração do Pix", só Mercado Pago) têm que morar e
+    funcionar dentro do próprio painel, cada um com o próprio campo no
+    banco (`mercadoPagoEnabled`/`asaasEnabled`,
+    `mercadoPagoProductionEnabled`/`asaasProductionEnabled` — nunca um
+    campo `provider`/`productionEnabled` só decidindo pros dois ao mesmo
+    tempo). Os dois gateways PODEM ficar ativos ao mesmo tempo — não é
+    seletor de rádio. Só o título/texto geral da página (o que não é
+    específico de gateway nenhum) pode ficar compartilhado no topo. Se
+    outro módulo deste projeto ganhar mais de um provedor/gateway no
+    futuro, aplicar esse mesmo princípio sem perguntar de novo: cada
+    painel 100% autocontido, nada que mude um afeta o outro.

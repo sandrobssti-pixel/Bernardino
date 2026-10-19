@@ -75,15 +75,17 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
   return res.status(200).json({ message: "FinanceReceivable deleted" });
 };
 
-// Gera cobrança via gateway (Mercado Pago, Fase 1) — ver
-// FinanceReceivablePaymentService e docs/MANUAL_TECNICO.md.
+// Gera cobrança via gateway (Mercado Pago e/ou Asaas, os dois podem estar
+// ligados ao mesmo tempo — ver FinanceReceivablePaymentService.resolveProvider)
+// — ver docs/MANUAL_TECNICO.md.
 export const generatePix = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   await ensurePaymentAccess(req);
   const { companyId } = req.user;
   const { id } = req.params;
+  const { provider } = req.body;
 
-  const record = await FinanceReceivablePaymentService.generatePixCharge(id, companyId);
+  const record = await FinanceReceivablePaymentService.generatePixCharge(id, companyId, provider);
   return res.status(200).json(record);
 };
 
@@ -92,7 +94,12 @@ export const generateBoleto = async (req: Request, res: Response): Promise<Respo
   await ensurePaymentAccess(req);
   const { companyId } = req.user;
   const { id } = req.params;
+  const { provider } = req.body;
 
-  const record = await FinanceReceivablePaymentService.generateBoletoCharge(id, companyId);
+  const record = await FinanceReceivablePaymentService.generateBoletoCharge(
+    id,
+    companyId,
+    provider
+  );
   return res.status(200).json(record);
 };

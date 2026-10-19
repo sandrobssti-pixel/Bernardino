@@ -46,8 +46,11 @@ class FinancePaymentConfig extends Model<FinancePaymentConfig> {
   @Column
   mercadoPagoWebhookSecret: string;
 
-  // Mesmo padrão de FiscalConfig.productionEnabled — Produção ligada tem
-  // prioridade sobre Homologação quando ambas teriam token preenchido.
+  // Substituído por `mercadoPagoProductionEnabled`/`asaasProductionEnabled`
+  // abaixo (v2.3.158) — mesmo motivo de `provider`: cada painel ficou
+  // exclusivo pro próprio gateway ("separa eles como um todo"), então
+  // Produção também deixou de ser uma chave só pros dois. Coluna mantida
+  // sem uso novo, mesmo padrão de coluna descontinuada.
   @Default(false)
   @Column
   productionEnabled: boolean;
@@ -56,14 +59,40 @@ class FinancePaymentConfig extends Model<FinancePaymentConfig> {
   @Column
   pixExpirationMinutes: number;
 
-  // Qual gateway gera a PRÓXIMA cobrança quando o Admin clica "Gerar Pix"/
-  // "Gerar boleto" numa Conta a Receber — "mercadopago" (Fase 1) ou "asaas"
-  // (Fase 2). Mesmo padrão de FiscalConfig.gatewayProvider. Trocar de
-  // gateway não afeta cobranças já geradas (ficam com o `paymentProvider`
-  // gravado na hora, em FinanceReceivable).
+  // Produção ligada tem prioridade sobre Homologação quando ambas teriam
+  // token preenchido — agora independente por gateway (cada painel tem o
+  // próprio botão "Produção" em Configuração de Pagamento).
+  @Default(false)
+  @Column
+  mercadoPagoProductionEnabled: boolean;
+
+  @Default(false)
+  @Column
+  asaasProductionEnabled: boolean;
+
+  // Substituído por `mercadoPagoEnabled`/`asaasEnabled` abaixo (v2.3.158) —
+  // o cliente pediu pra cada gateway ligar/desligar sozinho, independente
+  // (os dois podem ficar ativos ao mesmo tempo), em vez de um seletor só
+  // decidindo qual é "o ativo" pro sistema inteiro. Coluna não removida do
+  // banco por segurança (mesmo motivo de `FiscalConfig.gatewayToken`), mas
+  // nenhum código novo lê/escreve este campo.
   @Default("mercadopago")
   @Column
   provider: string;
+
+  // Liga/desliga independente por gateway — o operador decide na hora
+  // (painel próprio de cada um em Configuração de Pagamento), sem
+  // exclusividade entre eles. Quando os dois estão ligados, quem gera a
+  // cobrança numa Conta a Receber escolhe qual usar na hora (ver
+  // FinanceRecordModal.js); quando só um está ligado, usa esse direto sem
+  // perguntar.
+  @Default(true)
+  @Column
+  mercadoPagoEnabled: boolean;
+
+  @Default(false)
+  @Column
+  asaasEnabled: boolean;
 
   @Default("")
   @Column

@@ -6,11 +6,9 @@ import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
 import Grid from "@material-ui/core/Grid";
 import TextField from "@material-ui/core/TextField";
-import MenuItem from "@material-ui/core/MenuItem";
 import Button from "@material-ui/core/Button";
 import Switch from "@material-ui/core/Switch";
 import Typography from "@material-ui/core/Typography";
-import Divider from "@material-ui/core/Divider";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Box from "@material-ui/core/Box";
 import SaveIcon from "@material-ui/icons/Save";
@@ -30,9 +28,6 @@ const useStyles = makeStyles((theme) => ({
   sectionSubtitle: {
     color: theme.palette.text.secondary,
     marginBottom: theme.spacing(2),
-  },
-  divider: {
-    margin: theme.spacing(3, 0),
   },
   loadingBox: {
     display: "flex",
@@ -69,23 +64,26 @@ const useStyles = makeStyles((theme) => ({
     background: "#0b2eff",
     color: "#fff",
   },
-  // Pedido do cliente: texto dentro dos campos de credencial centralizado
-  // (não alinhado à esquerda, padrão do MUI) — os rótulos (label) continuam
-  // alinhados à esquerda normalmente, só o VALOR digitado centraliza.
-  centeredInput: {
-    textAlign: "center",
-  },
 }));
 
-// Pra não repetir `InputProps`/`inputProps` em cada <Field>/<TextField> de
-// credencial — centraliza o texto digitado, pedido do cliente ("para não
-// ficar descentralizadas").
+// Pra não repetir `InputProps`/`inputProps`/`InputLabelProps` em cada
+// <Field>/<TextField> de credencial — centraliza o VALOR digitado e
+// também o RÓTULO (só aparece centralizado enquanto o campo está vazio e
+// sem foco; ao digitar/focar, o Material-UI sempre encolhe e desloca o
+// rótulo pro canto superior esquerdo, isso não dá pra mudar sem quebrar o
+// próprio efeito de "rótulo flutuante" — comportamento esperado, não bug).
+// `width: "100%", left: 0` no InputLabelProps é o truque padrão do MUI v4
+// pra permitir texto centralizado num <label> que por padrão só alinha à
+// esquerda.
 const centeredFieldProps = {
   inputProps: { style: { textAlign: "center" } },
+  InputLabelProps: { style: { width: "100%", textAlign: "center", left: 0 } },
 };
 
 // Configuração do gateway de COBRANÇA (Pix/boleto) — Mercado Pago (Fase 1)
-// e Asaas (Fase 2), decidido pelo campo `provider`. Separado da
+// e Asaas (Fase 2), cada um com o próprio painel 100% independente
+// (liga/desliga, Produção, credenciais — v2.3.158, "separa eles como um
+// todo"): os dois podem estar ativos ao mesmo tempo. Separado da
 // Configuração Fiscal de propósito: credencial de quem RECEBE o pagamento,
 // diferente da credencial do gateway de EMISSÃO de nota fiscal (Focus
 // NFe). Um registro só por empresa, mesmo padrão de get/upsert do
@@ -146,53 +144,33 @@ const FinancePaymentConfigPanel = ({ finance }) => {
         {({ values, setFieldValue, isSubmitting }) => (
           <Form>
             <Grid container spacing={2}>
-              <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  select
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  name="provider"
-                  label="Gateway ativo (gera a próxima cobrança)"
-                  helperText="Trocar aqui não muda cobranças já geradas — cada uma guarda o gateway usado na hora."
-                  SelectProps={{ MenuProps: { getContentAnchorEl: null } }}
-                  inputProps={{ style: { textAlign: "center" } }}
-                >
-                  <MenuItem value="mercadopago">Mercado Pago</MenuItem>
-                  <MenuItem value="asaas">Asaas</MenuItem>
-                </Field>
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Field
-                  as={TextField}
-                  fullWidth
-                  variant="outlined"
-                  size="small"
-                  type="number"
-                  name="pixExpirationMinutes"
-                  label="Expiração do Pix (minutos, só Mercado Pago)"
-                  helperText="O Asaas controla a expiração do próprio QR Code."
-                  {...centeredFieldProps}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <Divider className={classes.divider} />
-              </Grid>
-
               {/* Os dois gateways lado a lado (pedido do cliente) — cada
-                  coluna com os próprios cartões Homologação/Produção
-                  empilhados, em vez de Mercado Pago e Asaas um embaixo do
-                  outro ocupando a largura toda. */}
+                  painel 100% independente/exclusivo do outro (v2.3.158:
+                  "separa eles como um todo"): liga/desliga próprio, Produção
+                  próprio, até a Expiração do Pix (só faz sentido pro
+                  Mercado Pago) mora dentro do painel dele. Sem campo
+                  compartilhado entre os dois — só o título/intro da página
+                  acima é comum. */}
               <Grid item xs={12} md={6}>
                 <Paper variant="outlined" className={classes.gatewayColumn}>
                   <Box className={`${classes.brandBadge} ${classes.brandBadgeMercadoPago}`}>
                     <span>mercado</span>
                     <span style={{ color: "#009ee3", marginLeft: 4 }}>pago</span>
                   </Box>
+                  <Box display="flex" alignItems="center" justifyContent="center" style={{ gap: 8 }} mb={1}>
+                    <Switch
+                      checked={!!values.mercadoPagoEnabled}
+                      onChange={(e) => setFieldValue("mercadoPagoEnabled", e.target.checked)}
+                      color="primary"
+                    />
+                    <Typography variant="body2" style={{ fontWeight: 700 }}>
+                      {values.mercadoPagoEnabled ? "Ativo" : "Inativo"}
+                    </Typography>
+                  </Box>
                   <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
-                    Credenciais do Mercado Pago — gera Pix/boleto por esse gateway.
+                    Liga/desliga só este gateway — não afeta o Asaas. Com os
+                    dois ativos ao mesmo tempo, quem gera a cobrança em
+                    Contas a Receber escolhe qual usar na hora.
                   </Typography>
 
                   <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
@@ -217,8 +195,10 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                         Produção
                       </Typography>
                       <Switch
-                        checked={!!values.productionEnabled}
-                        onChange={(e) => setFieldValue("productionEnabled", e.target.checked)}
+                        checked={!!values.mercadoPagoProductionEnabled}
+                        onChange={(e) =>
+                          setFieldValue("mercadoPagoProductionEnabled", e.target.checked)
+                        }
                         color="primary"
                       />
                     </Box>
@@ -229,8 +209,22 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                       size="small"
                       name="mercadoPagoAccessTokenProduction"
                       label="Access Token de produção"
-                      disabled={!values.productionEnabled}
-                      helperText="Sem prefixo TEST-. O mesmo liga/desliga vale pros dois gateways."
+                      disabled={!values.mercadoPagoProductionEnabled}
+                      helperText="Sem prefixo TEST-. Só vale pro Mercado Pago."
+                      {...centeredFieldProps}
+                    />
+                  </Paper>
+
+                  <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      type="number"
+                      name="pixExpirationMinutes"
+                      label="Expiração do Pix (minutos)"
+                      helperText="Só vale pro Mercado Pago — o Asaas controla a expiração do próprio QR Code."
                       {...centeredFieldProps}
                     />
                   </Paper>
@@ -250,6 +244,7 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                     }`}
                     InputProps={{ readOnly: true }}
                     inputProps={{ style: { textAlign: "center" } }}
+                    InputLabelProps={{ style: { width: "100%", textAlign: "center", left: 0 } }}
                     style={{ marginBottom: 12 }}
                     onFocus={(e) => e.target.select()}
                   />
@@ -270,8 +265,20 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                   <Box className={`${classes.brandBadge} ${classes.brandBadgeAsaas}`}>
                     ASAAS
                   </Box>
+                  <Box display="flex" alignItems="center" justifyContent="center" style={{ gap: 8 }} mb={1}>
+                    <Switch
+                      checked={!!values.asaasEnabled}
+                      onChange={(e) => setFieldValue("asaasEnabled", e.target.checked)}
+                      color="primary"
+                    />
+                    <Typography variant="body2" style={{ fontWeight: 700 }}>
+                      {values.asaasEnabled ? "Ativo" : "Inativo"}
+                    </Typography>
+                  </Box>
                   <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
-                    Credenciais do Asaas — gera Pix/boleto por esse gateway.
+                    Liga/desliga só este gateway — não afeta o Mercado Pago.
+                    Com os dois ativos ao mesmo tempo, quem gera a cobrança em
+                    Contas a Receber escolhe qual usar na hora.
                   </Typography>
 
                   <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
@@ -291,9 +298,18 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                   </Paper>
 
                   <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
-                    <Typography variant="subtitle2" style={{ fontWeight: 700, marginBottom: 8, textAlign: "center" }}>
-                      Produção
-                    </Typography>
+                    <Box display="flex" alignItems="center" justifyContent="center" style={{ gap: 12 }} mb={1}>
+                      <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                        Produção
+                      </Typography>
+                      <Switch
+                        checked={!!values.asaasProductionEnabled}
+                        onChange={(e) =>
+                          setFieldValue("asaasProductionEnabled", e.target.checked)
+                        }
+                        color="primary"
+                      />
+                    </Box>
                     <Field
                       as={TextField}
                       fullWidth
@@ -301,8 +317,8 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                       size="small"
                       name="asaasApiKeyProduction"
                       label="API Key de produção"
-                      disabled={!values.productionEnabled}
-                      helperText="Usa o mesmo liga/desliga de Produção do Mercado Pago, ao lado."
+                      disabled={!values.asaasProductionEnabled}
+                      helperText="Só vale pro Asaas."
                       {...centeredFieldProps}
                     />
                   </Paper>
@@ -322,6 +338,7 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                     }`}
                     InputProps={{ readOnly: true }}
                     inputProps={{ style: { textAlign: "center" } }}
+                    InputLabelProps={{ style: { width: "100%", textAlign: "center", left: 0 } }}
                     style={{ marginBottom: 12 }}
                     onFocus={(e) => e.target.select()}
                   />
