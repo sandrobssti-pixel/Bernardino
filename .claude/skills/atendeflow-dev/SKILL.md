@@ -781,3 +781,20 @@ que eram esquecimento:
   o `label` continua no lugar padrão do Material-UI, flutuando na borda).
   Ver `frontend/src/components/FinancePaymentConfigPanel/index.js`
   (`centeredFieldProps`, `gatewayColumn`) como referência.
+  - Cada painel precisa também do próprio texto de contexto (ex. "Credenciais
+    do Mercado Pago — gera Pix/boleto por esse gateway", dentro da coluna,
+    logo abaixo do título) — NÃO um parágrafo só no topo da tela citando os
+    dois/três/quatro provedores juntos. Cliente pediu essa separação
+    explicitamente (v2.3.155, segunda rodada) depois do primeiro ajuste já
+    ter separado só as colunas visuais, mas deixado a frase de introdução
+    ainda junta: o texto descritivo acompanha cada gateway, não fica
+    compartilhado.
+  - **Cliente já avisou a intenção de escala**: "quando for adicionando mais
+    painéis de configuração de pagamento vai ficando menor o painel, porém
+    dá pra ficar 4 painéis em uma tela" — ou seja, o layout de 2 colunas
+    (`md={6}`) é o certo pra 2 gateways HOJE, mas quando entrar um
+    terceiro/quarto gateway, ajustar a largura da coluna nesse momento (não
+    adiantar agora com breakpoint fixo pra 4, que deixaria metade da tela
+    vazia com só 2 provedores) — o teto é 4 painéis numa tela só antes de
+    rolar/quebrar linha. Não precisa perguntar de novo quando isso
+    acontecer, só redimensionar (`md={4}` pra 3, `md={3}` pra 4).

@@ -1,7 +1,7 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.155
-**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), layout lado a lado
+**Versão do documento:** 2.3.156
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), texto separado por painel
 **Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
@@ -9432,3 +9432,16 @@ espera.
 
 **Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
 Lint e `craco build` limpos.
+
+Segunda rodada do mesmo pedido (v2.3.156): o parágrafo de introdução no
+topo da tela ainda citava "Credenciais do Mercado Pago e do Asaas..."
+junto — cliente pediu pra separar também esse texto, não só o layout
+visual dos cartões. Cada coluna ganhou a própria frase curta de contexto
+("Credenciais do Mercado Pago — gera Pix/boleto por esse gateway" / "...
+do Asaas..."), e o texto do topo ficou só com a explicação geral que
+aplica à tela inteira (Pagamento é contrato separado da Configuração
+Fiscal). Cliente também avisou a intenção de escala pra quando entrar um
+terceiro/quarto gateway: "dá pra ficar 4 painéis em uma tela" — registrado
+na skill `atendeflow-dev` como padrão a seguir sem perguntar de novo
+(ajustar a largura da coluna só quando o próximo gateway entrar, não
+adiantar breakpoint fixo agora com só 2 provedores).

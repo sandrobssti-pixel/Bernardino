@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.156] — Texto de cada gateway separado por painel — 2026-10-19
+
+### Corrigido
+- O parágrafo de introdução da Configuração de Pagamento citava Mercado
+  Pago e Asaas juntos num texto só, no topo da tela — mesmo já com os
+  painéis separados visualmente (v2.3.155). Cliente pediu pra separar
+  também o texto: agora cada coluna tem a própria frase de contexto
+  ("Credenciais do Mercado Pago — gera Pix/boleto por esse gateway" /
+  mesma coisa pro Asaas), e o texto do topo ficou só com a explicação
+  geral (Pagamento x Fiscal são contratos separados).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 136.
+
 ## [2.3.155] — Configuração de Pagamento: Mercado Pago e Asaas lado a lado — 2026-10-19
 
 ### Corrigido

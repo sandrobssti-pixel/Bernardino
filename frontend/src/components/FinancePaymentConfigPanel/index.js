@@ -117,9 +117,9 @@ const FinancePaymentConfigPanel = ({ finance }) => {
         Configuração de Pagamento
       </Typography>
       <Typography variant="body2" className={classes.sectionSubtitle}>
-        Credenciais do Mercado Pago e do Asaas pra gerar cobrança Pix/boleto
-        em Contas a Receber. Diferente da Configuração Fiscal (essa é do
-        gateway de emissão de nota, Focus NFe) — são contratos separados.
+        Gera cobrança Pix/boleto em Contas a Receber. Diferente da
+        Configuração Fiscal (essa é do gateway de emissão de nota, Focus
+        NFe) — são contratos separados.
       </Typography>
 
       <Formik initialValues={config} enableReinitialize onSubmit={handleSubmit}>
@@ -169,6 +169,9 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                 <Paper variant="outlined" className={classes.gatewayColumn}>
                   <Typography variant="h6" className={classes.gatewayTitle}>
                     Mercado Pago
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
+                    Credenciais do Mercado Pago — gera Pix/boleto por esse gateway.
                   </Typography>
 
                   <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
@@ -245,6 +248,9 @@ const FinancePaymentConfigPanel = ({ finance }) => {
                 <Paper variant="outlined" className={classes.gatewayColumn}>
                   <Typography variant="h6" className={classes.gatewayTitle}>
                     Asaas
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" style={{ textAlign: "center", marginBottom: 16 }}>
+                    Credenciais do Asaas — gera Pix/boleto por esse gateway.
                   </Typography>
 
                   <Paper variant="outlined" style={{ padding: 16, marginBottom: 16 }}>
