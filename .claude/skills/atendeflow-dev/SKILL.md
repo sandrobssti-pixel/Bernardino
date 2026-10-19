@@ -762,3 +762,22 @@ que eram esquecimento:
   Sem esse campo, não tem como diferenciar programaticamente lixo de
   teste de dado de produção depois do fato — vale pra qualquer _gateway_
   fiscal futuro, não só Focus NFe.
+- **Tela de configuração com DOIS OU MAIS gateways/provedores no mesmo
+  nível (ex. Configuração de Pagamento, Mercado Pago + Asaas, v2.3.154):
+  layout padrão é colunas lado a lado, uma por gateway, nunca um
+  empilhado embaixo do outro** — pedido explícito do cliente (v2.3.155)
+  depois de ver o layout empilhado na tela de verdade: "deixa os dois
+  painéis um do lado do outro e centraliza as palavras nos campos para
+  não ficar descentralizadas". Virou padrão do projeto, não precisa
+  perguntar de novo da próxima vez que entrar um terceiro gateway (ou
+  outra tela nesse formato): `Grid item xs={12} md={6}` por coluna
+  (`md`, não `sm` — em telas médias cada coluna ainda precisa de espaço
+  pros cartões Homologação/Produção internos, que ficam empilhados
+  DENTRO da coluna, não lado a lado entre si nesse caso), painel-pai com
+  `maxWidth` maior que o padrão de formulário simples (1200px em vez de
+  900px, senão as colunas ficam espremidas), e todo campo de
+  credencial/URL somente-leitura com texto do VALOR centralizado
+  (`inputProps: { style: { textAlign: "center" } }` — só o valor digitado,
+  o `label` continua no lugar padrão do Material-UI, flutuando na borda).
+  Ver `frontend/src/components/FinancePaymentConfigPanel/index.js`
+  (`centeredFieldProps`, `gatewayColumn`) como referência.
