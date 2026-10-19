@@ -368,23 +368,90 @@ const buildEmitente = (company: Company, config: FiscalConfig) => ({
   telefone_emitente: (config.emitterPhone || "").replace(/\D/g, "") || undefined
 });
 
+// finNFe (Sefaz) — "1" Normal, "2" Complementar, "3" Ajuste, "4"
+// Devolução de mercadoria. "NF Crédito"/"NF Débito" (duas das 6 opções
+// do sistema de referência do cliente) NÃO correspondem a nenhum valor
+// oficial de finNFe conhecido — mapeadas pra "1" (Normal) até confirmar
+// com o contador o que o cliente realmente precisa nesses dois casos.
+const ISSUANCE_PURPOSE_CODES: Record<string, string> = {
+  normal: "1",
+  complementary: "2",
+  adjustment: "3",
+  return: "4",
+  credit_note: "1",
+  debit_note: "1"
+};
+
+// "Dados de Transporte" (v2.3.168) — grupo `transp` da NF-e. Nomes de
+// campo (volumes[]/transportadora/entrega) seguem a mesma convenção
+// snake_case do resto do adapter, mas NÃO foram confirmados contra
+// nenhuma resposta real da Focus NFe — mesmo aviso de confiança do topo
+// do arquivo, reforçado aqui porque é a parte mais nova.
+const buildTransporte = (sale: Sale) => {
+  const fields: Record<string, unknown> = {
+    modalidade_frete: sale.freightResponsibility || "9"
+  };
+
+  if (sale.volumeQuantity > 0 || sale.volumeSpecies || sale.volumeBrand) {
+    fields.volumes = [
+      {
+        quantidade_volumes: sale.volumeQuantity || undefined,
+        especie_volumes: sale.volumeSpecies || undefined,
+        marca_volumes: sale.volumeBrand || undefined,
+        numeracao_volumes: sale.volumeNumber || undefined,
+        peso_bruto_volumes: Number(sale.volumeGrossWeight) || undefined,
+        peso_liquido_volumes: Number(sale.volumeNetWeight) || undefined
+      }
+    ];
+  }
+
+  if (sale.carrierName) {
+    fields.nome_transportador = sale.carrierName;
+    fields.endereco_transportador = sale.carrierAddress || undefined;
+    fields.municipio_transportador = sale.carrierCity || undefined;
+    fields.uf_transportador = sale.carrierState || undefined;
+    fields.cnpj_transportador = (sale.carrierCnpj || "").replace(/\D/g, "") || undefined;
+    fields.inscricao_estadual_transportador = sale.carrierIe || undefined;
+  }
+
+  if (sale.vehiclePlate) {
+    fields.placa_veiculo = sale.vehiclePlate;
+    fields.uf_placa_veiculo = sale.vehicleState || undefined;
+  }
+
+  // Local de entrega diferente do destinatário — grupo `entrega`, só
+  // enviado quando preenchido (a maioria das vendas entrega no mesmo
+  // endereço do destinatário, já coberto por `buildDestinatario`).
+  if (sale.deliveryName || sale.deliveryAddress) {
+    fields.entrega = {
+      nome_entrega: sale.deliveryName || undefined,
+      logradouro_entrega: sale.deliveryAddress || undefined,
+      numero_entrega: sale.deliveryNumber || undefined,
+      complemento_entrega: sale.deliveryComplement || undefined,
+      bairro_entrega: sale.deliveryNeighborhood || undefined,
+      municipio_entrega: sale.deliveryCity || undefined,
+      uf_entrega: sale.deliveryState || undefined,
+      cep_entrega: (sale.deliveryZipCode || "").replace(/\D/g, "") || undefined,
+      fone_entrega: (sale.deliveryPhone || "").replace(/\D/g, "") || undefined
+    };
+  }
+
+  return fields;
+};
+
 const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
   data_emissao: new Date().toISOString(),
   tipo_documento: "1",
-  finalidade_emissao: "1",
+  finalidade_emissao: ISSUANCE_PURPOSE_CODES[sale.issuancePurpose] || "1",
   cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
   serie: config.nfeSeries,
-  // Campo obrigatório que faltava por completo (nunca foi enviado) — causa
-  // confirmada de erro de schema no primeiro teste real (v2.3.123, resposta
-  // bruta da Focus NFe). "9" = sem frete/sem ocorrência de transporte, o
-  // padrão certo pra venda de balcão sem transportadora.
-  modalidade_frete: "9",
   // indPres (presença do consumidor) — nome de campo usado aqui
   // (`indicador_presenca`) é diferente do usado em NFC-e
   // (`presenca_comprador`, convenção já existente antes desta entrega);
   // ver aviso de confiança em `buildIndicadores`.
   indicador_presenca: sale.consumerPresence || "1",
   ...buildIndicadores(sale),
+  ...buildTransporte(sale),
   ...buildEmitente(company, config),
   ...buildDestinatario(sale),
   items: buildItemsPayload(sale)

@@ -334,6 +334,51 @@ export const financeProductFields = [
     visibleWhen: hasStockControl,
   },
 
+  {
+    type: "sectionTitle",
+    label: "Dados Gerais — Complementares",
+    helperText: "Campos do sistema de referência do cliente que não existiam ainda aqui.",
+    visibleWhen: isNotService,
+  },
+  { name: "barcodeGtin", label: "Cód. Barras (GTIN)", gridSize: 4, visibleWhen: isNotService },
+  { name: "supplierCode", label: "Cód. Fornecedor", gridSize: 4, visibleWhen: isNotService },
+  { name: "originalCode", label: "Código Original", gridSize: 4, visibleWhen: isNotService },
+  { name: "similarProductCode", label: "Cód. Produto Similar", gridSize: 6, visibleWhen: isNotService },
+  { name: "colorSizeFlavor", label: "Cor/Tamanho/Sabor", gridSize: 6, visibleWhen: isNotService },
+  { name: "weight", label: "Peso", type: "number", step: "0.001", gridSize: 4, visibleWhen: isNotService },
+  { name: "category", label: "Categoria", gridSize: 4, visibleWhen: isNotService },
+  { name: "subcategory", label: "Subcategoria", gridSize: 4, visibleWhen: isNotService },
+  { name: "packaging", label: "Embalagem", gridSize: 4, visibleWhen: isNotService },
+  { name: "productFamily", label: "Família", gridSize: 4, visibleWhen: isNotService },
+  { name: "storageLocation", label: "Local no Estoque/Armazenagem", gridSize: 4, visibleWhen: isNotService },
+  { name: "priceTable2", label: "Tabela 2 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "priceTable3", label: "Tabela 3 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "priceTable4", label: "Tabela 4 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "priceTable5", label: "Tabela 5 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "reservedStock", label: "Estoq. Reserv.", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
+  { name: "idealStock", label: "Estoq. Ideal", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
+  { name: "stockByLot", label: "Por Lote", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
+  { name: "lotControl", label: "Controle por Lote", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "isComposite", label: "Produto Composto", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "isRawMaterial", label: "Matéria Prima", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "isEquipment", label: "Equipamento", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "soldByWeight", label: "Venda por KG", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "commissionRate", label: "Comissão (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "maxDiscountMargin", label: "Marg. Desc. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "loyaltyPoints", label: "Pontos", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotService },
+  { name: "redemptionPoints", label: "Pontos Troca", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotService },
+
+  {
+    type: "sectionTitle",
+    label: "Fornecedor / Produção",
+    visibleWhen: isNotService,
+  },
+  { name: "mainSupplierId", label: "Distribuidor / Fornecedor Principal", type: "asyncSelect", optionsResource: "suppliers", embeddedKey: "mainSupplier", gridSize: 12, visibleWhen: isNotService },
+  { name: "productionLeadTime", label: "Prazo de Produção", gridSize: 6, visibleWhen: isNotService },
+  { name: "designCode", label: "Código Desenho", gridSize: 6, visibleWhen: isNotService },
+  { name: "productionScale", label: "Escala de Produção", gridSize: 6, visibleWhen: isNotService },
+  { name: "manufacturerCnpj", label: "CNPJ do Fabricante", gridSize: 6, visibleWhen: isNotService },
+
   // -- Campos de arma/munição/insumo — só aparecem quando Tipo = Arma ou
   // Munição/Insumo (ver `visibleWhen`, checado em FinanceRecordModal). --
   { name: "brand", label: "Marca / Fabricante", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
@@ -602,4 +647,26 @@ export const SALE_PAYMENT_METHOD_OPTIONS = [
   { value: "imported_xml", label: "Importado do XML" },
   { value: "pix", label: "PIX" },
   { value: "no_payment", label: "Sem pagamento" },
+];
+
+// "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168) — tela de
+// emissão de NF-e do sistema de referência do cliente. Ver comentário de
+// confiança em FocusNFeService.ts (`ISSUANCE_PURPOSE_CODES`).
+export const SALE_ISSUANCE_PURPOSE_OPTIONS = [
+  { value: "normal", label: "Normal" },
+  { value: "complementary", label: "Complementar" },
+  { value: "adjustment", label: "Ajuste" },
+  { value: "return", label: "Devolução" },
+  { value: "credit_note", label: "NF Crédito" },
+  { value: "debit_note", label: "NF Débito" },
+];
+
+// modFrete (Sefaz) — "9" (sem frete) é o padrão de venda de balcão.
+export const SALE_FREIGHT_RESPONSIBILITY_OPTIONS = [
+  { value: "0", label: "0 - Contratação por Conta do Emitente" },
+  { value: "1", label: "1 - Contratação por Conta do Destinatário" },
+  { value: "2", label: "2 - Contratação por Conta de Terceiros" },
+  { value: "3", label: "3 - Transp. Próprio por Conta do Emitente" },
+  { value: "4", label: "4 - Transp. Próprio por Conta do Destinatário" },
+  { value: "9", label: "9 - Sem Frete" },
 ];

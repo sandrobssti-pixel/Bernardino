@@ -10381,3 +10381,90 @@ produção limpo.
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/pages/Financeiro/index.js`.
+
+## 146. Fornecedor/Produção + Dados Gerais do Produto, Finalidade da Emissão e Transporte da Venda (v2.3.168)
+
+Continuação das seções 144/145 — depois de "Dados Fiscais", o cliente
+pediu as outras abas do mesmo sistema de referência: "3 - Fornecedor/
+Produção" e "1 - Dados Gerais" (do cadastro de Produto), mais
+"Finalidade da Emissão" e "Dados de Transporte" (da tela de emissão de
+NF-e, que aqui vive na Venda). Pedido explícito: "tem que implementar
+tudo" — depois, já com essas duas prontas, o cliente pediu pra ir "uma
+aba de cada" dali em diante (registrado aqui porque muda como as
+próximas entregas deste módulo vão ser feitas).
+
+**Produto — "3 - Fornecedor/Produção"**: `mainSupplierId` (FK pra
+`FinanceSupplier`, não um campo de texto solto — o cadastro de
+Fornecedor já existia, não fazia sentido duplicar) + `productionLeadTime`/
+`designCode`/`productionScale`/`manufacturerCnpj` (texto livre, sem
+formato documentado pelo cliente).
+
+**Produto — "1 - Dados Gerais" complementar**: `barcodeGtin`/
+`supplierCode`/`originalCode`/`similarProductCode` (4 códigos diferentes
+do produto, SKU/"Código Interno" já existia e não foi duplicado),
+`colorSizeFlavor`, `weight`, `category`/`subcategory`, `packaging`,
+`productFamily`, `storageLocation`, `priceTable2` a `priceTable5`
+(`price` já existente = Tabela 1), `reservedStock`/`idealStock`/
+`stockByLot` (estoque mínimo já existia como `minStockQuantity`),
+`lotControl`/`isComposite`/`isRawMaterial`/`isEquipment`/`soldByWeight`
+(switches), `commissionRate`/`maxDiscountMargin`/`loyaltyPoints`/
+`redemptionPoints`.
+
+**`FinanceRecordModal.js` ganhou `field.embeddedKey`** (opcional): o
+campo `asyncSelect` já resolvia a associação pré-carregada do registro
+pelo singular automático do `optionsResource` (`"suppliers"` →
+`record.supplier`) — mas `mainSupplierId` usa a associação
+`mainSupplier` (nome mais claro no model, já que existem outros
+possíveis vínculos de fornecedor no futuro), então o singular automático
+não batia. `embeddedKey: "mainSupplier"` resolve isso sem quebrar nenhum
+outro campo `asyncSelect` já existente (todos continuam sem passar essa
+prop, usando o comportamento de sempre). `FinanceProductService.list`/
+`show` passaram a incluir a associação `mainSupplier` (antes não incluíam
+nenhuma), senão o campo nunca apareceria pré-preenchido ao editar.
+
+**Venda — "Finalidade da Emissão"**: campo novo `Sale.issuancePurpose`
+("normal" default, igual já era hardcoded "1" antes). As 6 opções do
+sistema de referência viraram select, mas só 4 têm código oficial de
+`finNFe` conhecido (Normal/Complementar/Ajuste/Devolução = 1/2/3/4) — "NF
+Crédito" e "NF Débito" não correspondem a nenhum valor documentado desse
+campo na NF-e; ambos mapeiam pra "1" (Normal) até confirmar com o
+contador o que o cliente realmente precisa nesses dois casos
+(`ISSUANCE_PURPOSE_CODES`, `FocusNFeService.ts`).
+
+**Venda — "Dados de Transporte"**: ~21 campos novos (`Sale.ts`) cobrindo
+Volumes (quantidade/espécie/marca/número/peso bruto/peso líquido),
+Transportadora (nome/endereço/cidade/UF/CNPJ/IE), Veículo (placa/UF),
+Embarque (local/UF) e Local de Entrega (quando diferente do endereço do
+destinatário — grupo `entrega` da NF-e). `freightResponsibility`
+("Frete por Conta") substitui o `modalidade_frete: "9"` que era
+hardcoded desde a Fase 3 — "9" continua o default (sem frete), mas agora
+é editável. `buildTransporte` (novo, `FocusNFeService.ts`) só manda cada
+sub-grupo (`volumes`/transportadora/`entrega`) quando tem dado de
+verdade preenchido — a maioria das vendas de balcão não usa nada disso e
+continua mandando exatamente o mesmo payload de antes.
+
+**⚠️ Nível de confiança**: os códigos oficiais usados (`finNFe`,
+`modFrete`) têm confiança alta (schema público da NF-e). Os NOMES dos
+campos no JSON da Focus NFe pro grupo de transporte (`volumes`,
+`nome_transportador`, `entrega.*` etc.) seguem a mesma convenção
+snake_case do resto do adapter, mas **não foram confirmados contra
+nenhuma nota real** — nenhuma das notas analisadas nas seções 144/145
+tinha transportadora preenchida (todas eram vendas de balcão/compra
+direta). Testar em Homologação antes de uma venda real que precise
+desses campos.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as duas migrations
+novas (`20261019270000-*.ts`, `20261019280000-*.ts`) testadas (up e
+down) contra Postgres local rodando a cadeia completa; `npx eslint`
+limpo nos arquivos tocados do frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts`,
+`backend/src/models/Sale.ts`,
+`backend/src/services/FinanceService/FinanceProductService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/database/migrations/20261019270000-*.ts`,
+`20261019280000-*.ts` (novos),
+`frontend/src/components/FinanceRecordModal/index.js`
+(`field.embeddedKey`), `frontend/src/components/SaleModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

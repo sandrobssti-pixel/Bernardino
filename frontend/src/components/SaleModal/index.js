@@ -33,6 +33,8 @@ import {
   SALE_RECIPIENT_TYPE_OPTIONS,
   SALE_IE_INDICATOR_OPTIONS,
   SALE_PAYMENT_METHOD_OPTIONS,
+  SALE_ISSUANCE_PURPOSE_OPTIONS,
+  SALE_FREIGHT_RESPONSIBILITY_OPTIONS,
 } from "../../pages/Financeiro/financeConfig";
 
 // Mostra o Tipo junto do nome NA LISTA de resultados da busca de item da
@@ -103,6 +105,34 @@ const buildInitialValues = (sale, defaultCfop) => ({
   recipientType: sale?.recipientType || "customer",
   ieIndicator: sale?.ieIndicator || "non_contributor",
   paymentMethod: sale?.paymentMethod || "",
+  // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168).
+  issuancePurpose: sale?.issuancePurpose || "normal",
+  volumeQuantity: sale?.volumeQuantity || 0,
+  volumeSpecies: sale?.volumeSpecies || "",
+  volumeBrand: sale?.volumeBrand || "",
+  volumeNumber: sale?.volumeNumber || "",
+  volumeGrossWeight: sale?.volumeGrossWeight || "0",
+  volumeNetWeight: sale?.volumeNetWeight || "0",
+  carrierName: sale?.carrierName || "",
+  carrierAddress: sale?.carrierAddress || "",
+  carrierCity: sale?.carrierCity || "",
+  carrierState: sale?.carrierState || "",
+  carrierCnpj: sale?.carrierCnpj || "",
+  carrierIe: sale?.carrierIe || "",
+  deliveryName: sale?.deliveryName || "",
+  deliveryAddress: sale?.deliveryAddress || "",
+  deliveryNumber: sale?.deliveryNumber || "",
+  deliveryComplement: sale?.deliveryComplement || "",
+  deliveryNeighborhood: sale?.deliveryNeighborhood || "",
+  deliveryCity: sale?.deliveryCity || "",
+  deliveryState: sale?.deliveryState || "",
+  deliveryZipCode: sale?.deliveryZipCode || "",
+  deliveryPhone: sale?.deliveryPhone || "",
+  freightResponsibility: sale?.freightResponsibility || "9",
+  boardingLocation: sale?.boardingLocation || "",
+  boardingState: sale?.boardingState || "",
+  vehiclePlate: sale?.vehiclePlate || "",
+  vehicleState: sale?.vehicleState || "",
   items:
     sale?.items?.length > 0
       ? sale.items.map((item) => ({
@@ -614,6 +644,131 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                         </MenuItem>
                       ))}
                     </Field>
+                  </Grid>
+                </Grid>
+
+                <Divider style={{ margin: "16px 0" }} />
+
+                <Typography variant="subtitle2" gutterBottom>
+                  Finalidade da Emissão / Dados de Transporte
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Finalidade da Emissão"
+                      name="issuancePurpose"
+                    >
+                      {SALE_ISSUANCE_PURPOSE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Frete por Conta"
+                      name="freightResponsibility"
+                    >
+                      {SALE_FREIGHT_RESPONSIBILITY_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Volumes" name="volumeQuantity" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Espécie" name="volumeSpecies" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Marca (volumes)" name="volumeBrand" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="volumeNumber" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Peso Bruto (kg)" name="volumeGrossWeight" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Peso Líquido (kg)" name="volumeNetWeight" />
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Transportadora — Nome/Razão Social" name="carrierName" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Transportadora — Endereço" name="carrierAddress" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="carrierCity" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="carrierState" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="CNPJ Transportadora" name="carrierCnpj" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Inscrição Estadual Transportadora" name="carrierIe" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Placa do Veículo" name="vehiclePlate" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF da Placa" name="vehicleState" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Local de Embarque" name="boardingLocation" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF de Embarque" name="boardingState" />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="textSecondary">
+                      Local de entrega (só se for diferente do endereço do cliente)
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Nome" name="deliveryName" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Endereço" name="deliveryAddress" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="deliveryNumber" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Complemento" name="deliveryComplement" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Bairro" name="deliveryNeighborhood" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="deliveryCity" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="deliveryState" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="CEP" name="deliveryZipCode" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Telefone" name="deliveryPhone" />
                   </Grid>
                 </Grid>
 

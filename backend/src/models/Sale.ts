@@ -102,6 +102,134 @@ class Sale extends Model<Sale> {
   @Column
   paymentMethod: string;
 
+  // --------------------------------------------------------------------
+  // "Finalidade da Emissão" (v2.3.168, tela de emissão de NF-e do sistema
+  // de referência do cliente) — finNFe (Sefaz): "normal" (1) é o que já
+  // era hardcoded no FocusNFeService antes desta entrega; os outros 5
+  // valores (Complementar/Ajuste/Devolução/NF Crédito/NF Débito) nunca
+  // tinham sido usados ainda neste sistema.
+  // --------------------------------------------------------------------
+
+  @Default("normal")
+  @Column
+  issuancePurpose: string;
+
+  // --------------------------------------------------------------------
+  // "Dados de Transporte" (v2.3.168, mesma tela) — grupo `transp` (NF-e):
+  // volumes transportados, transportadora e, quando o local de entrega é
+  // diferente do destinatário, o grupo `entrega`. Tudo opcional — venda
+  // de balcão (a maioria) não preenche nada disso, o payload da Focus NFe
+  // já manda "modalidade_frete": "9" (sem frete) como hoje quando vazio.
+  // --------------------------------------------------------------------
+
+  @Default(0)
+  @Column
+  volumeQuantity: number;
+
+  @Default("")
+  @Column
+  volumeSpecies: string;
+
+  @Default("")
+  @Column
+  volumeBrand: string;
+
+  @Default("")
+  @Column
+  volumeNumber: string;
+
+  @Default("0")
+  @Column
+  volumeGrossWeight: string;
+
+  @Default("0")
+  @Column
+  volumeNetWeight: string;
+
+  @Default("")
+  @Column
+  carrierName: string;
+
+  @Default("")
+  @Column
+  carrierAddress: string;
+
+  @Default("")
+  @Column
+  carrierCity: string;
+
+  @Default("")
+  @Column
+  carrierState: string;
+
+  @Default("")
+  @Column
+  carrierCnpj: string;
+
+  @Default("")
+  @Column
+  carrierIe: string;
+
+  @Default("")
+  @Column
+  deliveryName: string;
+
+  @Default("")
+  @Column
+  deliveryAddress: string;
+
+  @Default("")
+  @Column
+  deliveryNumber: string;
+
+  @Default("")
+  @Column
+  deliveryComplement: string;
+
+  @Default("")
+  @Column
+  deliveryNeighborhood: string;
+
+  @Default("")
+  @Column
+  deliveryCity: string;
+
+  @Default("")
+  @Column
+  deliveryState: string;
+
+  @Default("")
+  @Column
+  deliveryZipCode: string;
+
+  @Default("")
+  @Column
+  deliveryPhone: string;
+
+  // "0" a "4" e "9" (Sefaz, modFrete) — já existia hardcoded "9" (sem
+  // frete) no FocusNFeService; agora vira campo de verdade, mas mantém
+  // "9" como default pra não mudar o comportamento de venda sem
+  // transporte configurado.
+  @Default("9")
+  @Column
+  freightResponsibility: string;
+
+  @Default("")
+  @Column
+  boardingLocation: string;
+
+  @Default("")
+  @Column
+  boardingState: string;
+
+  @Default("")
+  @Column
+  vehiclePlate: string;
+
+  @Default("")
+  @Column
+  vehicleState: string;
+
   @ForeignKey(() => FinanceCustomer)
   @Column
   customerId: number;

@@ -59,6 +59,35 @@ interface SaleData {
   recipientType?: string;
   ieIndicator?: string;
   paymentMethod?: string;
+  // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168) — ver
+  // comentário completo em Sale.ts.
+  issuancePurpose?: string;
+  volumeQuantity?: number | string;
+  volumeSpecies?: string;
+  volumeBrand?: string;
+  volumeNumber?: string;
+  volumeGrossWeight?: string;
+  volumeNetWeight?: string;
+  carrierName?: string;
+  carrierAddress?: string;
+  carrierCity?: string;
+  carrierState?: string;
+  carrierCnpj?: string;
+  carrierIe?: string;
+  deliveryName?: string;
+  deliveryAddress?: string;
+  deliveryNumber?: string;
+  deliveryComplement?: string;
+  deliveryNeighborhood?: string;
+  deliveryCity?: string;
+  deliveryState?: string;
+  deliveryZipCode?: string;
+  deliveryPhone?: string;
+  freightResponsibility?: string;
+  boardingLocation?: string;
+  boardingState?: string;
+  vehiclePlate?: string;
+  vehicleState?: string;
 }
 
 // Mesmo padrão de `fields`/defaultValue usado no resto do Financeiro —
@@ -79,6 +108,50 @@ const buildFiscalFields = (data: SaleData): Record<string, string> => {
   Object.keys(FISCAL_FIELD_DEFAULTS).forEach(key => {
     const value = (data as any)[key];
     fields[key] = value !== undefined && value !== null ? String(value) : FISCAL_FIELD_DEFAULTS[key];
+  });
+  return fields;
+};
+
+// "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168) — mesmo
+// padrão de `buildFiscalFields` acima (defaults centralizados, não
+// duplicados entre create/update), separado só porque `volumeQuantity` é
+// numérico (coluna INTEGER), não string como o resto.
+const TRANSPORT_STRING_DEFAULTS: Record<string, string> = {
+  issuancePurpose: "normal",
+  volumeSpecies: "",
+  volumeBrand: "",
+  volumeNumber: "",
+  volumeGrossWeight: "0",
+  volumeNetWeight: "0",
+  carrierName: "",
+  carrierAddress: "",
+  carrierCity: "",
+  carrierState: "",
+  carrierCnpj: "",
+  carrierIe: "",
+  deliveryName: "",
+  deliveryAddress: "",
+  deliveryNumber: "",
+  deliveryComplement: "",
+  deliveryNeighborhood: "",
+  deliveryCity: "",
+  deliveryState: "",
+  deliveryZipCode: "",
+  deliveryPhone: "",
+  freightResponsibility: "9",
+  boardingLocation: "",
+  boardingState: "",
+  vehiclePlate: "",
+  vehicleState: ""
+};
+
+const buildTransportFields = (data: SaleData): Record<string, unknown> => {
+  const fields: Record<string, unknown> = {
+    volumeQuantity: Number(data.volumeQuantity) || 0
+  };
+  Object.keys(TRANSPORT_STRING_DEFAULTS).forEach(key => {
+    const value = (data as any)[key];
+    fields[key] = value !== undefined && value !== null ? String(value) : TRANSPORT_STRING_DEFAULTS[key];
   });
   return fields;
 };
@@ -304,6 +377,7 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
     totalValue: String(total),
     status: "draft",
     ...buildFiscalFields(data),
+    ...buildTransportFields(data),
     companyId
   } as any);
 
@@ -336,7 +410,8 @@ export const update = async (
     notes: data.notes || "",
     customerId: data.customerId || null,
     totalValue: String(total),
-    ...buildFiscalFields(data)
+    ...buildFiscalFields(data),
+    ...buildTransportFields(data)
   });
 
   // Substitui os itens inteiros (mais simples e seguro que tentar

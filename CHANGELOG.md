@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.168] — Fornecedor/Produção + Dados Gerais do Produto, Finalidade da Emissão e Transporte da Venda — 2026-10-19
+
+### Adicionado
+- Produto ganhou duas seções novas: "Fornecedor / Produção" (Distribuidor/
+  Fornecedor Principal — agora puxando do cadastro real de Fornecedores,
+  Prazo de Produção, Código Desenho, Escala de Produção, CNPJ do
+  Fabricante) e "Dados Gerais — Complementares" (Cód. Barras/GTIN, Cód.
+  Fornecedor, Código Original, Cód. Produto Similar, Cor/Tamanho/Sabor,
+  Peso, Categoria, Subcategoria, Embalagem, Família, Local no Estoque,
+  Tabelas de preço 2 a 5, Estoque Reservado/Ideal/Por Lote, Controle por
+  Lote, Produto Composto, Matéria Prima, Equipamento, Venda por KG,
+  Comissão, Margem de Desconto, Pontos/Pontos Troca).
+- `FinanceRecordModal` (genérico, usado por clientes/fornecedores/
+  produtos/contas) ganhou `field.embeddedKey` — resolve a associação
+  pré-carregada quando o nome do campo (ex. `mainSupplierId`) não bate
+  com o singular automático do recurso (`suppliers` → `supplier`).
+- Venda ganhou "Finalidade da Emissão" (Normal/Complementar/Ajuste/
+  Devolução/NF Crédito/NF Débito) e "Dados de Transporte" completo
+  (Volumes, Transportadora, Veículo, Local de Entrega, Frete por Conta) —
+  já mandados pro payload da Focus NFe quando preenchidos.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 146.
+
 ## [2.3.167] — Dados Fiscais do Produto + foto + auto-preenchimento da Venda — 2026-10-19
 
 ### Adicionado

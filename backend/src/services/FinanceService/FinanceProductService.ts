@@ -2,6 +2,13 @@ import { Op, Sequelize } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceProduct from "../../models/FinanceProduct";
+import FinanceSupplier from "../../models/FinanceSupplier";
+
+// Embutido em list/show pra `mainSupplierId` (aba Fornecedor/Produção,
+// v2.3.168) já vir com o nome do fornecedor pronto — mesmo motivo do
+// `embeddedKey` novo no FinanceRecordModal.js (associação chama
+// `mainSupplier`, não `supplier`).
+const PRODUCT_INCLUDE = [{ model: FinanceSupplier, as: "mainSupplier", attributes: ["id", "name"] }];
 
 interface ListRequest {
   companyId: number;
@@ -146,6 +153,7 @@ export const list = async ({
 
   const { count, rows: records } = await FinanceProduct.findAndCountAll({
     where: whereCondition,
+    include: PRODUCT_INCLUDE,
     limit,
     offset,
     order: [["name", "ASC"]]
@@ -158,7 +166,7 @@ export const show = async (
   id: string | number,
   companyId: number
 ): Promise<FinanceProduct> => {
-  const record = await FinanceProduct.findOne({ where: { id, companyId } });
+  const record = await FinanceProduct.findOne({ where: { id, companyId }, include: PRODUCT_INCLUDE });
 
   if (!record) {
     throw new AppError("ERR_FINANCE_PRODUCT_NOT_FOUND", 404);

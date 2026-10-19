@@ -118,7 +118,7 @@ const formatFieldValueForPrint = (field, values, record) => {
     return opt ? opt.label : raw || "—";
   }
   if (field.type === "asyncSelect") {
-    const singularKey = field.optionsResource?.replace(/s$/, "");
+    const singularKey = field.embeddedKey || field.optionsResource?.replace(/s$/, "");
     const embedded = record?.[singularKey];
     if (embedded && embedded.id === raw) return embedded.name;
     return raw || "—";
@@ -468,7 +468,14 @@ const FinanceRecordModal = ({
                     // FinanceRecordList) — garante que o selecionado apareça
                     // mesmo que não esteja entre os primeiros resultados de
                     // uma busca em branco.
-                    const singularKey = field.optionsResource.replace(/s$/, "");
+                    // `field.embeddedKey` (opcional) sobrepõe o
+                    // singular-automático do `optionsResource` — usado
+                    // quando o nome da associação no model não bate com
+                    // isso (ex.: `mainSupplierId`/`optionsResource:
+                    // "suppliers"` usa a associação `mainSupplier`, não
+                    // `supplier`, pra deixar claro no model que não é
+                    // qualquer fornecedor).
+                    const singularKey = field.embeddedKey || field.optionsResource.replace(/s$/, "");
                     const embedded = record?.[singularKey];
                     const currentId = values[field.name];
                     const selected = embedded && embedded.id === currentId ? embedded : null;

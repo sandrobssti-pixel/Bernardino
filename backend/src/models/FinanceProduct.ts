@@ -13,6 +13,7 @@ import {
   DataType
 } from "sequelize-typescript";
 import Company from "./Company";
+import FinanceSupplier from "./FinanceSupplier";
 
 // Cadastro de produtos/serviços do módulo Financeiro (Fase 1 do roadmap —
 // ver docs/MANUAL_TECNICO.md, seção 6.2). Campos como NCM já ficam previstos
@@ -121,6 +122,156 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Default("")
   @Column
   photoUrl: string;
+
+  // --------------------------------------------------------------------
+  // "3 - Fornecedor / Produção" (v2.3.168) — modelo do sistema de
+  // referência do cliente (print de tela). `mainSupplierId` reaproveita o
+  // cadastro de Fornecedor já existente (FinanceSupplier) em vez de um
+  // campo de texto solto — pedido do cliente era só "Distribuidor/
+  // Fornecedor Principal", mas a empresa já tem cadastro de fornecedor
+  // de verdade, não faz sentido duplicar.
+  // --------------------------------------------------------------------
+
+  @ForeignKey(() => FinanceSupplier)
+  @Column
+  mainSupplierId: number;
+
+  @BelongsTo(() => FinanceSupplier)
+  mainSupplier: FinanceSupplier;
+
+  @Default("")
+  @Column
+  productionLeadTime: string;
+
+  @Default("")
+  @Column
+  designCode: string;
+
+  @Default("")
+  @Column
+  productionScale: string;
+
+  @Default("")
+  @Column
+  manufacturerCnpj: string;
+
+  // --------------------------------------------------------------------
+  // "1 - Dados Gerais" complementar (v2.3.168) — campos do sistema de
+  // referência que não existiam ainda aqui. `sku` já cobre "Código
+  // Interno" (não duplicado).
+  // --------------------------------------------------------------------
+
+  @Default("")
+  @Column
+  barcodeGtin: string;
+
+  @Default("")
+  @Column
+  supplierCode: string;
+
+  @Default("")
+  @Column
+  originalCode: string;
+
+  @Default("")
+  @Column
+  similarProductCode: string;
+
+  @Default("")
+  @Column
+  colorSizeFlavor: string;
+
+  @Column
+  weight: number;
+
+  @Default("")
+  @Column
+  category: string;
+
+  @Default("")
+  @Column
+  subcategory: string;
+
+  @Default("")
+  @Column
+  packaging: string;
+
+  @Default("")
+  @Column
+  productFamily: string;
+
+  @Default("")
+  @Column
+  storageLocation: string;
+
+  // Tabela 1 de preço já é o `price` existente — Tabelas 2 a 5 são
+  // listas de preço alternativas (ex.: atacado, promoção), mesmo padrão
+  // string (não float) do resto do cadastro.
+  @Default("0")
+  @Column
+  priceTable2: string;
+
+  @Default("0")
+  @Column
+  priceTable3: string;
+
+  @Default("0")
+  @Column
+  priceTable4: string;
+
+  @Default("0")
+  @Column
+  priceTable5: string;
+
+  @Default(0)
+  @Column
+  reservedStock: number;
+
+  @Default(0)
+  @Column
+  idealStock: number;
+
+  // "Por Lote" (quantidade por lote) — separado do switch `lotControl`
+  // abaixo ("Controle por Lote", se esse produto rastreia lote ou não).
+  @Default(0)
+  @Column
+  stockByLot: number;
+
+  @Default(false)
+  @Column
+  lotControl: boolean;
+
+  @Default(false)
+  @Column
+  isComposite: boolean;
+
+  @Default(false)
+  @Column
+  isRawMaterial: boolean;
+
+  @Default(false)
+  @Column
+  isEquipment: boolean;
+
+  @Default(false)
+  @Column
+  soldByWeight: boolean;
+
+  @Default("0")
+  @Column
+  commissionRate: string;
+
+  @Default("0")
+  @Column
+  maxDiscountMargin: string;
+
+  @Default(0)
+  @Column
+  loyaltyPoints: number;
+
+  @Default(0)
+  @Column
+  redemptionPoints: number;
 
   // --------------------------------------------------------------------
   // Cadastro de armas/munições/insumos controlados (clube de tiro, loja de
