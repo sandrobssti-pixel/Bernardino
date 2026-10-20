@@ -199,6 +199,29 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setDetailOpen(true);
   };
 
+  // "Baixar nota" direto na lista (v2.3.173, pedido do cliente: "um botão
+  // que sempre baixe a nota fiscal, mesmo depois de enviada para o
+  // cliente") — antes só dava pra baixar entrando no detalhe da venda.
+  // Mesma lógica do `handleBulkDownload` abaixo: a lista de vendas não
+  // traz `pdfUrl` (lista enxuta de propósito), busca o histórico na hora
+  // e abre a nota autorizada mais recente.
+  const [downloadingRowId, setDownloadingRowId] = useState(null);
+  const handleDownloadRow = async (sale) => {
+    setDownloadingRowId(sale.id);
+    try {
+      const documents = await fiscal.fiscalDocuments.list(sale.id);
+      const doc = (documents || []).find((d) => d.status === "authorized" && d.pdfUrl);
+      if (doc) {
+        window.open(doc.pdfUrl, "_blank");
+      } else {
+        toast.info("Nenhuma nota autorizada encontrada pra essa venda.");
+      }
+    } catch (err) {
+      toastError(err);
+    }
+    setDownloadingRowId(null);
+  };
+
   const handleSave = async (values) => {
     if (selectedSale?.id) {
       await fiscal.sales.update(selectedSale.id, values);
@@ -604,6 +627,17 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <ReceiptIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      {sale.fiscalDocuments?.some((d) => d.status === "authorized") && (
+                        <Tooltip title="Baixar nota (PDF)">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownloadRow(sale)}
+                            disabled={downloadingRowId === sale.id}
+                          >
+                            <GetAppIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Cancelar venda">
                         <IconButton size="small" onClick={() => requestCancel(sale)}>
                           <CancelIcon fontSize="small" />
@@ -612,11 +646,24 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                     </>
                   )}
                   {sale.status === "cancelled" && (
-                    <Tooltip title="Ver itens">
-                      <IconButton size="small" onClick={() => handleViewDetail(sale)}>
-                        <VisibilityIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <>
+                      <Tooltip title="Ver itens">
+                        <IconButton size="small" onClick={() => handleViewDetail(sale)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {sale.fiscalDocuments?.some((d) => d.status === "authorized") && (
+                        <Tooltip title="Baixar nota (PDF)">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDownloadRow(sale)}
+                            disabled={downloadingRowId === sale.id}
+                          >
+                            <GetAppIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </>
                   )}
                 </TableCell>
               </TableRow>

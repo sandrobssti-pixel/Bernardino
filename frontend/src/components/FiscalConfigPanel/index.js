@@ -765,6 +765,67 @@ const FiscalConfigPanel = ({ fiscal }) => {
             <Divider className={classes.divider} />
 
             <Typography variant="subtitle1" className={classes.sectionTitle}>
+              Envio de nota por e-mail (Resend)
+            </Typography>
+            <Typography variant="body2" className={classes.sectionSubtitle}>
+              Por padrão, "Enviar por e-mail" (tela da venda) pede pra própria
+              Focus NFe mandar o e-mail. Habilitando aqui, o AtendeFlow passa a
+              mandar ele mesmo, com o remetente configurado abaixo — crie uma
+              conta em resend.com, verifique um domínio e gere uma API key.
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={!!values.resendEnabled}
+                      onChange={(e) => setFieldValue("resendEnabled", e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label="Usar Resend pra enviar a nota por e-mail"
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="resendApiKey"
+                  label="API Key da Resend"
+                  type="password"
+                  disabled={!values.resendEnabled}
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="resendFromEmail"
+                  label="E-mail remetente"
+                  placeholder="notas@seudominio.com.br"
+                  disabled={!values.resendEnabled}
+                />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="resendFromName"
+                  label="Nome remetente (opcional)"
+                  disabled={!values.resendEnabled}
+                />
+              </Grid>
+            </Grid>
+
+            <Divider className={classes.divider} />
+
+            <Typography variant="subtitle1" className={classes.sectionTitle}>
               Reforma Tributária 2027 (IVA)
             </Typography>
             <Typography variant="body2" className={classes.sectionSubtitle}>

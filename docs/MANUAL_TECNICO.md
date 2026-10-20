@@ -10631,3 +10631,66 @@ Nenhuma mudança no backend (nenhum campo novo, nenhuma migration) — só
 reaproveita o endpoint de busca de produtos que já existia.
 
 **Arquivos**: `frontend/src/components/SaleModal/index.js`.
+
+## 151. Envio de nota por e-mail via Resend + botão de baixar sempre disponível (v2.3.173)
+
+Pedido do cliente, deixado pendente desde a seção 148 ("próximo da
+fila"): "colocar um botão que sempre baixe a nota fiscal, mesmo depois
+de enviada para o cliente, e colocar um campo para enviar por email,
+podemos configurar o resend, quando gerar a nota fiscal tem a opção de
+mandar por email". Antes de implementar, perguntei duas coisas (ver
+`AskUserQuestion`): se já tinha conta/API key da Resend (tinha) e o que
+exatamente faltava no botão de baixar, já que PDF/XML já existiam na
+tela de detalhe — resposta: "deixar mais visível/fácil de achar".
+
+**Envio por e-mail via Resend** — alternativa ao envio já existente
+(`FocusNFeService.sendByEmail`, que pede pra própria Focus NFe mandar, e
+nunca foi validado contra conta de Homologação real desde a Fase 3).
+`FiscalConfig.ts` ganhou `resendEnabled`/`resendApiKey`/
+`resendFromEmail`/`resendFromName` — a API key fica em texto puro
+(mesmo padrão já usado pra `gatewayTokenSandbox`/`gatewayTokenProduction`,
+chave de integração de API, não dado pessoal — diferente do caso da
+senha do gov.br do Despachante Bélico, que é cifrada). Novo
+`ResendEmailService.ts`: baixa o PDF já resolvido (`document.pdfUrl`),
+base64-encoda, e faz `POST https://api.resend.com/emails` com o PDF
+anexado. `FiscalDocumentService.sendByEmail` agora decide: se
+`config.resendEnabled`, usa a Resend; senão, cai no relay antigo da
+Focus NFe (comportamento inalterado pra quem não configurar nada).
+
+**"Quando gerar a nota fiscal tem a opção de mandar por email"** —
+`SaleDetailModal.handleEmit`: quando o `emit` já volta com
+`status === "authorized"` (alguns gateways/documentos autorizam na
+hora, sem precisar de "Atualizar status" depois), o diálogo de enviar
+por e-mail já abre em seguida, em vez de precisar achar o ícone na
+lista depois. Quando a nota fica "processando" (caminho assíncrono mais
+comum), nada muda — o ícone de e-mail já aparece na lista assim que a
+nota autorizar, igual antes.
+
+**Botão de baixar sempre disponível** — `SaleList.js` ganhou
+`handleDownloadRow` (reaproveitando a mesma lógica já usada no download
+em massa, `handleBulkDownload`: a lista de Vendas não traz `pdfUrl` —
+lista enxuta de propósito — então busca o histórico de documentos na
+hora e abre a nota autorizada mais recente numa aba nova). Ícone
+"Baixar nota (PDF)" novo, visível em vendas Confirmadas E Canceladas
+(antes a lista de Canceladas só tinha "Ver itens") sempre que a venda
+já tem pelo menos um documento `authorized` — não precisa mais entrar
+no detalhe da venda pra isso.
+
+**⚠️ Nível de confiança**: o payload/endpoint da Resend segue a
+documentação pública oficial, mas nunca foi testado contra uma conta ou
+chave de API real nesta sessão (sem acesso a uma aqui) — testar um
+envio de verdade (com uma nota já autorizada) antes de confiar isso em
+produção.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; a migration nova
+(`20261020100000-*.ts`) testada (up e down) contra Postgres local
+rodando a cadeia completa; `npx eslint` limpo nos arquivos tocados do
+frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts`,
+`backend/src/services/FiscalService/ResendEmailService.ts` (novo),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/database/migrations/20261020100000-*.ts` (novo),
+`frontend/src/components/FiscalConfigPanel/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`.

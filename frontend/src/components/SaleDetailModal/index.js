@@ -130,9 +130,19 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   const handleEmit = async (type) => {
     setEmitting(type);
     try {
-      await fiscal.fiscalDocuments.emit(sale.id, type);
+      const result = await fiscal.fiscalDocuments.emit(sale.id, type);
       toast.success(`Emissão de ${DOC_TYPE_LABEL[type]} enviada ao gateway.`);
       await fetchDocuments();
+      // "Quando gerar a nota fiscal tem a opção de mandar por email"
+      // (v2.3.173) — alguns gateways/documentos autorizam na hora (já
+      // volta "authorized" na resposta do emit, sem precisar de
+      // "Atualizar status" depois); nesse caso já abre o diálogo de
+      // e-mail em seguida, em vez de esperar o usuário achar o ícone na
+      // lista. Quando fica "processando", o ícone de e-mail continua lá
+      // (abaixo) assim que a nota autorizar.
+      if (result?.status === "authorized") {
+        openEmailDialog(result);
+      }
     } catch (err) {
       toastError(err);
     }

@@ -197,6 +197,36 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   reform2027Enabled: boolean;
 
+  // --------------------------------------------------------------------
+  // Envio de nota por e-mail via Resend (v2.3.173, pedido do cliente) —
+  // alternativa ao envio por e-mail já existente ("Enviar por e-mail",
+  // SaleDetailModal.js), que até aqui dependia só do relay da própria
+  // Focus NFe (`FocusNFeService.sendByEmail`, nunca confirmado contra
+  // conta de Homologação de verdade). Com Resend habilitado, o PRÓPRIO
+  // AtendeFlow baixa o DANFE (pdfUrl já resolvido) e manda o e-mail
+  // direto pela API da Resend, com o remetente configurado aqui. Chave
+  // de API guardada em texto puro — mesmo padrão já usado pra
+  // `gatewayTokenSandbox`/`gatewayTokenProduction` acima (chave de
+  // integração de API, não senha/dado pessoal — não é o mesmo caso da
+  // senha do gov.br do Despachante Bélico, que é cifrada).
+  // --------------------------------------------------------------------
+
+  @Default(false)
+  @Column
+  resendEnabled: boolean;
+
+  @Default("")
+  @Column
+  resendApiKey: string;
+
+  @Default("")
+  @Column
+  resendFromEmail: string;
+
+  @Default("")
+  @Column
+  resendFromName: string;
+
   @AllowNull(false)
   @ForeignKey(() => Company)
   @Column

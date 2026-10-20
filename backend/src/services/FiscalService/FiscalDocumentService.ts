@@ -4,6 +4,7 @@ import Company from "../../models/Company";
 import * as SaleService from "./SaleService";
 import * as FiscalConfigService from "./FiscalConfigService";
 import * as FiscalGatewayService from "./FiscalGatewayService";
+import * as ResendEmailService from "./ResendEmailService";
 import { BASE_URL_SANDBOX, BASE_URL_PRODUCTION } from "./FocusNFeService";
 
 const VALID_TYPES = ["nfe", "nfce", "nfse"];
@@ -237,6 +238,20 @@ export const sendByEmail = async (
   }
 
   const config = await FiscalConfigService.show(companyId);
+
+  // Resend (v2.3.173) — quando habilitado, o AtendeFlow manda o e-mail
+  // ele mesmo (baixa o PDF e anexa), em vez de pedir pro gateway fiscal
+  // (Focus NFe) mandar. Ver ResendEmailService.ts.
+  if (config.resendEnabled) {
+    const company = await Company.findByPk(companyId);
+    return ResendEmailService.sendDocumentEmail(
+      config,
+      { type: document.type, number: document.number, pdfUrl: document.pdfUrl },
+      company?.name || "",
+      emails
+    );
+  }
+
   const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
   const fn = FiscalGatewayService.requireFeature(gateway, "sendByEmail");
   return fn(document.type, document.externalRef, emails, config);

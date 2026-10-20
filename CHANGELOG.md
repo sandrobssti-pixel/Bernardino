@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.173] — Envio de nota por e-mail via Resend + botão de baixar sempre disponível — 2026-10-20
+
+### Adicionado
+- Configuração Fiscal ganhou uma seção "Envio de nota por e-mail
+  (Resend)": liga/desliga, API key, e-mail e nome do remetente. Com
+  Resend habilitado, "Enviar por e-mail" passa a ser mandado pelo próprio
+  AtendeFlow (baixa o DANFE e anexa) em vez de depender do relay da
+  Focus NFe.
+- Emitir uma nota que já volta autorizada na hora já abre o diálogo de
+  enviar por e-mail em seguida, em vez de precisar achar o ícone depois.
+- Lista de Vendas ganhou um ícone "Baixar nota (PDF)" direto na linha
+  (vendas confirmadas e canceladas, quando já têm nota autorizada) —
+  antes só dava pra baixar entrando no detalhe da venda.
+
+⚠️ A integração com a Resend segue a documentação pública da API, mas
+nunca foi testada contra uma conta/chave real nesta sessão — testar um
+envio de verdade antes de confiar em produção.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 151.
+
 ## [2.3.172] — Digitar SKU ou nome do item já preenche os campos — 2026-10-20
 
 ### Adicionado
