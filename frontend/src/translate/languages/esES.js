@@ -939,7 +939,7 @@ const messages = {
           financeiro: "Financiero",
           rh: "RRHH",
           weaponDispatch: "Despachante de Armas",
-          services: "Servicios",
+          services: "Servicios Admin.",
           queueIntegration: "Integraciones",
           version: "Versión",
           kanban: "CRM / Kanban",

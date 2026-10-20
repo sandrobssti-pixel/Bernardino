@@ -59,6 +59,7 @@ const buildInitialValues = (record) => ({
   phone: record?.phone || "",
   whatsapp: record?.whatsapp || "",
   notes: record?.notes || "",
+  contactId: record?.contactId || null,
   services: [{ ...emptyService }],
 });
 
@@ -122,11 +123,17 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
   const [photoPreview, setPhotoPreview] = useState(null);
   const [existingProcesses, setExistingProcesses] = useState([]);
   const [printSnapshot, setPrintSnapshot] = useState(null);
+  // Resultado escolhido na busca "Já é cliente?" (Contato/Financeiro) — só
+  // pra manter o nome visível na caixa depois de escolher (o campo em si
+  // não é salvo, só preenche nome/CPF/telefone/endereço/contactId — ver
+  // handlePersonLookupChange).
+  const [personLookupValue, setPersonLookupValue] = useState(null);
 
   useEffect(() => {
     setInitialValues(buildInitialValues(record));
     setPhotoFile(null);
     setPhotoPreview(record?.photoUrl || null);
+    setPersonLookupValue(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
@@ -166,6 +173,27 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
     return records || [];
   };
 
+  // Busca combinada em Contatos (Atendimento) + Clientes (Financeiro) —
+  // pedido do cliente: evitar recadastrar quem já existe num dos dois.
+  // Preenche os campos da ficha (editáveis depois, não trava) e guarda o
+  // `contactId` quando o resultado tem um (direto, se veio de Contato; ou o
+  // vínculo já salvo no Cliente Financeiro, se veio de lá).
+  const fetchPersonOptions = async (searchParam) => {
+    if (!searchParam || searchParam.trim().length < 2) return [];
+    return weaponDispatch.clients.lookup(searchParam);
+  };
+
+  const handlePersonLookupChange = (person, setFieldValue) => {
+    setPersonLookupValue(person || null);
+    if (!person) return;
+    setFieldValue("name", person.name || "");
+    setFieldValue("cpf", person.cpf || "");
+    setFieldValue("phone", person.phone || "");
+    setFieldValue("whatsapp", person.whatsapp || "");
+    setFieldValue("address", person.address || "");
+    setFieldValue("contactId", person.contactId || null);
+  };
+
   const handleSubmit = async (values, { setSubmitting }) => {
     try {
       const personalPayload = {
@@ -177,6 +205,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
         phone: values.phone,
         whatsapp: values.whatsapp,
         notes: values.notes,
+        contactId: values.contactId || null,
       };
 
       const client = record?.id
@@ -275,6 +304,21 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                 </div>
 
                 <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <FinanceAsyncAutocomplete
+                      label="Já é cliente? Buscar em Contatos/Financeiro"
+                      placeholder="Buscar por nome, CPF ou telefone"
+                      value={personLookupValue}
+                      initialOptions={personLookupValue ? [personLookupValue] : []}
+                      getOptionLabel={(opt) =>
+                        opt?.name
+                          ? `${opt.name} (${opt.source === "contact" ? "Contato" : "Cliente Financeiro"})`
+                          : ""
+                      }
+                      fetchOptions={fetchPersonOptions}
+                      onChange={(e, newValue) => handlePersonLookupChange(newValue, setFieldValue)}
+                    />
+                  </Grid>
                   <Grid item xs={12} sm={8}>
                     <Field
                       as={TextField}

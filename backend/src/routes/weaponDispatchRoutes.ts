@@ -29,6 +29,13 @@ weaponDispatchRoutes.get(
   isAuth,
   WeaponDispatchClientController.index
 );
+// Precisa vir ANTES de "/weapon-dispatch/clients/:id", senão "lookup" cai
+// na rota de :id.
+weaponDispatchRoutes.get(
+  "/weapon-dispatch/clients/lookup",
+  isAuth,
+  WeaponDispatchClientController.lookup
+);
 weaponDispatchRoutes.get(
   "/weapon-dispatch/clients/:id",
   isAuth,

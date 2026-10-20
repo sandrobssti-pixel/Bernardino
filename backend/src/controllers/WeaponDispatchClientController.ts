@@ -23,6 +23,20 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json(result);
 };
 
+// Busca combinada em Contatos + Clientes Financeiro, pra preencher a ficha
+// de "Novo cliente" sem recadastrar quem já existe num dos dois cadastros
+// (ver WeaponDispatchClientService.lookupPerson). Precisa vir ANTES de
+// GET /weapon-dispatch/clients/:id nas rotas, senão "lookup" seria lido
+// como um :id.
+export const lookup = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { searchParam } = req.query as { searchParam?: string };
+
+  const results = await WeaponDispatchClientService.lookupPerson(companyId, searchParam || "");
+  return res.status(200).json(results);
+};
+
 export const show = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;

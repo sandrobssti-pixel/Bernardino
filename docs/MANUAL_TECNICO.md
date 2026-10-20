@@ -10949,3 +10949,80 @@ migration nova nesta seção (nenhuma coluna nova).
 `useServices`, repassa `services` pra Contas a Receber),
 `frontend/src/pages/Financeiro/financeConfig.js`
 (`financeReceivableFields` ganha o campo `_servicePicker`).
+
+## 155. Busca de cliente existente no Despachante Bélico + renomeia Serviços (v2.3.177)
+
+Pedido do cliente, numa mensagem longa explicando o fluxo completo:
+hoje existem 3 cadastros de pessoa isolados — **Contatos**
+(Atendimento, "a entrada do sistema"), **Clientes** (Financeiro,
+quem compra arma/munição/produto) e **Cliente do Despachante Bélico**
+(quem está tramitando documentação de CR/Posse) — sem nenhuma relação
+entre eles, risco de cadastrar a mesma pessoa 3 vezes. Pedido
+concreto: ao abrir "Novo cliente" no Despachante Bélico, poder buscar
+alguém que já existe em Contatos OU em Clientes do Financeiro e puxar
+os dados, em vez de digitar tudo de novo.
+
+Decisão confirmada com o cliente antes de implementar (duas perguntas,
+as duas com a opção recomendada escolhida): (1) a busca cobre os dois
+cadastros ao mesmo tempo, não só um; (2) os campos vêm preenchidos mas
+continuam editáveis (igual "foto do momento" — copia os dados pra
+ficha, não trava edição nem sincroniza se o cadastro original mudar
+depois).
+
+**Backend** — `WeaponDispatchClientService.lookupPerson` (novo):
+busca em paralelo em `Contact` (nome/número/documento, excluindo
+grupos de WhatsApp) e `FinanceCustomer` (nome/documento/telefone/
+whatsapp), ambos escopados por `companyId`, e devolve uma lista
+combinada com um campo `source` ("contact"/"customer") pra o frontend
+saber de onde veio cada resultado. Só leitura — não grava vínculo
+nenhum sozinho. Novo endpoint `GET /weapon-dispatch/clients/lookup`
+(**precisa vir ANTES** de `GET /weapon-dispatch/clients/:id` nas
+rotas, senão "lookup" seria lido como um `:id` — mesmo cuidado já
+documentado em `contactRoutes.ts`).
+
+**`contactId` já existia no model, nunca tinha UI**: o model
+`WeaponDispatchClient.ts` já tinha a coluna `contactId` (FK pra
+`Contact`) desde antes desta sessão, com um comentário dizendo que
+era pra um vínculo opcional — mas nenhuma tela usava isso. Agora,
+quando o resultado escolhido vem de um Contato, `contactId` é
+preenchido com o id dele; quando vem de um Cliente Financeiro,
+`contactId` é preenchido com o vínculo que ELE já tinha salvo (se
+tiver — `FinanceCustomer.contactId`). Nenhuma migration nova (coluna
+já existia).
+
+**Frontend**: novo campo de busca (`FinanceAsyncAutocomplete`, mesmo
+componente já usado em Serviço/Fornecedor/Cliente) no topo da ficha,
+acima de "Nome completo" — rótulo mostra "(Contato)" ou "(Cliente
+Financeiro)" pra deixar claro a origem. Ao escolher, preenche nome/
+CPF/telefone/whatsapp/endereço/`contactId` via `setFieldValue` — os
+campos continuam editáveis normalmente depois.
+
+**Renomeado "Serviços" → "Serviços Adms."**: o cliente avisou que vai
+criar um módulo NOVO e DIFERENTE, "Serviço Armaria" (gestão de
+serviço técnico em armas — ver próxima seção, ainda em design, não
+implementado nesta seção), e pediu pra renomear o catálogo simples já
+existente (seção 153) pra abrir espaço de nome. Só o rótulo do menu
+mudou (`mainDrawer.listItems.services`, 4 idiomas) — nenhum campo,
+rota ou model mudou.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; **backend
+realmente iniciado localmente** (`node dist/server.js` contra um
+banco de teste, não só `tsc`/migration) — depois do susto da seção
+154 (um erro de inicialização do Sequelize que só aparece em runtime,
+não em tempo de compilação nem em teste de migration), passei a
+sempre confirmar isso quando a mudança mexe em relação entre models;
+subiu limpo, só os avisos esperados de Redis não estar rodando no
+ambiente de teste. `npx eslint` limpo nos arquivos tocados; `craco
+build` de produção limpo. Sem migration nova (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/services/WeaponDispatchService/
+WeaponDispatchClientService.ts` (`lookupPerson`),
+`backend/src/controllers/WeaponDispatchClientController.ts`
+(`lookup`), `backend/src/routes/weaponDispatchRoutes.ts` (rota
+`/weapon-dispatch/clients/lookup`),
+`frontend/src/hooks/useWeaponDispatch/index.js`
+(`clients.lookup`), `frontend/src/components/
+WeaponDispatchClientModal/index.js` (campo de busca,
+`handlePersonLookupChange`, `contactId` no payload),
+`frontend/src/translate/languages/{pt,en,es,esES}.js` (renomeia
+`mainDrawer.listItems.services`).

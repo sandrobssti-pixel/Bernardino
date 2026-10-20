@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.177] — Busca de cliente existente no Despachante Bélico + renomeia Serviços — 2026-10-20
+
+### Adicionado
+- Ao cadastrar um cliente novo no Despachante Bélico, um campo "Já é
+  cliente? Buscar em Contatos/Financeiro" acha a pessoa em qualquer um
+  dos dois cadastros já existentes e preenche nome/CPF/telefone/
+  endereço automaticamente (continuam editáveis depois de preenchidos)
+  — evita a mesma pessoa cadastrada 3 vezes em áreas diferentes.
+
+### Alterado
+- O módulo "Serviços" (catálogo simples, sem fiscal) foi renomeado
+  pra "Serviços Adms." no menu — prepara o nome pra abrir espaço pro
+  novo módulo "Serviço Armaria" (gestão de serviço técnico de armas),
+  que vai ter nome e propósito diferentes.
+
 ## [2.3.176] — Corrige backend em crash loop + Serviço preenche Contas a Receber — 2026-10-20
 
 ### Corrigido

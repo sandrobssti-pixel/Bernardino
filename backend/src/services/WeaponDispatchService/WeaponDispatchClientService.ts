@@ -3,6 +3,8 @@ import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import WeaponDispatchClient from "../../models/WeaponDispatchClient";
 import WeaponDispatchGovPasswordAccessLog from "../../models/WeaponDispatchGovPasswordAccessLog";
+import Contact from "../../models/Contact";
+import FinanceCustomer from "../../models/FinanceCustomer";
 import { encryptSecret, decryptSecret } from "../../utils/weaponDispatchCrypto";
 
 interface ListRequest {
@@ -130,6 +132,87 @@ export const remove = async (id: string | number, companyId: number): Promise<vo
     throw new AppError("ERR_WEAPON_DISPATCH_CLIENT_NOT_FOUND", 404);
   }
   await record.destroy();
+};
+
+interface LookupResult {
+  source: "contact" | "customer";
+  id: number;
+  contactId: number | null;
+  name: string;
+  cpf: string;
+  phone: string;
+  whatsapp: string;
+  address: string;
+}
+
+// Busca combinada em Contatos (Atendimento) + Clientes (Financeiro) — pedido
+// do cliente: ao cadastrar um cliente novo no Despachante Bélico, poder
+// achar quem já existe em qualquer um dos dois cadastros em vez de digitar
+// tudo de novo (evita o mesmo CPF/telefone espalhado em 3 lugares
+// diferentes — Contato, Cliente Financeiro, Cliente Despachante Bélico).
+// Só LEITURA — quem usa decide se preenche os campos da ficha com o
+// resultado (ver WeaponDispatchClientModal.js); nada aqui grava vínculo
+// sozinho.
+export const lookupPerson = async (
+  companyId: number,
+  searchParam: string
+): Promise<LookupResult[]> => {
+  if (!searchParam || searchParam.trim().length < 2) return [];
+  const term = searchParam.trim();
+
+  const contacts = await Contact.findAll({
+    where: {
+      companyId,
+      isGroup: false,
+      [Op.or]: [
+        Sequelize.where(Sequelize.fn("LOWER", Sequelize.col("name")), "LIKE", `%${term.toLowerCase()}%`),
+        { number: { [Op.like]: `%${term}%` } },
+        { document: { [Op.like]: `%${term}%` } }
+      ]
+    },
+    limit: 8,
+    order: [["name", "ASC"]]
+  });
+
+  const customers = await FinanceCustomer.findAll({
+    where: {
+      companyId,
+      [Op.or]: [
+        Sequelize.where(Sequelize.fn("LOWER", Sequelize.col("name")), "LIKE", `%${term.toLowerCase()}%`),
+        { document: { [Op.like]: `%${term}%` } },
+        { phone: { [Op.like]: `%${term}%` } },
+        { whatsapp: { [Op.like]: `%${term}%` } }
+      ]
+    },
+    limit: 8,
+    order: [["name", "ASC"]]
+  });
+
+  const fromContacts: LookupResult[] = contacts.map((c) => ({
+    source: "contact",
+    id: c.id,
+    contactId: c.id,
+    name: c.name || "",
+    cpf: c.document || "",
+    phone: c.number || "",
+    whatsapp: c.number || "",
+    address: c.address || ""
+  }));
+
+  const fromCustomers: LookupResult[] = customers.map((c) => ({
+    source: "customer",
+    id: c.id,
+    contactId: c.contactId || null,
+    name: c.name || "",
+    cpf: c.document || "",
+    phone: c.phone || "",
+    whatsapp: c.whatsapp || c.phone || "",
+    address: [c.street, c.number, c.neighborhood, c.city, c.state]
+      .filter(Boolean)
+      .join(", ")
+  }));
+
+  return [...fromContacts, ...fromCustomers];
 };
 
 // Grava a senha do gov.br do cliente, SEMPRE cifrada (nunca em texto puro

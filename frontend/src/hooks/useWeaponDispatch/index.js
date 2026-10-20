@@ -23,6 +23,15 @@ const useWeaponDispatch = () => {
       const { data } = await api.get(`/weapon-dispatch/clients/${id}`);
       return data;
     },
+    // Busca combinada em Contatos (Atendimento) + Clientes (Financeiro) —
+    // pra preencher a ficha de "Novo cliente" sem recadastrar quem já
+    // existe num dos dois. Ver WeaponDispatchClientService.lookupPerson.
+    lookup: async (searchParam) => {
+      const { data } = await api.get("/weapon-dispatch/clients/lookup", {
+        params: { searchParam },
+      });
+      return data;
+    },
     save: async (payload) => {
       const { data } = await api.post("/weapon-dispatch/clients", payload);
       return data;
