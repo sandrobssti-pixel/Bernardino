@@ -101,6 +101,7 @@ const FinanceRecordList = ({
   filters = [],
   initialFilterValues = {},
   finance,
+  services,
   allowImport = false,
   allowTemplateDownload = false,
   templateFilename,
@@ -388,6 +389,7 @@ const FinanceRecordList = ({
         fields={fields}
         record={selectedRecord}
         finance={finance}
+        services={services}
         context={context}
         canExport={canExport}
         enablePayments={enablePayments}

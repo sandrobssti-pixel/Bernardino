@@ -581,6 +581,13 @@ export const financeReceivableColumns = [
 ];
 
 export const financeReceivableFields = [
+  {
+    name: "_servicePicker",
+    type: "serviceSelect",
+    label: "Buscar serviço (preenche Descrição/Valor)",
+    fillFields: { description: "name", value: "value" },
+    gridSize: 12,
+  },
   { name: "description", label: "Descrição", gridSize: 8 },
   { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: RECEIVABLE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },

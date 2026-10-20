@@ -9,6 +9,7 @@ import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
 import useFinance from "../../hooks/useFinance";
 import useFiscal from "../../hooks/useFiscal";
+import useServices from "../../hooks/useServices";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
 import FiscalConfigPanel from "../../components/FiscalConfigPanel";
@@ -77,6 +78,7 @@ const Financeiro = () => {
   const { user } = useContext(AuthContext);
   const finance = useFinance();
   const fiscal = useFiscal();
+  const services = useServices();
   const [financeAccess, setFinanceAccess] = useState(null);
   // Fiscal (Vendas/Configuração Fiscal) é um add-on SEPARADO do Financeiro
   // (Plan.useFiscal, v2.3.23) — o Master pode vender um plano com Financeiro
@@ -178,6 +180,7 @@ const Financeiro = () => {
           fields={financeReceivableFields}
           filters={financeReceivableFilters}
           finance={finance}
+          services={services}
           enablePayments={showPaymentTab}
         />
       );

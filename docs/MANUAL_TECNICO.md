@@ -10875,3 +10875,77 @@ WeaponDispatchProcessService.ts` (+ `serviceId`, include `Service`),
 (rota `/services`), `frontend/src/layout/MainListItems.js` (item de
 menu "Serviços"), `frontend/src/translate/languages/{pt,en,es,
 esES}.js` (chave `mainDrawer.listItems.services`).
+
+## 154. Corrige backend em crash loop + Serviço preenche Contas a Receber (v2.3.176)
+
+**Bug em produção, causado por mim na seção 153**: logo depois do
+deploy do v2.3.175, o cliente avisou que o AtendeFlow parou de abrir
+("erro para entrar"). Diagnóstico junto com o cliente:
+`docker compose ps` mostrou o container do backend em
+`Restarting (1)` (crash loop) — `docker compose logs backend` revelou
+`Error: Service has not been defined`, disparado pelo
+sequelize-typescript ao tentar montar as associações (`addModels` /
+`associateModels`). Causa: criei o model `Service.ts` na seção 153 e
+dei `@BelongsTo(() => Service)`/`@ForeignKey(() => Service)` em
+`WeaponDispatchProcess.ts`, mas esqueci de incluir `Service` na lista
+de models que `backend/src/database/index.ts` passa pro
+`sequelize.addModels([...])` — todo model TEM que estar nessa lista,
+senão qualquer outro model que referencia ele via decorator quebra a
+inicialização inteira do Sequelize (não é um erro silencioso, derruba
+o processo Node — por isso o container ficava reiniciando sem parar).
+As migrations já tinham rodado certinho antes do crash (log confirmou
+"database schema was already up to date"), então a correção foi só de
+código — `import Service from "../models/Service"` +
+adicionar `Service` no array de models, sem mexer no banco.
+
+**Lição pra não repetir**: toda vez que um model novo entra, conferir
+na hora se ele foi incluído em `database/index.ts` (import + array) —
+o `tsc --noEmit` não pega esse tipo de erro (é um erro de runtime do
+Sequelize, não de tipo), e os testes de migration também não (eles só
+testam o schema do banco, não a inicialização do `Sequelize` com
+`sequelize-typescript`). Precisaria ter subido o backend localmente
+(`npm run dev:server` ou equivalente) antes de dar como validado — não
+fiz isso nesta sessão, só rodei `tsc`/migration/build, que não cobrem
+esse caminho.
+
+**Serviço preenche Contas a Receber**: o cliente perguntou se, na hora
+de cobrar no Financeiro, o cadastro de Serviços (seção 153) também
+preencheria valor/descrição automaticamente — perguntei se era em
+Contas a Receber (cobrança simples, sem nota fiscal) ou em Vendas (que
+gera NF-e de verdade, e cujos itens precisam de SKU/NCM/CFOP que o
+Serviço não tem de propósito). Cliente confirmou o caso de uso
+("preencher o nome do serviço já preenche os campos automaticamente
+com valores e descrição"), que bate exatamente com Contas a Receber —
+hoje só tem "Descrição" (texto livre) e "Valor" (número), sem nenhum
+vínculo com cadastro nenhum. Implementei só ali; Vendas fica de fora
+por enquanto (precisaria de uma decisão separada sobre os campos
+fiscais do item).
+
+Novo tipo de campo `serviceSelect` em `FinanceRecordModal.js` — busca
+no cadastro de Serviço (prop `services`, novo, igual ao padrão de
+`finance`/`field.optionsResource` que o `asyncSelect` já usava), mas
+diferente do `asyncSelect`, **não é ele mesmo uma coluna do
+registro**: ao escolher um serviço, só preenche os campos mapeados em
+`field.fillFields` (`{ description: "name", value: "value" }` em
+Contas a Receber) via `setFieldValue` — o vínculo em si não fica
+salvo, é só um atalho de preenchimento (mesma filosofia do
+autopreenchimento de SKU/nome em Venda, seção 150). Por isso o campo
+fica de fora de `buildInitialValues`/do payload enviado pro backend
+(mesmo tratamento que já existia pra `"photo"`/`"sectionTitle"`) e
+também fora da área de impressão. Estado local
+(`servicePickerValue`) só pra manter o nome escolhido visível na
+caixa depois de selecionar — resetado junto com o resto do formulário
+quando o modal abre/fecha.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; `npx eslint`
+limpo nos arquivos tocados; `craco build` de produção limpo. Sem
+migration nova nesta seção (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/database/index.ts` (registra `Service`),
+`frontend/src/components/FinanceRecordModal/index.js` (tipo
+`serviceSelect`, prop `services`, `servicePickerValue`),
+`frontend/src/components/FinanceRecordList/index.js` (repassa prop
+`services`), `frontend/src/pages/Financeiro/index.js` (hook
+`useServices`, repassa `services` pra Contas a Receber),
+`frontend/src/pages/Financeiro/financeConfig.js`
+(`financeReceivableFields` ganha o campo `_servicePicker`).

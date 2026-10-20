@@ -96,7 +96,7 @@ const useStyles = makeStyles((theme) => ({
 const buildInitialValues = (fields, record) => {
   const values = {};
   fields.forEach((field) => {
-    if (field.type === "sectionTitle" || field.type === "photo") return;
+    if (field.type === "sectionTitle" || field.type === "photo" || field.type === "serviceSelect") return;
     if (field.type === "switch") {
       values[field.name] = record?.[field.name] ?? field.defaultValue ?? false;
     } else {
@@ -145,6 +145,7 @@ const FinanceRecordModal = ({
   fields,
   record,
   finance,
+  services,
   context = {},
   canExport = false,
   enablePayments = false,
@@ -181,12 +182,17 @@ const FinanceRecordModal = ({
     asaasEnabled: false,
   });
   const [selectedProvider, setSelectedProvider] = useState("mercadopago");
+  // Serviço escolhido no campo "serviceSelect" — só pra manter o nome
+  // visível na caixa depois de escolher (o campo em si não é salvo, ver
+  // comentário no branch `field.type === "serviceSelect"` abaixo).
+  const [servicePickerValue, setServicePickerValue] = useState(null);
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
     setPaymentResult(null);
     setPhotoFile(null);
     setPhotoPreview(record?.photoUrl || null);
+    setServicePickerValue(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
@@ -522,6 +528,42 @@ const FinanceRecordModal = ({
                     );
                   }
 
+                  // Campo tipo "serviceSelect" (v2.3.175 — ex.: Contas a
+                  // Receber) — busca no cadastro de Serviço (prop `services`,
+                  // o hook `useServices`), mas NÃO é ele mesmo uma coluna do
+                  // registro: ao escolher um serviço, só preenche os campos
+                  // mapeados em `field.fillFields` (ex.: `{ description:
+                  // "name", value: "value" }`), igual ao autopreenchimento já
+                  // usado no Despachante Bélico e no SKU/nome da Venda — o
+                  // vínculo não fica salvo, é só um atalho de preenchimento.
+                  // Por isso fica fora de `buildInitialValues`/do payload.
+                  if (field.type === "serviceSelect") {
+                    return (
+                      <Grid item xs={12} sm={gridSize} key={field.name}>
+                        <FinanceAsyncAutocomplete
+                          label={field.label}
+                          value={servicePickerValue}
+                          initialOptions={servicePickerValue ? [servicePickerValue] : []}
+                          getOptionLabel={(opt) => opt?.name || ""}
+                          fetchOptions={async (searchParam) => {
+                            if (!services) return [];
+                            const { records } = await services.list({ searchParam });
+                            return records || [];
+                          }}
+                          onChange={(e, newValue) => {
+                            setServicePickerValue(newValue || null);
+                            if (!newValue) return;
+                            Object.entries(field.fillFields || {}).forEach(
+                              ([targetField, sourceKey]) => {
+                                setFieldValue(targetField, newValue[sourceKey] ?? "");
+                              }
+                            );
+                          }}
+                        />
+                      </Grid>
+                    );
+                  }
+
                   if (field.type === "date") {
                     return (
                       <Grid item xs={12} sm={gridSize} key={field.name}>
@@ -718,7 +760,7 @@ const FinanceRecordModal = ({
         <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
           <tbody>
             {fields
-              .filter((field) => field.type !== "sectionTitle")
+              .filter((field) => field.type !== "sectionTitle" && field.type !== "serviceSelect")
               .filter((field) => !field.visibleWhen || field.visibleWhen(printSnapshot.values))
               .map((field) => (
                 <tr key={field.name}>

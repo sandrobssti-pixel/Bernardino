@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.176] — Corrige backend em crash loop + Serviço preenche Contas a Receber — 2026-10-20
+
+### Corrigido
+- O model `Service` (novo no v2.3.175) não estava registrado na lista
+  de models do Sequelize — o backend quebrava assim que tentava montar
+  as associações ("Error: Service has not been defined"), derrubando
+  o sistema inteiro em produção. Corrigido.
+
+### Adicionado
+- Em Contas a Receber, um novo campo "Buscar serviço" puxa do
+  catálogo de Serviços e preenche Descrição e Valor automaticamente —
+  mesmo atalho que já existia no Despachante Bélico.
+
 ## [2.3.175] — Cadastro de Serviço (catálogo independente de Produtos) — 2026-10-20
 
 ### Adicionado
