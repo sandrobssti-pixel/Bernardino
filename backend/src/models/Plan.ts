@@ -145,6 +145,16 @@ class Plan extends Model<Plan> {
   @Column
   useWeaponDispatch: boolean;
 
+  // Serviço Armaria (recebimento de arma pra manutenção/conserto — termo
+  // de cautela/depósito, dados técnicos da arma, fotos antes/depois,
+  // relatório final no padrão Termo de Cautela da Polícia Federal) —
+  // add-on separado do Despachante Bélico (esse acompanha documentação de
+  // CR/Posse; o Armaria é serviço técnico físico na arma em si). Mesmo
+  // padrão acima. Ver docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  useWeaponArmory: boolean;
+
   // Módulo de RH/recrutamento (vagas, candidaturas, efetivação — Fase 5) —
   // add-on separado, independente do Financeiro/Fiscal (não usa nenhum
   // cadastro deles). Ver docs/MANUAL_TECNICO.md, seção 6.2.

@@ -11026,3 +11026,122 @@ WeaponDispatchClientModal/index.js` (campo de busca,
 `handlePersonLookupChange`, `contactId` no payload),
 `frontend/src/translate/languages/{pt,en,es,esES}.js` (renomeia
 `mainDrawer.listItems.services`).
+
+## 156. Novo módulo Serviço Armaria (v2.3.178)
+
+Pedido do cliente: hoje o cadastro de Produto (Financeiro) tem o tipo
+"Serviço" sem nenhuma especialização pra manutenção de arma de verdade.
+O cliente pediu um módulo PRÓPRIO — "Serviço Armaria" — pra registrar o
+recebimento de uma arma específica pra conserto/manutenção, com campos
+de arma, descrição do serviço, fotos antes/depois, e um relatório
+final "conforme as normas da Polícia Federal". Confirmado explicitamente
+como add-on **separado** do Despachante Bélico: "esse novo módulo
+Serviço Armaria vai ser liberado ou não pelo master vai depender da
+contratação dos serviços de cada cliente" — ou seja, mesmo padrão de
+plano/add-on do Despachante Bélico/Financeiro/Fiscal, mas com seu
+PRÓPRIO flag (`Plan.useWeaponArmory`), não reaproveitando o do
+Despachante Bélico — uma empresa pode ter um sem o outro.
+
+**Antes de desenhar os campos, pedi um documento real** (mesma
+disciplina já aplicada antes pro módulo fiscal, seção dos CSOSN/CFOP) —
+o cliente confirmou que ia mandar e enviou um modelo real de
+referência: "TERMO DE CAUTELA, RECEBIMENTO E DEPÓSITO DE ARMA DE FOGO
+(PARA MANUTENÇÃO)", no padrão Polícia Federal/SAT. Todos os campos do
+model `WeaponArmoryService.ts` são mapeados 1:1 nas 5 seções desse
+documento real:
+1. Qualificação do proprietário/detentor (nome, CPF, RG, profissão,
+   endereço, telefone, e-mail).
+2. Especificação técnica do armamento (espécie, marca, modelo,
+   calibre, nº de série, capacidade, acabamento, país de fabricação,
+   acessórios deixados — carregadores/maleta/coldre/outros).
+3. Controle documental mandatório (CRAF/registro SIGMA-SINARM +
+   vencimento; Guia de Tráfego + vencimento + órgão expedidor
+   PF/Sinarm ou EB/Sigma; Autorização Porte ou Posse + número +
+   vencimento).
+4. Objeto da manutenção e estado de conservação (serviço solicitado,
+   defeito relatado, estado de conservação visual na entrada, serviço
+   realizado — preenchido na conclusão —, status do processo).
+5. Fotos antes/depois (arrays JSON em TEXT, `photosBefore`/
+   `photosAfter` — diferente do padrão de foto única já usado em
+   Produto/Cliente/Serviço, porque aqui são várias por estágio).
+
+A declaração de responsabilidade (depósito temporário, condição de
+retirada, validade da Guia de Tráfego no momento da retirada) e o
+Termo de Restituição (preenchido só no ato da devolução) do documento
+real viraram texto fixo no print, não campos — são cláusulas padrão,
+não dados que variam por registro.
+
+**Busca de cliente existente reaproveitada, mas com gate próprio**:
+o mesmo picker "Já é cliente? Buscar em Contatos/Financeiro" do
+Despachante Bélico (seção 155) foi reaproveitado aqui — mas
+`WeaponArmoryServiceController.lookup` chama
+`WeaponDispatchClientService.lookupPerson` diretamente (a função em si
+só lê `Contact`/`FinanceCustomer`, não depende de nada específico do
+Despachante Bélico) só DEPOIS do `ensureAccess` **do Serviço Armaria**,
+não do Despachante Bélico — importante porque os dois add-ons são
+contratados de forma independente (uma empresa pode ter só um dos
+dois, e nesse caso não pode cair no gate errado).
+
+**Logomarca da empresa — nova, por pedido explícito**: o cliente pediu
+"quando sair a impressão coloca com a logomarca da Confederação
+Baiana de Tiro Defensivo e Olímpico" — como o AtendeFlow é vendido
+pra várias empresas-cliente diferentes, isso NUNCA pode ir fixo no
+código (quebraria pra qualquer outro cliente). Confirmado depois:
+"quando for para outra empresa do mesmo ramo a pessoa que opera
+coloca a logomarca da empresa dela". Implementado como
+`Company.logoUrl` (novo, genérico — não amarrado ao Fiscal nem a
+nenhum add-on, porque Serviço Armaria pode existir numa empresa sem
+Financeiro/Fiscal contratado) + endpoint de upload
+`POST /companies/:id/logo` (`CompanyController.uploadLogo`, Admin da
+própria empresa ou Master) + um botão "Anexar logomarca" na própria
+tela do módulo (Admin only) — fica salva uma vez, usada em todo
+Termo de Cautela impresso dali em diante.
+
+**Fotos antes/depois — padrão novo**: diferente de todo upload de foto
+já existente no sistema (sempre um `photoUrl` único por registro),
+aqui são VÁRIAS fotos por estágio. `weaponArmoryPhotoUpload.ts` usa
+`multer.array("photos", 10)` em vez de `.single(...)`;
+`WeaponArmoryServiceService.addPhotos`/`removePhoto` leem/escrevem um
+array JSON-stringificado na coluna (`photosBefore`/`photosAfter`,
+TEXT) — sem tabela própria pra fotos, pra não complicar o modelo por
+enquanto (decisão de manter simples; se precisar de metadado por foto
+no futuro — quem tirou, quando —, aí sim vira tabela).
+
+**Pendente, avisado pelo próprio cliente**: "depois vou passar as
+vistas explodidas de cada arma pra catalogar cada peça com numeração
+exata, Taurus, CBC, Glock, CZ" — catálogo de peças por
+modelo/fabricante, ainda não implementado, fica pra quando o material
+de referência chegar (mesma disciplina: não desenhar campo sem
+documento real).
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 4 migrations
+novas (`useWeaponArmory` em Plans, `weaponArmoryAccess` em Users,
+`logoUrl` em Companies, `create-weapon-armory-services`) testadas
+contra banco Postgres local do zero — cadeia completa, undo/redo das
+4, sem erro; **backend iniciado de verdade** (`node dist/server.js`,
+não só `tsc`/migration) pra confirmar que o novo model
+`WeaponArmoryService` foi registrado certinho em `database/index.ts`
+— depois do susto da seção 154, isso virou checagem obrigatória
+sempre que um model novo entra; subiu limpo. `npx eslint` limpo nos
+arquivos tocados (os erros de `import/first` em `routes/index.js` já
+existiam antes, confirmado contando: 50 depois vs. 49 antes, só a
+linha que eu adicionei); `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/{Plan,User,Company,
+WeaponArmoryService}.ts`,
+`backend/src/database/migrations/20261020{140000,150000,160000,
+170000}-*.ts` (novas), `backend/src/database/index.ts` (registra
+`WeaponArmoryService`), `backend/src/services/WeaponArmoryService/
+{EnsureWeaponArmoryAccess,WeaponArmoryServiceService}.ts` (novos),
+`backend/src/controllers/{WeaponArmoryAccessController,
+WeaponArmoryServiceController,CompanyController}.ts`,
+`backend/src/config/{weaponArmoryPhotoUpload,companyLogoUpload}.ts`
+(novos), `backend/src/routes/{weaponArmoryRoutes,companyRoutes,
+index}.ts`, `frontend/src/hooks/{useWeaponArmory,useCompanies}/
+index.js`, `frontend/src/pages/WeaponArmory/index.js` (novo),
+`frontend/src/components/WeaponArmoryServiceModal/index.js` (novo),
+`frontend/src/components/PlansManager/index.js` (toggle
+`useWeaponArmory`), `frontend/src/routes/index.js` (rota
+`/weapon-armory`), `frontend/src/layout/MainListItems.js` (item de
+menu "Serviço Armaria"), `frontend/src/translate/languages/{pt,en,es,
+esES}.js` (chave `mainDrawer.listItems.weaponArmory`).

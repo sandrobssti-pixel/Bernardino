@@ -576,6 +576,7 @@ const ALL_FEATURES = [
   { key: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
   { key: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
   { key: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
+  { key: "useWeaponArmory", label: "Serviço Armaria (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -598,6 +599,7 @@ const FEATURE_FIELDS = [
   { name: "usePayment", label: "Pagamento — Pix/boleto (add-on)" },
   { name: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
   { name: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
+  { name: "useWeaponArmory", label: "Serviço Armaria (add-on)" },
 ];
 
 export function PlanManagerForm(props) {
@@ -610,7 +612,7 @@ export function PlanManagerForm(props) {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, useWeaponArmory: false, isPublic: true,
   });
 
   useEffect(() => { setRecord(initialValue); }, [initialValue]);
@@ -1004,7 +1006,7 @@ export default function PlansManager() {
     useWhatsappOficial: true, useWebchat: true, useFacebook: true, useInstagram: true,
     useCampaigns: true, useSchedules: true, useInternalChat: true,
     useExternalApi: true, useKanban: true, useOpenAi: true,
-    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, isPublic: true,
+    useIntegrations: true, useFinancial: false, useFiscal: false, useHR: false, usePayment: false, useFlowbuilder: false, useWeaponDispatch: false, useWeaponArmory: false, isPublic: true,
   });
 
   useEffect(() => {
@@ -1084,6 +1086,7 @@ export default function PlansManager() {
       usePayment: row.usePayment === true,
       useFlowbuilder: row.useFlowbuilder === true,
       useWeaponDispatch: row.useWeaponDispatch === true,
+      useWeaponArmory: row.useWeaponArmory === true,
       isPublic: row.isPublic,
     });
     setShowConfirmDialog(true);
@@ -1111,6 +1114,7 @@ export default function PlansManager() {
       usePayment: data.usePayment === true,
       useFlowbuilder: data.useFlowbuilder === true,
       useWeaponDispatch: data.useWeaponDispatch === true,
+      useWeaponArmory: data.useWeaponArmory === true,
       isPublic: data.isPublic,
     });
     setPlanModalOpen(true);

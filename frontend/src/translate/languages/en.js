@@ -961,6 +961,7 @@ const messages = {
           rh: "HR",
           weaponDispatch: "Weapon Dispatch",
           services: "Admin Services",
+          weaponArmory: "Gunsmith Service",
           queueIntegration: "Integrations",
           version: "Version",
           kanban: "CRM / Kanban",

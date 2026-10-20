@@ -404,3 +404,34 @@ export const stats = async (
     }
   });
 };
+
+// Logomarca da empresa-cliente (v2.3.178) — usada no cabeçalho de
+// relatórios impressos (ex.: Termo de Cautela do Serviço Armaria). Nunca
+// hardcoded no código — o AtendeFlow é vendido pra várias empresas-cliente
+// diferentes, cada uma sobe a sua. Só o Admin da própria empresa (ou
+// Master, de qualquer empresa) pode subir.
+export const uploadLogo = async (req: Request, res: Response): Promise<Response> => {
+  const { companyId, super: isSuper } = req.user as any;
+  const { id } = req.params;
+
+  if (!isSuper && String(id) !== String(companyId)) {
+    throw new AppError("ERR_NO_PERMISSION", 403);
+  }
+
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) {
+    throw new AppError("ERR_COMPANY_NO_LOGO_SENT", 400);
+  }
+
+  const company = await Company.findByPk(id);
+  if (!company) {
+    throw new AppError("ERR_NO_COMPANY_FOUND", 404);
+  }
+
+  const logoUrl = `${process.env.BACKEND_URL}/public/company${id}/logo/${encodeURIComponent(
+    file.filename
+  )}`;
+  await company.update({ logoUrl });
+
+  return res.status(200).json({ logoUrl });
+};

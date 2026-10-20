@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.178] — Novo módulo Serviço Armaria (manutenção de arma) — 2026-10-20
+
+### Adicionado
+- Novo módulo **Serviço Armaria** (add-on separado, o Master libera por
+  plano conforme a contratação de cada cliente — não vem junto do
+  Despachante Bélico): registra o recebimento de UMA arma específica
+  do cliente pra manutenção/conserto, com todos os campos do "Termo
+  de Cautela, Recebimento e Depósito de Arma de Fogo" no padrão da
+  Polícia Federal (dados do proprietário, especificação técnica da
+  arma, documentação — CRAF/SIGMA/SINARM, Guia de Tráfego, Porte/
+  Posse —, serviço solicitado/realizado e estado de conservação).
+- Fotos "antes" e "depois" do serviço (várias por estágio).
+- Busca de cliente já cadastrado em Contatos/Financeiro, mesmo atalho
+  já existente no Despachante Bélico.
+- Botão "Imprimir Termo de Cautela" — gera o termo completo pronto pra
+  assinatura, incluindo a logomarca da própria empresa (cada
+  empresa-cliente sobe a sua, em "Anexar logomarca" na tela do
+  módulo — nunca fixo no sistema).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 156.
+
 ## [2.3.177] — Busca de cliente existente no Despachante Bélico + renomeia Serviços — 2026-10-20
 
 ### Adicionado

@@ -110,6 +110,18 @@ const useCompanies = () => {
         return responseData;
     }
 
+    // Logomarca da empresa (v2.3.178) — usada no cabeçalho de relatórios
+    // impressos (ex.: Termo de Cautela do Serviço Armaria). Cada
+    // empresa-cliente sobe a sua própria, nunca fixa no código.
+    const uploadLogo = async (id, file) => {
+        const formData = new FormData();
+        formData.append("logo", file);
+        const { data } = await api.post(`/companies/${id}/logo`, formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+        });
+        return data;
+    }
+
     return {
         save,
         update,
@@ -118,7 +130,8 @@ const useCompanies = () => {
         find,
         getStorageUsage,
         findAll,
-        updateSchedules
+        updateSchedules,
+        uploadLogo
     }
 }
 

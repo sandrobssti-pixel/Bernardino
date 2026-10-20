@@ -52,6 +52,7 @@ import BuildIcon from "@material-ui/icons/Build";
 import NatureIcon from "@material-ui/icons/Nature";
 import SecurityIcon from "@material-ui/icons/Security";
 import RoomServiceIcon from "@material-ui/icons/RoomService";
+import BuildOutlinedIcon from "@material-ui/icons/BuildOutlined";
 import {
   AllInclusive,
   AttachFile,
@@ -1686,6 +1687,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<RoomServiceIcon />}
                   iconKey="services"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/weapon-armory"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.weaponArmory"
+                  )}
+                  icon={<BuildOutlinedIcon />}
+                  iconKey="weaponArmory"
                   tooltip={collapsed}
                 />
               )}

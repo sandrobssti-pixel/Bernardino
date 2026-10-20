@@ -264,6 +264,12 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   weaponDispatchAccess: boolean;
 
+  // Acesso ao Serviço Armaria — mesmo padrão de weaponDispatchAccess acima
+  // (só tem efeito se Plan.useWeaponArmory estiver ligado).
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  weaponArmoryAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

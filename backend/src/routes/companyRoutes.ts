@@ -1,9 +1,12 @@
 import express from "express";
+import multer from "multer";
 import isAuth from "../middleware/isAuth";
+import companyLogoUpload from "../config/companyLogoUpload";
 
 import * as CompanyController from "../controllers/CompanyController";
 
 const companyRoutes = express.Router();
+const logoUpload = multer(companyLogoUpload);
 
 companyRoutes.get("/companies/list", isAuth, CompanyController.list);
 companyRoutes.get("/companies", isAuth, CompanyController.index);
@@ -16,6 +19,12 @@ companyRoutes.post("/companies", isAuth, CompanyController.store);
 companyRoutes.put("/companies/:id", isAuth, CompanyController.update);
 companyRoutes.put("/companies/:id/schedules",isAuth,CompanyController.updateSchedules);
 companyRoutes.delete("/companies/:id", isAuth, CompanyController.remove);
+companyRoutes.post(
+  "/companies/:id/logo",
+  isAuth,
+  logoUpload.single("logo"),
+  CompanyController.uploadLogo
+);
 
 // Rota para listar o plano da empresa
 companyRoutes.get("/companies/listPlan/:id", isAuth, CompanyController.listPlan);
