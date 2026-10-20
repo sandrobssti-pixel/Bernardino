@@ -88,6 +88,15 @@ interface SaleData {
   boardingState?: string;
   vehiclePlate?: string;
   vehicleState?: string;
+  // "Endereço completo" do destinatário (v2.3.171) — ver comentário
+  // completo em Sale.ts.
+  recipientZipCode?: string;
+  recipientStreet?: string;
+  recipientNumber?: string;
+  recipientComplement?: string;
+  recipientNeighborhood?: string;
+  recipientCity?: string;
+  recipientState?: string;
 }
 
 // Mesmo padrão de `fields`/defaultValue usado no resto do Financeiro —
@@ -156,6 +165,28 @@ const buildTransportFields = (data: SaleData): Record<string, unknown> => {
   return fields;
 };
 
+// "Endereço completo" do destinatário (v2.3.171) — snapshot do endereço
+// do Cliente no momento da venda, mesmo padrão de `buildFiscalFields`
+// acima. Ver comentário completo em Sale.ts.
+const RECIPIENT_ADDRESS_FIELDS = [
+  "recipientZipCode",
+  "recipientStreet",
+  "recipientNumber",
+  "recipientComplement",
+  "recipientNeighborhood",
+  "recipientCity",
+  "recipientState"
+];
+
+const buildRecipientAddressFields = (data: SaleData): Record<string, string> => {
+  const fields: Record<string, string> = {};
+  RECIPIENT_ADDRESS_FIELDS.forEach(key => {
+    const value = (data as any)[key];
+    fields[key] = value !== undefined && value !== null ? String(value) : "";
+  });
+  return fields;
+};
+
 const includeOptions = [
   {
     model: FinanceCustomer,
@@ -176,6 +207,7 @@ const includeOptions = [
       "zipCode",
       "street",
       "number",
+      "complement",
       "neighborhood",
       "city",
       "state"
@@ -378,6 +410,7 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
     status: "draft",
     ...buildFiscalFields(data),
     ...buildTransportFields(data),
+    ...buildRecipientAddressFields(data),
     companyId
   } as any);
 
@@ -411,7 +444,8 @@ export const update = async (
     customerId: data.customerId || null,
     totalValue: String(total),
     ...buildFiscalFields(data),
-    ...buildTransportFields(data)
+    ...buildTransportFields(data),
+    ...buildRecipientAddressFields(data)
   });
 
   // Substitui os itens inteiros (mais simples e seguro que tentar

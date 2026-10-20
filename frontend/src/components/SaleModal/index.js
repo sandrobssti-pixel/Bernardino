@@ -134,6 +134,14 @@ const buildInitialValues = (sale, defaultCfop) => ({
   boardingState: sale?.boardingState || "",
   vehiclePlate: sale?.vehiclePlate || "",
   vehicleState: sale?.vehicleState || "",
+  // "Endereço completo" do destinatário (v2.3.171).
+  recipientZipCode: sale?.recipientZipCode || "",
+  recipientStreet: sale?.recipientStreet || "",
+  recipientNumber: sale?.recipientNumber || "",
+  recipientComplement: sale?.recipientComplement || "",
+  recipientNeighborhood: sale?.recipientNeighborhood || "",
+  recipientCity: sale?.recipientCity || "",
+  recipientState: sale?.recipientState || "",
   items:
     sale?.items?.length > 0
       ? sale.items.map((item) => ({
@@ -237,6 +245,31 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
       setFieldValue("ieIndicator", "contributor");
       setFieldValue("finalConsumerType", "normal");
     }
+    // "Endereço completo" do destinatário (v2.3.171, pedido do cliente:
+    // "coloque no campo vendas o endereço completo conforme o cadastro
+    // do cliente") — snapshot do endereço do Cliente no momento da
+    // escolha (mesma lógica de SaleItem.sku/ncm/cfop), sempre editável
+    // depois.
+    setFieldValue("recipientZipCode", customer.zipCode || "");
+    setFieldValue("recipientStreet", customer.street || "");
+    setFieldValue("recipientNumber", customer.number || "");
+    setFieldValue("recipientComplement", customer.complement || "");
+    setFieldValue("recipientNeighborhood", customer.neighborhood || "");
+    setFieldValue("recipientCity", customer.city || "");
+    setFieldValue("recipientState", customer.state || "");
+  };
+
+  // Autopreenchimento do "Endereço completo" do destinatário por CEP
+  // (ViaCEP) — mesma lógica de `handleDeliveryCepBlur` abaixo, campo
+  // próprio porque são dois endereços diferentes na mesma venda
+  // (destinatário x local de entrega).
+  const handleRecipientCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    if (address.street) setFieldValue("recipientStreet", address.street);
+    if (address.neighborhood) setFieldValue("recipientNeighborhood", address.neighborhood);
+    if (address.city) setFieldValue("recipientCity", address.city);
+    if (address.state) setFieldValue("recipientState", address.state);
   };
 
   // Autopreenchimento do "Local de entrega" por CEP (ViaCEP) — mesma
@@ -337,6 +370,44 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                       label="Data da venda"
                       InputLabelProps={{ shrink: true }}
                     />
+                  </Grid>
+                </Grid>
+
+                <Typography variant="subtitle2" style={{ marginTop: 8 }} gutterBottom>
+                  Endereço completo (destinatário)
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6} sm={3}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="CEP"
+                      name="recipientZipCode"
+                      onBlur={(e) => {
+                        handleBlur(e);
+                        handleRecipientCepBlur(e, setFieldValue);
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Rua" name="recipientStreet" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="recipientNumber" />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Complemento" name="recipientComplement" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Bairro" name="recipientNeighborhood" />
+                  </Grid>
+                  <Grid item xs={8} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="recipientCity" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="recipientState" />
                   </Grid>
                 </Grid>
 

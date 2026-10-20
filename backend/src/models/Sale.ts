@@ -230,6 +230,47 @@ class Sale extends Model<Sale> {
   @Column
   vehicleState: string;
 
+  // --------------------------------------------------------------------
+  // "Endereço completo" do destinatário (v2.3.171, pedido do cliente) —
+  // snapshot do endereço do Cliente NO MOMENTO da venda, mesma lógica já
+  // usada pra SaleItem.sku/ncm/cfop (se o cadastro do Cliente mudar
+  // depois, uma venda/nota já feita não deve mudar retroativamente).
+  // Pré-preenchido ao escolher o Cliente (SaleModal.js,
+  // `handleCustomerChange`), mas sempre editável — útil quando a nota
+  // precisa sair com um endereço diferente do cadastro atual.
+  // `buildDestinatario` (FocusNFeService.ts) agora prioriza estes campos;
+  // só cai pra `sale.customer.*` em vendas antigas, de antes desta
+  // entrega, que nunca tiveram esse snapshot preenchido.
+  // --------------------------------------------------------------------
+
+  @Default("")
+  @Column
+  recipientZipCode: string;
+
+  @Default("")
+  @Column
+  recipientStreet: string;
+
+  @Default("")
+  @Column
+  recipientNumber: string;
+
+  @Default("")
+  @Column
+  recipientComplement: string;
+
+  @Default("")
+  @Column
+  recipientNeighborhood: string;
+
+  @Default("")
+  @Column
+  recipientCity: string;
+
+  @Default("")
+  @Column
+  recipientState: string;
+
   @ForeignKey(() => FinanceCustomer)
   @Column
   customerId: number;

@@ -10550,3 +10550,56 @@ manual) — nunca interrompendo um atendimento em andamento.
 559 bytes menor, só removeu código). Nenhuma mudança no backend.
 
 **Arquivos**: `frontend/src/serviceWorker.js`.
+
+## 149. Endereço completo do destinatário na Venda (v2.3.171)
+
+Pedido do cliente: "coloque no campo vendas o endereço completo conforme
+o cadastro do cliente, quando colocar o nome dele preenche
+automaticamente todos os campos de endereço que são exigidos na nota
+fiscal" — posicionado explicitamente "abaixo do nome" (do campo
+Cliente), antes da lista de Itens.
+
+**Por que um campo novo na Venda, e não só ler `sale.customer.*`
+direto**: antes desta entrega, `FocusNFeService.buildDestinatario` já
+lia o endereço direto do cadastro do Cliente no momento de EMITIR a
+nota — funcionava, mas (a) não aparecia na tela de venda pra conferir/
+ajustar antes de emitir, e (b) se o cadastro do Cliente mudasse depois,
+uma nota já emitida tecnicamente "mudaria" o que seria reconstruído
+numa reemissão. Resolvido com o mesmo padrão de snapshot já usado em
+`SaleItem.sku`/`ncm`/`cfop` (ver seção 11) e, mais recente, no "Local de
+entrega" (seção 146): `Sale.ts` ganhou `recipientZipCode`/
+`recipientStreet`/`recipientNumber`/`recipientComplement`/
+`recipientNeighborhood`/`recipientCity`/`recipientState`, pré-
+preenchidos ao escolher o Cliente (`handleCustomerChange`,
+`SaleModal.js`) mas sempre editáveis depois.
+
+**`handleCustomerChange`** (já existia desde a seção 144/v2.3.167, pré-
+preenchia Indicador IE/Tipo Consumidor) ganhou mais 7 linhas —
+copia `customer.zipCode/street/number/complement/neighborhood/city/
+state` pros campos `recipient*` da venda. CEP também tem autopreenchimento
+próprio (`handleRecipientCepBlur`, mesma função `fetchAddressByCep` já
+usada em Cliente/Fornecedor/Config. Fiscal/Local de entrega — ver seção
+147) — útil quando o endereço do Cliente está desatualizado ou
+incompleto no cadastro e precisa ser corrigido na hora da venda.
+
+**`FocusNFeService.buildDestinatario`** passou a priorizar
+`sale.recipient*` sobre `sale.customer.*` — cada campo individualmente
+(não é tudo-ou-nada), então uma venda antiga (antes desta entrega, sem
+nenhum `recipient*` preenchido) continua funcionando exatamente como
+antes, lendo tudo do cadastro do Cliente. De quebra, corrigido um campo
+que faltava por completo: `complemento_destinatario` nunca tinha sido
+mandado pro payload (nem o `attributes` do include de `customer` em
+`SaleService.ts` trazia a coluna `complement` do Cliente) — não chegava
+a dar erro de schema (campo opcional), mas um complemento de endereço
+registrado no Cliente nunca ia pra nota.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; a migration nova
+(`20261020090000-*.ts`) testada (up e down) contra Postgres local
+rodando a cadeia completa; `npx eslint` limpo no frontend; `craco build`
+de produção limpo.
+
+**Arquivos**: `backend/src/models/Sale.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/database/migrations/20261020090000-*.ts` (novo),
+`frontend/src/components/SaleModal/index.js`.

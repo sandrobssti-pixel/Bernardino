@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.171] — Endereço completo do destinatário na Venda — 2026-10-20
+
+### Adicionado
+- "Nova venda" ganhou um bloco "Endereço completo (destinatário)" logo
+  abaixo do campo Cliente — CEP, Rua, Número, Complemento, Bairro,
+  Cidade, UF. Ao escolher o Cliente, esses campos já vêm preenchidos
+  sozinhos com o endereço do cadastro dele; CEP também autopreenche
+  (ViaCEP). Continuam editáveis — é um snapshot gravado na própria venda
+  (igual os dados de cada item), não o cadastro do Cliente em si, pra
+  uma nota já emitida não mudar se o cadastro mudar depois.
+- Esse endereço agora alimenta de verdade o payload da Focus NFe
+  (`logradouro_destinatario` etc.) — antes vinha só do cadastro do
+  Cliente no momento de emitir; vendas antigas continuam funcionando
+  normalmente (cai pro cadastro do Cliente quando o snapshot da venda
+  está vazio).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 149.
+
 ## [2.3.170] — Removido o aviso de "Nova versão disponível" — 2026-10-19
 
 ### Removido

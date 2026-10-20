@@ -249,6 +249,14 @@ const IE_INDICATOR_CODES: Record<string, string> = {
   non_contributor: "9"
 };
 
+// Endereço do destinatário (v2.3.171) — prioriza o snapshot gravado na
+// própria Venda (`sale.recipient*`, preenchido ao escolher o Cliente em
+// SaleModal.js, sempre editável) em vez de ler direto de
+// `sale.customer.*` — mesma lógica de snapshot já usada em
+// SaleItem.sku/ncm/cfop (cadastro do Cliente pode mudar depois, a nota
+// já emitida não deve mudar retroativamente). Vendas antigas, de antes
+// desta entrega, nunca tiveram esse snapshot preenchido — por isso cada
+// campo cai pra `customer.*` quando o campo da Venda está vazio.
 const buildDestinatario = (sale: Sale) => {
   const customer = sale.customer;
   if (!customer) return {};
@@ -261,12 +269,14 @@ const buildDestinatario = (sale: Sale) => {
       : { cpf_destinatario: (customer.document || "").replace(/\D/g, "") }),
     email_destinatario: customer.email || undefined,
     telefone_destinatario: customer.phone || undefined,
-    logradouro_destinatario: customer.street || undefined,
-    numero_destinatario: customer.number || undefined,
-    bairro_destinatario: customer.neighborhood || undefined,
-    municipio_destinatario: customer.city || undefined,
-    uf_destinatario: customer.state || undefined,
-    cep_destinatario: (customer.zipCode || "").replace(/\D/g, "") || undefined,
+    logradouro_destinatario: sale.recipientStreet || customer.street || undefined,
+    numero_destinatario: sale.recipientNumber || customer.number || undefined,
+    complemento_destinatario: sale.recipientComplement || customer.complement || undefined,
+    bairro_destinatario: sale.recipientNeighborhood || customer.neighborhood || undefined,
+    municipio_destinatario: sale.recipientCity || customer.city || undefined,
+    uf_destinatario: sale.recipientState || customer.state || undefined,
+    cep_destinatario:
+      (sale.recipientZipCode || customer.zipCode || "").replace(/\D/g, "") || undefined,
     indicador_ie: IE_INDICATOR_CODES[sale.ieIndicator] || IE_INDICATOR_CODES.non_contributor
   };
 };
