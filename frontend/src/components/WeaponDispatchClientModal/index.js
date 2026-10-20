@@ -44,7 +44,7 @@ const PAYMENT_METHOD_LABELS = PAYMENT_METHOD_OPTIONS.reduce((acc, opt) => {
 }, {});
 
 const emptyService = {
-  productId: "",
+  serviceId: "",
   name: "",
   value: "0",
   paymentMethod: "",
@@ -111,10 +111,10 @@ const useStyles = makeStyles((theme) => ({
 // Ficha de cadastro do cliente do Despachante Bélico — campos pedidos
 // explicitamente pelo cliente (modelo de formulário que ele mandou): Nº da
 // OS (auto, só exibição), dados pessoais, foto, e uma lista de serviços
-// desejados que puxam direto do cadastro real de Produtos/Serviços
-// (Financeiro) — cada linha vira um WeaponDispatchProcess novo ao salvar.
-// Ver docs/MANUAL_TECNICO.md.
-const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispatch, finance }) => {
+// desejados que puxam do cadastro de Serviço (v2.3.175, módulo próprio,
+// sem nada fiscal) — cada linha vira um WeaponDispatchProcess novo ao
+// salvar. Ver docs/MANUAL_TECNICO.md.
+const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispatch, services }) => {
   const classes = useStyles();
   const fileInputRef = useRef(null);
   const [initialValues, setInitialValues] = useState(buildInitialValues(null));
@@ -155,14 +155,14 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
     setPhotoPreview(URL.createObjectURL(file));
   };
 
-  const handleServiceProductChange = (index, product, setFieldValue) => {
-    setFieldValue(`services.${index}.productId`, product?.id || "");
-    setFieldValue(`services.${index}.name`, product?.name || "");
-    setFieldValue(`services.${index}.value`, product ? String(product.price || "0") : "0");
+  const handleServiceProductChange = (index, service, setFieldValue) => {
+    setFieldValue(`services.${index}.serviceId`, service?.id || "");
+    setFieldValue(`services.${index}.name`, service?.name || "");
+    setFieldValue(`services.${index}.value`, service ? String(service.value || "0") : "0");
   };
 
   const fetchServiceOptions = async (searchParam) => {
-    const { records } = await finance.products.list({ searchParam, type: "service" });
+    const { records } = await services.list({ searchParam });
     return records || [];
   };
 
@@ -187,13 +187,13 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
         await weaponDispatch.clients.uploadPhoto(client.id, photoFile);
       }
 
-      const newServices = values.services.filter((s) => s.productId);
+      const newServices = values.services.filter((s) => s.serviceId);
       for (const service of newServices) {
         await weaponDispatch.processes.save({
           clientId: client.id,
           type: service.name,
           value: service.value,
-          productId: service.productId,
+          serviceId: service.serviceId,
           paymentMethod: service.paymentMethod,
         });
       }
@@ -234,7 +234,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
       >
         {({ values, setFieldValue, isSubmitting }) => {
           const servicesTotal = values.services.reduce(
-            (sum, s) => sum + (s.productId ? Number(s.value) || 0 : 0),
+            (sum, s) => sum + (s.serviceId ? Number(s.value) || 0 : 0),
             0
           );
 
@@ -387,15 +387,15 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                           <Grid item xs={12} sm={6}>
                             <FinanceAsyncAutocomplete
                               label="Tipo de serviço"
-                              placeholder="Buscar em Produtos/Serviços"
+                              placeholder="Buscar em Serviços"
                               value={
-                                service.productId
-                                  ? { id: service.productId, name: service.name }
+                                service.serviceId
+                                  ? { id: service.serviceId, name: service.name }
                                   : null
                               }
                               initialOptions={
-                                service.productId
-                                  ? [{ id: service.productId, name: service.name }]
+                                service.serviceId
+                                  ? [{ id: service.serviceId, name: service.name }]
                                   : []
                               }
                               getOptionLabel={(opt) => opt?.name || ""}
@@ -414,7 +414,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                               type="number"
                               label="Valor do serviço (R$)"
                               name={`services.${index}.value`}
-                              disabled={!service.productId}
+                              disabled={!service.serviceId}
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>
@@ -426,7 +426,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                               size="small"
                               label="Forma de pagamento"
                               name={`services.${index}.paymentMethod`}
-                              disabled={!service.productId}
+                              disabled={!service.serviceId}
                             >
                               {PAYMENT_METHOD_OPTIONS.map((opt) => (
                                 <MenuItem key={opt.value} value={opt.value}>
@@ -567,7 +567,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
           </>
         )}
 
-        {printSnapshot.values.services.some((s) => s.productId) && (
+        {printSnapshot.values.services.some((s) => s.serviceId) && (
           <>
             <h3>Novos serviços solicitados</h3>
             <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
@@ -580,7 +580,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
               </thead>
               <tbody>
                 {printSnapshot.values.services
-                  .filter((s) => s.productId)
+                  .filter((s) => s.serviceId)
                   .map((s, idx) => (
                     <tr key={idx}>
                       <td>{s.name}</td>

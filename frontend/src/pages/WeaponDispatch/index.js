@@ -23,7 +23,7 @@ import PersonIcon from "@material-ui/icons/Person";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useWeaponDispatch from "../../hooks/useWeaponDispatch";
-import useFinance from "../../hooks/useFinance";
+import useServices from "../../hooks/useServices";
 import WeaponDispatchClientModal from "../../components/WeaponDispatchClientModal";
 import ConfirmationModal from "../../components/ConfirmationModal";
 import TableRowSkeleton from "../../components/TableRowSkeleton";
@@ -80,7 +80,7 @@ const WeaponDispatch = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
   const weaponDispatch = useWeaponDispatch();
-  const finance = useFinance();
+  const services = useServices();
   const [access, setAccess] = useState(null);
   const [loading, setLoading] = useState(false);
   const [clients, setClients] = useState([]);
@@ -175,7 +175,7 @@ const WeaponDispatch = () => {
         onSave={fetchClients}
         record={selected}
         weaponDispatch={weaponDispatch}
-        finance={finance}
+        services={services}
       />
 
       <ConfirmationModal

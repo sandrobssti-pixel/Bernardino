@@ -51,6 +51,7 @@ import PublicIcon from "@material-ui/icons/Public";
 import BuildIcon from "@material-ui/icons/Build";
 import NatureIcon from "@material-ui/icons/Nature";
 import SecurityIcon from "@material-ui/icons/Security";
+import RoomServiceIcon from "@material-ui/icons/RoomService";
 import {
   AllInclusive,
   AttachFile,
@@ -1670,6 +1671,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<SecurityIcon />}
                   iconKey="weaponDispatch"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/services"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.services"
+                  )}
+                  icon={<RoomServiceIcon />}
+                  iconKey="services"
                   tooltip={collapsed}
                 />
               )}

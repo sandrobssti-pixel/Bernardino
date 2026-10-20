@@ -15,6 +15,7 @@ import {
 import Company from "./Company";
 import User from "./User";
 import FinanceProduct from "./FinanceProduct";
+import Service from "./Service";
 import WeaponDispatchClient from "./WeaponDispatchClient";
 
 // Um processo (card da esteira) do Despachante Bélico — 1 Cliente pode ter
@@ -103,6 +104,18 @@ class WeaponDispatchProcess extends Model<WeaponDispatchProcess> {
 
   @BelongsTo(() => FinanceProduct)
   product: FinanceProduct;
+
+  // Vínculo com o novo cadastro de Serviço (v2.3.175) — substitui
+  // `productId`/FinanceProduct como fonte do "Tipo de serviço" na ficha daqui
+  // em diante (pedido do cliente: módulo Serviço vira a referência, não mais
+  // o cadastro de Produtos). `productId` continua existindo só pra processos
+  // já criados antes dessa mudança (snapshot antigo), não é removido.
+  @ForeignKey(() => Service)
+  @Column
+  serviceId: number;
+
+  @BelongsTo(() => Service)
+  service: Service;
 
   @Default("")
   @Column

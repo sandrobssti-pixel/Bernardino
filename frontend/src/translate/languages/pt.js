@@ -1005,6 +1005,7 @@ const messages = {
           financeiro: "Financeiro",
           rh: "RH",
           weaponDispatch: "Despachante Bélico",
+          services: "Serviços",
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",

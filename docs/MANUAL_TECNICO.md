@@ -10758,3 +10758,120 @@ seção — campos já existiam desde a 151),
 `backend/src/routes/fiscalRoutes.ts`,
 `frontend/src/hooks/useFiscal/index.js`,
 `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 153. Cadastro de Serviço — catálogo independente de Produtos (v2.3.175)
+
+O cliente pediu originalmente "serviços como parte de um módulo igual
+foi o Despachante Bélico" — entendi isso como módulo independente com
+controle de plano próprio (`Plan.useServices`), e cheguei a perguntar
+antes de codar qualquer coisa. Antes de uma resposta limpa chegar, o
+cliente reverteu o pedido: **"não coloca o módulo serviços como módulo
+separado, módulo serviço vamos deixar para cadastro de serviços com
+valores e descrição ai quando o despachante bélico necessitar cadastrar
+o serviço do cliente e for escolher serviços aí já tem esse módulo de
+referência pra buscar as informações"** — ou seja: não é um add-on
+pago/gated, é um catálogo simples e sempre disponível, que serve de
+fonte pro "Tipo de serviço" da ficha do Despachante Bélico (em vez do
+cadastro de Produtos do Financeiro, que — explicou o cliente — "ainda
+está com cara de cadastro de produto").
+
+Campos pedidos, só estes (explicitamente **sem** nada fiscal/tributário
+e **sem** SKU, diferente de FinanceProduct): código, nome, valor,
+condições de pagamento, descrição, foto.
+
+**Por que não substitui FinanceProduct tipo "Serviço"**: quem emite nota
+fiscal de serviço de verdade (ISS/CFOP de serviço) continua precisando
+do cadastro de Produtos (único com os campos fiscais). O novo módulo
+"Serviços" é só um catálogo de referência simples — os dois convivem,
+sem migração de um pro outro além da cópia inicial abaixo.
+
+**Backend** — `Service.ts` (modelo novo, tabela `Services`, sem
+`Plan`/`EnsureAccess` nenhum — mesmo padrão sem-gate de Tags/Filas,
+só `isAuth` nas rotas): `code`, `name` (obrigatório), `value`,
+`paymentTerms`, `description` (TEXT), `photoUrl`, `active`,
+`companyId`. `ServiceService.ts` — CRUD simples (list/show/create/
+update/remove), mesmo formato de `FinanceSupplierService`.
+`ServiceController.ts` + `serviceRoutes.ts` (`/services`,
+`/services/:id`, `/services/:id/photo`) — **nenhum** `ensureAccess`,
+de propósito. `servicePhotoUpload.ts` — multer, mesmo padrão de
+`financeProductPhotoUpload.ts` (pasta
+`public/company{id}/service-photos/`).
+
+**Migração automática dos 37 serviços existentes**: perguntei ao
+cliente se os registros já cadastrados como Produto (tipo "Serviço")
+deviam ser copiados automaticamente pro catálogo novo, ou se ele
+preferia recadastrar do zero — respondeu "Migrar automaticamente
+(recomendado)". Migration
+`20261020120000-migrate-finance-product-services-to-services.ts` faz
+um `INSERT ... SELECT` de todo `FinanceProducts` com
+`type = 'service'` pra dentro de `Services`, com `NOT EXISTS` por
+`(companyId, name)` pra ser idempotente (não duplica se rodar de novo).
+`down` é um no-op deliberado — migration de dado não desfaz sozinha
+(evitaria apagar edição que o usuário fez depois da migração); só a
+migration anterior (`20261020110000-create-services`, que cria a
+tabela) desfaz o recurso inteiro, se precisar.
+
+**Despachante Bélico rewired pro catálogo novo**:
+`WeaponDispatchProcess.ts` ganhou `serviceId` (FK pra `Service`, nova
+migration `20261020130000`) **ao lado** de `productId` (FK pra
+`FinanceProduct`, mantido intacto pra não quebrar processos já
+criados antes dessa mudança — snapshot antigo continua lendo
+`product`/`productId` normalmente). Dali em diante, todo processo
+novo grava `serviceId` em vez de `productId`.
+`WeaponDispatchClientModal.js` — `fetchServiceOptions` agora chama
+`services.list({ searchParam })` (novo hook `useServices`) em vez de
+`finance.products.list({ searchParam, type: "service" })`; a linha de
+serviço da ficha trocou de `productId` pra `serviceId` em todo lugar
+(estado do Formik, autocomplete, impressão). O prop `finance` do
+modal virou `services` — `WeaponDispatchProcessController`/
+`pages/WeaponDispatch/index.js` repassam o hook novo.
+
+**Frontend do catálogo**: `useServices/index.js` (hook,
+list/save/update/remove/uploadPhoto — mesmo formato de
+`finance.products`), `pages/Services/servicesConfig.js`
+(`serviceColumns`/`serviceFields`, reaproveitando o campo `"photo"` já
+existente em `FinanceRecordModal`), `pages/Services/index.js`
+(reaproveita `FinanceRecordList` genérico, igual Clientes/
+Fornecedores/Produtos). Rota `/services` e item de menu "Serviços"
+(`RoomServiceIcon`) **sempre visíveis** — mesmo gate (`dashboard:view`)
+de Despachante Bélico/RH, não ligado a nenhum `Plan`/`financeAccess`.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 3 migrations
+novas (`create-services`, `migrate-finance-product-services-to-
+services`, `add-service-id-to-weapon-dispatch-processes`) testadas
+contra banco Postgres local do zero — cadeia completa, undo/redo das
+3 — sem erro; `npx eslint` limpo nos arquivos tocados (os erros
+`import/first` que aparecem em `routes/index.js` já existiam antes
+desta mudança, confirmado comparando com o estado anterior via
+`git stash`); `craco build` de produção limpo.
+
+**⚠️ Nível de confiança**: a cópia automática dos 37 serviços só foi
+testada estruturalmente (a migration roda sem erro de SQL contra um
+banco de teste vazio) — nunca rodou contra o banco real de produção
+com os dados de verdade do cliente, então o `INSERT ... SELECT` precisa
+ser conferido depois do deploy (`Financeiro → Produtos → Serviço`
+antes vs. `Serviços` depois, mesma contagem).
+
+**Arquivos**: `backend/src/models/Service.ts` (novo),
+`backend/src/models/WeaponDispatchProcess.ts` (+ `serviceId`),
+`backend/src/database/migrations/20261020110000-create-services.ts`
+(novo), `20261020120000-migrate-finance-product-services-to-
+services.ts` (novo), `20261020130000-add-service-id-to-weapon-
+dispatch-processes.ts` (novo),
+`backend/src/services/ServiceService/ServiceService.ts` (novo),
+`backend/src/services/WeaponDispatchService/
+WeaponDispatchProcessService.ts` (+ `serviceId`, include `Service`),
+`backend/src/controllers/ServiceController.ts` (novo),
+`backend/src/config/servicePhotoUpload.ts` (novo),
+`backend/src/routes/serviceRoutes.ts` (novo),
+`backend/src/routes/index.ts` (registra `serviceRoutes`),
+`frontend/src/hooks/useServices/index.js` (novo),
+`frontend/src/pages/Services/index.js` (novo),
+`frontend/src/pages/Services/servicesConfig.js` (novo),
+`frontend/src/components/WeaponDispatchClientModal/index.js`
+(`serviceId` em vez de `productId`, prop `services` em vez de
+`finance`), `frontend/src/pages/WeaponDispatch/index.js` (hook
+`useServices` em vez de `useFinance`), `frontend/src/routes/index.js`
+(rota `/services`), `frontend/src/layout/MainListItems.js` (item de
+menu "Serviços"), `frontend/src/translate/languages/{pt,en,es,
+esES}.js` (chave `mainDrawer.listItems.services`).

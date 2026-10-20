@@ -960,6 +960,7 @@ const messages = {
           financeiro: "Financial",
           rh: "HR",
           weaponDispatch: "Weapon Dispatch",
+          services: "Services",
           queueIntegration: "Integrations",
           version: "Version",
           kanban: "CRM / Kanban",

@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.175] — Cadastro de Serviço (catálogo independente de Produtos) — 2026-10-20
+
+### Adicionado
+- Novo módulo "Serviços", sempre disponível (não é add-on separado,
+  sem controle de plano) — catálogo simples com código, nome, valor,
+  condições de pagamento, descrição e foto. Sem nenhum campo fiscal/
+  tributário e sem SKU, de propósito: é só um cadastro de referência,
+  não gera nota fiscal.
+- O "Tipo de serviço" na ficha do Despachante Bélico agora busca nesse
+  catálogo novo em vez do cadastro de Produtos do Financeiro — o
+  Despachante Bélico ganha seu próprio banco de serviços,
+  independente de o cliente ter ou não o módulo Financeiro.
+- Os 37 serviços já cadastrados como Produto (tipo "Serviço") foram
+  migrados automaticamente pro catálogo novo na primeira atualização —
+  nada se perde, os processos já criados continuam com o vínculo
+  antigo intacto.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 153.
+
 ## [2.3.174] — Resend: chave protegida, domínio verificado e envio de teste — 2026-10-20
 
 ### Adicionado

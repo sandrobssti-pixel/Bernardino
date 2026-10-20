@@ -3,6 +3,7 @@ import AppError from "../../errors/AppError";
 import WeaponDispatchProcess from "../../models/WeaponDispatchProcess";
 import WeaponDispatchStatusHistory from "../../models/WeaponDispatchStatusHistory";
 import WeaponDispatchClient from "../../models/WeaponDispatchClient";
+import Service from "../../models/Service";
 import {
   getDefaultStage,
   getTrackForProcessType,
@@ -22,6 +23,7 @@ interface ProcessData {
   value?: string;
   paymentMethod?: string;
   productId?: number | null;
+  serviceId?: number | null;
   priority?: number;
   isAffiliatedClub?: boolean;
   hasPsychTest?: boolean;
@@ -42,7 +44,10 @@ const processSchema = Yup.object().shape({
   clientId: Yup.number().required("ERR_WEAPON_DISPATCH_PROCESS_INVALID_CLIENT")
 });
 
-const INCLUDE = [{ model: WeaponDispatchClient, as: "client" }];
+const INCLUDE = [
+  { model: WeaponDispatchClient, as: "client" },
+  { model: Service, as: "service" }
+];
 
 // Esteira (Kanban) — lista os processos da empresa, opcionalmente filtrando
 // por trilha (pra renderizar uma coluna por `stage` dentro da trilha
