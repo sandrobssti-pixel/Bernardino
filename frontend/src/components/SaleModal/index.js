@@ -315,6 +315,26 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     return records || [];
   };
 
+  // Digitar o SKU ou o nome direto no campo (sem passar pelo
+  // "Produto/serviço" de cima) também preenche os campos relacionados —
+  // pedido do cliente. Só dispara quando o item ainda não tem um
+  // Produto vinculado (senão sobrescreveria uma escolha já feita de
+  // propósito) e quando o texto bate EXATO (sem diferenciar maiúsc./
+  // minúsc.) com um SKU ou nome cadastrado — texto parcial/avulso
+  // continua funcionando igual antes, sem vínculo nenhum.
+  const handleSkuOrNameBlur = async (index, value, item, setFieldValue, operationType) => {
+    const typed = (value || "").trim();
+    if (!typed || item.productId) return;
+
+    const list = finance ? (await finance.products.list({ searchParam: typed })).records || [] : products;
+    const match = list.find(
+      (p) => p.sku?.toLowerCase() === typed.toLowerCase() || p.name?.toLowerCase() === typed.toLowerCase()
+    );
+    if (match) {
+      handleProductChange(index, match, setFieldValue, operationType);
+    }
+  };
+
   return (
     <Dialog
       open={open}
@@ -468,6 +488,10 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               size="small"
                               label="Código (SKU)"
                               name={`items.${index}.sku`}
+                              onBlur={(e) => {
+                                handleBlur(e);
+                                handleSkuOrNameBlur(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
                             />
                           </Grid>
                           <Grid item xs={6} sm={2}>
@@ -478,6 +502,10 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               size="small"
                               label="Descrição"
                               name={`items.${index}.description`}
+                              onBlur={(e) => {
+                                handleBlur(e);
+                                handleSkuOrNameBlur(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
                             />
                           </Grid>
                           <Grid item xs={4} sm={2}>

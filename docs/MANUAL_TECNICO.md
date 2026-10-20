@@ -10603,3 +10603,31 @@ de produção limpo.
 `backend/src/services/FiscalService/FocusNFeService.ts`,
 `backend/src/database/migrations/20261020090000-*.ts` (novo),
 `frontend/src/components/SaleModal/index.js`.
+
+## 150. Digitar SKU ou nome do item já preenche os campos (v2.3.172)
+
+Pedido do cliente: "quando coloca o sku ou o nome do produto preenche
+todos os campos relativos". O autocomplete "Produto/serviço" já fazia
+isso ao ESCOLHER um resultado da busca (`handleProductChange`, existe
+desde a Fase 3) — o que faltava era o mesmo efeito ao digitar direto nos
+campos "Código (SKU)"/"Descrição" de um item, que até aqui eram só texto
+livre solto (snapshot editável, sem nenhuma busca).
+
+**`handleSkuOrNameBlur`** (novo, `SaleModal.js`): no `onBlur` dos campos
+SKU e Descrição de cada item, busca produtos com esse texto
+(`finance.products.list({ searchParam })`) e procura um resultado cujo
+`sku` OU `name` bata EXATO (sem diferenciar maiúsc./minúsc.) com o que
+foi digitado. Se achar, chama o mesmo `handleProductChange` que o
+autocomplete já usava — preenche Descrição/NCM/Unidade/Valor/CFOP (e,
+quando o item for Arma/Munição, os campos de SIGMA/SINARM continuam
+visíveis, sem mudança aí). Só dispara quando o item **ainda não tem**
+`productId` vinculado — editar o SKU/descrição de um item que já tem
+produto escolhido não aciona busca nenhuma (evita trocar o vínculo sem
+querer só por editar o texto). Texto parcial ou que não bate com nada
+continua um item avulso normal, exatamente como já era.
+
+**Validação**: `npx eslint` limpo; `craco build` de produção limpo.
+Nenhuma mudança no backend (nenhum campo novo, nenhuma migration) — só
+reaproveita o endpoint de busca de produtos que já existia.
+
+**Arquivos**: `frontend/src/components/SaleModal/index.js`.

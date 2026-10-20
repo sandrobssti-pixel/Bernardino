@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.172] — Digitar SKU ou nome do item já preenche os campos — 2026-10-20
+
+### Adicionado
+- Em "Nova venda", digitar o SKU ou o nome do produto DIRETO no campo
+  "Código (SKU)" ou "Descrição" de um item (sem passar pelo
+  "Produto/serviço" de cima) — se bater exato com um produto cadastrado,
+  preenche Descrição/NCM/Unidade/Valor/CFOP sozinho, igual já acontecia
+  escolhendo pelo autocomplete. Só dispara quando o item ainda não tem
+  produto vinculado — item avulso/texto livre continua funcionando igual
+  antes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 150.
+
 ## [2.3.171] — Endereço completo do destinatário na Venda — 2026-10-20
 
 ### Adicionado
