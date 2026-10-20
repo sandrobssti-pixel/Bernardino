@@ -81,6 +81,7 @@ import WeaponDispatchProcess from "../models/WeaponDispatchProcess";
 import WeaponDispatchStatusHistory from "../models/WeaponDispatchStatusHistory";
 import WeaponDispatchAppointment from "../models/WeaponDispatchAppointment";
 import WeaponDispatchGovPasswordAccessLog from "../models/WeaponDispatchGovPasswordAccessLog";
+import Service from "../models/Service";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -169,7 +170,8 @@ const models = [
   WeaponDispatchProcess,
   WeaponDispatchStatusHistory,
   WeaponDispatchAppointment,
-  WeaponDispatchGovPasswordAccessLog
+  WeaponDispatchGovPasswordAccessLog,
+  Service
 ];
 
 sequelize.addModels(models);
