@@ -18,7 +18,7 @@ export const show = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
 
   const config = await FiscalConfigService.show(companyId);
-  return res.status(200).json(config);
+  return res.status(200).json(FiscalConfigService.maskConfig(config));
 };
 
 export const update = async (req: Request, res: Response): Promise<Response> => {
@@ -26,7 +26,20 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
   const { companyId } = req.user;
 
   const { config, accountingOfficeSync } = await FiscalConfigService.update(req.body, companyId);
-  return res.status(200).json({ ...config.toJSON(), accountingOfficeSync });
+  return res.status(200).json({ ...FiscalConfigService.maskConfig(config), accountingOfficeSync });
+};
+
+// Testa a integração com a Resend antes de confiar nela pra mandar nota
+// de verdade (v2.3.174, pedido do cliente — tela de referência que ele
+// mandou tinha um "Enviar para um destinatário" próprio) — manda um
+// e-mail simples, sem anexo, pro endereço informado.
+export const testResendEmail = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { to, subject, message } = req.body;
+
+  const result = await FiscalConfigService.testResendEmail(companyId, to, subject, message);
+  return res.status(200).json(result);
 };
 
 // Lista os gateways de emissão suportados, pra tela de Configuração Fiscal

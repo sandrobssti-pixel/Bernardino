@@ -10694,3 +10694,67 @@ frontend; `craco build` de produção limpo.
 `frontend/src/components/FiscalConfigPanel/index.js`,
 `frontend/src/components/SaleList/index.js`,
 `frontend/src/components/SaleDetailModal/index.js`.
+
+## 152. Resend: chave protegida, domínio verificado e envio de teste (v2.3.174)
+
+Continuação direta da seção 151. O cliente perguntou se dava pra
+configurar a Resend "com o gmail padrão" — expliquei antes de mexer em
+qualquer coisa que isso não funciona: nenhum serviço de e-mail
+transacional (Resend, SendGrid, Mailgun, SES) deixa usar um endereço
+@gmail.com como remetente, porque exige verificar um domínio por DNS, e
+ninguém verifica um domínio que não é seu (o Google é dono do
+gmail.com). Forçar isso também provavelmente cairia em spam/seria
+bloqueado pelas proteções anti-falsificação (DMARC) que os provedores
+grandes já usam. Apresentei 3 caminhos (verificar domínio próprio,
+trocar pra SMTP do Gmail de verdade — implementação diferente, fora de
+escopo aqui —, ou manter o relay da Focus NFe) — cliente respondeu "vou
+usar o domínio nosso" e mandou um print de referência de outro sistema
+mostrando como queria a tela: chave mascarada com indicador de "já
+cadastrada", instruções numeradas, e um bloco de envio de teste.
+
+**Chave nunca mais volta em texto puro**: `FiscalConfigService.maskConfig`
+(novo) — usado só pelo `FiscalConfigController.ts` (não pelo resto do
+backend, que continua lendo `resendApiKey` de verdade via
+`FiscalConfigService.show()`/`update()` normalmente) — troca
+`resendApiKey` por `""` na resposta e adiciona `resendApiKeyConfigured`
+(booleano). O formulário (`FiscalConfigPanel.js`) mostra
+"✓ Chave cadastrada. Deixe vazio para manter." quando
+`resendApiKeyConfigured` é true, com um ícone de olho (mostrar/esconder
+o que for digitado). **Salvar sem mexer na chave não apaga a que já
+existia**: `FiscalConfigService.update` agora remove `resendApiKey` do
+payload antes de `config.update()` quando ele chega vazio — mesmo
+padrão de "campo sensível, só sobrescreve se vier preenchido de
+verdade" que não existia antes pra nenhum outro campo (`gatewayToken*`
+continuam sendo mandados/salvos cheios, sem mudança — só a chave da
+Resend ganhou esse tratamento, por ser a única pedida explicitamente).
+
+**"Enviar para um destinatário"** (teste, novo): `ResendEmailService.ts`
+ganhou `sendTestEmail` (refatorado junto com `sendDocumentEmail` pra
+compartilhar a chamada HTTP de baixo nível, `postToResend`) — manda um
+e-mail simples (sem anexo, sem precisar de nenhuma nota fiscal) pro
+endereço informado. Novo endpoint `POST /fiscal/config/resend-test`
+(`FiscalConfigService.testResendEmail`) — usa a chave **já salva no
+banco**, nunca a que estiver só digitada e ainda não salva no formulário
+(evita testar uma chave que nunca foi persistida). Só aparece na tela
+quando `resendEnabled` E `resendApiKeyConfigured` — depois de salvar a
+configuração pelo menos uma vez.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (nenhuma migration
+nova — só lógica, nenhuma coluna nova desde a seção 151); `npx eslint`
+limpo no frontend; `craco build` de produção limpo.
+
+**⚠️ Nível de confiança**: igual já registrado na seção 151 — o payload
+da Resend segue a documentação pública, mas o envio de teste em si
+(incluindo este novo `sendTestEmail`) nunca foi disparado contra uma
+conta/chave real nesta sessão.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts` (sem mudança nesta
+seção — campos já existiam desde a 151),
+`backend/src/services/FiscalService/FiscalConfigService.ts`
+(`maskConfig`, `testResendEmail`, "deixa vazio" em `update`),
+`backend/src/services/FiscalService/ResendEmailService.ts`
+(`sendTestEmail`, `postToResend`),
+`backend/src/controllers/FiscalConfigController.ts`,
+`backend/src/routes/fiscalRoutes.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/FiscalConfigPanel/index.js`.

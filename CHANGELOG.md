@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.174] — Resend: chave protegida, domínio verificado e envio de teste — 2026-10-20
+
+### Adicionado
+- A API key da Resend nunca mais volta pro navegador em texto puro — o
+  campo mostra "✓ Chave cadastrada. Deixe vazio para manter." quando já
+  tem uma salva, com ícone de olho pra mostrar/esconder o que você
+  digitar. Salvar a tela sem mexer nesse campo não apaga a chave já
+  configurada.
+- Instruções diretas na tela (criar conta na Resend, gerar API Key,
+  verificar domínio do remetente) e aviso explícito: não dá pra usar
+  @gmail.com nem outro domínio que você não controla como remetente —
+  só domínio próprio verificado na Resend.
+- Novo bloco "Enviar para um destinatário" — manda um e-mail de teste
+  (sem depender de nenhuma nota fiscal) pra confirmar que a chave/
+  domínio estão certos antes de usar isso numa nota de verdade.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 152.
+
 ## [2.3.173] — Envio de nota por e-mail via Resend + botão de baixar sempre disponível — 2026-10-20
 
 ### Adicionado

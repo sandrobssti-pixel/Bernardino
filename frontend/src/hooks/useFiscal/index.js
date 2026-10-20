@@ -24,6 +24,12 @@ const useFiscal = () => {
       const { data } = await api.get("/fiscal/gateways");
       return data;
     },
+    // "Enviar para um destinatário" (v2.3.174) — testa a configuração
+    // da Resend antes de confiar nela numa nota de verdade.
+    testResendEmail: async ({ to, subject, message }) => {
+      const { data } = await api.post("/fiscal/config/resend-test", { to, subject, message });
+      return data;
+    },
   };
 
   const sales = {

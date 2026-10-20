@@ -16,6 +16,13 @@ import Divider from "@material-ui/core/Divider";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import Box from "@material-ui/core/Box";
 import SaveIcon from "@material-ui/icons/Save";
+import SendIcon from "@material-ui/icons/Send";
+import VisibilityIcon from "@material-ui/icons/Visibility";
+import VisibilityOffIcon from "@material-ui/icons/VisibilityOff";
+import CheckCircleIcon from "@material-ui/icons/CheckCircle";
+import IconButton from "@material-ui/core/IconButton";
+import InputAdornment from "@material-ui/core/InputAdornment";
+import Link from "@material-ui/core/Link";
 import Table from "@material-ui/core/Table";
 import TableBody from "@material-ui/core/TableBody";
 import TableCell from "@material-ui/core/TableCell";
@@ -317,6 +324,13 @@ const FiscalConfigPanel = ({ fiscal }) => {
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
   const [gatewayOptions, setGatewayOptions] = useState([]);
+  // Envio de teste da Resend (v2.3.174) — formulário próprio, fora do
+  // Formik principal (não é campo salvo na configuração).
+  const [showResendKey, setShowResendKey] = useState(false);
+  const [testRecipient, setTestRecipient] = useState("");
+  const [testSubject, setTestSubject] = useState("Teste de integração Resend — AtendeFlow");
+  const [testMessage, setTestMessage] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -361,6 +375,32 @@ const FiscalConfigPanel = ({ fiscal }) => {
     if (address.neighborhood) setFieldValue("emitterNeighborhood", address.neighborhood);
     if (address.city) setFieldValue("emitterCity", address.city);
     if (address.state) setFieldValue("emitterState", address.state);
+  };
+
+  // "Enviar para um destinatário" (v2.3.174) — usa a chave JÁ SALVA no
+  // banco (nunca a digitada no campo ainda não salvo), então pede pra
+  // salvar a configuração antes de testar.
+  const handleSendTestEmail = async () => {
+    if (!testRecipient.trim()) {
+      toast.error("Informe o destinatário do teste.");
+      return;
+    }
+    setSendingTest(true);
+    try {
+      const result = await fiscal.config.testResendEmail({
+        to: testRecipient,
+        subject: testSubject,
+        message: testMessage,
+      });
+      if (result.ok) {
+        toast.success("E-mail de teste enviado — confira a caixa de entrada do destinatário.");
+      } else {
+        toast.error(result.errorMessage || "Falha ao enviar o e-mail de teste.");
+      }
+    } catch (err) {
+      toastError(err);
+    }
+    setSendingTest(false);
   };
 
   if (loading || !config) {
@@ -769,9 +809,22 @@ const FiscalConfigPanel = ({ fiscal }) => {
             </Typography>
             <Typography variant="body2" className={classes.sectionSubtitle}>
               Por padrão, "Enviar por e-mail" (tela da venda) pede pra própria
-              Focus NFe mandar o e-mail. Habilitando aqui, o AtendeFlow passa a
-              mandar ele mesmo, com o remetente configurado abaixo — crie uma
-              conta em resend.com, verifique um domínio e gere uma API key.
+              Focus NFe mandar o e-mail. Conectando a Resend aqui, o AtendeFlow
+              passa a mandar ele mesmo, com o remetente configurado abaixo.
+            </Typography>
+            <Typography variant="body2" className={classes.sectionSubtitle} component="div">
+              1. Crie sua conta em{" "}
+              <Link href="https://resend.com" target="_blank" rel="noopener noreferrer">
+                resend.com
+              </Link>
+              . 2. Abra API Keys → Add API Key. 3. Verifique o domínio do
+              remetente (não dá pra usar @gmail.com ou outro domínio que você
+              não controla), salve a chave aqui e envie um teste.
+              {" "}
+              <Link href="https://resend.com/pricing" target="_blank" rel="noopener noreferrer">
+                Confira os limites atuais da Resend.
+              </Link>{" "}
+              O remetente de teste da própria Resend restringe os destinatários.
             </Typography>
             <Grid container spacing={2}>
               <Grid item xs={12}>
@@ -785,6 +838,14 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   }
                   label="Usar Resend pra enviar a nota por e-mail"
                 />
+                {values.resendApiKeyConfigured && (
+                  <Box display="flex" alignItems="center" style={{ gap: 4, marginTop: -4, marginBottom: 8 }}>
+                    <CheckCircleIcon fontSize="small" style={{ color: "#2e7d32" }} />
+                    <Typography variant="caption" style={{ color: "#2e7d32" }}>
+                      Envio validado — chave já cadastrada
+                    </Typography>
+                  </Box>
+                )}
               </Grid>
               <Grid item xs={12} sm={6}>
                 <Field
@@ -793,9 +854,28 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   variant="outlined"
                   size="small"
                   name="resendApiKey"
-                  label="API Key da Resend"
-                  type="password"
+                  label="Chave API da Resend"
+                  type={showResendKey ? "text" : "password"}
                   disabled={!values.resendEnabled}
+                  placeholder={values.resendApiKeyConfigured ? "••••••••••••••••" : ""}
+                  helperText={
+                    values.resendApiKeyConfigured
+                      ? "✓ Chave cadastrada. Deixe vazio para manter."
+                      : undefined
+                  }
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          size="small"
+                          onClick={() => setShowResendKey((prev) => !prev)}
+                          disabled={!values.resendEnabled}
+                        >
+                          {showResendKey ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </Grid>
               <Grid item xs={12} sm={3}>
@@ -807,6 +887,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   name="resendFromEmail"
                   label="E-mail remetente"
                   placeholder="notas@seudominio.com.br"
+                  helperText="Use um endereço de domínio verificado na Resend."
                   disabled={!values.resendEnabled}
                 />
               </Grid>
@@ -822,6 +903,64 @@ const FiscalConfigPanel = ({ fiscal }) => {
                 />
               </Grid>
             </Grid>
+
+            {values.resendEnabled && values.resendApiKeyConfigured && (
+              <Box mt={2} p={2} border="1px solid #e0e0e0" borderRadius={8}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Enviar para um destinatário
+                </Typography>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Revise o destinatário e a mensagem antes de confirmar.
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Destinatário"
+                      value={testRecipient}
+                      onChange={(e) => setTestRecipient(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={8}>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Assunto"
+                      value={testSubject}
+                      onChange={(e) => setTestSubject(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      multiline
+                      minRows={2}
+                      label="Mensagem"
+                      placeholder="Olá! O e-mail da integração Resend está conectado ao AtendeFlow."
+                      value={testMessage}
+                      onChange={(e) => setTestMessage(e.target.value)}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Button
+                      variant="outlined"
+                      color="primary"
+                      size="small"
+                      startIcon={sendingTest ? <CircularProgress size={14} /> : <SendIcon />}
+                      onClick={handleSendTestEmail}
+                      disabled={sendingTest}
+                    >
+                      Confirmar e enviar e-mail
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
 
             <Divider className={classes.divider} />
 

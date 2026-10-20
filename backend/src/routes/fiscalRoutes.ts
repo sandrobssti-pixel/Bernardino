@@ -24,6 +24,7 @@ fiscalRoutes.get("/fiscal/access", isAuth, FiscalAccessController.show);
 fiscalRoutes.get("/fiscal/config", isAuth, FiscalConfigController.show);
 fiscalRoutes.put("/fiscal/config", isAuth, FiscalConfigController.update);
 fiscalRoutes.get("/fiscal/gateways", isAuth, FiscalConfigController.gateways);
+fiscalRoutes.post("/fiscal/config/resend-test", isAuth, FiscalConfigController.testResendEmail);
 
 // Importação de vendas históricas (migração de ERP, v2.3.116) — registra
 // vendas que já têm nota fiscal emitida no sistema anterior; nunca chama o
