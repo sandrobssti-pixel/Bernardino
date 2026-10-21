@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Formik, Form, Field } from "formik";
 import { toast } from "react-toastify";
 
+import useFiscal from "../../hooks/useFiscal";
+import { buildEmitterAddressLine } from "../../utils/financeFormat";
+
 import { makeStyles } from "@material-ui/core/styles";
 import Button from "@material-ui/core/Button";
 import TextField from "@material-ui/core/TextField";
@@ -192,6 +195,27 @@ const useStyles = makeStyles((theme) => ({
 // Federal). Ver WeaponArmoryService.ts e docs/MANUAL_TECNICO.md.
 const WeaponArmoryServiceModal = ({ open, onClose, onSave, record, weaponArmory, companyLogoUrl, companyName }) => {
   const classes = useStyles();
+  // Rodapé com endereço/telefone/e-mail da empresa (v2.3.184) — ver
+  // comentário completo em FinanceRecordList/index.js. Este módulo pode
+  // existir numa empresa sem Financeiro/Fiscal ativo (Serviço Armaria é
+  // independente) — erro vira rodapé sem endereço, em silêncio.
+  const fiscal = useFiscal();
+  const [emitterFooter, setEmitterFooter] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const config = await fiscal.config.show();
+        setEmitterFooter({
+          address: buildEmitterAddressLine(config),
+          phone: config.emitterPhone,
+          email: config.emitterEmail,
+        });
+      } catch (err) {
+        setEmitterFooter(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const beforeInputRef = useRef(null);
   const afterInputRef = useRef(null);
   const [initialValues, setInitialValues] = useState(buildInitialValues(null));
@@ -674,6 +698,15 @@ const WeaponArmoryServiceModal = ({ open, onClose, onSave, record, weaponArmory,
             </tr>
           </tbody>
         </table>
+
+        {emitterFooter && (
+          <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 16 }}>
+            {companyName && <div>{companyName}</div>}
+            {emitterFooter.address && <div>{emitterFooter.address}</div>}
+            {emitterFooter.phone && <div>Fone: {emitterFooter.phone}</div>}
+            {emitterFooter.email && <div>{emitterFooter.email}</div>}
+          </div>
+        )}
       </div>
     )}
     </>
