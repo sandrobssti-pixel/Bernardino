@@ -62,6 +62,11 @@ const useStyles = makeStyles((theme) => ({
   printArea: {
     display: "none",
   },
+  printLogo: {
+    maxHeight: 60,
+    maxWidth: 160,
+    marginBottom: 8,
+  },
   // Só a área de impressão (tabela simples, montada na hora a partir do
   // mesmo `columns`/`records` da tela) vai pro papel/PDF — mesma técnica já
   // usada em FinancePainel/index.js (window.print() + @media print, sem
@@ -624,6 +629,9 @@ const FinanceRecordList = ({
 
       {printRows && (
         <div id="finance-record-list-print-area" className={classes.printArea}>
+          {user?.company?.logoUrl && (
+            <img src={user.company.logoUrl} alt="logo" className={classes.printLogo} />
+          )}
           <h2>{title}</h2>
           <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
             <thead>

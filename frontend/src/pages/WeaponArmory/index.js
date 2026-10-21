@@ -99,7 +99,7 @@ const useStyles = makeStyles((theme) => ({
 // (Plan.useWeaponArmory), mesmo padrão de acesso. Ver docs/MANUAL_TECNICO.md.
 const WeaponArmory = () => {
   const classes = useStyles();
-  const { user } = useContext(AuthContext);
+  const { user, updateUser } = useContext(AuthContext);
   const weaponArmory = useWeaponArmory();
   const companies = useCompanies();
   const logoInputRef = useRef(null);
@@ -110,7 +110,11 @@ const WeaponArmory = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const [logoUrl, setLogoUrl] = useState(user?.company?.logoUrl || "");
+  // Lê direto do AuthContext (não em estado local próprio) — pedido do
+  // cliente: a logo sumia ao sair da tela e voltar, porque antes ficava
+  // só num `useState` que não sincronizava de volta com o contexto global
+  // depois do upload. Ver `updateUser` em handleLogoChange.
+  const logoUrl = user?.company?.logoUrl || "";
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
@@ -171,7 +175,7 @@ const WeaponArmory = () => {
     setUploadingLogo(true);
     try {
       const { logoUrl: newLogoUrl } = await companies.uploadLogo(user.companyId, file);
-      setLogoUrl(newLogoUrl);
+      updateUser({ company: { ...user.company, logoUrl: newLogoUrl } });
       toast.success("Logomarca atualizada.");
     } catch (err) {
       toastError(err);

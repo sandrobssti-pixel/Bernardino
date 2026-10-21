@@ -11271,3 +11271,71 @@ nova.
 
 **Arquivos**: `backend/src/services/ServiceService/
 ServiceService.ts` (`order` de `list`).
+
+## 160. Logomarca persiste ao navegar + impressão em Serviços (v2.3.182)
+
+Cliente relatou 3 pontos numa mensagem só: "em serviços quando for
+imprimir deixa a logomarca no arquivo, em armaria quando anexa a
+logomarca não fica, depois que sai da tela e retorna pra Serviço
+Armaria a logo sai, e quando gerar o relatório é pra deixar tanto a
+logomarca quanto as fotos de antes e depois pra imprimir ou gerar
+PDF".
+
+**Causa raiz do bug da logo sumindo (o mais importante)**: a tela de
+Serviço Armaria (`pages/WeaponArmory/index.js`) guardava a logo
+recém-upada só num `useState` LOCAL da própria página
+(`const [logoUrl, setLogoUrl] = useState(...)`), inicializado a
+partir de `user?.company?.logoUrl` do `AuthContext` **só na primeira
+montagem**. O upload (`CompanyController.uploadLogo`, seção 156) salva
+certinho no banco — mas o `AuthContext` nunca ficava sabendo do valor
+novo, porque não existia nenhum jeito de atualizar o `user` já logado
+sem passar por login de novo. Resultado: enquanto a pessoa ficava na
+mesma tela, a logo aparecia (estado local atualizado otimisticamente
+no próprio `handleLogoChange`) — mas ao navegar pra outra tela e
+voltar, o componente remontava e reinicializava o `useState` a partir
+do `AuthContext` desatualizado, perdendo a logo.
+
+**Correção — `updateUser` novo no `AuthContext`**:
+`hooks/useAuth.js/index.js` ganhou `updateUser(partial)` (merge raso
+em cima do `user` atual via `setUser`), exportado e exposto no
+`AuthContext.Provider`. `WeaponArmory/index.js` não guarda mais a logo
+em estado próprio — lê direto `user?.company?.logoUrl` (fonte única
+de verdade) e, depois de um upload bem-sucedido, chama
+`updateUser({ company: { ...user.company, logoUrl: newLogoUrl } })`
+pra sincronizar a sessão de verdade. Esse padrão (`updateUser`) fica
+disponível pra qualquer tela futura que precise atualizar um campo da
+empresa/usuário sem forçar logout/login.
+
+**Impressão em Serviços ganhou a logo**: nem `FinanceRecordList.js`
+(impressão da lista inteira — usada em Clientes/Fornecedores/Produtos/
+Serviços/Contas) nem `FinanceRecordModal.js` (impressão de UM registro
+aberto no formulário) tinham logo no cabeçalho da área impressa — só o
+Termo de Cautela do Serviço Armaria (seção 156) tinha. Adicionado
+`<img src={user.company.logoUrl}>` antes do `<h2>{title}</h2>` nos
+dois, lendo `user` do `AuthContext` (já importado/usado em
+`FinanceRecordList.js`; `FinanceRecordModal.js` não tinha esse import,
+adicionado agora). Como são componentes genéricos, o ganho vale pra
+Clientes/Fornecedores/Produtos/Serviços/Contas de uma vez, não só
+Serviços.
+
+**Fotos antes/depois no relatório — já estava certo**: o Termo de
+Cautela (`WeaponArmoryServiceModal.js`, seção 156) já incluía
+`photosBefore`/`photosAfter` na área de impressão desde que foi
+criado — o sintoma relatado ("a foto não aparece") era na prática o
+mesmo bug da logo (o componente recebe `companyLogoUrl` via prop vinda
+da página, que estava desatualizada pela mesma causa raiz acima) —
+corrigindo a raiz na página, a logo chega certa no modal também. Não
+precisou mexer no `WeaponArmoryServiceModal.js` em si.
+
+**Validação**: `npx eslint` limpo nos arquivos tocados; `craco build`
+de produção limpo. Mudança 100% frontend, sem migration/mudança de
+backend.
+
+**Arquivos**: `frontend/src/hooks/useAuth.js/index.js`
+(`updateUser`), `frontend/src/context/Auth/AuthContext.js` (expõe
+`updateUser`), `frontend/src/pages/WeaponArmory/index.js`
+(`logoUrl` vira leitura direta de `user.company`, `handleLogoChange`
+chama `updateUser`), `frontend/src/components/FinanceRecordList/
+index.js` (logo na impressão da lista),
+`frontend/src/components/FinanceRecordModal/index.js` (logo na
+impressão de um registro, novo import de `AuthContext`).

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import * as Yup from "yup";
 import { Formik, Form, Field } from "formik";
 import { toast } from "react-toastify";
+
+import { AuthContext } from "../../context/Auth/AuthContext";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Button from "@material-ui/core/Button";
@@ -59,6 +61,11 @@ const useStyles = makeStyles((theme) => ({
   },
   printArea: {
     display: "none",
+  },
+  printLogo: {
+    maxHeight: 60,
+    maxWidth: 160,
+    marginBottom: 8,
   },
   photoBox: {
     display: "flex",
@@ -153,6 +160,7 @@ const FinanceRecordModal = ({
   onUploadPhoto,
 }) => {
   const classes = useStyles();
+  const { user } = useContext(AuthContext);
   const fileInputRef = useRef(null);
   const [initialValues, setInitialValues] = useState(buildInitialValues(fields, null));
   // Foto (v2.3.167, só quando `enablePhotoUpload` — hoje só o cadastro de
@@ -756,6 +764,9 @@ const FinanceRecordModal = ({
     </Dialog>
     {printSnapshot && (
       <div id="finance-record-modal-print-area" className={classes.printArea}>
+        {user?.company?.logoUrl && (
+          <img src={user.company.logoUrl} alt="logo" className={classes.printLogo} />
+        )}
         <h2>{title}</h2>
         <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
           <tbody>

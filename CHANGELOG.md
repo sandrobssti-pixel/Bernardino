@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.182] — Logomarca persiste ao navegar + impressão em Serviços — 2026-10-21
+
+### Corrigido
+- A logomarca anexada em Serviço Armaria sumia ao sair da tela e
+  voltar — ficava só num estado local da página, nunca sincronizava
+  de volta com a sessão do usuário. Corrigido: agora atualiza a sessão
+  de verdade (sem precisar relogar), então a logo se mantém navegando
+  entre telas.
+
+### Adicionado
+- A impressão em Serviços (e em qualquer outro cadastro que usa a
+  mesma lista — Clientes, Fornecedores, Produtos, Contas), tanto na
+  lista inteira quanto num registro individual, agora inclui a
+  logomarca da empresa no cabeçalho, igual já acontecia no Termo de
+  Cautela do Serviço Armaria.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 160.
+
 ## [2.3.181] — Lista de Serviços ordenada por código — 2026-10-21
 
 ### Alterado

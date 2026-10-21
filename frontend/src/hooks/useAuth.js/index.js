@@ -431,6 +431,15 @@ const useAuth = () => {
     }
   };
 
+  // Atualiza campos do usuário/empresa já logado sem precisar de novo
+  // login (ex.: logomarca da empresa recém-upada em Serviço Armaria,
+  // v2.3.182) — merge raso em cima do `user` atual. Sem isso, navegar pra
+  // outra tela e voltar lia o valor antigo de `user.company` de novo (o
+  // contexto só é atualizado de verdade no login/refresh de sessão).
+  const updateUser = (partial) => {
+    setUser((prev) => ({ ...prev, ...partial }));
+  };
+
   return {
     isAuth,
     user,
@@ -438,6 +447,7 @@ const useAuth = () => {
     handleLogin,
     handleLogout,
     getCurrentUserInfo,
+    updateUser,
     socket: socket || noopSocket.current
   };
 };
