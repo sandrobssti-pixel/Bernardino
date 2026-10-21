@@ -42,15 +42,41 @@ const readRows = (filePath: string): Record<string, any>[] => {
   return XLSX.utils.sheet_to_json(worksheet, { header: 0, defval: "" });
 };
 
+// Aliases pensados pra aceitar tanto o modelo baixado em "Baixar modelo"
+// quanto planilhas que o cliente já tinha prontas de antes (ex.: a lista
+// real dos 37 serviços do Despachante Bélico, cabeçalhos "Nome", "Tipo",
+// "SKU", "Valor do Serviço", "Forma de Pagamento", "Descrição do
+// Serviço") — sem precisar reformatar nada antes de importar. "Tipo" fica
+// de fora de propósito (Service não tem esse campo, sempre "Serviço" na
+// planilha de origem, não carrega informação útil). "SKU" vira `code`
+// (Service TEM campo código, só não se chama SKU — aproveita o dado em
+// vez de descartar).
 const SERVICE_MAPPINGS: FieldMapping[] = [
-  { field: "code", aliases: ["codigo", "código", "code"] },
+  { field: "code", aliases: ["codigo", "código", "code", "sku"] },
   { field: "name", aliases: ["nome", "nomedoservico", "servico", "serviço", "name"] },
   { field: "value", aliases: ["valor", "valordoservico", "preco", "preço", "value"] },
   {
     field: "paymentTerms",
-    aliases: ["condicoesdepagamento", "condicaodepagamento", "formadepagamento", "pagamento"]
+    aliases: [
+      "condicoesdepagamento",
+      "condicaodepagamento",
+      "formadepagamento",
+      "formasdepagamento",
+      "pagamento"
+    ]
   },
-  { field: "description", aliases: ["descricao", "descrição", "description", "obs", "observacoes"] }
+  {
+    field: "description",
+    aliases: [
+      "descricao",
+      "descrição",
+      "descricaodoservico",
+      "descricaoservico",
+      "description",
+      "obs",
+      "observacoes"
+    ]
+  }
 ];
 
 const mapRow = (row: Record<string, any>): Record<string, any> => {
@@ -95,9 +121,18 @@ export const importServices = async (
   return summary;
 };
 
-const SERVICE_TEMPLATE_HEADERS = ["Código", "Nome do Serviço", "Valor", "Condições de Pagamento", "Descrição"];
+// Mesmos nomes de coluna da planilha real que o cliente já usa (lista dos
+// 37 serviços do Despachante Bélico) — assim o modelo baixado aqui é
+// compatível 1:1 com o que ele já preenche, sem reformatar nada.
+const SERVICE_TEMPLATE_HEADERS = [
+  "Código",
+  "Nome",
+  "Valor do Serviço",
+  "Forma de Pagamento",
+  "Descrição do Serviço"
+];
 const SERVICE_TEMPLATE_EXAMPLE = [
-  "SRV-001",
+  "001",
   "Limpeza e manutenção preventiva",
   "150",
   "À vista ou Pix",

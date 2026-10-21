@@ -11212,3 +11212,46 @@ ServiceController.ts` (`importTemplate`, `importServices`),
 (`allowImport`/`allowTemplateDownload`),
 `frontend/src/components/FinanceRecordList/index.js` (botão de
 excluir individual, `deleteTarget`/`handleDelete`).
+
+## 158. Importação de Serviços aceita a planilha real do cliente (v2.3.180)
+
+Continuação direta da seção 157. O cliente mandou a planilha real que
+ele já tinha com os 37 serviços do Despachante Bélico — e ela também
+respondeu a pergunta em aberto desde a seção 153 (de onde vieram
+aqueles 37 serviços originalmente). Cabeçalhos reais: "Nome", "Tipo",
+"SKU", "Valor do Serviço", "Forma de Pagamento", "Descrição do
+Serviço" (37 linhas de dados, uma por serviço CAC/Civil/Militar).
+
+**Causa raiz do problema que o cliente relatou** ("o mesmo está no
+mesmo formato pra cadastro de armas"): não era o formulário de
+cadastro (`serviceFields`, seção 153) — esse já tinha só os campos
+certos. Era a IMPORTAÇÃO (seção 157, recém-criada): o casamento de
+coluna é por nome EXATO normalizado, não por substring, e
+`SERVICE_MAPPINGS` só reconhecia `"descricao"` — não `"descricaodoservico"`
+("Descrição do Serviço" normaliza pra `descricaodoservico`, um alias
+diferente). Resultado: ao importar a planilha real, a coluna de
+descrição ficava sempre vazia (só 3 das 5 colunas úteis batiam —
+Nome, Valor do Serviço, Forma de Pagamento). Corrigido adicionando
+`"descricaodoservico"`/`"descricaoservico"` aos aliases de
+`description`.
+
+**"SKU" passou a ser aproveitado**: a coluna "SKU" da planilha real
+(valores "001" a "037") antes não tinha alias nenhum — qualquer coluna
+sem alias correspondente é simplesmente ignorada na importação (não dá
+erro, só não preenche nada). Como `Service` TEM um campo `code` (só não
+se chama SKU), adicionado `"sku"` como alias de `code` — a numeração
+original não se perde mais.
+
+**Modelo baixável atualizado pra bater 1:1**: `SERVICE_TEMPLATE_HEADERS`
+trocado de `["Código", "Nome do Serviço", "Valor", "Condições de
+Pagamento", "Descrição"]` pros nomes reais ("Código", "Nome", "Valor do
+Serviço", "Forma de Pagamento", "Descrição do Serviço") — assim quem
+baixa o modelo e quem já tem a planilha pronta usam exatamente os
+mesmos cabeçalhos, sem precisar reformatar nada nos dois sentidos.
+
+**Validação**: `npx tsc --noEmit` limpo no backend. Sem migration nova
+(só ajuste de string/alias, nenhuma coluna nova).
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceImportService.ts` (aliases de `description`/`code`, cabeçalhos
+do modelo baixável).

@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.180] — Importação de Serviços aceita a planilha real do cliente — 2026-10-21
+
+### Corrigido
+- O cliente mandou a planilha real dos 37 serviços do Despachante
+  Bélico ("Nome", "Tipo", "SKU", "Valor do Serviço", "Forma de
+  Pagamento", "Descrição do Serviço") e "Descrição do Serviço" não
+  estava sendo reconhecida na importação (só "Descrição" sozinho
+  batia). Corrigido — a importação agora aceita esses nomes de coluna
+  exatos, sem precisar reformatar a planilha. "SKU" também passou a
+  virar o código do serviço em vez de ser descartado.
+- O modelo baixável ("Baixar modelo") passou a usar os mesmos nomes de
+  coluna da planilha real do cliente, pra ficar 1:1 compatível.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 158.
+
 ## [2.3.179] — Importação de Serviços via planilha + excluir individual — 2026-10-21
 
 ### Adicionado
