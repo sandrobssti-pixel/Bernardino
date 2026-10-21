@@ -56,7 +56,11 @@ export const list = async ({
     where: whereCondition,
     limit,
     offset,
-    order: [["name", "ASC"]]
+    // Ordenado por código (pedido do cliente: "deixa o código por ordem
+    // numérica") — os códigos reais são zero-padded ("001".."037"), então
+    // ordenação alfabética de texto já bate com ordem numérica; nome como
+    // critério de desempate quando o código estiver vazio/repetido.
+    order: [["code", "ASC"], ["name", "ASC"]]
   });
 
   return { records, count, hasMore: count > offset + records.length };

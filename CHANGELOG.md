@@ -3,6 +3,13 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.181] — Lista de Serviços ordenada por código — 2026-10-21
+
+### Alterado
+- A lista de Serviços agora ordena por código (001, 002, 003...) em
+  vez de por nome — pedido do cliente, pra bater com a numeração da
+  planilha original.
+
 ## [2.3.180] — Importação de Serviços aceita a planilha real do cliente — 2026-10-21
 
 ### Corrigido

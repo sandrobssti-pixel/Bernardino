@@ -11255,3 +11255,19 @@ mesmos cabeçalhos, sem precisar reformatar nada nos dois sentidos.
 **Arquivos**: `backend/src/services/ServiceService/
 ServiceImportService.ts` (aliases de `description`/`code`, cabeçalhos
 do modelo baixável).
+
+## 159. Lista de Serviços ordenada por código (v2.3.181)
+
+Pedido direto do cliente: "deixa o código por ordem numérica" — a
+lista de Serviços ordenava por `name` (ASC); trocado pra `code` (ASC,
+com `name` como critério de desempate). Os códigos reais da planilha
+(seção 158) são zero-padded ("001".."037"), então ordenação
+alfabética de texto já resulta em ordem numérica correta — não
+precisou de `CAST` pra inteiro (que quebraria se algum código não for
+só dígitos no futuro).
+
+**Validação**: `npx tsc --noEmit` limpo no backend. Sem migration
+nova.
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceService.ts` (`order` de `list`).
