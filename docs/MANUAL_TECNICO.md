@@ -11596,3 +11596,68 @@ WeaponArmoryServiceModal}/index.js` (rodapé via
 `useFiscal().config.show()`), `frontend/src/components/
 SaleDetailModal/index.js` (`BlockIcon`, `cancelDialogDoc`/
 `handleCancelDocument`, diálogo de cancelamento).
+
+## 164. `db:migrate` manual depois do deploy é redundante — causa "ERROR: Validation error" inofensivo
+
+### Contexto
+
+Depois de aplicar a v2.3.185 em produção, o cliente rodou a sequência de
+deploy de sempre (`git pull` → `build --no-cache` → `up -d
+--force-recreate backend frontend`) e, em seguida, um passo manual extra
+que eu vinha recomendando — `docker compose ... exec backend npx
+sequelize db:migrate` — pra garantir que a migration nova
+(`20261021120000-add-emitter-email-to-fiscal-configs`) tivesse rodado.
+Esse passo manual retornou:
+
+```
+Sequelize CLI [Node: 20.20.2, CLI: 5.5.1, ORM: 5.22.5]
+Loaded configuration file "dist/config/database.js".
+== 20261021120000-add-emitter-email-to-fiscal-configs: migrating =======
+ERROR: Validation error
+```
+
+Sem mais detalhe nenhum na saída (nem stack trace, nem nome de campo).
+
+### Causa raiz
+
+`backend/Dockerfile` já roda `npx sequelize-cli db:migrate` sozinho
+toda vez que o container sobe, antes de `node dist/server.js` (ver
+seção 32). O `up -d --force-recreate backend` reinicia o container, e
+isso sozinho já aplica qualquer migration pendente. O passo manual
+rodado logo depois é redundante — e, pior, pode **correr** contra esse
+auto-migrate do próprio boot: os dois tentam inserir o mesmo nome de
+migration na tabela `SequelizeMeta`, a segunda tentativa bate numa
+restrição de chave única, e o Sequelize relata isso de forma genérica
+como `"Validation error"` (é um `SequelizeUniqueConstraintError`, que
+herda de `ValidationError` e usa essa mensagem padrão quando não tem
+detalhe mais específico pra mostrar). Não é corrupção de dado nem
+schema quebrado — é só duas tentativas de registrar a mesma linha.
+
+Confirmado nesse caso específico via `npx sequelize-cli db:migrate:status`
+(comando só-leitura): a migration já aparecia `up`, e não havia nenhuma
+`down` pendente — ou seja, a coluna `emitterEmail` já tinha sido criada
+normalmente pelo auto-migrate do boot, e o erro do passo manual não
+indicava nada quebrado.
+
+Esse mesmo tipo de corrida (passo manual de migrate batendo contra um
+`docker compose up --force-recreate` ainda em andamento) já tinha
+causado um problema parecido, mas mais sério, na seção 82 — lá a
+migration antiga não era idempotente e travava de verdade. As migrations
+deste projeto já seguem o padrão `IF NOT EXISTS` desde aquela correção
+(inclusive a `20261021120000` usada aqui), então a versão idempotente do
+problema é só esse aviso confuso — não trava nada.
+
+### O que foi feito
+
+- Nenhuma mudança de código — é um ajuste de **procedimento**: parar de
+  recomendar o passo manual `exec backend npx sequelize db:migrate`
+  depois do `up -d --force-recreate`, já que ele não adiciona nada (o
+  Dockerfile já migra sozinho) e só cria esse risco de corrida
+  cosmética. A sequência de deploy documentada na skill
+  `atendeflow-dev` (seção "Deploy") já estava correta — nunca incluiu
+  esse passo manual; era algo que eu vinha adicionando por conta
+  própria nas respostas do chat.
+- **Lição pro futuro**: se algum dia for preciso confirmar que uma
+  migration nova rodou depois de um deploy, usar
+  `db:migrate:status` (só leitura, nunca corre com o auto-migrate) em
+  vez de rodar `db:migrate` de novo manualmente.
