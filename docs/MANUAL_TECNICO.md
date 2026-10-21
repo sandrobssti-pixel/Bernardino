@@ -11779,3 +11779,67 @@ irreversível).
 Não precisou de mudança no backend nem migration nova.
 
 **Arquivos**: `frontend/src/components/SaleList/index.js`.
+
+## 167. Editar venda confirmada pra corrigir erro antes de emitir (v2.3.188)
+
+### Contexto
+
+Continuação direta da seção 166. O cliente descreveu o fluxo que queria:
+"a pessoa erra, depois visualiza, depois edita, corrige, depois envia —
+aí gera lá o código de envio pra Sefaz retornando como feita e depois
+gera a nota em PDF e XML". Até aqui, confirmar uma venda (`SaleService.
+confirm`) travava os itens pra sempre (`update` só funcionava em
+"draft") — achar um erro na pré-visualização de uma venda já confirmada
+não tinha conserto sem cancelar e refazer a venda inteira.
+
+Perguntado ao cliente antes de mexer (duas rodadas de pergunta, dado que
+isso mexe em estoque e em conta a receber — dinheiro de verdade):
+1. Se a venda já confirmada deve poder ser editada mesmo assim →
+   confirmado que sim ("destravar venda confirmada pra corrigir").
+2. Se deve continuar editável mesmo com a conta a receber já tendo
+   cobrança gerada/paga num gateway → **não**, bloquear nesse caso
+   (recomendado por mim, confirmado pelo cliente) — evita desencontrar
+   o valor cobrado do cliente do novo valor da venda.
+
+### O que foi feito
+
+- **`SaleService.ts`** — nova `assertSaleEditable(sale)`, chamada no
+  início de `update`: bloqueia (`ERR_SALE_NOT_EDITABLE`) venda
+  cancelada; pra venda confirmada, bloqueia (`ERR_SALE_HAS_FISCAL_
+  DOCUMENT`) se já tiver `FiscalDocument` com status `authorized`/
+  `processing`, e bloqueia (`ERR_SALE_RECEIVABLE_HAS_PAYMENT`) se a
+  `FinanceReceivable` ligada já tiver `status === "received"` ou
+  `paymentExternalId` preenchido (cobrança gerada no Mercado Pago, ver
+  `FinanceReceivablePaymentService.ts`). Passando dessas checagens,
+  `update` agora: devolve o estoque da composição ANTIGA (só se a venda
+  já estava confirmada), troca os itens, confere disponibilidade e
+  desconta a composição NOVA, e atualiza o `value` da conta a receber
+  pro novo total — tudo sem transação explícita (mesmo padrão já usado
+  em `confirm`/`cancel` deste arquivo, que também não usam transação pra
+  essas mutações de estoque/financeiro).
+- **`SaleDetailModal.js`** — novo prop `onEdit`; botão "Editar" nas
+  ações do modal (visível pra qualquer venda não cancelada — o bloqueio
+  de verdade é no backend, aparece como toast de erro se não puder).
+- **`SaleList.js`** — `handleEdit` agora também fecha o modal de
+  detalhe antes de abrir o de edição (evita os dois abertos ao mesmo
+  tempo); `onEdit={handleEdit}` passado pro `SaleDetailModal`; ícone de
+  editar adicionado direto na linha de uma venda confirmada na lista
+  (escondido só quando já tem nota autorizada/em processamento, mesma
+  checagem feita no backend, usando os dados que a listagem já traz).
+- **`translate/languages/pt.js`** — `ERR_SALE_NOT_EDITABLE` reescrito
+  pra refletir que agora é só sobre venda cancelada; duas chaves novas
+  (`ERR_SALE_HAS_FISCAL_DOCUMENT`, `ERR_SALE_RECEIVABLE_HAS_PAYMENT`).
+  Só em `pt.js` — mesmo padrão já usado pras chaves `ERR_SALE_*`
+  anteriores (não duplicadas nos outros 4 idiomas, caem no
+  `fallbackLng: "pt"`).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; `GENERATE_
+SOURCEMAP=false CI=false npx craco build` limpo no frontend. Não testado
+contra um banco real com venda confirmada + conta a receber paga nesta
+sessão — a lógica de bloqueio foi conferida só por leitura de código.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`frontend/src/components/{SaleDetailModal,SaleList}/index.js`,
+`frontend/src/translate/languages/pt.js`.

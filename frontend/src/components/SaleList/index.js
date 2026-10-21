@@ -190,6 +190,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
   const handleEdit = (sale) => {
     setSelectedSale(sale);
+    setDetailOpen(false);
     setModalOpen(true);
   };
 
@@ -450,6 +451,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         sale={selectedSale}
         fiscal={fiscal}
         focusFiscal={detailFocusFiscal}
+        onEdit={handleEdit}
       />
 
       <Box className={classes.mainHeader}>
@@ -627,6 +629,13 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <VisibilityIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      {!sale.fiscalDocuments?.some((d) => ["authorized", "processing"].includes(d.status)) && (
+                        <Tooltip title="Editar (corrigir antes de emitir)">
+                          <IconButton size="small" onClick={() => handleEdit(sale)}>
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                       <Tooltip title="Emitir nota fiscal">
                         <IconButton size="small" onClick={() => handleViewDetail(sale, true)}>
                           <ReceiptIcon fontSize="small" />

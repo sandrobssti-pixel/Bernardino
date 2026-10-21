@@ -1880,7 +1880,9 @@ const messages = {
       backendErrors: {
         ERR_COMPANY_PLAN_REQUIRED: "Selecione um plano para vincular à empresa.",
         ERR_SALE_REQUIRES_ITEMS: "Adicione pelo menos um item à venda.",
-        ERR_SALE_NOT_EDITABLE: "Só é possível editar vendas em rascunho.",
+        ERR_SALE_NOT_EDITABLE: "Não é possível editar uma venda cancelada.",
+        ERR_SALE_HAS_FISCAL_DOCUMENT: "Esta venda já tem nota fiscal autorizada ou em processamento — para corrigir, use carta de correção ou cancele a nota.",
+        ERR_SALE_RECEIVABLE_HAS_PAYMENT: "A conta a receber desta venda já tem cobrança gerada ou paga — cancele a venda e refaça se precisar corrigir.",
         ERR_SALE_ALREADY_CONFIRMED: "Esta venda já foi confirmada.",
         ERR_SALE_NOT_CONFIRMED: "Confirme a venda antes de emitir a nota fiscal.",
         ERR_SALE_NOT_FOUND: "Venda não encontrada.",

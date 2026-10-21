@@ -419,6 +419,40 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
   return show(sale.id, companyId);
 };
 
+// v2.3.188 — pedido do cliente: depois de ver o "olhinho"
+// (pré-visualização) e achar um erro, dar pra corrigir a venda SEM
+// precisar cancelar e refazer tudo, mesmo já tendo clicado em "Confirmar
+// venda". Antes disso, editar só era possível em "draft" — confirmar
+// travava os itens pra sempre. Continua bloqueado quando:
+// - a venda já tem nota fiscal autorizada ou em processamento (aí já é
+//   um documento fiscal de verdade — corrigir precisa ser carta de
+//   correção/cancelamento, não editar a venda por baixo);
+// - a conta a receber gerada na confirmação já tem cobrança criada ou
+//   paga num gateway (Asaas/Mercado Pago) — editar o valor da venda
+//   desencontraria do que já foi cobrado do cliente. Nesse caso, cancelar
+//   a venda (devolve estoque) e criar outra.
+const assertSaleEditable = async (sale: Sale): Promise<void> => {
+  if (sale.status === "cancelled") {
+    throw new AppError("ERR_SALE_NOT_EDITABLE");
+  }
+
+  if (sale.status !== "confirmed") return;
+
+  const hasRealFiscalDocument = (sale.fiscalDocuments || []).some(doc =>
+    ["authorized", "processing"].includes(doc.status)
+  );
+  if (hasRealFiscalDocument) {
+    throw new AppError("ERR_SALE_HAS_FISCAL_DOCUMENT");
+  }
+
+  if (sale.receivableId) {
+    const receivable = await FinanceReceivable.findByPk(sale.receivableId);
+    if (receivable && (receivable.status === "received" || receivable.paymentExternalId)) {
+      throw new AppError("ERR_SALE_RECEIVABLE_HAS_PAYMENT");
+    }
+  }
+};
+
 export const update = async (
   id: string | number,
   data: SaleData,
@@ -426,9 +460,7 @@ export const update = async (
 ): Promise<Sale> => {
   const sale = await show(id, companyId);
 
-  if (sale.status !== "draft") {
-    throw new AppError("ERR_SALE_NOT_EDITABLE");
-  }
+  await assertSaleEditable(sale);
 
   try {
     await saleSchema.validate(data);
@@ -437,6 +469,14 @@ export const update = async (
   }
 
   const total = calculateTotal(data.items);
+  const wasConfirmed = sale.status === "confirmed";
+
+  // Devolve o estoque da composição ANTIGA antes de trocar os itens —
+  // só quando a venda já estava confirmada (em "draft" o estoque nunca
+  // foi mexido, ver `confirm` abaixo).
+  if (wasConfirmed) {
+    await adjustStock(sale, -1);
+  }
 
   await sale.update({
     saleDate: data.saleDate || null,
@@ -449,10 +489,32 @@ export const update = async (
   });
 
   // Substitui os itens inteiros (mais simples e seguro que tentar
-  // diff/merge item a item) — venda só é editável em "draft", então não há
-  // risco de descartar histórico de itens de uma venda já confirmada.
+  // diff/merge item a item) — a venda não tem nota fiscal de verdade
+  // nem cobrança ativa nesse ponto (`assertSaleEditable` já garantiu),
+  // então não há histórico fiscal/financeiro real sendo descartado.
   await SaleItem.destroy({ where: { saleId: sale.id } });
   await SaleItem.bulkCreate(await buildItemRows(data.items, sale.id, companyId, data.customerId) as any);
+
+  const updated = await show(id, companyId);
+
+  if (wasConfirmed) {
+    // Checa disponibilidade e desconta a composição NOVA só depois de já
+    // ter devolvido a antiga — mesma ordem usada em `confirm` (valida
+    // antes de mexer de verdade), mas aqui o "devolver antes" já é uma
+    // mutação; se faltar estoque pra nova composição, a venda fica
+    // consistente (itens novos gravados, estoque da antiga já devolvido,
+    // só falta descontar a nova) — repetir a edição com quantidade
+    // menor resolve, sem duplicar desconto.
+    ensureStockAvailable(updated);
+    await adjustStock(updated, 1);
+
+    if (updated.receivableId) {
+      await FinanceReceivable.update(
+        { value: String(total) },
+        { where: { id: updated.receivableId } }
+      );
+    }
+  }
 
   return show(id, companyId);
 };

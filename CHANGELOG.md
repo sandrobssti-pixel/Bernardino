@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.188] — Editar venda confirmada pra corrigir erro antes de emitir — 2026-10-21
+
+### Adicionado
+- Venda já confirmada agora pode ser editada (itens, cliente, totais)
+  pra corrigir um erro achado na pré-visualização, sem precisar cancelar
+  tudo e recomeçar — botão "Editar" dentro do detalhe da venda e também
+  direto na lista. Continua bloqueado se a venda já tiver nota fiscal
+  autorizada/em processamento, ou se a conta a receber já tiver cobrança
+  gerada/paga (nesses casos, cancele a venda e refaça). Editar recalcula
+  o estoque e o valor da conta a receber automaticamente.
+
 ## [2.3.187] — Olhinho pra ver a venda antes de confirmar — 2026-10-21
 
 ### Adicionado

@@ -79,9 +79,14 @@ const statusChip = (status) => {
   return <Chip size="small" label="Processando" style={{ backgroundColor: "#3b82f6", color: "#fff" }} />;
 };
 
-// Detalhe de uma venda confirmada (Fase 3 — módulo fiscal): mostra os itens
-// (travados, não editáveis depois de confirmada), os botões de emissão
-// (sempre visíveis) e o histórico de tentativas anteriores.
+// Detalhe de uma venda (Fase 3 — módulo fiscal): mostra os itens, os
+// botões de emissão (quando confirmada) e o histórico de tentativas
+// anteriores. Desde a v2.3.188, "Editar" (via `onEdit`) continua
+// disponível mesmo com a venda já confirmada — dá pra corrigir um erro
+// achado aqui na pré-visualização antes de emitir a nota de verdade; só
+// fica bloqueado (erro vindo do backend) se já tiver nota autorizada/em
+// processamento ou cobrança já gerada/paga na conta a receber, ver
+// `SaleService.assertSaleEditable`.
 //
 // `focusFiscal` só decide se o HISTÓRICO (tabela com tentativas/erros
 // antigos) já abre expandido (ícone de recibo na lista) ou recolhido atrás
@@ -90,7 +95,7 @@ const statusChip = (status) => {
 // escondida atrás de um botão extra, o que confundia mais do que ajudava;
 // o problema real nunca foi "abrir direto", era o histórico de erro antigo
 // aparecendo sem avisar (v2.3.129).
-const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) => {
+const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onEdit }) => {
   const classes = useStyles();
   const [documents, setDocuments] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
@@ -515,6 +520,15 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
         )}
       </DialogContent>
       <DialogActions>
+        {onEdit && sale.status !== "cancelled" && (
+          <Button
+            onClick={() => onEdit(sale)}
+            color="primary"
+            startIcon={<EditIcon fontSize="small" />}
+          >
+            Editar
+          </Button>
+        )}
         <Button onClick={onClose} color="primary">
           Fechar
         </Button>
