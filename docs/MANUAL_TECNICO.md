@@ -11498,3 +11498,101 @@ reposicionado/relabelado, `ibptRate`/`ibptSource` novos),
 `frontend/src/components/SaleDetailModal/index.js` (Dialog de
 confirmação antes de emitir, `pendingEmitType`/`handleConfirmEmit`,
 botão de excluir ajustado pra nova regra).
+
+## 162/163. Desativa pré-visualização insegura + botão de cancelar nota + rodapé interno (v2.3.185)
+
+Três entregas numa sequência de mensagens corridas, documentadas juntas
+porque uma seção anterior numerada "162" (rodapé com dados da empresa)
+foi implementada, revertida a pedido do próprio cliente (9 arquivos
+específicos, listados por ele), e depois pedida de volta — fica
+registrado aqui o ciclo completo, sem reescrever a seção já apagada.
+
+**Rodapé com dados da empresa — implementado, revertido, reimplementado
+idêntico**: pedido original ("coloca no rodapé o endereço da Federação
+Baiana"), eu tentei primeiro (erradamente) colocar dados da PRÓPRIA
+Focus NFe nesses relatórios — corrigido pelo cliente ("não coloca nada
+da Focus, é interno da empresa") — revertido os 3 arquivos de volta
+(`git diff` vazio confirmado) antes de implementar certo: rodapé com
+nome/endereço/telefone/e-mail da EMPRESA (fonte: Configuração Fiscal,
+mesmo endereço já usado no Painel Financeiro — `buildEmitterAddressLine`,
+extraído pra `frontend/src/utils/financeFormat.js`). Campo novo
+`FiscalConfig.emitterEmail`. Depois disso, o cliente pediu pra reverter
+a entrega INTEIRA (9 arquivos específicos, nomeados por ele) — motivo
+não explicado, atendido à risca sem perguntar por quê (pedido
+explícito e preciso o bastante pra não precisar). Pouco depois, pediu
+de volta ("pode fazer") — reimplementado idêntico ao que tinha sido
+revertido, migration com timestamp novo
+(`20261021120000`, a antiga `20261021110000` não existe mais).
+
+**Bug crítico encontrado: "Pré-visualizar DANFe" gerava nota real**: o
+cliente relatou que a nota 498 "foi gerada no modo produção, mesmo
+pré-visualização o sistema autenticou antes como se estivesse
+enviado". Perguntei explicitamente o que foi clicado — confirmado: SÓ
+"Pré-visualizar DANFe" (nunca "Emitir"). Isso prova que
+`FocusNFeService.previewDanfe` (endpoint `POST /v2/nfe/danfe`) não é
+seguro — e esse endpoint nunca tinha sido confirmado contra a
+documentação oficial da Focus NFe, só "reconstruído por conhecimento
+geral" (mesmo aviso ⚠️ já registrado desde que a função foi criada).
+**Desativado imediatamente** em `FiscalDocumentService.previewDanfe`
+(lança `ERR_FISCAL_PREVIEW_DISABLED`, 410) — bloqueado no BACKEND, não
+só escondido na tela, pra não dar pra contornar batendo direto na
+API. O cliente colou a lista oficial de endpoints de NF-e da própria
+documentação da Focus NFe — confirma que "Pré-visualização de DANFe"
+EXISTE como funcionalidade oficial deles, então o problema é só o
+`path`/formato usado aqui estar errado, não a premissa. Fica pendente
+religar depois que o cliente confirmar o endpoint exato (ele vai
+copiar da documentação). Até lá, resta usar o modo Homologação pra
+testar (o próprio cliente já tinha ligado isso como contorno) ou
+seguir sem pré-visualização — pedido direto não cria mais nota real
+sem passar pela confirmação da seção 161.
+
+**Levantamento completo contra a lista oficial de endpoints de NF-e da
+Focus NFe** (colada pelo cliente): implementados — Emitir, Consultar,
+Cancelar, Emitir Carta de Correção, Enviar NFe por Email, Inutilizar
+Numeração, Consultar Inutilizações. Com problema (desativado) —
+Pré-visualização de DANFe. Nunca implementados, confirmado com o
+cliente que NENHUM é necessário pro negócio dele (clube de
+tiro/armaria): Registrar/Cancelar Insucesso na Entrega, Registrar Ator
+Interessado, Importar NFe, DANFe Etiqueta HTML/PDF, Conciliação
+Financeira (ECONF, 3 endpoints), Emitir/Cancelar Evento genérico,
+Solicitar reenvio de notificação.
+
+**Botão de cancelar nota — faltava desde sempre**: o cliente perguntou
+"como faço pra cancelar a nota 498" — investigando, `FiscalDocumentService.
+cancel` já existia completo no backend (status precisa ser
+"authorized", justificativa mín. 15 caracteres), mas **nenhum botão na
+tela nunca chamava essa função** — nem em `SaleDetailModal.js`, nem em
+lugar nenhum do frontend (`grep` confirmou zero resultados). Adicionado
+ícone "Cancelar nota" (`BlockIcon`) ao lado de PDF/XML/E-mail/Carta de
+Correção numa nota autorizada, com diálogo de justificativa (mesmo
+padrão da Carta de Correção) e aviso sobre o prazo curto que a Sefaz
+dá pra cancelamento.
+
+**Fluxo desejado pelo cliente, anotado pra próxima vez**: "primeiro
+cadastro do cliente dos tributos valores depois manda enviar
+localmente, aí tem a opção de visualizar e editar só depois disso que
+manda enviar definitivo" — um fluxo de 3 etapas (cadastro → rascunho
+local com edição → envio definitivo) mais robusto que o resumo
+somente-leitura da seção 161. Não implementado ainda (a prioridade foi
+a correção de segurança); fica registrado como próximo passo quando o
+cliente confirmar que é isso que quer.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (dist limpo e
+reconstruído do zero antes de testar, pra não pegar artefato de build
+antigo); migration nova (`20261021120000-add-emitter-email-to-fiscal-
+configs`) testada contra banco Postgres local do zero — cadeia
+completa, undo/redo — sem erro; `npx eslint` limpo no frontend; `craco
+build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts` (`emitterEmail`),
+`backend/src/database/migrations/
+20261021120000-add-emitter-email-to-fiscal-configs.ts` (novo),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`previewDanfe` desativado), `frontend/src/components/
+FiscalConfigPanel/index.js` (campo "E-mail de contato"),
+`frontend/src/utils/financeFormat.js` (`buildEmitterAddressLine`),
+`frontend/src/components/{FinanceRecordList,FinanceRecordModal,
+WeaponArmoryServiceModal}/index.js` (rodapé via
+`useFiscal().config.show()`), `frontend/src/components/
+SaleDetailModal/index.js` (`BlockIcon`, `cancelDialogDoc`/
+`handleCancelDocument`, diálogo de cancelamento).

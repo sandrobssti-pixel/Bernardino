@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.185] — Desativa pré-visualização insegura + botão de cancelar nota + rodapé interno — 2026-10-21
+
+### Corrigido
+- **Crítico**: o botão "Pré-visualizar DANFe" usava um endpoint da
+  Focus NFe nunca confirmado contra a documentação oficial — na
+  prática, confirmado pelo cliente contra uma nota real em Produção,
+  clicar nele gerava uma nota AUTORIZADA de verdade, mesmo sem clicar
+  em "Emitir". Desativado imediatamente (bloqueado no backend, não só
+  escondido na tela) até confirmar o endpoint correto com a
+  documentação da Focus NFe.
+
+### Adicionado
+- Botão "Cancelar nota" numa nota autorizada — o backend já sabia
+  cancelar (exige justificativa), mas não existia nenhum jeito de
+  acionar isso pela tela.
+- Rodapé com nome, endereço, telefone e e-mail da empresa nos
+  relatórios internos do AtendeFlow (Serviços, Clientes, Fornecedores,
+  Produtos, Contas, Termo de Cautela do Serviço Armaria) — nunca na
+  nota fiscal em si. Novo campo "E-mail de contato" em Configuração
+  Fiscal.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 163.
+
 ## [2.3.183] — Revisão antes de enviar nota + data/hora de saída + tributos — 2026-10-21
 
 ### Adicionado

@@ -34,6 +34,7 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import CodeIcon from "@material-ui/icons/Code";
 import FlagIcon from "@material-ui/icons/Flag";
 import FlagOutlinedIcon from "@material-ui/icons/FlagOutlined";
+import BlockIcon from "@material-ui/icons/Block";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -102,6 +103,14 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   const [correctionDialogDoc, setCorrectionDialogDoc] = useState(null);
   const [correctionText, setCorrectionText] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
+  // Cancelamento de nota autorizada (v2.3.185) — o backend
+  // (`FiscalDocumentService.cancel`) já existia, mas não tinha nenhum
+  // botão na tela pra chamar — pedido do cliente depois de perguntar "como
+  // faço pra cancelar a nota 498" e não achar. Mesmo padrão da Carta de
+  // Correção (justificativa mín. 15 caracteres), mas irreversível.
+  const [cancelDialogDoc, setCancelDialogDoc] = useState(null);
+  const [cancelText, setCancelText] = useState("");
+  const [sendingCancel, setSendingCancel] = useState(false);
   const [deleteDialogDoc, setDeleteDialogDoc] = useState(null);
   // Revisão antes de enviar (v2.3.183, pedido do cliente: "essa opção de
   // editar antes é pro usuário ver antes se tem algum ajuste, só depois
@@ -264,6 +273,24 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
       toastError(err);
     }
     setSendingCorrection(false);
+  };
+
+  const handleCancelDocument = async () => {
+    if (cancelText.trim().length < 15) {
+      toast.error("A justificativa precisa ter pelo menos 15 caracteres.");
+      return;
+    }
+    setSendingCancel(true);
+    try {
+      await fiscal.fiscalDocuments.cancel(cancelDialogDoc.id, cancelText);
+      toast.success("Nota cancelada.");
+      setCancelDialogDoc(null);
+      setCancelText("");
+      await fetchDocuments();
+    } catch (err) {
+      toastError(err);
+    }
+    setSendingCancel(false);
   };
 
   if (!sale) return null;
@@ -459,6 +486,11 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                             </IconButton>
                           </Tooltip>
                         )}
+                        <Tooltip title="Cancelar nota">
+                          <IconButton size="small" onClick={() => setCancelDialogDoc(doc)}>
+                            <BlockIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </>
                     )}
                     {(doc.environment !== "production" ||
@@ -563,6 +595,43 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
             startIcon={sendingCorrection ? <CircularProgress size={14} color="inherit" /> : null}
           >
             Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!cancelDialogDoc} onClose={() => setCancelDialogDoc(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Cancelar nota {cancelDialogDoc ? DOC_TYPE_LABEL[cancelDialogDoc.type] : ""}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+            Essa ação não pode ser desfeita. A Sefaz só permite cancelar dentro de um prazo curto
+            depois da autorização (normalmente algumas horas, varia por estado) — se já tiver
+            passado do prazo, o cancelamento vai ser rejeitado e você vai precisar emitir uma Nota
+            de Crédito/Devolução em vez disso.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={3}
+            variant="outlined"
+            size="small"
+            label="Justificativa do cancelamento (mín. 15 caracteres)"
+            value={cancelText}
+            onChange={(e) => setCancelText(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelDialogDoc(null)} disabled={sendingCancel}>
+            Voltar
+          </Button>
+          <Button
+            color="secondary"
+            variant="contained"
+            onClick={handleCancelDocument}
+            disabled={sendingCancel}
+            startIcon={sendingCancel ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            Cancelar nota
           </Button>
         </DialogActions>
       </Dialog>

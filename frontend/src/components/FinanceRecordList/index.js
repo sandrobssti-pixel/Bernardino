@@ -3,6 +3,8 @@ import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
+import useFiscal from "../../hooks/useFiscal";
+import { buildEmitterAddressLine } from "../../utils/financeFormat";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -129,6 +131,29 @@ const FinanceRecordList = ({
   // sem exceção configurável — pedido explícito do cliente, diferente do
   // `allowImport` acima (esse não tem toggle por usuário).
   const isAdmin = user?.profile === "admin" || !!user?.super;
+  // Rodapé com o endereço/telefone/e-mail da empresa (v2.3.184, pedido do
+  // cliente — "interno da empresa, não da Focus/nota fiscal") — busca a
+  // Configuração Fiscal só pra ler o endereço do emitente já cadastrado
+  // lá (reaproveitado, não duplica cadastro). Empresa sem o módulo Fiscal
+  // ativo recebe 403 — tratado em silêncio, o rodapé só fica sem endereço
+  // (mesmo espírito de degradação graciosa da logomarca, seção 160).
+  const fiscal = useFiscal();
+  const [emitterFooter, setEmitterFooter] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const config = await fiscal.config.show();
+        setEmitterFooter({
+          address: buildEmitterAddressLine(config),
+          phone: config.emitterPhone,
+          email: config.emitterEmail,
+        });
+      } catch (err) {
+        setEmitterFooter(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [count, setCount] = useState(0);
@@ -656,6 +681,14 @@ const FinanceRecordList = ({
               ))}
             </tbody>
           </table>
+          {emitterFooter && (
+            <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 16 }}>
+              {user?.company?.name && <div>{user.company.name}</div>}
+              {emitterFooter.address && <div>{emitterFooter.address}</div>}
+              {emitterFooter.phone && <div>Fone: {emitterFooter.phone}</div>}
+              {emitterFooter.email && <div>{emitterFooter.email}</div>}
+            </div>
+          )}
         </div>
       )}
     </div>

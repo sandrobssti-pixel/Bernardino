@@ -599,6 +599,16 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   label="Telefone"
                 />
               </Grid>
+              <Grid item xs={12} sm={6}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterEmail"
+                  label="E-mail de contato (rodapé dos relatórios internos)"
+                />
+              </Grid>
             </Grid>
 
             <Divider className={classes.divider} />
