@@ -735,6 +735,25 @@ export const sendByEmail = async (
 // Pré-visualização — monta o mesmo payload de `emit`, mas chama o endpoint
 // de prévia (não transmite nada pra Sefaz, não gera `ref`/FiscalDocument).
 // Só existe pra NF-e. Resposta é o PDF em binário, não JSON.
+// v2.3.186 — dois ajustes feitos depois que o cliente mandou a
+// documentação oficial deste endpoint (natureza_operacao, data_emissao,
+// data_entrada_saida, tipo_documento como INTEGER 0/1, local_destino):
+// 1) o `client.post` não mandava o header `Accept: application/pdf` que o
+//    exemplo oficial da Focus NFe usa — adicionado só nesta chamada (o
+//    `buildClient` compartilhado continua só com Content-Type, pros
+//    outros endpoints que esperam JSON).
+// 2) `tipo_documento` vinha como STRING ("1") dentro de `buildNfePayload`
+//    (campo também usado por `emit`, que já funciona em Produção — por
+//    isso não mexido ali) — aqui é convertido pra NUMBER só pra esta
+//    chamada, pra bater com o tipo documentado (`integer enum`).
+// Nenhum dos dois explica por si só como esse endpoint, que a própria
+// Focus NFe documenta como "não possui valor fiscal", resultou numa nota
+// real autorizada pela Sefaz (nota 498, ver FiscalDocumentService.ts) —
+// por isso NÃO foi religado direto em Produção: `FiscalDocumentService.
+// previewDanfe` só chama esta função quando a empresa está em
+// Homologação (sandbox). Em Produção continua bloqueado no backend até
+// o cliente confirmar um teste limpo em Homologação (ou uma resposta do
+// suporte da Focus NFe explicando o que aconteceu).
 export const previewDanfe = async (
   sale: Sale,
   company: Company,
@@ -744,7 +763,11 @@ export const previewDanfe = async (
   const payload = buildNfePayload(sale, company, config);
 
   try {
-    const { data } = await client.post("/v2/nfe/danfe", payload, { responseType: "arraybuffer" });
+    const { data } = await client.post(
+      "/v2/nfe/danfe",
+      { ...payload, tipo_documento: Number(payload.tipo_documento) || 1 },
+      { responseType: "arraybuffer", headers: { Accept: "application/pdf" } }
+    );
     return { ok: true, pdf: Buffer.from(data), errorMessage: "" };
   } catch (err: any) {
     return {

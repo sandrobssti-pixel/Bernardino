@@ -11661,3 +11661,88 @@ problema é só esse aviso confuso — não trava nada.
   migration nova rodou depois de um deploy, usar
   `db:migrate:status` (só leitura, nunca corre com o auto-migrate) em
   vez de rodar `db:migrate` de novo manualmente.
+
+## 165. "Pré-visualizar DANFe" religado em Homologação (v2.3.186)
+
+### Contexto
+
+Continuação da seção 162/163 (desativação de emergência do botão
+"Pré-visualizar DANFe" depois que ele gerou uma nota real autorizada —
+nota 498 — mesmo sem clicar em "Emitir"). O cliente mandou a
+documentação oficial da Focus NFe pra esse endpoint
+(`POST https://api.focusnfe.com.br/v2/nfe/danfe`): exemplo de `curl` com
+os headers `accept: application/pdf` / `content-type: application/json`,
+e o schema de `Body Params` (`natureza_operacao` string obrigatório,
+`data_emissao` date-time obrigatório, `data_entrada_saida` date-time
+opcional, `tipo_documento` **integer enum** obrigatório (0/1),
+`local_destino` integer enum opcional, `finalidade_emissao` integer enum
+obrigatório).
+
+### Investigação
+
+Comparando o payload que o código já montava (`buildNfePayload`,
+reaproveitado de `emit`) contra essa documentação:
+
+- `natureza_operacao`, `data_emissao`, `data_entrada_saida` e
+  `finalidade_emissao` já estavam todos presentes e corretos.
+- `tipo_documento` estava presente, mas como **string** (`"1"`) em vez
+  de **number** (`1`) — não batia com o tipo documentado.
+- O header `Accept: application/pdf` do exemplo oficial **não** era
+  enviado — `buildClient` só define `Content-Type: application/json`
+  globalmente, e a chamada de `previewDanfe` só adicionava
+  `responseType: "arraybuffer"`, sem header de `Accept`.
+- `local_destino` realmente não era enviado, mas é opcional (sem a
+  marcação vermelha de "required" na documentação) — não é a causa.
+
+Ou seja: a URL estava certa, e o payload já tinha (quase) tudo que a
+documentação pede. **Nenhuma das duas diferenças encontradas explica,
+sozinha, como um endpoint que a própria Focus NFe documenta como "não
+possui valor fiscal" resultou numa autenticação real na Sefaz.** Não dá
+pra confirmar com leitura estática de código que corrigir esses dois
+pontos resolve o problema de verdade — só testando contra a Sefaz de
+novo (mesmo que em Homologação, sem risco).
+
+### O que foi feito
+
+- `FocusNFeService.previewDanfe`: adicionado `headers: { Accept:
+  "application/pdf" }` só nesta chamada (não no `buildClient`
+  compartilhado, que outros endpoints usam esperando JSON); `tipo_documento`
+  convertido pra `Number` só pro payload desta chamada — **sem** mexer em
+  `buildNfePayload` (compartilhada com `emit`, que já funciona em
+  Produção como string; mudar o tipo ali seria arriscar algo que já
+  funciona, sem necessidade).
+- `FiscalDocumentService.previewDanfe`: reescrita pra religar a função
+  **só quando a empresa está em Homologação**
+  (`FiscalConfigService.isProductionActive(config) === false`) — resolve
+  venda, empresa e gateway igual a `emit`, mas sem exigir
+  `sale.status === "confirmed"` (continua podendo pré-visualizar uma
+  venda em rascunho, que é o propósito do botão). **Em Produção continua
+  lançando `ERR_FISCAL_PREVIEW_DISABLED` (410)**, exatamente como na
+  v2.3.185 — bloqueado no backend, não dá pra contornar batendo direto
+  na API.
+- Perguntado ao cliente como preferia seguir (religar só em Homologação
+  / manter desativado nos dois ambientes / religar direto em Produção
+  também) antes de mexer em qualquer coisa, dado o histórico real de
+  dano (nota 498) — confirmou religar só em Homologação.
+
+### Próximo passo
+
+Quando o cliente testar em Homologação e confirmar que o PDF sai
+corretamente SEM gerar nenhum registro/chave na Focus NFe (nem em
+Homologação), religar também em Produção. Se continuar gerando algo
+mesmo em Homologação, o problema não é o header/tipo — é o endpoint em
+si se comportando diferente do documentado (possivelmente ligado ao
+toggle "Utiliza envio síncrono" da conta, nunca confirmado) e precisa
+ser escalado pro suporte da Focus NFe antes de religar em Produção.
+
+### Testado
+
+`npx tsc --noEmit` e `npm run build` limpos no backend. Não testado
+contra uma conta de Homologação de verdade nesta sessão — mesma
+ressalva de sempre pros 5 endpoints "reconstruídos por conhecimento
+geral" (ver aviso no topo de `FocusNFeService.ts`).
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`
+(`previewDanfe`: header `Accept`, `tipo_documento` numérico),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`previewDanfe`: religado condicional a Homologação).

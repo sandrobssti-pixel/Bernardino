@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.186] — Pré-visualização de DANFe religada em Homologação — 2026-10-21
+
+### Corrigido
+- "Pré-visualizar DANFe" (ver v2.3.185): corrigidos dois problemas no
+  código que não batiam com a documentação oficial da Focus NFe — faltava
+  o header `Accept: application/pdf`, e `tipo_documento` ia como texto em
+  vez de número. Religado o botão, mas **só quando a empresa está em
+  Homologação** — em Produção continua bloqueado no backend até um teste
+  limpo confirmar que não gera mais nota real por engano.
+
 ## [2.3.185] — Desativa pré-visualização insegura + botão de cancelar nota + rodapé interno — 2026-10-21
 
 ### Corrigido

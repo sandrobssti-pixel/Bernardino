@@ -270,20 +270,39 @@ export const sendByEmail = async (
 // verdade — não cria FiscalDocument nenhum, só devolve o binário. Funciona
 // com a venda ainda em rascunho (é justamente pra conferir antes de
 // confirmar), diferente de `emit` que exige venda confirmada.
-// ⚠️ DESATIVADO (v2.3.185) — o cliente confirmou, com uma nota real em
-// Produção, que clicar SÓ em "Pré-visualizar DANFe" (nunca em "Emitir")
-// resultou numa nota de verdade autorizada pela Sefaz. O endpoint usado
-// aqui (`/v2/nfe/danfe`, em FocusNFeService.previewDanfe) nunca foi
-// confirmado contra a documentação oficial da Focus NFe — só
-// "reconstruído por conhecimento geral" (ver aviso em
-// FocusNFeService.ts, linha ~681) — e na prática se mostrou NÃO seguro:
-// a promessa de "visualizar sem gerar nota real" era falsa. Desativado
-// no backend (não só escondido no frontend) pra não dar pra contornar
-// batendo direto na API. Religar só depois de confirmar com o suporte
-// da Focus NFe qual é o endpoint de verdade pra isso (se existir).
+// ⚠️ Em Produção continua DESATIVADO (v2.3.185) — o cliente confirmou,
+// com uma nota real, que clicar SÓ em "Pré-visualizar DANFe" (nunca em
+// "Emitir") resultou numa nota de verdade autorizada pela Sefaz (nota
+// 498). Dois problemas de código foram corrigidos na v2.3.186 (header
+// `Accept: application/pdf` faltando e `tipo_documento` como string em
+// vez de número — ver FocusNFeService.previewDanfe), mas NENHUM dos dois
+// explica, sozinho, como um endpoint que a própria Focus NFe documenta
+// como "não possui valor fiscal" causou uma autenticação real — por
+// isso a função só é religada aqui para Homologação (sandbox), onde uma
+// autenticação real não tem consequência nenhuma pro cliente. Em
+// Produção continua bloqueado no backend (não só escondido no frontend)
+// até o cliente confirmar um teste limpo em Homologação.
 export const previewDanfe = async (
-  _saleId: string | number,
-  _companyId: number
+  saleId: string | number,
+  companyId: number
 ): Promise<{ ok: boolean; pdf: Buffer | null; errorMessage: string }> => {
-  throw new AppError("ERR_FISCAL_PREVIEW_DISABLED", 410);
+  const config = await FiscalConfigService.show(companyId);
+
+  if (FiscalConfigService.isProductionActive(config)) {
+    throw new AppError("ERR_FISCAL_PREVIEW_DISABLED", 410);
+  }
+
+  if (!FiscalConfigService.getActiveGatewayToken(config)) {
+    throw new AppError("ERR_FISCAL_GATEWAY_NOT_CONFIGURED");
+  }
+
+  const sale = await SaleService.show(saleId, companyId);
+  const company = await Company.findByPk(companyId);
+  if (!company) {
+    throw new AppError("ERR_NO_COMPANY_FOUND", 404);
+  }
+
+  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+  const fn = FiscalGatewayService.requireFeature(gateway, "previewDanfe");
+  return fn(sale, company, config);
 };
