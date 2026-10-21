@@ -20,6 +20,7 @@ import Box from "@material-ui/core/Box";
 import MenuItem from "@material-ui/core/MenuItem";
 import TablePagination from "@material-ui/core/TablePagination";
 import Checkbox from "@material-ui/core/Checkbox";
+import Tooltip from "@material-ui/core/Tooltip";
 
 import SearchIcon from "@material-ui/icons/Search";
 import AddIcon from "@material-ui/icons/Add";
@@ -131,6 +132,11 @@ const FinanceRecordList = ({
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  // Exclusão individual (v2.3.179) — por linha, sem precisar marcar
+  // checkbox primeiro (a seleção em massa acima continua existindo, pra
+  // excluir vários de uma vez). Mesmo gate `isAdmin` da seleção em massa.
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [printRows, setPrintRows] = useState(null);
   // Valor inicial vem do link que trouxe o usuário pra essa aba (ex.: menu
@@ -248,6 +254,19 @@ const FinanceRecordList = ({
       failures.slice(0, 5).forEach((msg) => toast.warn(msg));
     }
     fetchRecords();
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await resource.remove(deleteTarget.id);
+      toast.success("Registro excluído com sucesso.");
+      fetchRecords();
+    } catch (err) {
+      toastError(err);
+    }
+    setDeleting(false);
+    setDeleteTarget(null);
   };
 
   const handleImportClick = () => {
@@ -379,6 +398,19 @@ const FinanceRecordList = ({
         onConfirm={handleBulkDelete}
       >
         Essa ação não pode ser desfeita.
+      </ConfirmationModal>
+
+      <ConfirmationModal
+        title={
+          deleteTarget
+            ? `Excluir "${deleteTarget.name || deleteTarget.description || "este registro"}"?`
+            : ""
+        }
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      >
+        {deleting ? "Excluindo..." : "Essa ação não pode ser desfeita."}
       </ConfirmationModal>
 
       <FinanceRecordModal
@@ -553,9 +585,18 @@ const FinanceRecordList = ({
                   </TableCell>
                 ))}
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => handleEdit(record)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Editar">
+                    <IconButton size="small" onClick={() => handleEdit(record)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  {isAdmin && (
+                    <Tooltip title="Excluir">
+                      <IconButton size="small" onClick={() => setDeleteTarget(record)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

@@ -11145,3 +11145,70 @@ index.js`, `frontend/src/pages/WeaponArmory/index.js` (novo),
 `/weapon-armory`), `frontend/src/layout/MainListItems.js` (item de
 menu "Serviço Armaria"), `frontend/src/translate/languages/{pt,en,es,
 esES}.js` (chave `mainDrawer.listItems.weaponArmory`).
+
+## 157. Importação de Serviços via planilha + excluir individual (v2.3.179)
+
+O cliente avisou "os serviços não foram montados" — investigando junto
+com ele (ia checar o banco de produção pra ver se a migração automática
+dos 37 serviços da seção 153 realmente copiou os dados, ⚠️ nunca
+confirmado contra dados reais), ele mudou de abordagem e pediu direto:
+"coloque os serviços em uma planilha com todos os campos que solicitei
+pra adicionar — valor do serviço, descrição do serviço, formas de
+pagamento — no painel já tem pra inserir o serviço, e coloque editar e
+excluir serviço". Ou seja: em vez de depurar a migração automática,
+decidiu recadastrar via planilha (caminho manual, mais confiável) —
+então o pedido virou dar ao cadastro de Serviço a mesma ferramenta de
+importação que Produtos/Clientes já têm.
+
+**Importação de Serviço — nova, self-contained**:
+`ServiceImportService.ts` (novo) reaproveita a MESMA técnica de leitura
+de planilha já usada em `FinanceImportService.ts` (detecção de coluna
+por nome de cabeçalho normalizado, sem tela de mapeamento manual) mas
+**não** importa nada de lá — é um arquivo próprio, bem mais simples (só
+5 campos: código, nome, valor, condições de pagamento, descrição, sem
+nada fiscal), consistente com a decisão da seção 153 de o módulo
+Serviço ser independente do Financeiro. Duplicata por nome (mesmo
+`companyId`) atualiza o registro já existente, mesma lógica de dedupe
+já usada em Produtos/Clientes. `GET /services/import-template` baixa o
+modelo `.xlsx`; `POST /services/import` processa o arquivo enviado —
+os dois precisam vir ANTES de `GET /services/:id`/rotas com `:id` nas
+rotas (mesmo cuidado já documentado em outros lugares). Permissão
+checada no backend (`ensureImportPermission`, mesma regra de
+Produtos/Clientes: Admin/Master sempre pode, usuário comum só se
+`allowImport === "enabled"` no cadastro dele) mesmo o módulo Serviço
+não tendo nenhum outro controle de acesso — import em massa é
+sensível o bastante pra manter essa checagem.
+
+**Excluir individual — ganho em TODOS os cadastros da lista genérica**:
+`FinanceRecordList.js` só tinha exclusão em massa (marcar checkbox(es)
++ botão "Excluir selecionados", admin-only) — nenhum botão de excluir
+por linha. Adicionado um ícone de excluir ao lado do de editar em cada
+linha (mesmo gate `isAdmin` da exclusão em massa, que continua
+existindo do jeito que estava — as duas convivem), com confirmação
+(`ConfirmationModal`) mostrando `record.name || record.description ||
+"este registro"` no título (cobre os formatos diferentes de cada
+cadastro: Cliente/Fornecedor/Produto/Serviço usam `name`, Conta a
+Pagar/Receber usa `description`). Como é no componente genérico, o
+ganho vale pra Clientes, Fornecedores, Produtos, Serviços e Contas a
+Pagar/Receber de uma vez só, não só Serviço.
+
+**Pendente, não resolvido nesta seção**: a causa raiz de por que os 37
+serviços migrados automaticamente (seção 153) não apareceram em
+produção continua desconhecida — o cliente optou por recadastrar via
+planilha em vez de continuar a investigação. Se o mesmo sintoma
+aparecer de novo (outra empresa-cliente, outra migração de dado
+parecida), vale revisitar.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (sem migration
+nova — nenhuma coluna/tabela nova nesta seção); `npx eslint` limpo nos
+arquivos tocados; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceImportService.ts` (novo), `backend/src/controllers/
+ServiceController.ts` (`importTemplate`, `importServices`),
+`backend/src/routes/serviceRoutes.ts` (rotas de import),
+`frontend/src/hooks/useServices/index.js` (`importSpreadsheet`,
+`downloadTemplate`), `frontend/src/pages/Services/index.js`
+(`allowImport`/`allowTemplateDownload`),
+`frontend/src/components/FinanceRecordList/index.js` (botão de
+excluir individual, `deleteTarget`/`handleDelete`).

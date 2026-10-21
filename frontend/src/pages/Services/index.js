@@ -39,6 +39,9 @@ const Services = () => {
         columns={serviceColumns}
         fields={serviceFields}
         enablePhotoUpload
+        allowImport
+        allowTemplateDownload
+        templateFilename="modelo-importacao-servicos.xlsx"
       />
     </div>
   );

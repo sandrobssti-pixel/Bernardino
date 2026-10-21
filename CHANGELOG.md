@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.179] — Importação de Serviços via planilha + excluir individual — 2026-10-21
+
+### Adicionado
+- O cadastro de Serviços ganhou "Baixar modelo"/"Importar planilha"
+  (código, nome, valor, condições de pagamento, descrição) — mesmo
+  padrão já usado em Produtos/Clientes do Financeiro. Duplicata (mesmo
+  nome) atualiza o registro já existente em vez de criar um segundo.
+- Botão de excluir individual (por linha) em todos os cadastros que
+  usam a lista genérica (Clientes, Fornecedores, Produtos, Serviços,
+  Contas a Pagar/Receber) — antes só existia exclusão em massa via
+  checkbox, agora dá pra excluir um registro direto sem selecionar
+  nada primeiro. Continua admin-only, mesma regra de antes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 157.
+
 ## [2.3.178] — Novo módulo Serviço Armaria (manutenção de arma) — 2026-10-20
 
 ### Adicionado

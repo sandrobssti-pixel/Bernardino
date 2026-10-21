@@ -1,7 +1,31 @@
 import { Request, Response } from "express";
+import fs from "fs";
+import { head } from "lodash";
 import AppError from "../errors/AppError";
+import logger from "../utils/logger";
 import * as ServiceService from "../services/ServiceService/ServiceService";
+import * as ServiceImportService from "../services/ServiceService/ServiceImportService";
 import Service from "../models/Service";
+
+// Mesma checagem já usada em FinanceImportController.ts — usuário comum só
+// importa planilha se `allowImport` estiver ligado no cadastro dele,
+// Admin/Master sempre pode. Conferido aqui (não só escondendo o botão no
+// frontend) pra não dar pra contornar batendo direto na API.
+const ensureImportPermission = (req: Request): void => {
+  const user = req.user as any;
+  if (user.profile === "admin" || user.super) return;
+  if (user.allowImport !== "enabled") {
+    throw new AppError("ERR_NO_IMPORT_PERMISSION", 403);
+  }
+};
+
+const removeUploadedFile = (file: Express.Multer.File): void => {
+  fs.unlink(file.path, (err) => {
+    if (err) {
+      logger.warn(`[ServiceController] Falha ao remover planilha temporária ${file.path}: ${err.message}`);
+    }
+  });
+};
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
@@ -67,4 +91,35 @@ export const uploadPhoto = async (req: Request, res: Response): Promise<Response
   await record.update({ photoUrl });
 
   return res.status(200).json({ photoUrl });
+};
+
+// Importação via planilha Excel (v2.3.179) — mesmo padrão de
+// Produtos/Clientes do Financeiro, bem mais simples (só 5 campos). Ver
+// ServiceImportService.ts.
+export const importTemplate = async (_req: Request, res: Response): Promise<Response> => {
+  const buffer = ServiceImportService.buildServiceTemplate();
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", 'attachment; filename="modelo-importacao-servicos.xlsx"');
+  return res.status(200).send(buffer);
+};
+
+export const importServices = async (req: Request, res: Response): Promise<Response> => {
+  ensureImportPermission(req);
+  const { companyId } = req.user;
+  const files = req.files as Express.Multer.File[];
+  const file = head(files);
+
+  if (!file) {
+    throw new AppError("ERR_SERVICE_IMPORT_FILE_REQUIRED");
+  }
+
+  try {
+    const summary = await ServiceImportService.importServices(companyId, file);
+    return res.status(200).json(summary);
+  } finally {
+    removeUploadedFile(file);
+  }
 };

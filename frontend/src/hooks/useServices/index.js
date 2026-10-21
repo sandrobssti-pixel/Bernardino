@@ -39,7 +39,32 @@ const useServices = () => {
     return data;
   };
 
-  return { list, save, update, remove, uploadPhoto };
+  // Importação via planilha Excel (v2.3.179) — mesmo padrão de
+  // finance.products.importSpreadsheet/downloadTemplate.
+  const importSpreadsheet = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post("/services/import", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  };
+
+  const downloadTemplate = async (filename) => {
+    const { data } = await api.get("/services/import-template", {
+      responseType: "blob",
+    });
+    const url = window.URL.createObjectURL(new Blob([data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  return { list, save, update, remove, uploadPhoto, importSpreadsheet, downloadTemplate };
 };
 
 export default useServices;
