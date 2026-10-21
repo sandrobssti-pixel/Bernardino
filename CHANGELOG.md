@@ -3,20 +3,6 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.184] — Rodapé com dados da empresa nos relatórios internos — 2026-10-21
-
-### Adicionado
-- Todos os relatórios internos do AtendeFlow (impressão de Serviços,
-  Clientes, Fornecedores, Produtos, Contas, e o Termo de Cautela do
-  Serviço Armaria) ganharam um rodapé pequeno com nome, endereço,
-  telefone e e-mail da empresa — igual já existia no Painel
-  Financeiro. Nunca aparece no PDF da nota fiscal em si (gerado pela
-  Focus NFe), só nos relatórios que o próprio AtendeFlow gera.
-- Novo campo "E-mail de contato" em Configuração Fiscal, usado só
-  nesse rodapé.
-
-Detalhes em `docs/MANUAL_TECNICO.md`, seção 162.
-
 ## [2.3.183] — Revisão antes de enviar nota + data/hora de saída + tributos — 2026-10-21
 
 ### Adicionado
