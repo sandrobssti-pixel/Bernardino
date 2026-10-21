@@ -104,13 +104,22 @@ export const emit = async (
   return document;
 };
 
-// Exclui de verdade um documento de teste (emitido em Homologação) — nunca
-// um documento de Produção, que é uma nota fiscal real (cancelar, não
-// excluir, é o caminho pra esse caso — ver `cancel` acima).
+// Exclui de verdade um documento de Homologação (teste) sempre; em Produção,
+// só quando a tentativa NUNCA chegou a virar uma nota fiscal de verdade
+// ("error"/"pending_correction" — nunca ganharam chave de acesso real na
+// Sefaz). Uma nota "authorized"/"processing"/"cancelled" em Produção tem
+// (ou pode vir a ter) existência legal — cancelar, não excluir, é o caminho
+// pra essas (ver `cancel` acima). Bug corrigido aqui (v2.3.183): antes
+// bloqueava qualquer documento de Produção, mesmo um que falhou ("nota sem
+// valor fiscal") e nunca teve chave de acesso gerada — o aviso de "não vai
+// poder excluir" saía igual pra uma tentativa falha e pra uma nota de
+// verdade, confundindo o usuário.
+const BLOCKS_DELETE_IN_PRODUCTION = new Set(["authorized", "processing", "cancelled"]);
+
 export const remove = async (id: string | number, companyId: number): Promise<void> => {
   const document = await show(id, companyId);
 
-  if (document.environment === "production") {
+  if (document.environment === "production" && BLOCKS_DELETE_IN_PRODUCTION.has(document.status)) {
     throw new AppError("ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION");
   }
 

@@ -190,7 +190,7 @@ const useStyles = makeStyles((theme) => ({
 // Cautela, Recebimento e Depósito de Arma de Fogo (para manutenção)",
 // modelo real enviado pelo cliente como referência (padrão Polícia
 // Federal). Ver WeaponArmoryService.ts e docs/MANUAL_TECNICO.md.
-const WeaponArmoryServiceModal = ({ open, onClose, onSave, record, weaponArmory, companyLogoUrl }) => {
+const WeaponArmoryServiceModal = ({ open, onClose, onSave, record, weaponArmory, companyLogoUrl, companyName }) => {
   const classes = useStyles();
   const beforeInputRef = useRef(null);
   const afterInputRef = useRef(null);
@@ -544,6 +544,7 @@ const WeaponArmoryServiceModal = ({ open, onClose, onSave, record, weaponArmory,
                 {companyLogoUrl && <img src={companyLogoUrl} alt="logo" className={classes.printLogo} />}
               </td>
               <td style={{ textAlign: "center" }}>
+                {companyName && <div style={{ fontWeight: 700 }}>{companyName}</div>}
                 <div>TERMO DE CAUTELA, RECEBIMENTO E DEPÓSITO DE ARMA DE FOGO</div>
                 <div>(PARA MANUTENÇÃO)</div>
                 <div>Nº {printSnapshot.recordNumber}</div>

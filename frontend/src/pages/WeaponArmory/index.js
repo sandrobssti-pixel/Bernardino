@@ -221,6 +221,7 @@ const WeaponArmory = () => {
         record={selected}
         weaponArmory={weaponArmory}
         companyLogoUrl={logoUrl}
+        companyName={user?.company?.name || ""}
       />
 
       <ConfirmationModal

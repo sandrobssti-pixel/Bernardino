@@ -3,6 +3,41 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.183] — Revisão antes de enviar nota + data/hora de saída + tributos — 2026-10-21
+
+### Adicionado
+- Clicar em "Emitir NF-e/NFC-e/NFS-e" agora abre um resumo de
+  confirmação (destinatário, itens, SIGMA/lote/ID, valor total) antes
+  de enviar de verdade pra Sefaz — o botão "Pré-visualizar DANFe" (o
+  "olhinho", que já existia e gera o PDF sem consumir numeração real)
+  continua disponível à parte, pra quem quiser ver o documento
+  inteiro antes de confirmar.
+- Data/hora de saída (campo obrigatório no layout da NF-e, ficava em
+  branco) — agora preenchido automaticamente, mesmo instante da
+  emissão.
+- Novo campo "Valor ICMS Desonerado (R$)" no cadastro de Produto
+  (substituiu um campo antigo "ICMS Desoner. (%)" que nunca tinha
+  sido usado em nenhuma nota).
+- Novos campos "Alíquota aprox. tributos - IBPT (%)" e "Fonte IBPT" no
+  cadastro de Produto — alimentam o aviso de "Total de Tributos
+  Federais, Estaduais e Municipais" no rodapé da nota (Lei da
+  Transparência), preenchimento manual.
+- Impressão em Serviços (e Clientes/Fornecedores/Produtos/Contas)
+  ganhou o nome da empresa ao lado da logomarca, igual já tinha no
+  Termo de Cautela do Serviço Armaria.
+
+### Corrigido
+- Excluir uma tentativa de nota fiscal que falhou (nunca gerou chave
+  de acesso) em Produção dava a mesma mensagem de "não pode excluir"
+  de uma nota real autorizada — agora só bloqueia exclusão de notas
+  que realmente têm existência legal (autorizada, processando ou
+  cancelada).
+- Os campos SIGMA/lote/ID de munição no rodapé da nota mudaram de
+  rótulo ("LOTE: X / ID: Y / SIGMA: Z") pra bater com o formato real
+  usado antes no sistema antigo.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 161.
+
 ## [2.3.182] — Logomarca persiste ao navegar + impressão em Serviços — 2026-10-21
 
 ### Corrigido

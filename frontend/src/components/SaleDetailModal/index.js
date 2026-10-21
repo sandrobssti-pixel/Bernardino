@@ -103,6 +103,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   const [correctionText, setCorrectionText] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
   const [deleteDialogDoc, setDeleteDialogDoc] = useState(null);
+  // Revisão antes de enviar (v2.3.183, pedido do cliente: "essa opção de
+  // editar antes é pro usuário ver antes se tem algum ajuste, só depois
+  // que o mesmo conferir ele envia") — clicar em "Emitir X" não manda mais
+  // direto pro gateway; abre este resumo primeiro, `handleEmit` real só
+  // roda depois de confirmar aqui. O botão "Pré-visualizar DANFe" (olho,
+  // já existia antes) continua à parte, pra quem quiser ver o PDF inteiro.
+  const [pendingEmitType, setPendingEmitType] = useState(null);
   // Resposta bruta do gateway (JSON completo) — diagnóstico pra quando
   // `errorMessage` (já resumido) não traz detalhe suficiente (v2.3.122).
   const [rawDialogDoc, setRawDialogDoc] = useState(null);
@@ -126,6 +133,12 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
   useEffect(() => {
     if (open && historyExpanded) fetchDocuments();
   }, [open, historyExpanded, fetchDocuments]);
+
+  const handleConfirmEmit = async () => {
+    const type = pendingEmitType;
+    setPendingEmitType(null);
+    await handleEmit(type);
+  };
 
   const handleEmit = async (type) => {
     setEmitting(type);
@@ -324,7 +337,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                 variant="outlined"
                 startIcon={emitting === type ? <CircularProgress size={14} /> : DOC_TYPE_ICON[type]}
                 disabled={!!emitting}
-                onClick={() => handleEmit(type)}
+                onClick={() => setPendingEmitType(type)}
               >
                 Emitir {DOC_TYPE_LABEL[type]}
               </Button>
@@ -448,8 +461,15 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
                         )}
                       </>
                     )}
-                    {doc.environment !== "production" && (
-                      <Tooltip title="Excluir nota de teste (Homologação)">
+                    {(doc.environment !== "production" ||
+                      !["authorized", "processing", "cancelled"].includes(doc.status)) && (
+                      <Tooltip
+                        title={
+                          doc.environment === "production"
+                            ? "Excluir tentativa que falhou (nunca gerou chave de acesso)"
+                            : "Excluir nota de teste (Homologação)"
+                        }
+                      >
                         <IconButton size="small" onClick={() => setDeleteDialogDoc(doc)}>
                           <DeleteOutlineIcon fontSize="small" />
                         </IconButton>
@@ -469,13 +489,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
       </DialogActions>
 
       <ConfirmationModal
-        title={deleteDialogDoc ? `Excluir ${DOC_TYPE_LABEL[deleteDialogDoc.type] || deleteDialogDoc.type} de teste?` : ""}
+        title={
+          deleteDialogDoc ? `Excluir ${DOC_TYPE_LABEL[deleteDialogDoc.type] || deleteDialogDoc.type}?` : ""
+        }
         open={!!deleteDialogDoc}
         onClose={() => setDeleteDialogDoc(null)}
         onConfirm={handleDeleteDocument}
       >
-        Essa ação não pode ser desfeita. Essa nota foi emitida em Homologação (teste),
-        não é uma nota fiscal real.
+        {deleteDialogDoc?.environment === "production"
+          ? "Essa ação não pode ser desfeita. Essa tentativa falhou e nunca gerou chave de acesso — não é uma nota fiscal real."
+          : "Essa ação não pode ser desfeita. Essa nota foi emitida em Homologação (teste), não é uma nota fiscal real."}
       </ConfirmationModal>
 
       <Dialog open={!!emailDialogDoc} onClose={() => setEmailDialogDoc(null)} maxWidth="xs" fullWidth>
@@ -578,6 +601,61 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false }) =
           </Button>
           <Button onClick={() => setRawDialogDoc(null)} color="primary">
             Fechar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!pendingEmitType} onClose={() => setPendingEmitType(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          Conferir antes de enviar {pendingEmitType ? DOC_TYPE_LABEL[pendingEmitType] : ""}
+        </DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 12 }}>
+            Confere os dados abaixo antes de enviar pra Sefaz — depois de enviada, a nota não pode
+            mais ser editada (só cancelada/corrigida).
+          </Typography>
+          <Typography variant="body2">
+            <strong>Destinatário:</strong> {sale.customer?.name || "Consumidor não identificado"}
+          </Typography>
+          <Typography variant="body2" style={{ marginBottom: 8 }}>
+            <strong>Data da venda:</strong> {formatDateBR(sale.saleDate)}
+          </Typography>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Código</TableCell>
+                <TableCell>Descrição</TableCell>
+                <TableCell align="center">Qtd.</TableCell>
+                <TableCell align="right">Total</TableCell>
+                <TableCell>SIGMA / Lote / ID</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {(sale.items || []).map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>{item.sku || item.product?.sku || "—"}</TableCell>
+                  <TableCell>{item.description}</TableCell>
+                  <TableCell align="center">{item.quantity}</TableCell>
+                  <TableCell align="right">{money(item.totalPrice)}</TableCell>
+                  <TableCell>
+                    {[item.sigmaSinarm, item.ammoLot, item.packageId].filter(Boolean).join(" / ") || "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <Box display="flex" justifyContent="flex-end" mt={1}>
+            <Typography style={{ fontWeight: 700 }}>
+              Valor total da nota: {money(sale.totalValue)}
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPendingEmitType(null)} color="secondary">
+            Cancelar
+          </Button>
+          <Button onClick={handleConfirmEmit} color="primary" variant="contained" disabled={!!emitting}>
+            {emitting ? <CircularProgress size={18} /> : "Confirmar e enviar"}
           </Button>
         </DialogActions>
       </Dialog>

@@ -11339,3 +11339,162 @@ chama `updateUser`), `frontend/src/components/FinanceRecordList/
 index.js` (logo na impressão da lista),
 `frontend/src/components/FinanceRecordModal/index.js` (logo na
 impressão de um registro, novo import de `AuthContext`).
+
+## 161. Revisão antes de enviar nota + data/hora de saída + tributos (v2.3.183)
+
+Mensagem longa do cliente comparando o AtendeFlow com o sistema antigo,
+em cima do painel da Focus NFe (print do "Próximo número" = 500 em
+Produção) e de uma nota real emitida no sistema antigo (nota 499, PDF
+do DANFE) que ele mandou como referência — mesma disciplina já usada
+nas seções de ICMS/CSOSN: nunca implementar campo fiscal especulativo,
+sempre pedir documento real primeiro. Vários pontos nessa única
+mensagem, tratados um a um abaixo.
+
+**1. Numeração "próxima nota = 1" em vez de 500 — não era bug do
+AtendeFlow**: investigado e confirmado — o AtendeFlow nunca manda
+`numero_nfe`/`serie` no payload (nenhuma referência a isso em
+`FocusNFeService.ts`); quem atribui o número é a própria Focus NFe,
+usando o contador configurado no painel dela (exatamente o
+"Próximo número" que aparece no print do cliente). O "nota 498 saiu
+como nota 1" foi um problema de configuração do lado da Focus NFe, já
+corrigido pelo próprio cliente no painel deles. Nada pra ajustar no
+código.
+
+**2. Data/hora de saída em branco**: confirmado — `FocusNFeService.ts`
+só mandava `data_emissao`, nunca `data_entrada_saida` (dhSaiEnt, campo
+B10 do leiaute da NF-e) — por isso saía em branco no DANFE (visível na
+nota 499 real: "DATA DA SAÍDA"/"HORA DA SAÍDA" preenchidos no sistema
+antigo). Corrigido em `buildNfePayload`: usa o MESMO instante ISO de
+`data_emissao` (nunca pode ser anterior à emissão — Sefaz rejeita com
+o código 506 se for). Só entra na NF-e — a NFC-e REJEITA esse campo
+(código 705 se enviado), por isso `buildNfcePayload`/`buildNfsePayload`
+não o ganharam. ⚠️ Nome do campo (`data_entrada_saida`) confirmado via
+busca contra exemplo público da documentação da Focus NFe (payload de
+exemplo em JavaScript), nunca testado contra conta/chave real nesta
+sessão.
+
+**3. Nome da empresa no cabeçalho da nota**: o cliente pediu pra
+aparecer exatamente "FEDERAÇÃO BAIANA DE TIRO DEFENSIVO & OLIMPICO" —
+confirmado contra a nota 499 real que o nome completo correto, COM
+"LTDA", é "FEDERACAO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA".
+`FocusNFeService.buildEmitente` usa `company.name` direto — **não é
+bug de código, é dado de cadastro**: o campo "Nome" da empresa em
+Configurações precisa estar escrito exatamente assim. Nenhuma mudança
+de código feita aqui — só orientação pro cliente corrigir o cadastro.
+
+**4. Valor ICMS Desonerado**: `FinanceProduct` já tinha um campo
+`icmsDesoneration` desde a seção 60-ish (v2.3.167), mas como
+PERCENTUAL ("ICMS Desoner. (%)") e nunca ligado ao payload da Focus
+NFe — a Sefaz não tem conceito de "desoneração em %", é um VALOR fixo
+abatido (vICMSDeson). Reaproveitado o mesmo campo (sem migration —
+coluna já existia) como "Valor ICMS Desonerado (R$)", posicionado
+depois do bloco de ICMS-ST (pedido do cliente: "depois de valor do
+ICMS ST"), e ligado em `FocusNFeService.buildItemIcms` →
+`icms_valor_desonerado`. ⚠️ A Sefaz também pode exigir o "motivo da
+desoneração" (motDesICMS) junto — campo que não foi implementado por
+falta de nota real confirmando qual motivo o cliente usa; se uma
+emissão com esse valor preenchido for rejeitada (código 934 ou
+parecido), é isso que está faltando — avisado no código e aqui.
+
+**5. "V.Aprox.Tributos" (Lei da Transparência, Lei 12.741/2012)**:
+visível na nota 499 real como texto no rodapé de Dados Adicionais —
+"DOC. EMITIDO POR ME/EPP OPTANTE PELO SIMPLES NACIONAL NAO GERA
+DIREITO A CREDITO FISCAL DE ISS E IPI." + "Total de Tributos Federais,
+Estaduais e Municipais: R$ 166,21 (40,05%) Fonte: IBPT A906AF".
+Perguntei se a Focus NFe calcula isso automaticamente (pra não
+implementar um cálculo de imposto errado) — não encontrei confirmação
+nenhuma via busca, e o cliente pediu pra implementar do nosso lado
+mesmo assim. Decisão: **não é um campo estruturado da NF-e** (o
+oficial, `vTotTrib`, exige soma item-a-item validada pela Sefaz,
+rejeição 685 se não bater — não implementado) — vai como TEXTO no
+rodapé, igual ao sistema antigo. Dois campos novos em `FinanceProduct`
+(`ibptRate` "Alíquota aprox. tributos (%)", `ibptSource` "Fonte
+IBPT") — preenchimento 100% manual, a tabela oficial do IBPT muda a
+cada 6 meses por NCM e este sistema não calcula nem valida contra
+ela, só usa o número que o usuário informar. `buildAdditionalInfo`
+(novo em `FocusNFeService.ts`) soma `item.totalPrice × (ibptRate/100)`
+de todos os itens, calcula o percentual sobre `sale.totalValue`, e usa
+a "Fonte" do primeiro item que tiver uma preenchida (simplificação —
+nota real só tinha 1 item, não há um jeito "certo" de combinar fontes
+IBPT diferentes de vários itens num texto só). Vai no campo
+`informacoes_adicionais_contribuinte` (nome confirmado contra exemplo
+de código Python da própria Focus NFe — campo de NOTA, diferente de
+`informacoes_adicionais_produto`, que é por ITEM). Primeira linha (o
+aviso de Simples Nacional) só aparece quando `config.taxRegime` for
+"simples"/"mei", mesmo regime já assumido em `buildEmitente`.
+
+**6. "Olhinho" antes de enviar**: investigando, descobri que **já
+existia** um botão "Pré-visualizar DANFe" (`VisibilityIcon`,
+`handlePreview`/`fiscal.fiscalDocuments.previewDanfe`) que gera o PDF
+completo via `/v2/nfe/danfe` (endpoint de rascunho da Focus NFe, não
+consome numeração/chave real) — só que ele era um botão SEPARADO,
+opcional, ao lado dos de "Emitir" — nada impedia clicar direto em
+"Emitir" sem nunca passar pela prévia. Confirmado com o cliente (pediu
+a opção mais simples: um resumo de texto, não o PDF completo) —
+implementado: clicar em "Emitir X" agora abre um Dialog de confirmação
+(destinatário, itens com SIGMA/lote/ID, valor total) ANTES de chamar
+`handleEmit` de verdade; só com "Confirmar e enviar" é que manda pro
+gateway. O botão "Pré-visualizar DANFe" (PDF completo) continua
+existindo à parte, sem mudança, pra quem quiser ver o documento
+inteiro antes.
+
+**7. Bug real achado nesse processo — bloqueio de exclusão errado**:
+o cliente relatou "o sistema gera uma nota sem valor fiscal mas
+aparece uma mensagem que não vai poder excluir como se já tivesse
+gerado a chave de acesso". Confirmado: `FiscalDocumentService.remove`
+bloqueava exclusão de QUALQUER documento com `environment ===
+"production"`, mesmo um que **falhou** (`status === "error"`, nunca
+teve chave de acesso de verdade) — tratava tentativa fracassada igual
+nota real autorizada. Corrigido: só bloqueia quando
+`status` for "authorized"/"processing"/"cancelled" (que têm ou podem
+vir a ter existência legal real) — "error"/"pending_correction" (nunca
+tiveram chave de acesso) podem ser excluídos mesmo em Produção. Botão
+de excluir no frontend (que antes só aparecia pra documentos de
+Homologação) ajustado pra mesma regra.
+
+**8. SIGMA/lote/ID "têm que aparecer na nota"**: já apareciam (feature
+da seção fiscal anterior, `buildItemAdditionalInfo`,
+`informacoes_adicionais_produto` por item) — confirmado comparando com
+a nota 499 real, que mostra exatamente esses três dados no rodapé
+("LOTE: L-0042 HML59 / ID: 1085109373" / "SIGMA: 2654125"). Só os
+RÓTULOS foram ajustados pra bater com esse formato real ("LOTE: X / ID:
+Y / SIGMA: Z" em vez de "SIGMA/SINARM: X | Lote de munição: Y | ID de
+embalagem: Z") — a informação em si já estava correta, só precisava o
+usuário ter preenchido os três campos no item da venda.
+
+**9. "Baixar nota já enviada, caso precise reencaminhar"**: já existia
+— quando um documento está "Autorizada", o detalhe da venda mostra
+ícones de PDF (`doc.pdfUrl`), XML (`doc.xmlUrl`) e "Enviar por e-mail"
+de novo; a lista de Vendas também tem um botão "Baixar nota (PDF)"
+direto (seção 150-ish). Nada pra implementar aqui.
+
+**10. Relatório de "suporte" sobre `erro_validacao_schema`**: o
+cliente colou um relatório (3 causas: `modalidade_frete` nunca
+enviado, `codigo_ncm` sem validação de 8 dígitos, endereço do
+destinatário incompleto) pedindo conferência contra o estado atual.
+Confirmado: os dois primeiros já estavam corrigidos no código
+(`modalidade_frete: sale.freightResponsibility || "9"`,
+`normalizeNcm` validando 8 dígitos com placeholder) — bate exatamente
+com o relatado como já resolvido na v2.3.123 (antes desta sessão). O
+terceiro (endereço do destinatário) é cadastro, não bug, como o
+próprio relatório já apontava. Nada pra corrigir.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; migration nova
+(`20261021100000-add-ibpt-fields-to-finance-products`) testada contra
+banco Postgres local do zero — cadeia completa, undo/redo — sem erro;
+`npx eslint` limpo no frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts` (`ibptRate`,
+`ibptSource`), `backend/src/database/migrations/
+20261021100000-add-ibpt-fields-to-finance-products.ts` (novo),
+`backend/src/services/FiscalService/FocusNFeService.ts`
+(`data_entrada_saida` em `buildNfePayload`, `icms_valor_desonerado` em
+`buildItemIcms`, `buildAdditionalInfo` novo, rótulos de
+`buildItemAdditionalInfo` ajustados),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`remove` só bloqueia por `status`, não só `environment`),
+`frontend/src/pages/Financeiro/financeConfig.js` (`icmsDesoneration`
+reposicionado/relabelado, `ibptRate`/`ibptSource` novos),
+`frontend/src/components/SaleDetailModal/index.js` (Dialog de
+confirmação antes de emitir, `pendingEmitType`/`handleConfirmEmit`,
+botão de excluir ajustado pra nova regra).

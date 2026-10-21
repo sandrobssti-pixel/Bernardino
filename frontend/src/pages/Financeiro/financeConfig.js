@@ -422,14 +422,25 @@ export const financeProductFields = [
   },
   { name: "icmsRate", label: "ICMS (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService, disabledWhen: icmsExemptOn },
   { name: "icmsEcf", label: "ICMS ECF", gridSize: 4, visibleWhen: isNotService },
-  { name: "icmsDesoneration", label: "ICMS Desoner. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
   { name: "icmsStRate", label: "ICMS ST (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
   { name: "icmsStMva", label: "IVA - ST (MVA %)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
+  // Valor ICMS Desonerado (R$, v2.3.183, pedido do cliente) — campo já
+  // existia como "ICMS Desoner. (%)" mas nunca tinha ido pro payload da
+  // Focus NFe; reaproveitado como VALOR (R$), que é o que a Sefaz espera
+  // (vICMSDeson) — "desoneração" não é uma alíquota, é um valor fixo
+  // abatido. Ver FocusNFeService.buildItemIcms.
+  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
   { name: "taxableUnit", label: "Un. Medida Trib.", gridSize: 4, visibleWhen: isNotService },
   { name: "cfopPrincipal", label: "CFOP Principal (venda interna)", defaultValue: "5102", gridSize: 4, visibleWhen: isNotService },
   { name: "cfopOutState", label: "CFOP Fora UF (interestadual)", defaultValue: "6102", gridSize: 4, visibleWhen: isNotService },
   { name: "taxArticle", label: "Artigo", gridSize: 6, visibleWhen: isNotService },
   { name: "fiscalBenefitCode", label: "Cód. Benefício Fiscal", gridSize: 6, visibleWhen: isNotService },
+  // "Valor Aproximado dos Tributos" (Lei da Transparência, v2.3.183) —
+  // texto no rodapé da nota, manual (tabela do IBPT, atualizada a cada 6
+  // meses por NCM — este sistema não calcula/valida, só usa o número
+  // informado aqui). Deixa em branco/zero se não quiser usar.
+  { name: "ibptRate", label: "Alíquota aprox. tributos - IBPT (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
+  { name: "ibptSource", label: "Fonte IBPT (código da tabela)", gridSize: 6, visibleWhen: isNotService },
   { name: "usesFcp", label: "Utilizar Alíq. de Fundo de Combate à Pobreza (FCP)", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
   { name: "conditionalDiscountNfe", label: "Desconto Condicional na NFe/NFCe", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
 

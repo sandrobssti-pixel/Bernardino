@@ -143,13 +143,16 @@ const normalizeNcm = (ncm: string | null | undefined): string => {
 // NF-e/NFC-e — vão como texto nas informações adicionais do PRODUTO
 // (infAdProd), prática comum pra dado regulatório sem campo dedicado.
 // Só gera texto quando pelo menos um dos três estiver preenchido (a
-// maioria dos itens de uma venda não é arma/munição).
+// maioria dos itens de uma venda não é arma/munição). Rótulos ajustados
+// na v2.3.183 pra bater com o formato da nota real do sistema antigo
+// ("LOTE: X / ID: Y" / "SIGMA: Z") — mesma informação, só o texto do
+// rótulo mudou.
 const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefined => {
   const parts: string[] = [];
-  if (item.sigmaSinarm) parts.push(`SIGMA/SINARM: ${item.sigmaSinarm}`);
-  if (item.ammoLot) parts.push(`Lote de munição: ${item.ammoLot}`);
-  if (item.packageId) parts.push(`ID de embalagem: ${item.packageId}`);
-  return parts.length > 0 ? parts.join(" | ") : undefined;
+  if (item.ammoLot) parts.push(`LOTE: ${item.ammoLot}`);
+  if (item.packageId) parts.push(`ID: ${item.packageId}`);
+  if (item.sigmaSinarm) parts.push(`SIGMA: ${item.sigmaSinarm}`);
+  return parts.length > 0 ? parts.join(" / ") : undefined;
 };
 
 // ICMS por item (v2.3.167) — lido da aba "Dados Fiscais" do Produto
@@ -194,6 +197,19 @@ const buildItemIcms = (item: Sale["items"][number], sale: Sale) => {
       if (mva > 0) fields.icms_percentual_margem_valor_adicionado_st = mva;
       if (stRate > 0) fields.icms_aliquota_st = stRate;
     }
+  }
+
+  // Valor ICMS Desonerado (vICMSDeson, v2.3.183, pedido do cliente) — campo
+  // livre, opcional (fica zerado/em branco se não usar, mesma filosofia dos
+  // outros campos de ICMS-ST). ⚠️ A Sefaz também pode exigir o "motivo da
+  // desoneração" (motDesICMS) junto quando esse valor é informado — campo
+  // que este sistema ainda não tem (não implementado por falta de nota
+  // real confirmando qual motivo o cliente usa) — se uma emissão com esse
+  // valor preenchido for rejeitada (código 934 ou parecido), é isso que
+  // está faltando.
+  const desoneratedValue = Number(product?.icmsDesoneration) || 0;
+  if (desoneratedValue > 0) {
+    fields.icms_valor_desonerado = desoneratedValue;
   }
 
   return fields;
@@ -449,23 +465,83 @@ const buildTransporte = (sale: Sale) => {
   return fields;
 };
 
-const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  data_emissao: new Date().toISOString(),
-  tipo_documento: "1",
-  finalidade_emissao: ISSUANCE_PURPOSE_CODES[sale.issuancePurpose] || "1",
-  cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
-  serie: config.nfeSeries,
-  // indPres (presença do consumidor) — nome de campo usado aqui
-  // (`indicador_presenca`) é diferente do usado em NFC-e
-  // (`presenca_comprador`, convenção já existente antes desta entrega);
-  // ver aviso de confiança em `buildIndicadores`.
-  indicador_presenca: sale.consumerPresence || "1",
-  ...buildIndicadores(sale),
-  ...buildTransporte(sale),
-  ...buildEmitente(company, config),
-  ...buildDestinatario(sale),
-  items: buildItemsPayload(sale)
-});
+// "Informações Complementares" da nota (infCpl) — v2.3.183, pedido do
+// cliente após comparar com nota real do sistema antigo: duas linhas
+// fixas no rodapé de Dados Adicionais —
+// 1) aviso padrão de ME/EPP optante pelo Simples Nacional (só quando
+//    `config.taxRegime` for "simples"/"mei", mesmo regime já assumido em
+//    `buildEmitente`/`buildItemIcms`);
+// 2) "Total de Tributos Federais, Estaduais e Municipais: R$ X (Y%) Fonte:
+//    IBPT Z" — Lei da Transparência (Lei 12.741/2012). Soma
+//    `item.totalPrice * (product.ibptRate/100)` de cada item (campo
+//    manual, ver FinanceProduct.ts) pra chegar no valor e no percentual
+//    sobre o total da venda; "Fonte" usa o código do primeiro item que
+//    tiver um preenchido (nota real só tinha 1 item — vários itens com
+//    fontes IBPT diferentes na mesma nota não têm um jeito "certo" de
+//    combinar num texto só, essa é a simplificação adotada). Não gera
+//    nada quando nenhum item tem `ibptRate` preenchido.
+const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefined => {
+  const lines: string[] = [];
+
+  if (config.taxRegime === "simples" || config.taxRegime === "mei") {
+    lines.push(
+      "DOC. EMITIDO POR ME/EPP OPTANTE PELO SIMPLES NACIONAL NAO GERA DIREITO A CREDITO FISCAL DE ISS E IPI."
+    );
+  }
+
+  const items = sale.items || [];
+  const totalTributos = items.reduce((sum, item) => {
+    const rate = Number(item.product?.ibptRate) || 0;
+    return rate > 0 ? sum + Number(item.totalPrice || 0) * (rate / 100) : sum;
+  }, 0);
+
+  if (totalTributos > 0) {
+    const saleTotal = Number(sale.totalValue) || 0;
+    const percent = saleTotal > 0 ? (totalTributos / saleTotal) * 100 : 0;
+    const source = items.find((item) => item.product?.ibptSource)?.product?.ibptSource;
+    const sourceText = source ? ` Fonte: IBPT ${source}` : "";
+    lines.push(
+      `Total de Tributos Federais, Estaduais e Municipais: R$ ${totalTributos.toFixed(2).replace(".", ",")} (${percent
+        .toFixed(2)
+        .replace(".", ",")}%)${sourceText}`
+    );
+  }
+
+  return lines.length > 0 ? lines.join("\n") : undefined;
+};
+
+// Data/hora de saída da mercadoria (dhSaiEnt, campo B10 do leiaute da
+// NF-e) — v2.3.183, pedido do cliente após comparar com nota real emitida
+// no sistema antigo (campos "DATA DA SAÍDA"/"HORA DA SAÍDA" preenchidos,
+// ficavam em branco aqui). Usa o MESMO instante de `data_emissao` (nunca
+// pode ser anterior à emissão, Sefaz rejeita com o código 506 se for) — só
+// entra na NF-e (modelo 55); a NFC-e REJEITA esse campo (código 705), por
+// isso `buildNfcePayload`/`buildNfsePayload` não o têm. ⚠️ nome do campo
+// (`data_entrada_saida`) confirmado contra exemplo público da
+// documentação da Focus NFe, nunca testado contra conta/chave real nesta
+// sessão.
+const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => {
+  const now = new Date().toISOString();
+  return {
+    data_emissao: now,
+    data_entrada_saida: now,
+    tipo_documento: "1",
+    finalidade_emissao: ISSUANCE_PURPOSE_CODES[sale.issuancePurpose] || "1",
+    informacoes_adicionais_contribuinte: buildAdditionalInfo(sale, config),
+    cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
+    serie: config.nfeSeries,
+    // indPres (presença do consumidor) — nome de campo usado aqui
+    // (`indicador_presenca`) é diferente do usado em NFC-e
+    // (`presenca_comprador`, convenção já existente antes desta entrega);
+    // ver aviso de confiança em `buildIndicadores`.
+    indicador_presenca: sale.consumerPresence || "1",
+    ...buildIndicadores(sale),
+    ...buildTransporte(sale),
+    ...buildEmitente(company, config),
+    ...buildDestinatario(sale),
+    items: buildItemsPayload(sale)
+  };
+};
 
 const buildNfcePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
   data_emissao: new Date().toISOString(),

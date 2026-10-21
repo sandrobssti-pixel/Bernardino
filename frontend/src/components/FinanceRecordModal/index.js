@@ -767,6 +767,7 @@ const FinanceRecordModal = ({
         {user?.company?.logoUrl && (
           <img src={user.company.logoUrl} alt="logo" className={classes.printLogo} />
         )}
+        {user?.company?.name && <div style={{ fontWeight: 700 }}>{user.company.name}</div>}
         <h2>{title}</h2>
         <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
           <tbody>

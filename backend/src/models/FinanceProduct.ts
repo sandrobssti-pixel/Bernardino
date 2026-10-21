@@ -446,6 +446,25 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   taxableUnit: string;
 
+  // "Valor Aproximado dos Tributos" (Lei da Transparência, Lei 12.741/
+  // 2012) — v2.3.183, pedido do cliente após comparar com nota real
+  // emitida no sistema antigo ("Total de Tributos Federais, Estaduais e
+  // Municipais: R$ 166,21 (40,05%) Fonte: IBPT A906AF", no rodapé de
+  // Dados Adicionais). Não existe campo estruturado pronto pra isso na
+  // NF-e (o oficial, vTotTrib, exige validação item-a-item que este
+  // sistema não implementa) — aqui vai como TEXTO no rodapé da nota,
+  // igual ao sistema antigo. ⚠️ Preenchimento manual, responsabilidade do
+  // usuário: a alíquota vem da tabela do IBPT (atualizada a cada 6
+  // meses, por NCM) — este sistema não calcula nem valida contra a
+  // tabela oficial, só usa o número informado aqui pra montar o texto.
+  @Default("0")
+  @Column
+  ibptRate: string;
+
+  @Default("")
+  @Column
+  ibptSource: string;
+
   // CFOP padrão pra venda dentro da Bahia (interna) — usado como default
   // ao escolher o produto numa venda (ver SaleModal.js), não trava o CFOP
   // do item (sempre editável por venda).
