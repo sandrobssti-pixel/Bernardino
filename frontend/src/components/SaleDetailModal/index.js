@@ -622,6 +622,11 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
             passado do prazo, o cancelamento vai ser rejeitado e você vai precisar emitir uma Nota
             de Crédito/Devolução em vez disso.
           </Typography>
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+            Cancelar a nota também cancela a venda (devolve o estoque) e a conta a receber ligada.
+            Se já estava paga, o reembolso ainda precisa ser feito manualmente — via Pix no painel
+            do Asaas/Mercado Pago, ou solicitando o estorno à operadora no caso de cartão.
+          </Typography>
           <TextField
             autoFocus
             fullWidth

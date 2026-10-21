@@ -183,6 +183,12 @@ export const togglePendingCorrection = async (
   return document;
 };
 
+// v2.3.189 — pedido do cliente: cancelar a nota fiscal autorizada (ex.:
+// cliente desistiu da compra, dentro do prazo que a Sefaz permite) agora
+// também cancela a VENDA ligada por baixo — devolve estoque e cancela a
+// conta a receber (ver `SaleService.cancel`). Antes só cancelava o
+// documento fiscal, deixando a venda "confirmada" com uma nota cancelada
+// por trás, exigindo cancelar a venda manualmente depois.
 export const cancel = async (
   id: string | number,
   justification: string,
@@ -207,6 +213,7 @@ export const cancel = async (
   }
 
   await document.update({ status: "cancelled" });
+  await SaleService.cancel(document.saleId, companyId);
   return document;
 };
 

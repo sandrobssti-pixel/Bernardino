@@ -11843,3 +11843,93 @@ sessão — a lógica de bloqueio foi conferida só por leitura de código.
 **Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
 `frontend/src/components/{SaleDetailModal,SaleList}/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 168. Devolução/reembolso: cancelar nota cancela a venda (v2.3.189)
+
+### Contexto
+
+Pedido do cliente: "o que tem que implantar é devolução/reembolso —
+cancelar, no caso o cliente queira desistir da compra, tem até 24h pra
+cancelar que a Sefaz permite, com descrição de justificativa, envia e
+recebe a nota cancelada." O "Cancelar nota" em si já existia (v2.3.185)
+— o que faltava era ele resolver o resto da venda por baixo (estoque,
+conta a receber), não só o documento fiscal.
+
+Perguntado antes de mexer (duas rodadas, dinheiro de verdade envolvido):
+1. Cancelar a nota deve cancelar a venda e devolver o estoque
+   automaticamente? → **Sim**, confirmado.
+2. Se já tinha sido pago, o sistema deve reembolsar de verdade via API
+   (Asaas/Mercado Pago)? → Aqui achei um problema real: **nenhum dos
+   dois gateways tem função de reembolso implementada hoje** (só
+   `createPixCharge`/`createBoletoCharge`/`getPayment` — nunca um
+   `refund`). Implementar isso "por conhecimento geral", sem a
+   documentação oficial do endpoint, seria o mesmo tipo de risco que
+   causou o problema da nota 498 (ver seção 162/163) — só que movendo
+   dinheiro de verdade em vez de autenticar uma nota. Perguntei se o
+   cliente preferia mandar a doc oficial antes, aceitar o risco, ou só
+   avisar sem chamar API nenhuma por enquanto.
+   Resposta do cliente: implementar agora **só a parte sem API**
+   (cancela venda/estoque/conta a receber, com aviso manual de
+   reembolso), e mais pra frente mandar a documentação oficial do Asaas
+   pra automatizar o reembolso via Pix de verdade. Cartão de crédito
+   fica sempre manual ("solicitar à operadora") — nem o Asaas/Mercado
+   Pago collection flow deste sistema cobra cartão hoje (só Pix/boleto),
+   então um reembolso de cartão nunca seria algo que o AtendeFlow
+   poderia disparar sozinho de qualquer forma.
+
+### O que foi feito
+
+- **`SaleService.cancel`** — além de devolver estoque (já existia),
+  agora também cancela a `FinanceReceivable` ligada (se existir e ainda
+  não estiver cancelada): muda `status` pra `"cancelled"` (valor novo,
+  ver abaixo) e acrescenta uma nota em `notes` explicando o que fazer —
+  texto diferente se a cobrança nunca chegou a ser paga, se foi paga via
+  Pix (reembolso manual pelo painel do gateway, automação futura), ou
+  se foi paga por outro meio (cartão: "solicitar estorno à operadora").
+  Essa função já era chamada pelo "Cancelar venda" direto da tela de
+  Vendas — ganhou o comportamento novo de graça, sem precisar duplicar
+  lógica.
+- **`FiscalDocumentService.cancel`** — depois de cancelar com sucesso na
+  Sefaz, chama `SaleService.cancel(document.saleId, companyId)` — one
+  cancelamento de nota agora sempre cancela a venda por baixo, não deixa
+  uma venda "confirmada" com nota cancelada por trás.
+- **`FinanceReceivable.status`** ganha um terceiro valor possível,
+  `"cancelled"` (antes só "pending"/"received", ver comentário no
+  model) — sem migration (coluna já era string livre, sem enum/check no
+  banco). Adicionado em `RECEIVABLE_STATUS_OPTIONS`
+  (`financeConfig.js`) e no chip de status da lista de Contas a Receber
+  (cinza, mesma cor já usada pra "cancelado" em Vendas/Documentos
+  Fiscais). Conferido que os relatórios (`FinanceReportService.ts`) já
+  filtram por `status: "pending"`/`status: "received"` explicitamente
+  em todo lugar — o valor novo cai fora dos totais de "a receber"/
+  "recebido" automaticamente, sem precisar mudar nada lá.
+- **`SaleDetailModal.js`** — aviso adicional no diálogo de "Cancelar
+  nota" explicando que isso também cancela a venda/estoque/conta a
+  receber, e que o reembolso (quando já pago) ainda é manual.
+
+### Não implementado (de propósito, aguardando documentação)
+
+Reembolso automático via API do Asaas pra cobrança paga em Pix — fica
+pro cliente mandar a documentação oficial do endpoint de estorno, mesmo
+padrão já usado com a Focus NFe (nunca implementar endpoint que move
+dinheiro de verdade só "por conhecimento geral").
+
+### Nuance registrada (não é bug, é escolha deliberada)
+
+Uma conta a receber que já estava `"received"` e é cancelada SAI dos
+totais de `receivedThisMonth`/fluxo de caixa daquele mês quando o
+reembolso ainda não foi feito de verdade — o dinheiro continua tendo
+entrado no caixa até o reembolso acontecer, mas o relatório já trata
+como se não tivesse mais valor. Aceitável pelo volume baixo de
+cancelamento esperado; revisar se algum dia isso distorcer relatório de
+forma perceptível.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; `GENERATE_
+SOURCEMAP=false CI=false npx craco build` limpo no frontend. Não
+testado contra um banco real com venda paga cancelada nesta sessão.
+
+**Arquivos**: `backend/src/services/FiscalService/{SaleService,
+FiscalDocumentService}.ts`, `frontend/src/pages/Financeiro/
+financeConfig.js`, `frontend/src/components/SaleDetailModal/index.js`.

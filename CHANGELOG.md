@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.189] — Cancelar nota fiscal cancela a venda e a conta a receber — 2026-10-21
+
+### Adicionado
+- Cancelar uma nota fiscal autorizada (cliente desistiu da compra, dentro
+  do prazo que a Sefaz permite) agora também cancela a venda
+  automaticamente — devolve o estoque e marca a conta a receber ligada
+  como "Cancelado" (status novo, com aviso em "Observações" se já tinha
+  sido paga). Reembolso automático via API (Pix) ainda **não** está
+  implementado — por enquanto fica a anotação clara de que precisa
+  reembolsar manualmente (Pix: painel do Asaas/Mercado Pago; cartão:
+  solicitar estorno à operadora). Entra quando tivermos a documentação
+  oficial do endpoint de reembolso.
+
 ## [2.3.188] — Editar venda confirmada pra corrigir erro antes de emitir — 2026-10-21
 
 ### Adicionado

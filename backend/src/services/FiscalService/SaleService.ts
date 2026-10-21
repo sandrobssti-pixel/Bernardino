@@ -593,6 +593,17 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
 // Devolve o estoque descontado na confirmação — só quando a venda
 // REALMENTE estava confirmada (nunca mexeu no estoque se ainda era
 // rascunho, então nada a devolver nesse caso).
+//
+// v2.3.189 — pedido do cliente: cancelar a venda (seja direto por aqui,
+// seja via `FiscalDocumentService.cancel` ao cancelar a nota fiscal
+// autorizada) também cancela a conta a receber vinculada, não só
+// devolve estoque. Reembolso de verdade (chamar a API do gateway) ainda
+// NÃO está implementado — fica só uma anotação clara em `notes` pra
+// quem for conferir manualmente. O cliente confirmou que, quando tiver
+// a documentação oficial do Asaas, o reembolso via Pix vai ser
+// automatizado (ver aviso de confiança no topo de FocusNFeService.ts
+// pro mesmo padrão já usado com a Focus NFe — nunca implementar endpoint
+// que move dinheiro sem doc oficial ou risco aceito explicitamente).
 export const cancel = async (id: string | number, companyId: number): Promise<Sale> => {
   const sale = await show(id, companyId);
 
@@ -602,6 +613,22 @@ export const cancel = async (id: string | number, companyId: number): Promise<Sa
 
   if (sale.status === "confirmed") {
     await adjustStock(sale, -1);
+  }
+
+  if (sale.receivableId) {
+    const receivable = await FinanceReceivable.findByPk(sale.receivableId);
+    if (receivable && receivable.status !== "cancelled") {
+      const wasReceived = receivable.status === "received";
+      const refundNote = !wasReceived
+        ? "[Venda cancelada] Cobrança cancelada antes de ser paga."
+        : sale.paymentMethod === "pix"
+        ? "[Venda cancelada] Já estava pago via Pix — reembolso automático ainda não implementado neste sistema; reembolsar manualmente pelo painel do Asaas/Mercado Pago."
+        : "[Venda cancelada] Já estava pago — reembolso precisa ser solicitado manualmente (cartão: pedir estorno à operadora; outros meios: fora do sistema).";
+      await receivable.update({
+        status: "cancelled",
+        notes: [receivable.notes, refundNote].filter(Boolean).join("\n\n")
+      });
+    }
   }
 
   await sale.update({ status: "cancelled" });

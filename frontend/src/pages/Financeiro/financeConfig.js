@@ -524,6 +524,10 @@ const EXPENSE_STATUS_OPTIONS = [
 const RECEIVABLE_STATUS_OPTIONS = [
   { value: "pending", label: "Pendente" },
   { value: "received", label: "Recebido" },
+  // v2.3.189 — conta a receber de uma venda cancelada (ver SaleService.cancel)
+  // passa pra esse status, em vez de continuar "Pendente"/"Recebido" como se
+  // a cobrança ainda valesse.
+  { value: "cancelled", label: "Cancelado" },
 ];
 
 // Vencido = ainda pendente e a data de vencimento já passou — usado tanto na
@@ -584,6 +588,7 @@ export const financeReceivableColumns = [
     field: "status",
     label: "Status",
     render: (r) => {
+      if (r.status === "cancelled") return <StatusChip label="Cancelado" color="#6b7280" />;
       if (r.status === "received") return <StatusChip label="Recebido" color="#10b981" />;
       if (isOverdue(r)) return <StatusChip label="Vencido" color="#ef4444" />;
       return <StatusChip label="Pendente" color="#f59e0b" />;
