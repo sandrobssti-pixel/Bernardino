@@ -11746,3 +11746,36 @@ geral" (ver aviso no topo de `FocusNFeService.ts`).
 (`previewDanfe`: header `Accept`, `tipo_documento` numérico),
 `backend/src/services/FiscalService/FiscalDocumentService.ts`
 (`previewDanfe`: religado condicional a Homologação).
+
+## 166. Olhinho pra ver a venda antes de confirmar (v2.3.187)
+
+### Contexto
+
+Na lista de Vendas (`SaleList.js`), uma venda em "Rascunho" só tinha dois
+ícones em Ações: Editar (lápis) e Confirmar venda (check) — sem jeito de
+ver os itens/valores sem entrar no formulário de edição. O cliente pediu
+o "olhinho" ali, antes do botão de confirmar — confirmar uma venda gera a
+conta a receber e trava os itens (`ConfirmationModal` já avisa "não é
+possível desfazer"), então olhar antes faz sentido pro mesmo motivo já
+validado nas sessões anteriores (revisão antes de qualquer ação
+irreversível).
+
+### O que foi feito
+
+- `SaleList.js`: adicionado `IconButton`/`VisibilityIcon` ("Pré-visualizar
+  itens e valores") no bloco de ações de `sale.status === "draft"`, entre
+  Editar e Confirmar — chama `handleViewDetail(sale, false)`, a MESMA
+  função já usada pro olhinho das vendas confirmadas/canceladas. Nenhum
+  componente novo: abre o `SaleDetailModal` já existente, que pra uma
+  venda ainda não confirmada mostra os itens/total e a mensagem "Só é
+  possível emitir nota fiscal de uma venda confirmada" em vez dos botões
+  de emitir/pré-visualizar DANFe (`SaleDetailModal.js`, linha ~358) — não
+  expõe emissão nem pré-visualização fiscal antes da hora, só os
+  dados da venda em si.
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend nem migration nova.
+
+**Arquivos**: `frontend/src/components/SaleList/index.js`.

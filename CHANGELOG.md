@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.187] — Olhinho pra ver a venda antes de confirmar — 2026-10-21
+
+### Adicionado
+- Na lista de Vendas, uma venda em rascunho agora tem o botão de
+  "Pré-visualizar itens e valores" (olhinho) ao lado de Editar/Confirmar
+  — mostra os itens e o total antes de confirmar (ação que gera conta a
+  receber e trava os itens, sem volta). Mesmo modal já usado pras vendas
+  confirmadas/canceladas, sem opção de emitir nota (só aparece quando a
+  venda já está confirmada).
+
 ## [2.3.186] — Pré-visualização de DANFe religada em Homologação — 2026-10-21
 
 ### Corrigido

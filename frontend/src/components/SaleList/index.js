@@ -608,6 +608,11 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           <EditIcon fontSize="small" />
                         </IconButton>
                       </Tooltip>
+                      <Tooltip title="Pré-visualizar itens e valores">
+                        <IconButton size="small" onClick={() => handleViewDetail(sale, false)}>
+                          <VisibilityIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Confirmar venda">
                         <IconButton size="small" onClick={() => requestConfirm(sale)}>
                           <CheckCircleIcon fontSize="small" />
