@@ -12166,3 +12166,45 @@ cliente orientado a reconferir as credenciais antes do próximo teste.
 FocusAccountService,FiscalConfigService}.ts`,
 `backend/src/controllers/FiscalConfigController.ts`,
 `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 173. Código (SKU) com dropdown de busca ao vivo (v2.3.194)
+
+### Contexto
+
+Continuação direta da seção 170 (v2.3.191): o cliente pediu de novo,
+mais explícito — "tem que habilitar no campo a opção de filtrar quando
+o operador digitar no campo o código SKU, preencher todos os campos
+automaticamente como hoje é feito no campo produtos/serviços". Ou seja,
+não bastava buscar em segundo plano e preencher sozinho (o que a
+v2.3.191 já fazia) — queria o MESMO dropdown visível, com lista
+filtrada, que o campo "Produto/serviço" já tinha.
+
+### O que foi feito
+
+- **`FinanceAsyncAutocomplete.js`** (componente compartilhado, usado
+  também pelos seletores de Cliente/Fornecedor/Produto em outras telas)
+  ganhou um prop novo, opcional, `freeSolo` (default `false` — não muda
+  nada pra quem já usa o componente sem passar esse prop). Quando
+  `true`: repassa `freeSolo`/`autoSelect` pro `Autocomplete` do MUI por
+  baixo (`autoSelect` faz o texto digitado virar a opção selecionada
+  sozinho se bater exato, ao perder o foco, sem precisar clicar na
+  lista); `value` passa a aceitar STRING além de objeto; um `useEffect`
+  novo mantém o texto digitado em sincronia quando `value` muda de fora
+  — só ativa quando `freeSolo` E `value` é string, então não afeta
+  nenhum dos outros usos do componente (lá `value` sempre é objeto ou
+  `null`).
+- **`SaleModal.js`**: campo "Código (SKU)" trocou de `TextField` simples
+  pra `FinanceAsyncAutocomplete freeSolo`, com a mesma busca por SKU/nome
+  já usada no "Produto/serviço" (`fetchProductOptions`). Selecionar da
+  lista chama `handleProductChange` (preenche tudo); digitar texto livre
+  sem selecionar continua funcionando igual antes (item avulso). O campo
+  "Descrição" continua com a busca em segundo plano da v2.3.191 (não
+  virou dropdown — o pedido foi especificamente sobre o SKU).
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend.
+
+**Arquivos**: `frontend/src/components/FinanceAsyncAutocomplete/index.js`,
+`frontend/src/components/SaleModal/index.js`.

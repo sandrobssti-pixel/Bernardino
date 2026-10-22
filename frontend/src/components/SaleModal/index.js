@@ -47,6 +47,11 @@ import {
 const renderProductOption = (opt) =>
   opt?.type ? `${opt.name} — ${PRODUCT_TYPE_LABELS[opt.type] || opt.type}` : opt?.name || "";
 
+// Mesma lista de opções do campo "Produto/serviço" acima, mas com o SKU
+// em destaque primeiro — usado no dropdown do campo "Código (SKU)"
+// (v2.3.194), que busca pelos dois (SKU ou nome) igual o de cima.
+const renderProductOptionBySku = (opt) => `${opt?.sku ? `${opt.sku} — ` : ""}${opt?.name || ""}`;
+
 // Filtro de Tipo por item da venda — não é um dado que a venda guarda (o
 // que fica salvo é só o `productId` escolhido), por isso vive em estado
 // local do componente (por índice da linha), não no Formik/`emptyItem`.
@@ -319,19 +324,22 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     return records || [];
   };
 
-  // Digitar o SKU ou o nome direto no campo (sem passar pelo
-  // "Produto/serviço" de cima) também preenche os campos relacionados —
-  // pedido do cliente (v2.3.172, reforçado v2.3.191: tinha que buscar "ao
-  // vivo" enquanto digita, não só quando sai do campo, e aceitar tanto
-  // SKU quanto nome igual o campo "Produto/serviço" já faz). Só dispara
-  // quando o item ainda não tem um Produto vinculado (senão
-  // sobrescreveria uma escolha já feita de propósito). Busca igual o
-  // `fetchProductOptions` (mesmo endpoint, já compara contra SKU e nome
-  // — ver FinanceProductService.list): se o texto digitado bate EXATO
-  // com um resultado, ou sobra só UM resultado parcial (ex.: "ARM-00" que
-  // só existe num produto), seleciona esse automaticamente; se sobrar
-  // mais de um, não adivinha — deixa a pessoa usar o campo "Produto/
-  // serviço" de cima (que já mostra a lista) pra escolher.
+  // Digitar o nome direto no campo "Descrição" (sem passar pelo
+  // "Produto/serviço" de cima nem pelo dropdown do "Código (SKU)")
+  // também preenche os campos relacionados — pedido do cliente (v2.3.172,
+  // reforçado v2.3.191). Até a v2.3.193 esse mesmo mecanismo também
+  // cobria o campo "Código (SKU)"; na v2.3.194 esse campo virou um
+  // dropdown de busca ao vivo igual o "Produto/serviço" (ver
+  // `FinanceAsyncAutocomplete freeSolo` abaixo), então só "Descrição"
+  // ainda usa essa busca por correspondência. Só dispara quando o item
+  // ainda não tem um Produto vinculado (senão sobrescreveria uma escolha
+  // já feita de propósito). Busca igual o `fetchProductOptions` (mesmo
+  // endpoint, já compara contra SKU e nome — ver
+  // FinanceProductService.list): se o texto digitado bate EXATO com um
+  // resultado, ou sobra só UM resultado parcial, seleciona esse
+  // automaticamente; se sobrar mais de um, não adivinha — deixa a pessoa
+  // usar o campo "Produto/serviço" de cima ou o dropdown do SKU pra
+  // escolher.
   const handleSkuOrNameLookup = async (index, value, item, setFieldValue, operationType, { silent = false } = {}) => {
     const typed = (value || "").trim();
     if (!typed || item.productId) return;
@@ -510,21 +518,25 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             />
                           </Grid>
                           <Grid item xs={6} sm={2}>
-                            <Field
-                              as={TextField}
-                              fullWidth
-                              variant="outlined"
-                              size="small"
+                            <FinanceAsyncAutocomplete
+                              freeSolo
+                              key={`sku-${index}-${itemTypeFilters[index] || ""}`}
                               label="Código (SKU)"
                               placeholder="Digite o código ou nome"
-                              name={`items.${index}.sku`}
-                              onChange={(e) => {
-                                setFieldValue(`items.${index}.sku`, e.target.value);
-                                scheduleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
-                              }}
-                              onBlur={(e) => {
-                                handleBlur(e);
-                                handleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
+                              value={item.sku || ""}
+                              initialOptions={selectedProduct ? [selectedProduct] : []}
+                              getOptionLabel={(opt) => (typeof opt === "string" ? opt : opt?.sku || "")}
+                              renderOption={renderProductOptionBySku}
+                              fetchOptions={(searchParam) => fetchProductOptions(index, searchParam)}
+                              onChange={(e, newValue) => {
+                                if (newValue && typeof newValue === "object") {
+                                  // Selecionou da lista — mesmo efeito do campo
+                                  // "Produto/serviço" de cima, preenche tudo.
+                                  handleProductChange(index, newValue, setFieldValue, values.operationType);
+                                } else {
+                                  // Texto livre (item avulso) ou campo limpo.
+                                  setFieldValue(`items.${index}.sku`, newValue || "");
+                                }
                               }}
                             />
                           </Grid>

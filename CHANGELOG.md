@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.194] — Código (SKU) com dropdown de busca ao vivo — 2026-10-22
+
+### Corrigido
+- O campo "Código (SKU)" do item da venda agora tem o mesmo dropdown de
+  busca ao vivo do campo "Produto/serviço" — digita o código ou nome,
+  aparece a lista filtrada, clica pra selecionar e preenche tudo
+  automaticamente. Continua aceitando texto livre pra item avulso, sem
+  produto vinculado.
+
 ## [2.3.193] — Razão social dedicada na nota + tributos automáticos — 2026-10-22
 
 ### Adicionado

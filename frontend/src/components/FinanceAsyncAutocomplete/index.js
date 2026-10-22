@@ -26,6 +26,13 @@ const FinanceAsyncAutocomplete = ({
   initialOptions = [],
   size = "small",
   disabled = false,
+  // `freeSolo` (v2.3.194) — pedido do cliente: campo de SKU com o mesmo
+  // dropdown-ao-vivo do "Produto/serviço", mas que continua aceitando
+  // texto livre digitado (item avulso, sem produto vinculado), igual já
+  // funcionava antes. Nesse modo `value`/`onChange` podem receber uma
+  // STRING (texto digitado, sem selecionar da lista) em vez de só o
+  // objeto do produto — quem usa decide o que fazer com cada caso.
+  freeSolo = false,
 }) => {
   const [options, setOptions] = useState(initialOptions);
   const [loading, setLoading] = useState(false);
@@ -39,6 +46,18 @@ const FinanceAsyncAutocomplete = ({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  // Só entra em ação no modo `freeSolo` com `value` em texto (string) —
+  // nos outros usos (Produto/serviço, Cliente, Fornecedor) `value` é
+  // sempre objeto ou `null`, então essa condição nunca bate e nada muda
+  // pra eles. Mantém o texto digitado em sincronia quando `value` é
+  // atualizado de fora (ex.: campo limpo ao trocar de linha/item).
+  useEffect(() => {
+    if (freeSolo && typeof value === "string") {
+      setInputValue(value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [freeSolo, value]);
 
   // Garante que as opções iniciais (ex.: registro já selecionado ao editar)
   // sempre apareçam na lista, mesmo antes de qualquer busca.
@@ -73,11 +92,13 @@ const FinanceAsyncAutocomplete = ({
 
   return (
     <Autocomplete
+      freeSolo={freeSolo}
+      autoSelect={freeSolo}
       size={size}
       disabled={disabled}
       options={options}
       loading={loading}
-      value={value || null}
+      value={value || (freeSolo ? "" : null)}
       onChange={onChange}
       inputValue={inputValue}
       onInputChange={(event, newInputValue, reason) => {
