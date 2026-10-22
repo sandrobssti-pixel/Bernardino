@@ -371,7 +371,10 @@ const buildIndicadores = (sale: Sale) => {
 
 const buildEmitente = (company: Company, config: FiscalConfig) => ({
   cnpj_emitente: (company.document || "").replace(/\D/g, ""),
-  nome_emitente: company.name,
+  // Razão social dedicada pra nota (v2.3.193, `emitterLegalName`), cai
+  // pra `company.name` (nome operacional da empresa no AtendeFlow)
+  // quando vazio — ver comentário completo em FiscalConfig.ts.
+  nome_emitente: config.emitterLegalName || company.name,
   regime_tributario_emitente: config.taxRegime === "simples" || config.taxRegime === "mei" ? "1" : "3",
   // Formatada com pontuação no cadastro (ex.: "182.174.539") — a Sefaz
   // espera só dígitos nesse campo; achado comparando com o print da tela

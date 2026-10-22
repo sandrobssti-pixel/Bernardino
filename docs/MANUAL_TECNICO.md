@@ -12084,3 +12084,85 @@ sem navegador interativo) — a mudança é padrão/documentada do MUI, risco
 baixo, mas vale o cliente confirmar visualmente depois do deploy.
 
 **Arquivos**: `frontend/src/App.js`.
+
+## 172. Razão social dedicada na nota + tributos automáticos (v2.3.193)
+
+### Contexto
+
+O cliente pediu MAIS DE 10 VEZES pra trocar o nome que sai no DANFE
+("CT Confiança/Cactus clube de tiro" → "FEDERACAO BAIANA DE TIRO
+DEFENSIVO & OLIMPICO LTDA") e nunca resolvia de verdade. Investigando
+juntos: confirmou que já tinha editado o "Nome da empresa" na tela
+Empresas do AtendeFlow e mesmo assim saía errado; conferiu o cadastro
+da empresa no painel da própria Focus NFe (Razão Social lá já estava
+CERTA, "FEDERACAO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA"). Então o
+nome errado não vinha nem do nosso lado (comprovado) nem do cadastro da
+Focus (também comprovado) — restava só uma explicação: `buildEmitente`
+sempre leu `nome_emitente` direto de `company.name`, que é o nome
+OPERACIONAL usado no resto do sistema (login, cabeçalho) — trocar esse
+campo pra razão social legal bagunçaria a identificação da empresa em
+todo o resto do AtendeFlow, então na prática nunca ficava trocado de
+vez (ou alguém trocava de volta sem perceber o efeito colateral).
+
+Na mesma leva, o cliente perguntou de novo sobre o campo "V. Aprox.
+Tributos" do DANFE (ver seção anterior, pendência "aguardando suporte
+da Focus") e trouxe a resposta oficial do suporte: o parâmetro
+`discrimina_impostos`, ligado na conta da empresa (API Empresas), faz a
+própria Focus calcular e preencher esse campo sozinha — sem precisar
+mandar nada a mais em cada nota.
+
+### O que foi feito
+
+- **`FiscalConfig.emitterLegalName`** (migration
+  `20261022130000-add-emitter-legal-name-to-fiscal-configs`) — campo
+  dedicado, mesmo padrão já usado pra `emitterPhone`/`emitterEmail`
+  (separados de `Company.phone`/`Company.email` de propósito). Vazio
+  por padrão — não quebra nenhuma empresa que já emitia certo.
+- **`FocusNFeService.buildEmitente`**: `nome_emitente: config.
+  emitterLegalName || company.name` — usa a razão social dedicada
+  quando preenchida, cai pro nome da empresa quando vazio.
+- **`FiscalConfig.discriminaImpostos`** (migration
+  `20261022140000-add-discrimina-impostos-to-fiscal-configs`) — boolean,
+  default `false`.
+- **`FocusAccountService.updateDiscriminaImpostos`** — novo, mesmo
+  mecanismo de `updateAccountingOffice` (API "Empresas" da Focus, `PUT
+  /v2/empresas/{id}`, autenticada com `focusAccountToken`): manda
+  `{ discrimina_impostos: true/false }`.
+  **`FiscalConfigService.update`** sincroniza automaticamente sempre
+  que o campo muda (mesmo padrão de `accountingOfficeDocument`) — erro
+  de sincronização não impede salvar a config local, só avisa.
+- **`FiscalConfigPanel.js`**: campo de texto "Razão social (só na nota
+  fiscal)" logo no topo do bloco do emitente; switch "Detalhar tributos
+  no DANFe automaticamente" ao lado dos campos de token de
+  conta/ID da empresa na Focus (mesma seção — os dois usam a API
+  Empresas).
+
+### Pendência encontrada durante o teste
+
+O cliente tentou sincronizar e recebeu da Focus: `{"codigo":
+"permissao_negada", "mensagem": "Access token inválido (host:
+api.focusnfe.com.br)"}`. Isso é a Focus recusando o TOKEN usado — a API
+"Empresas" exige o token de CONTA/master (painel da Focus → "Minha
+conta"), diferente dos tokens de Homologação/Produção usados pra emitir
+nota. Orientado a conferir/preencher os campos "Token de conta (master)
+da Focus" e "ID da empresa na Focus" em Configuração Fiscal (campos já
+existentes desde a v2.3.128, usados também pelo escritório de
+contabilidade) antes de tentar de novo.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; as duas
+migrations novas testadas contra Postgres local do zero (cadeia
+completa + undo/redo de cada uma); `GENERATE_SOURCEMAP=false CI=false
+npx craco build` limpo no frontend. Não testado contra conta real da
+Focus nesta sessão (token de conta do cliente deu erro, ver acima) —
+cliente orientado a reconferir as credenciais antes do próximo teste.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts`,
+`backend/src/database/migrations/
+{20261022130000-add-emitter-legal-name-to-fiscal-configs,
+20261022140000-add-discrimina-impostos-to-fiscal-configs}.ts`,
+`backend/src/services/FiscalService/{FocusNFeService,
+FocusAccountService,FiscalConfigService}.ts`,
+`backend/src/controllers/FiscalConfigController.ts`,
+`frontend/src/components/FiscalConfigPanel/index.js`.

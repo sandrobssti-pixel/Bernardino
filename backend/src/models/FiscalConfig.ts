@@ -55,6 +55,22 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   cityCode: string;
 
+  // Razão social do EMITENTE pra nota fiscal (v2.3.193) — pedido do
+  // cliente mais de 10 vezes sem resolver de verdade: o nome que ia na
+  // nota (`nome_emitente`) sempre usou `Company.name` direto, que é o
+  // nome OPERACIONAL usado em todo o resto do AtendeFlow (login,
+  // cabeçalho, identificação da empresa no sistema — "CT Confiança/
+  // Cactus clube de tiro", neste caso). Trocar `Company.name` pra razão
+  // social legal bagunçaria a identificação da empresa no resto do
+  // sistema; esse campo aqui é dedicado só pra nota, igual
+  // `emitterPhone`/`emitterEmail` já são separados de `Company.phone`/
+  // `Company.email`. Quando vazio, `FocusNFeService.buildEmitente` cai
+  // de volta pra `Company.name` (comportamento de sempre, não quebra
+  // empresa nenhuma que já estava funcionando certo).
+  @Default("")
+  @Column
+  emitterLegalName: string;
+
   // Endereço do EMITENTE (a própria empresa-cliente) — obrigatório no XML
   // da NF-e/NFC-e (enderEmit), nunca existiu em lugar nenhum do sistema até
   // aqui (causa raiz do "Erro na validação do Schema XML" no primeiro
@@ -136,6 +152,19 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Default("")
   @Column
   accountingOfficeDocument: string;
+
+  // "Discriminar tributos" (v2.3.193) — confirmado com o suporte da
+  // Focus NFe: com esse parâmetro ligado NA CONTA da empresa lá (não é
+  // campo de cada nota), a própria Focus calcula e preenche sozinha o
+  // campo "V. Aprox. Tributos" do DANFE (Lei da Transparência,
+  // 12.741/2012), usando a base de dados de tributos deles — sem
+  // precisar mandar nada a mais em cada emissão. Mesmo padrão de sync
+  // de `accountingOfficeDocument` acima: NÃO vai no payload da nota,
+  // sincronizado por `FocusAccountService.updateDiscriminaImpostos`
+  // sempre que esse campo muda.
+  @Default(false)
+  @Column
+  discriminaImpostos: boolean;
 
   // Token de CONTA/master da Focus NFe — diferente de
   // `gatewayTokenSandbox`/`gatewayTokenProduction` (que são por empresa,

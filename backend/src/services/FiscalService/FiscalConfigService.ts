@@ -19,10 +19,13 @@ interface FiscalConfigData {
   emitterCity?: string;
   emitterState?: string;
   emitterPhone?: string;
+  emitterEmail?: string;
+  emitterLegalName?: string;
   gatewayProvider?: string;
   gatewayTokenSandbox?: string;
   gatewayTokenProduction?: string;
   accountingOfficeDocument?: string;
+  discriminaImpostos?: boolean;
   focusAccountToken?: string;
   focusCompanyId?: string;
   sandboxEnabled?: boolean;
@@ -72,9 +75,14 @@ export const show = async (companyId: number): Promise<FiscalConfig> => {
 export const update = async (
   data: FiscalConfigData,
   companyId: number
-): Promise<{ config: FiscalConfig; accountingOfficeSync: { ok: boolean; errorMessage: string } | null }> => {
+): Promise<{
+  config: FiscalConfig;
+  accountingOfficeSync: { ok: boolean; errorMessage: string } | null;
+  discriminaImpostosSync: { ok: boolean; errorMessage: string } | null;
+}> => {
   const config = await show(companyId);
   const previousAccountingOfficeDocument = config.accountingOfficeDocument;
+  const previousDiscriminaImpostos = config.discriminaImpostos;
 
   // "Deixe vazio para manter" (v2.3.174, tela de Configuração Fiscal) —
   // a API key da Resend nunca volta pro frontend em texto puro (ver
@@ -100,7 +108,15 @@ export const update = async (
     accountingOfficeSync = await FocusAccountService.updateAccountingOffice(config, data.accountingOfficeDocument);
   }
 
-  return { config, accountingOfficeSync };
+  let discriminaImpostosSync: { ok: boolean; errorMessage: string } | null = null;
+  if (
+    data.discriminaImpostos !== undefined &&
+    data.discriminaImpostos !== previousDiscriminaImpostos
+  ) {
+    discriminaImpostosSync = await FocusAccountService.updateDiscriminaImpostos(config, data.discriminaImpostos);
+  }
+
+  return { config, accountingOfficeSync, discriminaImpostosSync };
 };
 
 // Nunca manda a API key da Resend de volta pro frontend em texto puro

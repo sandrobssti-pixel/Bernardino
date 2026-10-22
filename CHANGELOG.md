@@ -3,7 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.192] — Nenhum painel fecha sozinho (clique fora / Esc) — 2026-10-22
+## [2.3.193] — Razão social dedicada na nota + tributos automáticos — 2026-10-22
+
+### Adicionado
+- Campo novo "Razão social (só na nota fiscal)" em Configuração Fiscal
+  — corrige de vez o nome errado saindo no DANFE sem precisar trocar o
+  Nome da empresa (que é usado em todo o resto do AtendeFlow). Deixe
+  vazio pra manter o comportamento de sempre (usa o Nome da empresa).
+- Switch "Detalhar tributos no DANFe automaticamente" — confirmado com o
+  suporte da Focus NFe: liga o parâmetro `discrimina_impostos` na conta
+  da empresa lá, e a própria Focus passa a calcular e preencher sozinha
+  o campo "V. Aprox. Tributos" (Lei da Transparência, 12.741/2012), sem
+  precisar configurar nada a mais em cada venda.
 
 ### Corrigido
 - Nenhum modal/painel do AtendeFlow (venda, cliente, usuário,

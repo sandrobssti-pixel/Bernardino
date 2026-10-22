@@ -350,13 +350,18 @@ const FiscalConfigPanel = ({ fiscal }) => {
   const handleSubmit = async (values, { setSubmitting }) => {
     setSaving(true);
     try {
-      const { accountingOfficeSync, ...updated } = await fiscal.config.update(values);
+      const { accountingOfficeSync, discriminaImpostosSync, ...updated } = await fiscal.config.update(values);
       setConfig(updated);
       toast.success("Configuração fiscal salva com sucesso.");
       if (accountingOfficeSync && !accountingOfficeSync.ok) {
         toast.warn(`Salvou aqui, mas não sincronizou com a Focus NFe: ${accountingOfficeSync.errorMessage}`);
       } else if (accountingOfficeSync && accountingOfficeSync.ok) {
         toast.success("Escritório de contabilidade sincronizado com a Focus NFe.");
+      }
+      if (discriminaImpostosSync && !discriminaImpostosSync.ok) {
+        toast.warn(`Salvou aqui, mas não sincronizou com a Focus NFe: ${discriminaImpostosSync.errorMessage}`);
+      } else if (discriminaImpostosSync && discriminaImpostosSync.ok) {
+        toast.success("Detalhamento de tributos sincronizado com a Focus NFe.");
       }
     } catch (err) {
       toastError(err);
@@ -552,6 +557,18 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   size="small"
                   name="emitterNeighborhood"
                   label="Bairro"
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  name="emitterLegalName"
+                  label="Razão social (só na nota fiscal)"
+                  placeholder="Deixe vazio pra usar o Nome da empresa (padrão)"
+                  helperText="Preencha só se a razão social legal (que vai na nota) for diferente do Nome da empresa usado no resto do AtendeFlow."
                 />
               </Grid>
               <Grid item xs={12} sm={4}>
@@ -766,6 +783,27 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   label="Token de conta (master) da Focus"
                   helperText="Painel da Focus → Minha conta — diferente dos tokens de Homologação/Produção acima"
                 />
+              </Grid>
+
+              <Grid item xs={12}>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mt={1}>
+                  <Box>
+                    <Typography variant="body2" style={{ fontWeight: 700 }}>
+                      Detalhar tributos no DANFe automaticamente
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Preenche sozinho o campo "V. Aprox. Tributos" da nota (Lei da Transparência,
+                      12.741/2012) — confirmado com o suporte da Focus NFe, usa a base de dados deles,
+                      não precisa configurar nada a mais em cada venda. Exige token de conta e ID da
+                      empresa preenchidos acima.
+                    </Typography>
+                  </Box>
+                  <Switch
+                    checked={!!values.discriminaImpostos}
+                    onChange={(e) => setFieldValue("discriminaImpostos", e.target.checked)}
+                    color="primary"
+                  />
+                </Box>
               </Grid>
 
               <Grid item xs={12} sm={4}>

@@ -45,3 +45,41 @@ export const updateAccountingOffice = async (
     };
   }
 };
+
+// "Discriminar tributos" (v2.3.193) — confirmado com o suporte da Focus
+// NFe (print da resposta deles, 22/10/2026): com esse parâmetro ligado,
+// a própria API calcula e preenche sozinha o "V. Aprox. Tributos" do
+// DANFE — não precisa mandar nada a mais em cada nota. Mesmo
+// mecanismo/endpoint de `updateAccountingOffice` acima (API "Empresas",
+// autenticada com o token de CONTA).
+export const updateDiscriminaImpostos = async (
+  config: FiscalConfig,
+  enabled: boolean
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  if (!config.focusAccountToken || !config.focusCompanyId) {
+    return {
+      ok: false,
+      errorMessage:
+        "Token de conta ou ID da empresa na Focus não configurados — não foi possível sincronizar o detalhamento de tributos lá."
+    };
+  }
+
+  try {
+    await axios.put(
+      `${EMPRESAS_BASE_URL}/v2/empresas/${config.focusCompanyId}`,
+      { discrimina_impostos: enabled },
+      {
+        auth: { username: config.focusAccountToken, password: "" },
+        headers: { "Content-Type": "application/json" },
+        timeout: 30000
+      }
+    );
+    return { ok: true, errorMessage: "" };
+  } catch (err: any) {
+    return {
+      ok: false,
+      errorMessage:
+        err?.response?.data?.mensagem || err?.message || "Falha ao sincronizar o detalhamento de tributos com a Focus NFe."
+    };
+  }
+};

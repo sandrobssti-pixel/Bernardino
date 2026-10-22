@@ -25,8 +25,10 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
   await ensureAccess(req);
   const { companyId } = req.user;
 
-  const { config, accountingOfficeSync } = await FiscalConfigService.update(req.body, companyId);
-  return res.status(200).json({ ...FiscalConfigService.maskConfig(config), accountingOfficeSync });
+  const { config, accountingOfficeSync, discriminaImpostosSync } = await FiscalConfigService.update(req.body, companyId);
+  return res
+    .status(200)
+    .json({ ...FiscalConfigService.maskConfig(config), accountingOfficeSync, discriminaImpostosSync });
 };
 
 // Testa a integração com a Resend antes de confiar nela pra mandar nota
