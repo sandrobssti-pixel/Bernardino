@@ -11995,3 +11995,49 @@ FiscalDocumentService.ts`, `backend/src/controllers/
 FiscalDocumentController.ts`, `backend/src/routes/fiscalRoutes.ts`,
 `frontend/src/hooks/useFiscal/index.js`, `frontend/src/components/
 SaleDetailModal/index.js`, `frontend/src/translate/languages/pt.js`.
+
+## 170. Busca ao vivo por código (SKU) ou nome na Venda (v2.3.191)
+
+### Contexto
+
+Pedido do cliente: "no código SKU, digitar o código e já aparece o
+produto, seleciona e ele também preenche todos os campos" — depois
+confirmou "pelo nome, pelo SKU" quando perguntei (ou melhor, já tinha
+mandado antes de eu terminar de investigar).
+
+Investigando, essa busca-e-preenche já existia desde a v2.3.172
+(`handleSkuOrNameBlur`, campos "Código (SKU)" e "Descrição" do item da
+venda) — mas só disparava no `onBlur` (campo perder o foco) e só
+aceitava correspondência EXATA (sem diferenciar maiúsc./minúsc.) — nada
+acontecia visualmente enquanto a pessoa digitava, e bastava um espaço a
+mais ou faltando no código pra não encontrar nada, sem nenhum aviso.
+Separado disso, o campo "Produto/serviço" (de cima, `FinanceAsyncAutocomplete`)
+já busca por nome OU SKU com dropdown ao vivo — mas é um campo diferente
+do "Código (SKU)" que o cliente queria usar diretamente.
+
+### O que foi feito
+
+- `SaleModal.js`: `handleSkuOrNameBlur` virou `handleSkuOrNameLookup` —
+  mesma lógica de correspondência exata, mas agora também aceita
+  correspondência ÚNICA parcial (se a busca por SKU/nome digitado
+  devolver só UM produto, mesmo sem bater exato, seleciona esse); se
+  devolver mais de um, não adivinha — mostra um toast avisando pra usar
+  o campo "Produto/serviço" de cima. Nova função `scheduleSkuOrNameLookup`
+  debounça (~450ms depois da última tecla) uma busca "silenciosa" (sem
+  toast de sucesso, só preenche os campos) chamada a cada `onChange` dos
+  campos "Código (SKU)" e "Descrição"; o `onBlur` de cada um continua
+  chamando a versão não-silenciosa (toast de sucesso, ou aviso de
+  ambiguidade) como confirmação final. Timer de debounce guardado num
+  `useRef` por índice de linha (`skuLookupTimers`), sobrevive a
+  re-render do Formik a cada tecla.
+- Guarda de sempre mantida: só dispara quando o item ainda não tem
+  `productId` vinculado (nunca sobrescreve uma escolha já feita, seja
+  pelo campo de cima ou por essa própria busca).
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend (a busca por SKU/nome já existia em
+`FinanceProductService.list`).
+
+**Arquivos**: `frontend/src/components/SaleModal/index.js`.

@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.191] — Busca ao vivo por código (SKU) ou nome na Venda — 2026-10-22
+
+### Corrigido
+- No item da venda, digitar o código (SKU) ou nome do produto agora
+  busca e preenche os campos (descrição, NCM, unidade, preço, CFOP)
+  enquanto digita, não só quando o campo perde o foco — e passou a
+  aceitar tanto SKU quanto nome num único campo (antes só o campo
+  "Produto/serviço" de cima buscava pelos dois). Se tiver mais de um
+  produto parecido, não adivinha — mostra um aviso pra usar o campo de
+  cima e escolher da lista.
+
 ## [2.3.190] — Auditoria de envio/reenvio de nota por e-mail — 2026-10-22
 
 ### Adicionado

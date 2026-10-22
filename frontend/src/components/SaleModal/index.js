@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Formik, Form, FieldArray, Field } from "formik";
 import { toast } from "react-toastify";
 
@@ -203,6 +203,10 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   // Filtro de Tipo por linha de item (ver comentário de
   // PRODUCT_TYPE_FILTER_OPTIONS acima) — chave é o índice da linha.
   const [itemTypeFilters, setItemTypeFilters] = useState({});
+  // Debounce por linha do SKU/Descrição digitado à mão (ver
+  // `handleSkuOrNameLookup` abaixo) — um timer por índice, sobrevive a
+  // re-render (Formik recalcula a cada tecla digitada).
+  const skuLookupTimers = useRef({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(sale, defaultCfop));
@@ -317,22 +321,47 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
 
   // Digitar o SKU ou o nome direto no campo (sem passar pelo
   // "Produto/serviço" de cima) também preenche os campos relacionados —
-  // pedido do cliente. Só dispara quando o item ainda não tem um
-  // Produto vinculado (senão sobrescreveria uma escolha já feita de
-  // propósito) e quando o texto bate EXATO (sem diferenciar maiúsc./
-  // minúsc.) com um SKU ou nome cadastrado — texto parcial/avulso
-  // continua funcionando igual antes, sem vínculo nenhum.
-  const handleSkuOrNameBlur = async (index, value, item, setFieldValue, operationType) => {
+  // pedido do cliente (v2.3.172, reforçado v2.3.191: tinha que buscar "ao
+  // vivo" enquanto digita, não só quando sai do campo, e aceitar tanto
+  // SKU quanto nome igual o campo "Produto/serviço" já faz). Só dispara
+  // quando o item ainda não tem um Produto vinculado (senão
+  // sobrescreveria uma escolha já feita de propósito). Busca igual o
+  // `fetchProductOptions` (mesmo endpoint, já compara contra SKU e nome
+  // — ver FinanceProductService.list): se o texto digitado bate EXATO
+  // com um resultado, ou sobra só UM resultado parcial (ex.: "ARM-00" que
+  // só existe num produto), seleciona esse automaticamente; se sobrar
+  // mais de um, não adivinha — deixa a pessoa usar o campo "Produto/
+  // serviço" de cima (que já mostra a lista) pra escolher.
+  const handleSkuOrNameLookup = async (index, value, item, setFieldValue, operationType, { silent = false } = {}) => {
     const typed = (value || "").trim();
     if (!typed || item.productId) return;
 
     const list = finance ? (await finance.products.list({ searchParam: typed })).records || [] : products;
-    const match = list.find(
+    const exact = list.find(
       (p) => p.sku?.toLowerCase() === typed.toLowerCase() || p.name?.toLowerCase() === typed.toLowerCase()
     );
+    const match = exact || (list.length === 1 ? list[0] : null);
     if (match) {
       handleProductChange(index, match, setFieldValue, operationType);
+      if (!silent) toast.success(`Produto encontrado: ${match.name}`, { autoClose: 1500 });
+    } else if (!silent && list.length > 1) {
+      toast.info(
+        `${list.length} produtos encontrados pra "${typed}" — use o campo "Produto/serviço" acima pra escolher.`,
+        { autoClose: 2500 }
+      );
     }
+  };
+
+  // Dispara a busca ~450ms depois da última tecla digitada (não a cada
+  // tecla — evitaria bater no servidor toda hora) — `silent` porque,
+  // digitando, um match no meio do código ainda incompleto seria
+  // confuso mostrar toast de sucesso a cada letra; o toast "de verdade"
+  // só aparece no `onBlur` (campo perde o foco, texto final).
+  const scheduleSkuOrNameLookup = (index, value, item, setFieldValue, operationType) => {
+    if (skuLookupTimers.current[index]) clearTimeout(skuLookupTimers.current[index]);
+    skuLookupTimers.current[index] = setTimeout(() => {
+      handleSkuOrNameLookup(index, value, item, setFieldValue, operationType, { silent: true });
+    }, 450);
   };
 
   return (
@@ -487,10 +516,15 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               variant="outlined"
                               size="small"
                               label="Código (SKU)"
+                              placeholder="Digite o código ou nome"
                               name={`items.${index}.sku`}
+                              onChange={(e) => {
+                                setFieldValue(`items.${index}.sku`, e.target.value);
+                                scheduleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
                               onBlur={(e) => {
                                 handleBlur(e);
-                                handleSkuOrNameBlur(index, e.target.value, item, setFieldValue, values.operationType);
+                                handleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
                               }}
                             />
                           </Grid>
@@ -502,9 +536,13 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               size="small"
                               label="Descrição"
                               name={`items.${index}.description`}
+                              onChange={(e) => {
+                                setFieldValue(`items.${index}.description`, e.target.value);
+                                scheduleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
                               onBlur={(e) => {
                                 handleBlur(e);
-                                handleSkuOrNameBlur(index, e.target.value, item, setFieldValue, values.operationType);
+                                handleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
                               }}
                             />
                           </Grid>
