@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { toast } from "react-toastify";
+import moment from "moment";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Button from "@material-ui/core/Button";
@@ -35,6 +36,7 @@ import CodeIcon from "@material-ui/icons/Code";
 import FlagIcon from "@material-ui/icons/Flag";
 import FlagOutlinedIcon from "@material-ui/icons/FlagOutlined";
 import BlockIcon from "@material-ui/icons/Block";
+import HistoryIcon from "@material-ui/icons/History";
 
 import toastError from "../../errors/toastError";
 import { money, formatDateBR } from "../../utils/financeFormat";
@@ -105,6 +107,12 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
   const [emailDialogDoc, setEmailDialogDoc] = useState(null);
   const [emailValue, setEmailValue] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  // Histórico de envios por e-mail (v2.3.190) — auditoria de quem pediu,
+  // quando, pra qual(is) e-mail(s) e se deu certo, ver
+  // FiscalDocumentEmailLog.ts.
+  const [emailLogsDialogDoc, setEmailLogsDialogDoc] = useState(null);
+  const [emailLogs, setEmailLogs] = useState([]);
+  const [loadingEmailLogs, setLoadingEmailLogs] = useState(false);
   const [correctionDialogDoc, setCorrectionDialogDoc] = useState(null);
   const [correctionText, setCorrectionText] = useState("");
   const [sendingCorrection, setSendingCorrection] = useState(false);
@@ -244,6 +252,18 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
   const openEmailDialog = (doc) => {
     setEmailDialogDoc(doc);
     setEmailValue(sale.customer?.email || "");
+  };
+
+  const openEmailLogsDialog = async (doc) => {
+    setEmailLogsDialogDoc(doc);
+    setLoadingEmailLogs(true);
+    try {
+      const data = await fiscal.fiscalDocuments.emailLogs(doc.id);
+      setEmailLogs(data || []);
+    } catch (err) {
+      toastError(err);
+    }
+    setLoadingEmailLogs(false);
   };
 
   const handleSendEmail = async () => {
@@ -484,6 +504,11 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
                             <EmailIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Histórico de envios por e-mail">
+                          <IconButton size="small" onClick={() => openEmailLogsDialog(doc)}>
+                            <HistoryIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         {doc.type === "nfe" && (
                           <Tooltip title="Carta de correção">
                             <IconButton size="small" onClick={() => setCorrectionDialogDoc(doc)}>
@@ -688,6 +713,57 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
             Copiar
           </Button>
           <Button onClick={() => setRawDialogDoc(null)} color="primary">
+            Fechar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!emailLogsDialogDoc} onClose={() => setEmailLogsDialogDoc(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Histórico de envios por e-mail</DialogTitle>
+        <DialogContent>
+          {loadingEmailLogs ? (
+            <Box display="flex" justifyContent="center" my={2}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : emailLogs.length === 0 ? (
+            <Typography variant="body2" className={classes.emptyDocs}>
+              Nenhum envio registrado ainda pra esta nota.
+            </Typography>
+          ) : (
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Quando</TableCell>
+                  <TableCell>Solicitado por</TableCell>
+                  <TableCell>Destinatário(s)</TableCell>
+                  <TableCell>Resultado</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {emailLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>{moment(log.createdAt).format("DD/MM/YYYY HH:mm")}</TableCell>
+                    <TableCell>{log.requestedByUser?.name || "—"}</TableCell>
+                    <TableCell style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {log.emails}
+                    </TableCell>
+                    <TableCell>
+                      {log.success ? (
+                        <Chip size="small" label="Enviado" style={{ backgroundColor: "#10b981", color: "#fff" }} />
+                      ) : (
+                        <Tooltip title={log.errorMessage || "Falha ao enviar"}>
+                          <Chip size="small" label="Falhou" style={{ backgroundColor: "#ef4444", color: "#fff" }} />
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEmailLogsDialogDoc(null)} color="primary">
             Fechar
           </Button>
         </DialogActions>

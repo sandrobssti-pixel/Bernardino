@@ -1,6 +1,8 @@
 import AppError from "../../errors/AppError";
 import FiscalDocument from "../../models/FiscalDocument";
+import FiscalDocumentEmailLog from "../../models/FiscalDocumentEmailLog";
 import Company from "../../models/Company";
+import User from "../../models/User";
 import * as SaleService from "./SaleService";
 import * as FiscalConfigService from "./FiscalConfigService";
 import * as FiscalGatewayService from "./FiscalGatewayService";
@@ -239,10 +241,22 @@ export const emitCorrectionLetter = async (
   return fn(document.type, document.externalRef, correctionText, config);
 };
 
+// E-mail "razoável" — não precisa validar domínio/MX de verdade, só
+// barrar erro de digitação óbvio antes de gastar uma tentativa de envio
+// (e um registro de auditoria) com algo que claramente não é e-mail.
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// v2.3.190 — pedido do cliente: toda tentativa de (re)envio de nota por
+// e-mail fica registrada em FiscalDocumentEmailLog (quem pediu, quando,
+// pra qual(is) e-mail(s), se deu certo) — antes não ficava rastro
+// nenhum. `requestedByUserId` vem do controller (`req.user.id`) — opcional
+// porque pode não existir um usuário humano por trás no futuro (ex.: um
+// reenvio automático), mas hoje sempre vem de um clique na tela.
 export const sendByEmail = async (
   id: string | number,
   emails: string[],
-  companyId: number
+  companyId: number,
+  requestedByUserId?: number
 ): Promise<{ ok: boolean; errorMessage: string }> => {
   const document = await show(id, companyId);
 
@@ -252,25 +266,55 @@ export const sendByEmail = async (
   if (!emails || emails.length === 0) {
     throw new AppError("ERR_FISCAL_DOCUMENT_EMAIL_REQUIRED");
   }
+  const invalidEmails = emails.filter(email => !EMAIL_FORMAT.test(email.trim()));
+  if (invalidEmails.length > 0) {
+    throw new AppError("ERR_FISCAL_DOCUMENT_EMAIL_INVALID");
+  }
 
   const config = await FiscalConfigService.show(companyId);
 
   // Resend (v2.3.173) — quando habilitado, o AtendeFlow manda o e-mail
   // ele mesmo (baixa o PDF e anexa), em vez de pedir pro gateway fiscal
   // (Focus NFe) mandar. Ver ResendEmailService.ts.
-  if (config.resendEnabled) {
-    const company = await Company.findByPk(companyId);
-    return ResendEmailService.sendDocumentEmail(
-      config,
-      { type: document.type, number: document.number, pdfUrl: document.pdfUrl },
-      company?.name || "",
-      emails
-    );
-  }
+  const result = config.resendEnabled
+    ? await (async () => {
+        const company = await Company.findByPk(companyId);
+        return ResendEmailService.sendDocumentEmail(
+          config,
+          { type: document.type, number: document.number, pdfUrl: document.pdfUrl },
+          company?.name || "",
+          emails
+        );
+      })()
+    : await (async () => {
+        const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
+        const fn = FiscalGatewayService.requireFeature(gateway, "sendByEmail");
+        return fn(document.type, document.externalRef, emails, config);
+      })();
 
-  const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
-  const fn = FiscalGatewayService.requireFeature(gateway, "sendByEmail");
-  return fn(document.type, document.externalRef, emails, config);
+  await FiscalDocumentEmailLog.create({
+    emails: emails.join(", "),
+    success: result.ok,
+    errorMessage: result.ok ? "" : result.errorMessage || "",
+    fiscalDocumentId: document.id,
+    requestedByUserId: requestedByUserId || null,
+    companyId
+  } as any);
+
+  return result;
+};
+
+export const listEmailLogs = async (
+  id: string | number,
+  companyId: number
+): Promise<FiscalDocumentEmailLog[]> => {
+  await show(id, companyId);
+
+  return FiscalDocumentEmailLog.findAll({
+    where: { fiscalDocumentId: id, companyId },
+    include: [{ model: User, as: "requestedByUser", attributes: ["id", "name"] }],
+    order: [["id", "DESC"]]
+  });
 };
 
 // Pré-visualização do DANFe (PDF) antes de confirmar a venda/emitir de

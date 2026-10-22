@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.190] — Auditoria de envio/reenvio de nota por e-mail — 2026-10-22
+
+### Adicionado
+- Toda vez que "Enviar por e-mail" é usado numa nota autorizada (envio
+  ou reenvio), fica registrado quem pediu, quando, pra qual(is)
+  e-mail(s) e se deu certo — novo ícone "Histórico de envios" ao lado do
+  e-mail, mostra a lista completa.
+- Validação de formato de e-mail antes de tentar enviar (além de exigir
+  pelo menos um já existente).
+
 ## [2.3.189] — Cancelar nota fiscal cancela a venda e a conta a receber — 2026-10-21
 
 ### Adicionado

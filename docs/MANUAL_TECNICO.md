@@ -11933,3 +11933,65 @@ testado contra um banco real com venda paga cancelada nesta sessão.
 **Arquivos**: `backend/src/services/FiscalService/{SaleService,
 FiscalDocumentService}.ts`, `frontend/src/pages/Financeiro/
 financeConfig.js`, `frontend/src/components/SaleDetailModal/index.js`.
+
+## 169. Auditoria de envio/reenvio de nota por e-mail (v2.3.190)
+
+### Contexto
+
+O cliente pediu — num briefing técnico detalhado, nos moldes de um
+requisito formal de engenheiro sênior — pra cobrir: validações prévias,
+fluxo de execução, modelo de dados/log de auditoria, e tratamento de
+erro/fila assíncrona, pro botão "reenvio de notificação de NFe". O nome
+batia com o endpoint da Focus NFe `POST /v2/nfe/{ref}/hook` (reenvio de
+WEBHOOK pros gatilhos cadastrados — recurso técnico de integração, sem
+uso aqui), mas o conteúdo do briefing (recuperar XML/PDF, mandar por
+SMTP, validar e-mail do destinatário) descreve exatamente o "Enviar nota
+fiscal por e-mail" que **já existe** (`FiscalDocumentService.
+sendByEmail`, v2.3.173+). Em vez de construir um recurso duplicado, essa
+entrega reforça o que já existe com exatamente os 4 pontos pedidos no
+briefing — sem inventar um botão novo com o mesmo efeito.
+
+### O que foi feito, ponto a ponto do briefing
+
+1. **Validações prévias** — já existia `document.status === "authorized"`
+   e "pelo menos um e-mail"; adicionado validação de FORMATO de e-mail
+   (regex simples, só barra erro de digitação óbvio, não valida
+   domínio/MX de verdade) antes de gastar uma tentativa de envio.
+2. **Fluxo de execução** — sem mudança de arquitetura: continua síncrono
+   (clique → `POST /fiscal-documents/:id/send-email` → Resend ou relay
+   da Focus NFe → resposta). **Decisão deliberada de NÃO criar fila
+   assíncrona (Bull/Redis)** — esse projeto não tem nenhuma infra de job
+   queue hoje (conferido por grep), e o volume é baixo (um clique manual
+   por nota, não um disparo em massa) — adicionar isso agora seria
+   infraestrutura nova só pra esse caso, sem necessidade real.
+3. **Modelo de dados/log** — novo model `FiscalDocumentEmailLog`
+   (migration `20261022090000-create-fiscal-document-email-logs`): uma
+   linha por TENTATIVA (não só a última), com `emails`, `success`,
+   `errorMessage`, `fiscalDocumentId`, `requestedByUserId` (de
+   `req.user.id`, nullable pra não travar se um dia existir envio sem
+   usuário por trás) e `companyId`. Mesmo padrão de auditoria já usado
+   em `WeaponDispatchGovPasswordAccessLog` (seção equivalente do
+   Despachante Bélico). Novo endpoint `GET /fiscal-documents/:id/
+   email-logs` e ícone "Histórico de envios" (`HistoryIcon`) ao lado do
+   ícone de e-mail, que abre um diálogo listando data/hora, quem pediu,
+   destinatário(s) e resultado (chip verde "Enviado"/vermelho "Falhou",
+   com a mensagem de erro no tooltip).
+4. **Tratamento de erro** — inalterado (já devolvia `{ok, errorMessage}`
+   tratado via toast) — a novidade é que agora toda tentativa, sucesso
+   OU falha, fica registrada pra auditoria, não só visível na hora via
+   toast e depois esquecida.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; migration nova
+testada contra Postgres local do zero (cadeia completa + undo/redo);
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+
+**Arquivos**: `backend/src/models/FiscalDocumentEmailLog.ts` (novo),
+`backend/src/database/migrations/
+20261022090000-create-fiscal-document-email-logs.ts` (novo),
+`backend/src/database/index.ts`, `backend/src/services/FiscalService/
+FiscalDocumentService.ts`, `backend/src/controllers/
+FiscalDocumentController.ts`, `backend/src/routes/fiscalRoutes.ts`,
+`frontend/src/hooks/useFiscal/index.js`, `frontend/src/components/
+SaleDetailModal/index.js`, `frontend/src/translate/languages/pt.js`.

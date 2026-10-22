@@ -85,8 +85,17 @@ export const sendEmail = async (req: Request, res: Response): Promise<Response> 
   const { id } = req.params;
   const { emails } = req.body;
 
-  const result = await FiscalDocumentService.sendByEmail(id, emails, companyId);
+  const result = await FiscalDocumentService.sendByEmail(id, emails, companyId, +req.user.id);
   return res.status(200).json(result);
+};
+
+export const emailLogs = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+
+  const logs = await FiscalDocumentService.listEmailLogs(id, companyId);
+  return res.status(200).json(logs);
 };
 
 // Devolve o PDF direto (não é JSON) — pré-visualização antes de emitir de

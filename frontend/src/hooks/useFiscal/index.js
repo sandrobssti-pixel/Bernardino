@@ -108,6 +108,12 @@ const useFiscal = () => {
       const { data } = await api.post(`/fiscal-documents/${id}/send-email`, { emails });
       return data;
     },
+    // Auditoria de envios/reenvios (v2.3.190) — quem pediu, quando, pra
+    // qual(is) e-mail(s) e se deu certo.
+    emailLogs: async (id) => {
+      const { data } = await api.get(`/fiscal-documents/${id}/email-logs`);
+      return data;
+    },
     // Resposta é o PDF em binário, não JSON — pede o blob direto do axios.
     previewDanfe: async (saleId) => {
       const { data } = await api.post(`/sales/${saleId}/fiscal-documents/preview`, null, {
