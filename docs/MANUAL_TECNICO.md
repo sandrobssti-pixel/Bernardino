@@ -12041,3 +12041,46 @@ Não precisou de mudança no backend (a busca por SKU/nome já existia em
 `FinanceProductService.list`).
 
 **Arquivos**: `frontend/src/components/SaleModal/index.js`.
+
+## 171. Nenhum painel fecha sozinho (v2.3.192)
+
+### Contexto
+
+Pedido do cliente: "coloque uma função pra quando abrir um painel, de
+qualquer função do AtendeFlow, só sair quando apertar o botão cancelar
+ou salvar — muitas vezes o operador está digitando e vai pra outro
+aplicativo buscar informação, quando volta a tela fecha, tendo que
+digitar tudo de novo." Comportamento padrão do MUI `Dialog`: clicar no
+fundo escurecido (backdrop) ou apertar Esc fecha o modal chamando
+`onClose` — o retrabalho citado é exatamente alguém clicando de volta
+na aba do navegador e o clique "sobrando" no backdrop em vez de cair
+dentro da caixa.
+
+### O que foi feito
+
+Em vez de editar cada modal da base (são dezenas, em todo módulo —
+Vendas, Contatos, Usuários, Financeiro, Fiscal, Armaria, Despachante
+etc.), um único ajuste no `createTheme` central (`App.js`), nos
+`props` default de `MuiDialog`: `disableBackdropClick: true` e
+`disableEscapeKeyDown: true`. Como todo `<Dialog>` da base usa o tema
+global (`ThemeProvider`), isso cobre literalmente "qualquer função do
+AtendeFlow" de uma vez, sem precisar tocar modal por modal nem arriscar
+esquecer algum. Os botões explícitos de cada modal ("Cancelar",
+"Fechar", "Salvar") continuam funcionando normal — eles chamam
+`onClose`/`onSave` diretamente no `onClick`, não dependem do
+comportamento automático de clique-fora/Esc que foi desligado.
+
+`disableBackdropClick`/`disableEscapeKeyDown` são props do MUI v4 (esse
+projeto usa `@material-ui/core 4.12.3`) — aparecem como *deprecated* na
+documentação (sugerindo usar o `reason` do `onClose`), mas continuam
+funcionando normalmente na versão instalada; confirmado lendo o código
+fonte do componente em `node_modules`.
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não testado clicando de verdade fora de um modal nesta sessão (ambiente
+sem navegador interativo) — a mudança é padrão/documentada do MUI, risco
+baixo, mas vale o cliente confirmar visualmente depois do deploy.
+
+**Arquivos**: `frontend/src/App.js`.

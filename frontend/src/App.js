@@ -232,8 +232,22 @@ const App = () => {
             brandGradient: "linear-gradient(135deg, #6d5efc 0%, #22d3ee 100%)",
           },
           props: {
+            // v2.3.192 — pedido do cliente: nenhum painel/modal do AtendeFlow
+            // (venda, cliente, usuário, configuração, qualquer um) deve
+            // fechar sozinho. Antes, clicar fora da caixa (ex.: ao voltar de
+            // outro app/aba e o primeiro clique cair no fundo escurecido) ou
+            // apertar Esc fechava o modal e descartava tudo que a pessoa
+            // tinha digitado, sem confirmação — obrigava redigitar o
+            // formulário inteiro. Aplicado uma vez só aqui (default global
+            // de TODO MuiDialog) em vez de em cada modal da base — mais
+            // simples e garante que nenhum escape essa regra por esquecimento.
+            // Continua fechando normalmente pelos botões "Cancelar"/"Fechar"/
+            // "Salvar" de cada modal (que chamam `onClose`/`onSave` direto,
+            // não dependem do comportamento automático do Dialog).
             MuiDialog: {
               scroll: "paper",
+              disableBackdropClick: true,
+              disableEscapeKeyDown: true,
             },
           },
           overrides: {

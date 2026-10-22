@@ -3,7 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.191] — Busca ao vivo por código (SKU) ou nome na Venda — 2026-10-22
+## [2.3.192] — Nenhum painel fecha sozinho (clique fora / Esc) — 2026-10-22
+
+### Corrigido
+- Nenhum modal/painel do AtendeFlow (venda, cliente, usuário,
+  configuração, qualquer tela) fecha mais sozinho ao clicar fora da
+  caixa ou apertar Esc — pedido do cliente: operador saía pra outro app
+  buscar informação, ao voltar o primeiro clique caía fora do modal e
+  fechava tudo, perdendo o que já tinha digitado. Continua fechando
+  normal pelos botões "Cancelar"/"Fechar"/"Salvar" de cada tela.
 
 ### Corrigido
 - No item da venda, digitar o código (SKU) ou nome do produto agora
