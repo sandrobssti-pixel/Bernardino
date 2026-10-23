@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.200] — Modal de conexões por empresa (admin) ficava sem jeito de fechar — 2026-10-23
+
+### Corrigido
+- A tela "Conexões" do Super Admin (clicar numa empresa pra ver as
+  conexões dela) e a pré-visualização de "Lista de Botões" do Flowbuilder
+  ficaram sem NENHUM jeito de fechar depois da v2.3.192 (que desligou
+  fechar por clique fora/Esc em todo modal do sistema) — os dois nunca
+  tiveram um botão de fechar próprio, contavam só com clique
+  fora/Esc. Agora os dois têm botão de fechar explícito (X no título).
+
 ## [2.3.199] — Editar item em Arquivos da IA — 2026-10-23
 
 ### Adicionado

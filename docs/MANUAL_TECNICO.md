@@ -12631,3 +12631,49 @@ colateral.
 SyncFromQuickMessageService.ts`, `backend/src/controllers/
 PromptFilesController.ts`, `backend/src/routes/promptFilesRoutes.ts`,
 `frontend/src/components/PromptModal/PromptFilesTab.js`.
+
+## 179. Modal de conexões por empresa (admin) ficava sem jeito de fechar (v2.3.200)
+
+### Contexto
+
+Achado pelo próprio cliente navegando: na tela "Conexões" do Super Admin
+(`AllConnections`), clicar numa empresa abre um modal (`CompanyWhatsapps`
+— `WhatsAppModalCompany`) listando as conexões dela — esse modal **nunca
+teve um botão de fechar próprio**, só contava com clique fora/Esc (padrão
+do MUI). A seção 171 (v2.3.192, "Nenhum painel fecha sozinho") desligou
+esses dois gatilhos pra TODO modal do sistema, contando que cada um já
+tinha botão próprio de Cancelar/Fechar/Salvar — o que era verdade pra
+praticamente todos, exceto esse (e o preview "Lista de Botões" do
+Flowbuilder, achado na mesma varredura). Resultado: esse modal específico
+ficou **permanentemente preso aberto** desde a v2.3.192, só dava pra sair
+dando F5 na página.
+
+### O que foi feito
+
+- **`CompanyWhatsapps/index.js`** (`WhatsAppModalCompany`) — X no título
+  (`IconButton` com `Close`, chamando o `handleClose` que já existia) +
+  botão "Fechar" no rodapé (`DialogActions`, que esse modal nem tinha).
+- **`ListPreview/index.js`** (preview de "Lista de Botões" do Flowbuilder)
+  — mesmo problema, mesmo fix: X no título chamando `fecharModal` (função
+  que já existia, só nunca tinha sido ligada a nada visível).
+- **Varredura rápida** por outros candidatos (`grep` por `DialogTitle` sem
+  `DialogActions` no mesmo arquivo): `components/Dialog/index.js`
+  (wrapper genérico reaproveitado por vários lugares — depende do que
+  cada consumidor passa em `children`), `MomentsUser/index.js` e
+  `TicketListItemCustom/index.js` também apareceram na varredura, mas não
+  confirmados como realmente sem saída (podem ter o botão de fechar
+  dentro do `children`/de um subcomponente não capturado pelo grep) — não
+  investigados a fundo nesta versão, por não serem o bloqueio relatado
+  pelo cliente. **Pendência**: auditar esses três (e reaproveitar o
+  mesmo `grep` acima) numa varredura dedicada, não só quando um usuário
+  tromba com mais um caso preso.
+
+### Testado
+
+`npx eslint` limpo nos dois arquivos (só warnings pré-existentes, não
+relacionados). `GENERATE_SOURCEMAP=false CI=false npx craco build`
+limpo. Não testado clicando de verdade no X (ambiente sem navegador
+interativo nesta sessão) — mesma ressalva já registrada na seção 171.
+
+**Arquivos**: `frontend/src/components/CompanyWhatsapps/index.js`,
+`frontend/src/components/ListPreview/index.js`.

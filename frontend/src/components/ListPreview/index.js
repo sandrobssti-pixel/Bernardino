@@ -16,6 +16,7 @@ import {
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faList } from '@fortawesome/free-solid-svg-icons';
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
+import CloseIcon from "@material-ui/icons/Close";
 import api from "../../services/api";
 
 const CustomRadioLabel = ({ title, description }) => (
@@ -114,8 +115,20 @@ const ListPreview = ({ titulo, descricao, textoBotao, secoes, rodape, ticketId }
 
       {/* Modal para a lista (usando Dialog) */}
       <Dialog open={modalAberto} onClose={fecharModal}>
-        <DialogTitle style={{ backgroundColor: '#4caf50', color: 'white' }}>
-          Lista de Botões
+        <DialogTitle
+          disableTypography
+          style={{
+            backgroundColor: '#4caf50',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}
+        >
+          <Typography variant="h6" style={{ color: 'white' }}>Lista de Botões</Typography>
+          <IconButton size="small" onClick={fecharModal} style={{ color: 'white' }}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
         </DialogTitle>
         <DialogContent style={{ padding: "20px" }}>
           <h4>{secoes[0].titulo}</h4>
