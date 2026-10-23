@@ -72,6 +72,16 @@ const SERIAL_NUMBER_REQUIRED_TYPES = ["weapon"];
 // em qualquer outro caminho (cadastro manual pela tela, planilha-modelo
 // oficial que tem coluna própria de número de série). Ver
 // docs/MANUAL_TECNICO.md.
+// Campos numéricos de arma são opcionais no banco (colunas sem NOT NULL,
+// ver migration 20261015120000), mas o formulário manda "" (nunca
+// undefined) quando a pessoa deixa em branco — e "" num INTEGER/FLOAT do
+// Postgres dá erro de sintaxe (22P02), que o usuário via como "erro
+// interno" ao salvar arma (relatado no SKU 10034336). Mesmo padrão de
+// transform usado em UpdateUserService/CreateUserService/ContactController
+// pra campo opcional vindo vazio do formulário.
+const emptyStringToNull = (value: any, originalValue: any) =>
+  originalValue === "" ? null : value;
+
 const productSchema = Yup.object().shape({
   name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2),
   serialNumber: Yup.string().when(["type", "$skipSerialRequired"], {
@@ -81,7 +91,11 @@ const productSchema = Yup.object().shape({
       .required("ERR_FINANCE_PRODUCT_SERIAL_REQUIRED")
       .min(1, "ERR_FINANCE_PRODUCT_SERIAL_REQUIRED"),
     otherwise: Yup.string().nullable()
-  })
+  }),
+  cartridgeCapacity: Yup.number().nullable().transform(emptyStringToNull),
+  barrelCount: Yup.number().nullable().transform(emptyStringToNull),
+  barrelLength: Yup.number().nullable().transform(emptyStringToNull),
+  kineticEnergyJ: Yup.number().nullable().transform(emptyStringToNull)
 });
 
 // Índice único parcial (companyId, serialNumber) cobre a corrida entre duas
@@ -180,16 +194,19 @@ export const create = async (
   companyId: number,
   options: { skipSerialRequired?: boolean } = {}
 ): Promise<FinanceProduct> => {
+  let validatedData: ProductData;
   try {
-    await productSchema.validate(data, { context: { skipSerialRequired: !!options.skipSerialRequired } });
+    validatedData = await productSchema.validate(data, {
+      context: { skipSerialRequired: !!options.skipSerialRequired }
+    });
   } catch (err: any) {
     throw new AppError(err.message);
   }
 
-  await ensureSerialNumberIsUnique(data.serialNumber, companyId);
+  await ensureSerialNumberIsUnique(validatedData.serialNumber, companyId);
 
   try {
-    const record = await FinanceProduct.create({ ...data, companyId } as any);
+    const record = await FinanceProduct.create({ ...validatedData, companyId } as any);
     return record;
   } catch (err: any) {
     if (err.name === "SequelizeUniqueConstraintError") {
@@ -207,16 +224,19 @@ export const update = async (
 ): Promise<FinanceProduct> => {
   const record = await show(id, companyId);
 
+  let validatedData: ProductData;
   try {
-    await productSchema.validate(data, { context: { skipSerialRequired: !!options.skipSerialRequired } });
+    validatedData = await productSchema.validate(data, {
+      context: { skipSerialRequired: !!options.skipSerialRequired }
+    });
   } catch (err: any) {
     throw new AppError(err.message);
   }
 
-  await ensureSerialNumberIsUnique(data.serialNumber, companyId, record.id);
+  await ensureSerialNumberIsUnique(validatedData.serialNumber, companyId, record.id);
 
   try {
-    await record.update(data);
+    await record.update(validatedData);
     return record;
   } catch (err: any) {
     if (err.name === "SequelizeUniqueConstraintError") {

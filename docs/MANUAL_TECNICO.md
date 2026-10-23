@@ -12932,3 +12932,45 @@ tentativa, pra não repetir o mesmo erro de confiar em cache).
 
 **Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`,
 `frontend/src/components/PromptModal/TestPromptModal.js`.
+
+## 183. Erro interno ao editar arma com campo numérico em branco (v2.3.204)
+
+### Contexto
+
+Cliente reportou "erro interno" ao editar o cadastro da arma SKU
+10034336, sem mensagem útil na tela. Os campos numéricos da arma
+(`cartridgeCapacity`, `barrelCount`, `barrelLength`, `kineticEnergyJ` —
+seção 80) são opcionais no banco (`ADD COLUMN ... INTEGER`/`FLOAT`, sem
+`NOT NULL`, migration `20261015120000-add-weapon-fields-to-finance-
+products.ts`), e o formulário (`financeConfig.js`) não dá `defaultValue`
+pra nenhum deles (exceto `barrelCount`, que começa em `1`). Um
+`TextField type="number"` do Formik sem valor manda `""` no submit, não
+`undefined`. `FinanceProductService.create`/`update` passava `data` sem
+nenhum tratamento direto pro `FinanceProduct.create`/`record.update` —
+Postgres recebe `""` numa coluna `INTEGER`/`FLOAT`, rejeita com erro de
+sintaxe (`22P02`), que cai no `throw err` genérico (só
+`SequelizeUniqueConstraintError` tinha tratamento amigável) e chega pro
+usuário como "erro interno" sem pista nenhuma.
+
+### O que foi feito
+
+Os 4 campos numéricos de arma ganharam `Yup.number().nullable()
+.transform((value, originalValue) => (originalValue === "" ? null :
+value))` no `productSchema` de `FinanceProductService.ts` — mesmo padrão
+já usado neste projeto pra campo opcional vindo vazio do formulário
+(`birthDate` em `UpdateUserService`/`CreateUserService`, `cpf`/`rg` em
+`ContactController`). `create`/`update` agora salvam o objeto já
+validado/transformado (`validatedData`) em vez do `data` bruto recebido
+da requisição — sem isso, o `transform` do Yup roda mas o valor
+convertido nunca chegava a ser usado, porque o retorno de
+`schema.validate()` não estava sendo capturado.
+
+### Testado
+
+`npx tsc --noEmit` do backend limpo. Não reproduzido contra Postgres
+real nesta sessão (sem acesso ao ambiente do cliente) — a leitura do
+código confirma a causa: a migration não tem `NOT NULL`/`DEFAULT` nesses
+4 campos, então `null` é um valor válido pra eles, e o `transform` novo
+intercepta exatamente o `""` que o Postgres rejeitava antes.
+
+**Arquivo**: `backend/src/services/FinanceService/FinanceProductService.ts`.

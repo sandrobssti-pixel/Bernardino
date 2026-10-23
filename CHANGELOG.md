@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.204] — Erro interno ao editar arma com campo numérico em branco — 2026-10-23
+
+### Corrigido
+- Editar/cadastrar um produto do tipo "Arma" dava erro interno ao salvar
+  sempre que um dos campos numéricos (Capacidade de cartuchos,
+  Quantidade de canos, Comprimento do cano, Energia cinética da munição)
+  ficava em branco — o formulário manda `""` nesse caso, e o Postgres
+  rejeita string vazia numa coluna INTEGER/FLOAT (erro de sintaxe, sem
+  mensagem amigável nenhuma pro usuário). Esses campos são opcionais no
+  banco (só a arma física tem número de série obrigatório), então agora
+  `""` é convertido pra `null` antes de salvar — mesmo padrão já usado em
+  outros cadastros deste sistema (data de nascimento do usuário, fila
+  seguinte da etiqueta) pra campo numérico/opcional vindo vazio do
+  formulário. Reportado pelo cliente no cadastro da arma SKU 10034336.
+
 ## [2.3.203] — IA não voltava a responder cliente que já tinha sido atendido antes — 2026-10-23
 
 ### Corrigido
