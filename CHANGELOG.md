@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.195] — API Key do Assistente IA deixa de voltar em texto puro — 2026-10-23
+
+### Corrigido
+- A chave de API de cada Assistente IA (OpenAI/Gemini/DeepSeek/Groq)
+  voltava em texto puro em toda listagem, criação e edição — inclusive
+  no evento em tempo real enviado pra todos os usuários conectados da
+  empresa. Agora segue o mesmo padrão já usado no Resend: a chave nunca
+  mais volta em texto puro pro navegador depois de salva; editar sem
+  mexer no campo mantém a chave atual (só é obrigatório preencher ao
+  criar um Assistente IA novo, ou se quiser trocar a chave existente).
+
 ## [2.3.194] — Código (SKU) com dropdown de busca ao vivo — 2026-10-22
 
 ### Corrigido

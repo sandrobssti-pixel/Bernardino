@@ -12208,3 +12208,67 @@ Não precisou de mudança no backend.
 
 **Arquivos**: `frontend/src/components/FinanceAsyncAutocomplete/index.js`,
 `frontend/src/components/SaleModal/index.js`.
+
+## 174. Revisão do módulo Assistente IA — API Key sem máscara (v2.3.195)
+
+### Contexto
+
+Pedido do cliente: "em atende flow assistente de IA, identificação e
+api key é para deixar os campos abertos para adicionar o nome e a
+chave api, aproveita e dá uma revisada nesse módulo". Investigando
+`PromptModal.js` (modal de criar/editar Assistente IA): os campos
+"Nome" e "API Key" **já estavam completamente abertos/editáveis no
+código**, sem nenhum `disabled` — pedi print pra reproduzir o problema
+relatado, mas não veio confirmação; a conversa seguiu pra revisão geral
+sem fechar esse ponto específico (fica como possível pendência se o
+cliente voltar a reportar).
+
+Na revisão geral, encontrados 2 problemas reais:
+1. **API Key em texto puro** (corrigido aqui).
+2. Validação de "Voz obrigatória" no backend checando um modelo que não
+   existe mais (`"gpt-3.5-turbo-1106"` em vez de `"gpt-4.1-mini"`) —
+   cliente respondeu explicitamente "não quero" corrigir isso por
+   enquanto. **Não mexido** — fica registrado pra não redescobrir:
+   `CreatePromptService.ts`/`UpdatePromptService.ts`, campo `voice`,
+   `when("model", { is: val => val === "gpt-3.5-turbo-1106" ...})` —
+   deveria ser `"gpt-4.1-mini"` (único modelo com voz hoje, ver
+   `AI_PROVIDER_MODELS` em `backend/src/helpers/aiProviders.ts`), mas o
+   cliente pediu pra deixar como está.
+
+### O que foi feito (API Key)
+
+- **`PromptController.ts`** — nova `maskPrompt(prompt)`: mesmo padrão
+  de `FiscalConfigService.maskConfig` (Resend) — `apiKey: ""` +
+  `apiKeyConfigured: !!prompt.apiKey`. Aplicado nos 4 pontos que
+  devolviam o model inteiro: `index` (lista, `.map(maskPrompt)`),
+  `store` (criar), `show`, `update` — **e também no evento de socket**
+  (`io.of(...).emit("company-X-prompt", { prompt: maskPrompt(...) })`),
+  que antes vazava a chave de API em texto puro pra TODOS os usuários
+  conectados da empresa a cada criação/edição de QUALQUER Assistente
+  IA, não só pra quem estava editando — esse era o vazamento mais
+  amplo dos dois. Mascarado só no CONTROLLER (nível HTTP) — o model e
+  os services continuam com o valor real, usado de verdade por
+  `OpenAiService.ts` pra chamar a IA.
+- **`update`** (controller) — `if (!promptData.apiKey) delete
+  promptData.apiKey;` antes de chamar `UpdatePromptService` — mesmo
+  "deixe vazio pra manter" já usado no Resend; campo vazio no
+  formulário (porque nunca mais volta preenchido) não apaga a chave
+  salva.
+- **`PromptModal.js`** — novo campo de controle `apiKeyConfigured` no
+  estado/Formik (populado direto do `data.apiKeyConfigured` que vem do
+  backend já mascarado); Yup: `apiKey` só obrigatório quando
+  `apiKeyConfigured` for `false` (criar novo, ou editar um que nunca
+  teve chave — não deveria acontecer, mas não quebra se acontecer);
+  `TextField` ganha `helperText` avisando "Já tem uma chave salva —
+  deixe em branco pra mantê-la, ou digite uma nova pra trocar." quando
+  `apiKeyConfigured`; `apiKeyConfigured` removido do payload antes de
+  enviar pro backend (campo só de controle de UI, não existe no model).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend;
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de migration (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/controllers/PromptController.ts`,
+`frontend/src/components/PromptModal/index.js`.
