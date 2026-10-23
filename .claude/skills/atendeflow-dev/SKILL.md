@@ -349,29 +349,33 @@ que eram esquecimento:
     testado com `select`/`switch`/`asyncSelect`.
   - Esse padrão é genérico e reaproveitável por qualquer cadastro futuro do
     módulo (não é algo específico de arma/munição).
-- **Modelo de arma/munição (`FinanceProduct` type `"weapon"`/`"ammunition"`)
-  — desde a v2.3.204, Produto é o MODELO/SKU, não mais 1 arma física por
-  linha.** Até a v2.3.203, cada arma física era um `FinanceProduct` inteiro
-  (mesmo SKU repetido entre as armas do mesmo modelo, `serialNumber`/
-  `sigmaRegistrationNumber`/`weaponStatus` gravados direto no produto) —
-  pedido do cliente pra poder cadastrar as N armas de um SKU sem duplicar
-  produto, vender/consultar por nome, SKU OU número de série, e tirar
-  relatório por arma individual. Esses 3 campos migraram pra
-  `FinanceWeaponUnit` (`backend/src/models/FinanceWeaponUnit.ts`,
+- **Modelo de arma (`FinanceProduct` type `"weapon"`) — desde a v2.3.205,
+  Produto é o MODELO/SKU, não mais 1 arma física por linha (Etapa 1 de uma
+  mudança em várias etapas, cada uma com autorização própria do
+  cliente — ver docs/MANUAL_TECNICO.md, seção 184, inclusive o relato de
+  uma primeira versão que foi implementada ALÉM do autorizado e teve que
+  ser revertida antes do commit final: nunca avançar pra uma etapa
+  seguinte sem autorização explícita e por escrito pra ESSA etapa,
+  mesmo que pareça óbvio continuar).** Até a v2.3.204, cada arma física
+  era um `FinanceProduct` inteiro (mesmo SKU repetido entre as armas do
+  mesmo modelo, `serialNumber`/`sigmaRegistrationNumber`/`weaponStatus`
+  gravados direto no produto). Esses 3 campos migraram (só pra cadastro
+  NOVO — produto já existente não é tocado) pra `FinanceWeaponUnit`
+  (`backend/src/models/FinanceWeaponUnit.ts`,
   `FinanceWeaponUnitService.ts`), sub-cadastro com 1 linha por número de
-  série, ligado ao Produto por `productId`. As colunas antigas continuam em
-  `FinanceProducts` (não removidas, só não usadas mais pelo app — segurança/
-  auditoria sem precisar restaurar backup). Editar/cadastrar arma na tela:
-  nome/SKU/calibre/etc. no Produto; cada unidade física entra em
+  série, ligado ao Produto por `productId`, com `notes`
+  (observações), `status`, cadastro em lote (colar lista), histórico
+  mínimo (`FinanceWeaponUnitEvent`), e `stockQuantity` do produto
+  recalculado automaticamente (contagem de unidades `in_stock`). As
+  colunas antigas continuam em `FinanceProducts` (não removidas, só não
+  usadas mais pelo app). Editar/cadastrar arma na tela: nome/SKU/
+  calibre/etc. no Produto; cada unidade física entra em
   `WeaponUnitsSection.js` (dentro do `FinanceRecordModal`, pseudo-campo
   `type: "weaponUnits"`, mesmo mecanismo do `type: "photo"`) — só o número
-  de série é obrigatório ali. Venda (`SaleModal.js`): produto tipo arma
-  mostra um autocomplete de número de série (unidades "em estoque" daquele
-  SKU, `finance.products.weaponUnits.search`); escolher uma liga
-  `SaleItem.weaponUnitId` e autopreenche SIGMA/SINARM. `SaleService.
-  adjustWeaponUnits` (espelha `adjustStock`) marca a unidade "sold" ao
-  confirmar a venda e devolve pra "in_stock" ao cancelar/editar — ver
-  docs/MANUAL_TECNICO.md, seção 183.
+  de série é obrigatório ali. Venda por número de série e relatório por
+  arma são etapas FUTURAS, ainda sem autorização nem código — qualquer
+  pedido pra avançar nisso exige nova confirmação explícita antes de
+  tocar em `SaleItem`/`SaleService`/`SaleModal`.
 - **Índice único parcial pra campo opcional-mas-único** (técnica geral,
   exemplo histórico era `FinanceProduct.serialNumber` antes da v2.3.204 —
   hoje o mesmo padrão se aplica a `FinanceWeaponUnit.serialNumber`, que

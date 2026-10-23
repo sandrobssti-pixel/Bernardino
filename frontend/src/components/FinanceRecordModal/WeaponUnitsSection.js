@@ -46,24 +46,32 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const EMPTY_DRAFT = { id: null, serialNumber: "", sigmaRegistrationNumber: "", status: "in_stock" };
+const EMPTY_DRAFT = {
+  id: null,
+  serialNumber: "",
+  sigmaRegistrationNumber: "",
+  status: "in_stock",
+  notes: "",
+};
 
 const statusLabel = (value) =>
   WEAPON_STATUS_OPTIONS.find((o) => o.value === value)?.label || value || "—";
 
 // Sub-cadastro de unidades físicas de arma (uma linha por número de série)
-// dentro do Produto/SKU — v2.3.204. Diferente dos outros campos do
-// formulário de Produto: cada ação aqui (adicionar/editar/excluir unidade)
-// chama a API na hora, não espera o "Salvar" do produto — mesma lógica já
-// usada pro upload de foto (`enablePhotoUpload`), porque a unidade só pode
-// existir depois que o Produto (SKU) já tem um id salvo. Ver
-// docs/MANUAL_TECNICO.md, seção 183.
+// dentro do Produto/SKU — v2.3.205, Etapa 1. Diferente dos outros campos
+// do formulário de Produto: cada ação aqui (adicionar/editar/excluir
+// unidade) chama a API na hora, não espera o "Salvar" do produto — mesma
+// lógica já usada pro upload de foto (`enablePhotoUpload`), porque a
+// unidade só pode existir depois que o Produto (SKU) já tem um id salvo.
+// Ver docs/MANUAL_TECNICO.md, seção 184.
 const WeaponUnitsSection = ({ product, finance }) => {
   const classes = useStyles();
   const [units, setUnits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const productId = product?.id;
 
@@ -113,6 +121,7 @@ const WeaponUnitsSection = ({ product, finance }) => {
         serialNumber,
         sigmaRegistrationNumber: draft.sigmaRegistrationNumber,
         status: draft.status,
+        notes: draft.notes,
       };
       if (draft.id) {
         await finance.products.weaponUnits.update(productId, draft.id, payload);
@@ -136,7 +145,35 @@ const WeaponUnitsSection = ({ product, finance }) => {
       serialNumber: unit.serialNumber,
       sigmaRegistrationNumber: unit.sigmaRegistrationNumber || "",
       status: unit.status || "in_stock",
+      notes: unit.notes || "",
     });
+  };
+
+  const handleBulkSave = async () => {
+    const serialNumbers = bulkText
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (serialNumbers.length === 0) {
+      toast.warn("Cole pelo menos um número de série, um por linha.");
+      return;
+    }
+    setBulkSaving(true);
+    try {
+      const result = await finance.products.weaponUnits.saveBulk(productId, serialNumbers);
+      if (result.created.length > 0) {
+        toast.success(`${result.created.length} arma(s) cadastrada(s).`);
+      }
+      if (result.duplicates.length > 0) {
+        toast.warn(`Já cadastrado/repetido, ignorado: ${result.duplicates.join(", ")}`);
+      }
+      setBulkText("");
+      await loadUnits();
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
   const handleRemove = async (unit) => {
@@ -194,6 +231,14 @@ const WeaponUnitsSection = ({ product, finance }) => {
             </MenuItem>
           ))}
         </TextField>
+        <TextField
+          label="Observações"
+          size="small"
+          variant="outlined"
+          value={draft.notes}
+          onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+          style={{ minWidth: 160 }}
+        />
         <Button
           variant="contained"
           color="primary"
@@ -212,6 +257,28 @@ const WeaponUnitsSection = ({ product, finance }) => {
         )}
       </div>
 
+      <Box mb={2}>
+        <TextField
+          label="Cadastrar em lote (colar lista, um número de série por linha)"
+          size="small"
+          variant="outlined"
+          fullWidth
+          multiline
+          minRows={3}
+          value={bulkText}
+          onChange={(e) => setBulkText(e.target.value)}
+        />
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={handleBulkSave}
+          disabled={bulkSaving}
+          style={{ marginTop: 8 }}
+        >
+          {bulkSaving ? <CircularProgress size={18} /> : "Adicionar todas"}
+        </Button>
+      </Box>
+
       {loading ? (
         <CircularProgress size={22} />
       ) : units.length === 0 ? (
@@ -225,6 +292,7 @@ const WeaponUnitsSection = ({ product, finance }) => {
               <TableCell>Número de série</TableCell>
               <TableCell>Registro SIGMA/SINARM</TableCell>
               <TableCell>Situação</TableCell>
+              <TableCell>Observações</TableCell>
               <TableCell align="right">Ações</TableCell>
             </TableRow>
           </TableHead>
@@ -234,6 +302,7 @@ const WeaponUnitsSection = ({ product, finance }) => {
                 <TableCell>{unit.serialNumber}</TableCell>
                 <TableCell>{unit.sigmaRegistrationNumber || "—"}</TableCell>
                 <TableCell>{statusLabel(unit.status)}</TableCell>
+                <TableCell>{unit.notes || "—"}</TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(unit)} title="Editar">
                     <EditIcon fontSize="small" />

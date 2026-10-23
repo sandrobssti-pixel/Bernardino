@@ -89,6 +89,11 @@ financeRoutes.post(
   isAuth,
   FinanceWeaponUnitController.store
 );
+financeRoutes.post(
+  "/finance/products/:productId/weapon-units/bulk",
+  isAuth,
+  FinanceWeaponUnitController.storeBulk
+);
 financeRoutes.put(
   "/finance/products/:productId/weapon-units/:id",
   isAuth,

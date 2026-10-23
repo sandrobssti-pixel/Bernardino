@@ -14,14 +14,13 @@ import {
 import Company from "./Company";
 import FinanceProduct from "./FinanceProduct";
 
-// Unidade física de uma arma (v2.3.204) — o Produto (FinanceProduct)
-// passa a representar o MODELO/SKU (ex.: "Taurus G2C .40", SKU 10034336),
-// e cada arma física desse modelo que entra no estoque ganha uma linha
-// aqui, com o próprio número de série. Antes, cada arma física era um
-// FinanceProduct inteiro (mesmo SKU repetido entre elas) — pedido do
-// cliente pra poder cadastrar as N armas de um SKU sem duplicar produto,
-// consultar/vender por nome, SKU OU número de série, e tirar relatório
-// por arma individual ou geral. Ver docs/MANUAL_TECNICO.md, seção 183.
+// Unidade física de uma arma (v2.3.205, Etapa 1 autorizada) — o Produto
+// (FinanceProduct) passa a representar o MODELO/SKU (ex.: "Taurus G2C
+// .40", SKU 10034336), e cada arma física desse modelo que entra no
+// estoque ganha uma linha aqui, com o próprio número de série. Antes,
+// cada arma física era um FinanceProduct inteiro (mesmo SKU repetido
+// entre elas). Venda/relatório ficam pras próximas etapas (autorização
+// separada) — ver docs/MANUAL_TECNICO.md, seção 184.
 @Table
 class FinanceWeaponUnit extends Model<FinanceWeaponUnit> {
   @PrimaryKey
@@ -55,11 +54,14 @@ class FinanceWeaponUnit extends Model<FinanceWeaponUnit> {
   @Column
   status: string;
 
-  // Preenchido quando a unidade é vendida (Fase 2 — integração com a
-  // Venda, ainda não implementada nesta etapa). Sem FK formal de
-  // propósito: SaleItem já guarda snapshot próprio dos dados da venda,
-  // esse campo aqui é só pra saber que unidade saiu e navegar até a
-  // venda que a consumiu.
+  @Default("")
+  @Column
+  notes: string;
+
+  // Reservado pra Etapa 2 (integração com a Venda) — nenhum código desta
+  // etapa lê ou escreve aqui ainda. Sem FK formal de propósito: quando a
+  // Venda for integrada, SaleItem guardará seu próprio snapshot; isso
+  // aqui só vai servir pra navegar até a venda que consumiu a unidade.
   @Column
   saleItemId: number;
 

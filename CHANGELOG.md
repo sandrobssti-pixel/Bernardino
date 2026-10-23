@@ -3,7 +3,7 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.205] — Cadastro de arma por unidade (número de série) + venda por número de série — 2026-10-23
+## [2.3.205] — Cadastro de arma por unidade (número de série) — Etapa 1 — 2026-10-23
 
 ### Adicionado
 - **Produto-arma passa a ser o MODELO (SKU), não mais 1 arma física por
@@ -13,37 +13,45 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)
   jeito de cadastrar as 10 sem duplicar o produto inteiro a cada uma.
   Agora o Produto representa o modelo (nome, calibre, capacidade etc.), e
   cada arma física entra como uma **unidade** dentro dele — só o número de
-  série é obrigatório pra cadastrar uma (registro SIGMA/SINARM e situação
-  são opcionais, completados quando der). Tela de editar Produto ganhou
-  uma seção "Armas deste modelo" pra listar/adicionar/editar/excluir as
-  unidades.
-- **Consulta e venda por nome, SKU ou número de série.** Na Venda,
-  escolher um produto do tipo Arma mostra um campo pra escolher QUAL arma
-  física (número de série) está sendo vendida, entre as que estão em
-  estoque daquele modelo — preenche SIGMA/SINARM automaticamente. Ao
-  confirmar a venda, essa unidade vira "vendida"; ao cancelar/editar a
-  venda, volta pra "em estoque". Vender a mesma arma duas vezes
-  (corrida entre duas vendas) é bloqueado com erro amigável.
+  série é obrigatório pra cadastrar uma (registro SIGMA/SINARM, situação e
+  observações são opcionais). Tela de editar Produto ganhou uma seção
+  "Armas deste modelo" pra listar/adicionar/editar/excluir as unidades,
+  com cadastro também **em lote** (colar lista de números de série).
+- `stockQuantity` do produto-arma passa a ser recalculado automaticamente
+  (contagem de unidades "em estoque") a cada unidade criada/alterada/
+  excluída — alimenta o painel e o aviso de estoque baixo que já existiam.
+- Histórico mínimo por unidade (evento "entrada" ao cadastrar), já
+  preparado pra registrar venda/devolução/baixa numa etapa futura.
+- Busca por nome do modelo, SKU ou número de série (endpoint novo,
+  `/finance/weapon-units/search`).
 - Importação de planilha de armas: linhas com o mesmo SKU (mesmo modelo,
   números de série diferentes) agora criam uma unidade por linha dentro do
   mesmo Produto, em vez de a última linha importada sobrescrever o número
   de série da anterior.
-- Dados já cadastrados são migrados automaticamente no deploy: produtos-
-  arma duplicados pelo mesmo SKU/empresa são consolidados num só Produto,
-  cada um virando uma unidade; vendas antigas que referenciavam um
-  produto duplicado continuam apontando pro produto certo depois da
-  consolidação.
+- Produto-arma já cadastrado **fica exatamente como está** — a migration
+  só cria a unidade correspondente quando já tiver número de série
+  preenchido, sem apagar nem consolidar nenhum produto.
+
+### Fora desta etapa (autorização separada)
+Integração com a tela de Venda (vender por número de série) e relatório
+por arma/geral ficam pra próximas etapas — não implementadas aqui.
 
 ### Técnico
-- Novo modelo/tabela `FinanceWeaponUnit`/`FinanceWeaponUnits` (ver
-  `backend/src/models/FinanceWeaponUnit.ts`,
-  `FinanceWeaponUnitService.ts`). Testado contra Postgres real nesta
-  sessão: migração com dados simulando duplicatas reais + venda antiga
-  referenciando produto consolidado, idempotência (rodar de novo não
-  duplica nem falha), fluxo completo de venda (confirmar marca "sold",
-  cancelar devolve "in_stock", bloqueio de vender a mesma arma duas
-  vezes).
-- Ver docs/MANUAL_TECNICO.md, seção 183, pra detalhe completo.
+- Novo modelo/tabela `FinanceWeaponUnit`/`FinanceWeaponUnits` +
+  `FinanceWeaponUnitEvent`/`FinanceWeaponUnitEvents` (ver
+  `backend/src/models/`, `FinanceWeaponUnitService.ts`). Testado contra
+  Postgres real nesta sessão: migração rodada com produtos-arma de SKU
+  duplicado já existentes (nenhum apagado, cada um virou sua própria
+  unidade), idempotência, cadastro em lote com duplicata detectada,
+  recálculo de `stockQuantity`, log de evento.
+- Uma primeira versão desta mudança, implementada antes da autorização
+  chegar a esta sessão, incluía uma migration que **consolidava
+  (apagava) produtos duplicados pelo mesmo SKU** e integração completa
+  com a Venda — nenhuma das duas estava autorizada (a migration violava
+  "nada destrutivo em produção"). Nada disso chegou a ser implantado
+  (deploy é manual, via Coolify); foi revertido antes do commit final
+  descrito aqui.
+- Ver docs/MANUAL_TECNICO.md, seção 184, pra detalhe completo.
 
 ## [2.3.204] — Erro interno ao editar arma com campo numérico em branco — 2026-10-23
 

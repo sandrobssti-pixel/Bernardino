@@ -5,7 +5,6 @@ import Sale from "../../models/Sale";
 import SaleItem from "../../models/SaleItem";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceProduct from "../../models/FinanceProduct";
-import FinanceWeaponUnit from "../../models/FinanceWeaponUnit";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FiscalConfig from "../../models/FiscalConfig";
 import FiscalDocument from "../../models/FiscalDocument";
@@ -42,9 +41,6 @@ interface SaleItemData {
   sigmaSinarm?: string;
   ammoLot?: string;
   packageId?: string;
-  // Unidade física de arma escolhida pra esse item (v2.3.204) — ver
-  // `adjustWeaponUnits`.
-  weaponUnitId?: number | null;
 }
 
 interface SaleData {
@@ -245,11 +241,6 @@ const includeOptions = [
           "icmsStRate",
           "icmsStMva"
         ]
-      },
-      {
-        model: FinanceWeaponUnit,
-        as: "weaponUnit",
-        attributes: ["id", "serialNumber", "status"]
       }
     ]
   },
@@ -374,8 +365,7 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
       taxRate: product?.taxRate ?? "0",
       sigmaSinarm: item.sigmaSinarm || "",
       ammoLot: item.ammoLot || "",
-      packageId: item.packageId || "",
-      weaponUnitId: item.weaponUnitId || null
+      packageId: item.packageId || ""
     };
 
     if (reformEnabled) {
@@ -486,7 +476,6 @@ export const update = async (
   // foi mexido, ver `confirm` abaixo).
   if (wasConfirmed) {
     await adjustStock(sale, -1);
-    await adjustWeaponUnits(sale, -1);
   }
 
   await sale.update({
@@ -517,9 +506,7 @@ export const update = async (
     // só falta descontar a nova) — repetir a edição com quantidade
     // menor resolve, sem duplicar desconto.
     ensureStockAvailable(updated);
-    ensureWeaponUnitsAvailable(updated);
     await adjustStock(updated, 1);
-    await adjustWeaponUnits(updated, 1);
 
     if (updated.receivableId) {
       await FinanceReceivable.update(
@@ -551,24 +538,6 @@ const ensureStockAvailable = (sale: Sale): void => {
   }
 };
 
-// Equivalente a `ensureStockAvailable`, só que pra unidade física de arma
-// (v2.3.204): a unidade escolhida no item precisa estar "em estoque" no
-// momento de confirmar — pode já ter sido vendida por outra venda
-// confirmada antes (corrida entre dois rascunhos escolhendo a mesma
-// arma), ou ter virado manutenção/baixada nesse meio-tempo.
-const ensureWeaponUnitsAvailable = (sale: Sale): void => {
-  const unavailable = (sale.items || [])
-    .filter(item => item.weaponUnitId)
-    .filter(item => !item.weaponUnit || item.weaponUnit.status !== "in_stock");
-
-  if (unavailable.length > 0) {
-    const details = unavailable
-      .map(item => `${item.description} (nº de série ${item.weaponUnit?.serialNumber || item.weaponUnitId})`)
-      .join("; ");
-    throw new AppError(`Arma não está mais disponível em estoque: ${details}`);
-  }
-};
-
 // `direction` 1 = desconta (confirmar), -1 = devolve (cancelar) — mesma
 // função nos dois sentidos pra não duplicar a lógica de "só mexe quando
 // tem produto + controla estoque".
@@ -581,29 +550,6 @@ const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
       by: direction * quantity,
       where: { id: item.product.id }
     });
-  }
-};
-
-// Mesma lógica de `adjustStock`, só que pra unidade física de arma
-// (v2.3.204): confirmar marca a unidade "vendida" (liga `saleItemId`,
-// grava `soldAt`); cancelar/editar devolve pra "em estoque" e desfaz o
-// vínculo — sem isso, uma arma vendida continuaria aparecendo disponível
-// pra vender de novo.
-const adjustWeaponUnits = async (sale: Sale, direction: 1 | -1): Promise<void> => {
-  for (const item of sale.items || []) {
-    if (!item.weaponUnitId) continue;
-
-    if (direction === 1) {
-      await FinanceWeaponUnit.update(
-        { status: "sold", soldAt: new Date(), saleItemId: item.id },
-        { where: { id: item.weaponUnitId } }
-      );
-    } else {
-      await FinanceWeaponUnit.update(
-        { status: "in_stock", soldAt: null, saleItemId: null },
-        { where: { id: item.weaponUnitId } }
-      );
-    }
   }
 };
 
@@ -626,7 +572,6 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
   }
 
   ensureStockAvailable(sale);
-  ensureWeaponUnitsAvailable(sale);
 
   const description = `Venda #${sale.id}${sale.customer ? ` - ${sale.customer.name}` : ""}`;
 
@@ -640,7 +585,6 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
   } as any);
 
   await adjustStock(sale, 1);
-  await adjustWeaponUnits(sale, 1);
   await sale.update({ status: "confirmed", receivableId: receivable.id });
 
   return show(id, companyId);
@@ -669,7 +613,6 @@ export const cancel = async (id: string | number, companyId: number): Promise<Sa
 
   if (sale.status === "confirmed") {
     await adjustStock(sale, -1);
-    await adjustWeaponUnits(sale, -1);
   }
 
   if (sale.receivableId) {

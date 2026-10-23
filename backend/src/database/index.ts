@@ -66,6 +66,7 @@ import FinanceCustomer from "../models/FinanceCustomer";
 import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
 import FinanceWeaponUnit from "../models/FinanceWeaponUnit";
+import FinanceWeaponUnitEvent from "../models/FinanceWeaponUnitEvent";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceReceivable from "../models/FinanceReceivable";
 import FinancePaymentConfig from "../models/FinancePaymentConfig";
@@ -160,6 +161,7 @@ const models = [
   FinanceSupplier,
   FinanceProduct,
   FinanceWeaponUnit,
+  FinanceWeaponUnitEvent,
   FinanceExpense,
   FinanceReceivable,
   FinancePaymentConfig,

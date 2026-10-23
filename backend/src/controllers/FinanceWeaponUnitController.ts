@@ -28,6 +28,17 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json(unit);
 };
 
+// Cadastro em lote (colar lista de números de série) — Etapa 1.
+export const storeBulk = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { productId } = req.params;
+  const { serialNumbers } = req.body as { serialNumbers: string[] };
+
+  const result = await FinanceWeaponUnitService.createBulk(productId, serialNumbers || [], companyId);
+  return res.status(200).json(result);
+};
+
 export const update = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;

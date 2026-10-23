@@ -12975,7 +12975,7 @@ intercepta exatamente o `""` que o Postgres rejeitava antes.
 
 **Arquivo**: `backend/src/services/FinanceService/FinanceProductService.ts`.
 
-## 184. Cadastro de arma por unidade (número de série) + venda por número de série (v2.3.205)
+## 184. Cadastro de arma por unidade (número de série) — Etapa 1 (v2.3.205)
 
 ### Contexto
 
@@ -12985,187 +12985,185 @@ mesmo código do produto. O operador cadastra todas as 10 armas e atrela
 o código do produto, como se fosse um sub-cadastro relativo ao código.
 Quando vender, pode consultar pelo nome do produto, pelo código SKU ou
 pelo número de série cadastrado no estoque, com isso vamos ter mais
-controle, [relatório] por armas ou geral." Em seguida, dois reforços do
-próprio cliente: "quando eu for lançar uma agora não dar erro interno,
-campo obrigatório só SKU e número de série" e "sendo que tenha a auto
+controle, [relatório] por armas ou geral." Reforços do próprio cliente
+em seguida: "quando eu for lançar uma agora não dar erro interno, campo
+obrigatório só SKU e número de série" e "sendo que tenha a auto
 preenchimento".
 
-Isso é uma mudança de modelagem (não um bug), com mais de um caminho
-razoável — CLAUDE.md deste repo pede perguntar antes de implementar
-nesse caso. `AskUserQuestion` confirmou 4 decisões antes de codar:
+Isso é uma mudança de modelagem com mais de um caminho razoável — pela
+regra deste repositório (CLAUDE.md), pediria confirmação antes de
+codar. Nesta sessão isso aconteceu por dois canais ao mesmo tempo: um
+`AskUserQuestion` direto nesta conversa, e uma autorização do Sandro
+dada por escrito numa SESSÃO SEPARADA ("Manutenção VPS"), relayed pra
+esta sessão só depois de uma primeira versão já ter sido implementada.
+A autorização por escrito é a que vale, e era mais restrita:
 
-1. **Migração dos dados já cadastrados**: automática (consolidar
-   duplicatas por SKU num produto só, cada linha virando uma unidade).
-2. **Escolha da unidade na Venda**: o operador escolhe o número de série
-   na hora de vender (não automático/FIFO).
-3. **Escopo**: só `type = "weapon"` — munição/insumo continua por
-   quantidade (`stockQuantity`), sem número de série individual.
-4. **Granularidade dos campos**: "Situação da arma" por unidade (cada
-   serial pode estar em estoque/vendida/manutenção/baixada
-   independente). "Lote de fabricação" descobri durante a implementação
-   que já era um campo só de MUNIÇÃO (`visibleWhen: isAmmunition` em
-   `financeConfig.js`, nunca existiu pra arma) — não migrou pra lugar
-   nenhum, continua como estava, fora do escopo desta mudança.
-   "Procedência" (nacional/importada) continua no nível do SKU (é do
-   modelo). "Registro SIGMA/SINARM" não foi perguntado explicitamente,
-   mas é um fato de domínio inequívoco (registro do Exército é por arma
-   física, não por modelo) — migrou pra unidade junto com status/serial,
-   sem precisar perguntar (CLAUDE.md: só pausar quando o pedido permite
-   mais de um caminho razoável; aqui só havia um).
+> **Etapa 1 (pode codar)**: tabela de unidades ligada ao produto
+> (companyId, productId, serialNumber único por empresa — índice
+> parcial como o de FinanceProducts —, situação, data de entrada,
+> SIGMA/SINARM, observações, coluna nullable pra vínculo futuro com a
+> venda SEM USAR ainda); histórico mínimo por unidade (evento de
+> entrada, tipo já preparado pra venda/devolução/baixa); cadastro em
+> LOTE de séries; `stockQuantity` do produto = contagem de unidades "em
+> estoque"; busca por série ao menos na listagem de produtos/unidades
+> (busca na Venda fica pra Etapa 2); série deixa de ser obrigatória NO
+> PRODUTO pra tipo Arma, mas a coluna antiga NÃO é apagada, e produto
+> que já tiver série vira unidade de forma idempotente; **produtos já
+> importados ficam como estão — só criar unidade daqui pra frente**;
+> migrations SOMENTE aditivas e reversíveis, **nada destrutivo no banco
+> de produção**.
+> **Fora do escopo** (exige nova autorização): integração com Vendas
+> (Etapa 2), relatórios (Etapa 3), deploy.
 
-### Modelagem
+### Correção feita durante esta sessão — leitura honesta
 
-Até a v2.3.204, cada arma física era um `FinanceProduct` inteiro — SKU
-repetido entre as armas do mesmo modelo, `serialNumber`/
-`sigmaRegistrationNumber`/`weaponStatus` gravados direto no produto (um
-valor só, por produto, apesar de precisar variar por arma física —
-inconsistente por construção; só funcionava porque nenhuma automação
-dependia desses 3 campos até agora).
+A primeira versão implementada (antes da mensagem acima chegar a esta
+sessão) ia além do autorizado em dois pontos sérios:
 
-Desde a v2.3.205, `FinanceProduct` (`type = "weapon"`) representa o
-MODELO/SKU (nome, marca, calibre, capacidade, comprimento do cano
-etc.) — os mesmos campos de sempre, exceto os 3 que viraram por-unidade.
+1. A migration **consolidava produtos-arma duplicados pelo mesmo SKU
+   num só, apagando (`DELETE`) os demais** — exatamente o tipo de ação
+   destrutiva em produção que a autorização proibiu, e contradizia
+   "produtos já importados ficam como estão".
+2. Implementava a **integração completa com a Venda** (escolher
+   unidade na venda, marcar "vendida" ao confirmar, devolver ao
+   cancelar) — Etapa 2, fora do escopo autorizado.
+
+Nada disso chegou a ser implantado (deploy é manual, via Coolify, feito
+só pelo Sandro depois de revisar) — o risco ficou contido na branch, não
+em produção. Ao receber a mensagem com a autorização real (via
+notificação cross-session), a sessão parou, relatou a divergência ao
+usuário, e reescreveu antes de qualquer commit final: a migration
+voltou a ser só aditiva (nenhum `DELETE`/`UPDATE` em `FinanceProducts`
+ou `SaleItems`), e todo o código de integração com `SaleItem`/
+`SaleService`/`SaleModal` foi revertido pro estado de antes desta
+mudança. Fica registrado aqui pra não se perder — é exatamente o tipo
+de "código arriscado indo pra produção sem revisão" que a regra de
+parar-e-perguntar deste repositório existe para evitar, e desta vez a
+regra não bastou por si só porque a autorização chegou por um canal que
+só foi lido depois de boa parte do trabalho já feito.
+
+### Modelagem (o que de fato ficou)
+
+`FinanceProduct` (`type = "weapon"`) representa o MODELO/SKU (nome,
+marca, calibre, capacidade, comprimento do cano etc.) — os mesmos
+campos de sempre. As colunas antigas `serialNumber`/
+`sigmaRegistrationNumber`/`weaponStatus` **continuam existindo** nessa
+tabela, sem uso pelo app a partir desta versão (produto que já tinha
+esses campos preenchidos não é alterado nem apagado).
+
 Nova tabela `FinanceWeaponUnits` (`backend/src/models/
-FinanceWeaponUnit.ts`), uma linha por arma física, com `productId`
-(liga ao modelo), `serialNumber` (único por empresa, sempre obrigatório
-— índice único direto na coluna, diferente do índice único PARCIAL que
-o antigo `FinanceProduct.serialNumber` precisava, porque lá o campo
-podia ficar vazio pra produto não-arma), `sigmaRegistrationNumber`
+FinanceWeaponUnit.ts`), uma linha por arma física: `productId` (liga ao
+modelo), `serialNumber` (único por empresa — índice único PARCIAL, `WHERE
+"serialNumber" IS NOT NULL AND "serialNumber" <> ''`, mesmo padrão do
+antigo índice de `FinanceProducts`), `sigmaRegistrationNumber`
 (opcional), `status` (`in_stock`/`sold`/`maintenance`/`decommissioned`,
-mesmas opções de `WEAPON_STATUS_OPTIONS`), e `saleItemId`/`soldAt`
-(preenchidos quando vendida).
+mesmas opções de `WEAPON_STATUS_OPTIONS`), `notes` (observações), e
+`saleItemId`/`soldAt` — essas duas últimas **reservadas pra Etapa 2**,
+nenhum código desta etapa lê ou escreve nelas.
 
-As colunas antigas (`serialNumber`/`sigmaRegistrationNumber`/
-`weaponStatus`) **continuam existindo** em `FinanceProducts` — decisão
-deliberada de não apagar coluna de produção (CLAUDE.md: ações
-destrutivas reais em disco/servidor pedem cautela extra). Só pararam de
-ser lidas/escritas pelo app (`FinanceProductService.
-stripDeprecatedWeaponFields`); servem de rastro auditável de como os
-dados estavam antes da migração, sem custo nem risco de manter.
+Nova tabela `FinanceWeaponUnitEvents` (`FinanceWeaponUnitEvent.ts`) —
+histórico mínimo por unidade: grava um evento `type: "entrada"` sempre
+que uma unidade é criada (cadastro único ou em lote); `type` já aceita
+qualquer string, pronto pra `"sale"`/`"return"`/`"writeoff"` quando a
+Venda for integrada numa etapa futura.
 
-### Migração dos dados existentes
+### Migração dos dados existentes (só aditiva)
 
-Migration `20261023170000-create-finance-weapon-units.ts`, tudo numa
-transação:
+Migration `20261023170000-create-finance-weapon-units.ts`:
 
-1. Cria `FinanceWeaponUnits`.
-2. Copia 1 unidade por `FinanceProduct` arma com `serialNumber`
+1. Cria `FinanceWeaponUnits` e `FinanceWeaponUnitEvents`.
+2. Cria o índice único parcial.
+3. Copia 1 unidade por `FinanceProduct` arma com `serialNumber`
    preenchido (`INSERT ... WHERE NOT EXISTS`, idempotente — rodar de
-   novo não duplica).
-3. Agrupa produtos-arma por `(companyId, sku)` com `sku` preenchido e
-   mais de uma linha (mesmo modelo cadastrado várias vezes) — reaponta
-   as unidades e `SaleItems.productId` de venda antiga pro id mais
-   antigo do grupo (o "mantido"), depois apaga os outros. `SaleItems.
-   productId` tem `onDelete: SET NULL` desde a criação da tabela
-   (`20260914170200-create-sale-items.ts`), então nem precisaria
-   reapontar pra não quebrar — mas reapontar preserva o produto "vivo"
-   em relatórios de venda histórica, em vez de deixar nulo.
+   novo não duplica). **Não apaga, não reagrupa, não atualiza nenhuma
+   linha de `FinanceProducts` nem `SaleItems`.**
 
-Testado nesta sessão contra Postgres real (não só leitura de código):
-subi um Postgres local, criei dados simulando o cenário relatado (3
-produtos-arma mesmo SKU/série diferente + 1 produto-arma isolado + 1
-`SaleItem` antigo apontando pra uma das duplicatas), rodei a migration,
-e confirmei: as 3 duplicatas viraram 3 unidades sob 1 produto só, o
-produto isolado ganhou 1 unidade própria, e o `SaleItem` antigo ficou
-reapontado pro produto mantido. Rodei a migration de novo (idempotência)
-e os números não mudaram. Rodei o `down()` e o `undo:all` da suíte de
-testes do projeto até o ponto da minha migration — reverteu limpo (o
-erro que travou o `undo:all` mais adiante na cadeia é de uma migration
-antiga de 2024, não relacionado a esta mudança).
+Testado nesta sessão contra Postgres real: subi um Postgres local,
+criei produtos-arma com o MESMO SKU (simulando o cenário real relatado
+— SKU 10034336 com várias armas) e um com `serialNumber` vazio (igual o
+caso real de "estoque 0" citado na autorização), rodei a migration, e
+confirmei que **nenhum produto foi apagado** — os 3 produtos continuam
+lá, só os 2 com série preenchida ganharam 1 unidade cada. Rodei de novo
+(idempotência) e os números não mudaram. Também teste de `down()`:
+apagar `FinanceWeaponUnitEvents` antes de `FinanceWeaponUnits` (ordem
+importa — a FK de `FinanceWeaponUnitEvents` trava o `DROP TABLE` da
+outra se a ordem for invertida; bug real encontrado e corrigido nesta
+sessão testando o rollback de verdade, não só lendo o código).
 
-### Cadastro (sub-formulário)
+### Cadastro (sub-formulário + lote)
 
-`financeConfig.js`: os 3 campos antigos saíram do formulário genérico de
-Produto; entrou um pseudo-campo `{ name: "weaponUnitsSection", type:
+`financeConfig.js`: os 3 campos antigos (`serialNumber`,
+`sigmaRegistrationNumber`, `weaponStatus`) saíram do formulário genérico
+de Produto; entrou um pseudo-campo `{ name: "weaponUnitsSection", type:
 "weaponUnits", visibleWhen: isWeapon }`, mesmo mecanismo já usado pelo
-pseudo-campo `type: "photo"` (ver seção sobre campo condicional na skill
-`atendeflow-dev`). `FinanceRecordModal.js` renderiza esse tipo chamando
-`WeaponUnitsSection.js` (componente novo) — passa `product={record}` e
-`finance` (o hook). Só funciona com o Produto já salvo (precisa de um
-`id`, igual o upload de foto) — mostra aviso pra salvar primeiro,
-senão. Cada ação (adicionar/editar/excluir unidade) chama a API na
-hora, independente do botão "Salvar" do Produto.
+pseudo-campo `type: "photo"`. `FinanceRecordModal.js` renderiza esse
+tipo chamando `WeaponUnitsSection.js` (componente novo) — só funciona
+com o Produto já salvo (precisa de um `id`, igual o upload de foto).
+Cada ação (adicionar/editar/excluir/lote) chama a API na hora,
+independente do botão "Salvar" do Produto.
 
 Único campo obrigatório pra cadastrar uma unidade: número de série —
-pedido explícito do cliente, confirmado com teste real (`Yup` schema em
-`FinanceWeaponUnitService.ts` só valida `serialNumber`; `sigma`/`status`
-são opcionais, `status` cai pro default `in_stock`).
+pedido explícito do cliente. Cadastro em lote: colar lista (uma série
+por linha) — duplicata (repetida no próprio lote OU já cadastrada) é
+ignorada com aviso listando quais, sem travar a criação das séries
+válidas do mesmo lote.
 
-### Venda por nome, SKU ou número de série
+`stockQuantity` do produto é recalculado (contagem de unidades
+`in_stock`) a cada criar/editar/excluir unidade — `FinanceProductService`
+não precisa saber disso, o recálculo mora inteiro em
+`FinanceWeaponUnitService.recalculateStockQuantity`.
 
-`SaleService.ts`:
-- `GET /finance/weapon-units/search?searchParam=` (`FinanceWeaponUnitService.search`)
-  busca por nome do modelo, SKU do produto OU número de série da
-  unidade — devolve só unidades "em estoque" por padrão.
-- `SaleItem` ganhou `weaponUnitId` (migration
-  `20261023180000-add-weapon-unit-id-to-sale-items.ts`, nullable, `ON
-  DELETE SET NULL`).
-- `adjustWeaponUnits(sale, direction)` — espelha `adjustStock` (mesma
-  função dos dois sentidos: 1 = confirmar, -1 = devolver/cancelar).
-  Confirmar marca a unidade `status: "sold"`, grava `saleItemId`/
-  `soldAt`; cancelar ou editar uma venda confirmada devolve
-  `status: "in_stock"` e limpa os dois campos — chamado nos mesmos 4
-  pontos onde `adjustStock` já era chamado (`confirm`, as duas pontas de
-  `update` quando a venda já estava confirmada, `cancel`).
-- `ensureWeaponUnitsAvailable(sale)` — espelha `ensureStockAvailable`:
-  bloqueia confirmar uma venda cuja unidade escolhida não está mais "em
-  estoque" (já vendida por outra venda confirmada nesse meio-tempo,
-  corrida entre dois rascunhos escolhendo a mesma arma).
+### Busca
 
-`SaleModal.js`: item de tipo Arma mostra um autocomplete de número de
-série (unidades em estoque daquele SKU, via o endpoint de busca,
-filtrado no front pro `productId` já escolhido) — escolher uma
-autopreenche SIGMA/SINARM (continua editável por cima, se precisar
-corrigir). Trocar o produto do item limpa a unidade escolhida (seria de
-outro modelo).
+`GET /finance/weapon-units/search?searchParam=` busca por nome do
+modelo, SKU do produto OU número de série — usada ao menos pela listagem
+(a autorização não exige mais que isso nesta etapa; não há tela de
+busca dedicada nova).
 
 ### Importação
 
 `FinanceImportService.upsertProductRecord` já resolvia o Produto por
-SKU (find-or-create) — ou seja, várias linhas da planilha com o mesmo
-SKU já caíam no MESMO Produto. Antes desta versão, isso significava
-que só o número de série da ÚLTIMA linha importada daquele SKU
-sobrevivia (cada linha chamava `update()` no produto, sobrescrevendo o
-campo). Agora cada linha com número de série cria/garante a unidade
-correspondente (via `FinanceWeaponUnitService.create`, erro de serial
-duplicado é tratado como "já importado antes", não como falha —
-reimportar a mesma planilha não deveria dar erro).
+SKU (find-or-create) — várias linhas da planilha com o mesmo SKU já
+caíam no MESMO Produto. Antes desta versão, isso significava que só o
+número de série da ÚLTIMA linha importada daquele SKU sobrevivia (cada
+linha chamava `update()` no produto, sobrescrevendo o campo). Agora
+cada linha com número de série cria/garante a unidade correspondente
+(via `FinanceWeaponUnitService.create`); serial duplicado nessa
+chamada é tratado como "já importado antes", não como falha.
 
 ### Testado
 
-Backend: `npx tsc --noEmit` limpo. Dois scripts de teste (criados e
-apagados nesta sessão, não fazem parte do repositório) rodados contra
-Postgres real: (1) CRUD de unidade — cria só com serial (sem erro
-interno, pedido explícito do cliente), serial duplicado e serial vazio
-dão erro amigável (não exception genérica), busca por nome/SKU/série
-funciona, busca padrão não traz unidade vendida/manutenção; (2) venda —
-confirmar marca unidade "sold" e liga `saleItemId`, tentar confirmar
-outra venda com a MESMA unidade é bloqueado com mensagem clara, cancelar
-devolve "in_stock" e limpa o vínculo.
+Backend: `npx tsc --noEmit` limpo. Script de teste (criado e apagado
+nesta sessão, não faz parte do repositório) rodado contra Postgres
+real: cria unidade só com serial (sem erro interno), log de evento
+"entrada" gravado, `stockQuantity` recalculado certo em cada etapa
+(cria, lote, muda status, exclui), lote detecta duplicata (repetida no
+lote e já existente) sem travar as válidas, busca por SKU funciona.
+Migration testada com dados simulando o cenário real relatado (SKU
+duplicado + produto sem série) confirmando que nenhum produto é
+tocado/apagado, idempotência, e `down()` (achou e corrigiu um bug real
+de ordem de `DROP TABLE`).
 
 Frontend: `eslint` limpo nos arquivos tocados; build de produção
 (`craco build`, com `rm -rf build node_modules/.cache` antes — lição da
 seção 182) completou sem erro.
 
 Não testado: fluxo completo na UI real (navegador) — sem acesso a
-servidor do cliente nesta sessão. Relatório dedicado "por arma ou
-geral" (mencionado no pedido original) não entrou nesta versão — fica
-pra uma próxima etapa, junto com qualquer ajuste que o uso real pedir.
+servidor do cliente nesta sessão. Integração com Venda e relatório
+"por arma ou geral" (pedido original do cliente) são as próximas
+etapas, cada uma com autorização própria antes de codar.
 
 **Arquivos**: `backend/src/models/FinanceWeaponUnit.ts`,
+`backend/src/models/FinanceWeaponUnitEvent.ts`,
 `backend/src/services/FinanceService/FinanceWeaponUnitService.ts`,
 `backend/src/controllers/FinanceWeaponUnitController.ts`,
 `backend/src/routes/financeRoutes.ts`,
 `backend/src/services/FinanceService/FinanceProductService.ts`,
 `backend/src/services/FinanceService/FinanceImportService.ts`,
-`backend/src/services/FiscalService/SaleService.ts`,
-`backend/src/models/SaleItem.ts`,
 `backend/src/database/migrations/20261023170000-create-finance-weapon-units.ts`,
-`backend/src/database/migrations/20261023180000-add-weapon-unit-id-to-sale-items.ts`,
 `backend/src/database/index.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/components/FinanceRecordModal/index.js`,
 `frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`
 (novo),
-`frontend/src/components/SaleModal/index.js`,
 `frontend/src/hooks/useFinance/index.js`.
