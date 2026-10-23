@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useContext } from "react";
+import { useLocation } from "react-router-dom";
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Typography from "@material-ui/core/Typography";
 import CircularProgress from "@material-ui/core/CircularProgress";
-import Tabs from "@material-ui/core/Tabs";
-import Tab from "@material-ui/core/Tab";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
 import useFinance from "../../hooks/useFinance";
 import useFiscal from "../../hooks/useFiscal";
+import useServices from "../../hooks/useServices";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
 import FiscalConfigPanel from "../../components/FiscalConfigPanel";
+import FinancePaymentConfigPanel from "../../components/FinancePaymentConfigPanel";
 import FiscalSalesPanel from "../../components/FiscalSalesPanel";
 import {
   financeCustomerColumns,
@@ -20,7 +21,8 @@ import {
   financeSupplierColumns,
   financeSupplierFields,
   financeProductColumns,
-  financeProductFields,
+  financeProductFilters,
+  getProductFieldsForCategory,
   financeExpenseColumns,
   financeExpenseFields,
   financeExpenseFilters,
@@ -43,36 +45,6 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.down("sm")]: {
       padding: theme.spacing(1),
     },
-  },
-  // Navegação lateral (não superior) entre as abas do Financeiro: abas
-  // verticais à esquerda, conteúdo à direita.
-  layoutRow: {
-    display: "flex",
-    flex: 1,
-    gap: theme.spacing(2),
-    alignItems: "flex-start",
-    [theme.breakpoints.down("xs")]: {
-      flexDirection: "column",
-    },
-  },
-  sideTabs: {
-    borderRight: `1px solid ${theme.palette.divider}`,
-    minWidth: 180,
-    flexShrink: 0,
-    [theme.breakpoints.down("xs")]: {
-      width: "100%",
-      borderRight: "none",
-      borderBottom: `1px solid ${theme.palette.divider}`,
-    },
-  },
-  sideTab: {
-    minHeight: 48,
-    alignItems: "flex-start",
-    textAlign: "left",
-    textTransform: "none",
-    fontWeight: 600,
-    fontSize: "0.85rem",
-    paddingLeft: theme.spacing(2),
   },
   content: {
     flex: 1,
@@ -106,12 +78,47 @@ const Financeiro = () => {
   const { user } = useContext(AuthContext);
   const finance = useFinance();
   const fiscal = useFiscal();
+  const services = useServices();
   const [financeAccess, setFinanceAccess] = useState(null);
   // Fiscal (Vendas/Configuração Fiscal) é um add-on SEPARADO do Financeiro
   // (Plan.useFiscal, v2.3.23) — o Master pode vender um plano com Financeiro
   // mas sem Fiscal, então precisa de um gate próprio (não basta financeAccess).
   const [fiscalAccess, setFiscalAccess] = useState(null);
+  // Flag global da Reforma Tributária 2027 (IVA) — vem da Configuração
+  // Fiscal, mas também é usada aqui pra desabilitar os campos novos de
+  // Cliente/Produto enquanto estiver off (ver FinanceRecordModal
+  // `disabledWhen`/`context`). Só busca quando a empresa tem acesso ao
+  // módulo fiscal — sem ele, fica sempre `false` (campos ficam
+  // desabilitados, que é o padrão seguro).
+  const [reform2027Enabled, setReform2027Enabled] = useState(false);
+  // Endereço do emitente pro cabeçalho impresso do Painel Financeiro — vem
+  // do mesmo fetch que já existia aqui (reform2027Enabled), sem chamada
+  // extra. Só busca quando a empresa tem acesso ao Fiscal (ver aviso em
+  // FiscalConfigService.show: evitar criar uma linha de config fiscal vazia
+  // pra empresa que só abre o Financeiro, sem usar o módulo fiscal).
+  const [fiscalConfig, setFiscalConfig] = useState(null);
+  // Cobrança via gateway (Pix/boleto) é um add-on SEPARADO do Financeiro
+  // (Plan.usePayment, mesmo padrão de fiscalAccess acima) — o Master decide
+  // por plano se o cliente paga por esse serviço extra.
+  const [paymentAccess, setPaymentAccess] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
+  const location = useLocation();
+
+  // Navegação pelo menu lateral (MainListItems.js > Financeiro > ...) manda
+  // a aba certa via query string (`?tab=products&type=weapon:national`), já
+  // que essa página inteira é uma SPA sem rotas por aba — sem isso, os links
+  // do menu lateral sempre caíam na mesma aba padrão. Continua funcionando
+  // normal se a página for aberta direto em "/financeiro" (sem query),
+  // porque `tab` vem `null` e o estado inicial acima prevalece.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const tabParam = params.get("tab");
+    if (tabParam) {
+      setFinanceTab(tabParam);
+    }
+  }, [location.search]);
+
+  const productTypeParam = new URLSearchParams(location.search).get("type") || "";
 
   useEffect(() => {
     (async () => {
@@ -124,18 +131,31 @@ const Financeiro = () => {
       try {
         const access = await fiscal.getAccess();
         setFiscalAccess(access);
+        if (access?.hasAccess) {
+          const config = await fiscal.config.show();
+          setReform2027Enabled(!!config?.reform2027Enabled);
+          setFiscalConfig(config);
+        }
       } catch (err) {
         setFiscalAccess({ planHasModule: false, hasAccess: false });
+      }
+      try {
+        const access = await finance.getPaymentAccess();
+        setPaymentAccess(access);
+      } catch (err) {
+        setPaymentAccess({ planHasModule: false, hasAccess: false });
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showFiscalTabs = user.super || !!fiscalAccess?.hasAccess;
+  const showPaymentTab = user.super || !!paymentAccess?.hasAccess;
+  const financeRecordContext = { reform2027Enabled };
 
   const renderPanel = () => {
     if (financeTab === "painel") {
-      return <FinancePainel finance={finance} />;
+      return <FinancePainel finance={finance} company={user.company} fiscalConfig={fiscalConfig} />;
     }
     if (financeTab === "expenses") {
       return (
@@ -160,8 +180,27 @@ const Financeiro = () => {
           fields={financeReceivableFields}
           filters={financeReceivableFilters}
           finance={finance}
+          services={services}
+          enablePayments={showPaymentTab}
         />
       );
+    }
+    if (financeTab === "paymentConfig") {
+      if (!showPaymentTab) {
+        return (
+          <Box className={classes.lockedBox}>
+            <Typography variant="h6" gutterBottom>
+              Cobrança via gateway não disponível
+            </Typography>
+            <Typography variant="body2">
+              {paymentAccess?.planHasModule
+                ? "Peça para o administrador da sua empresa liberar seu acesso."
+                : "Esse serviço é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
+            </Typography>
+          </Box>
+        );
+      }
+      return <FinancePaymentConfigPanel key={financeTab} finance={finance} />;
     }
     if (financeTab === "sales" || financeTab === "fiscalConfig") {
       if (!showFiscalTabs) {
@@ -191,6 +230,10 @@ const Financeiro = () => {
           resource={finance.customers}
           columns={financeCustomerColumns}
           fields={financeCustomerFields}
+          allowImport
+          allowTemplateDownload
+          templateFilename="modelo-importacao-clientes.xlsx"
+          context={financeRecordContext}
         />
       );
     }
@@ -202,17 +245,31 @@ const Financeiro = () => {
           resource={finance.suppliers}
           columns={financeSupplierColumns}
           fields={financeSupplierFields}
+          allowImport
         />
       );
     }
     if (financeTab === "products") {
       return (
         <FinanceRecordList
-          key={financeTab}
+          key={`products-${productTypeParam}`}
           title="Produto"
           resource={finance.products}
           columns={financeProductColumns}
-          fields={financeProductFields}
+          fields={getProductFieldsForCategory(productTypeParam)}
+          // Dropdown "Tipo" só aparece quando a tela abriu sem categoria
+          // definida (link "Todos os produtos", ou "/financeiro" direto) —
+          // chegando por um link de categoria específica do menu lateral
+          // (Armas nacionais, Munições/Insumos etc.), já está dentro do
+          // painel daquela categoria, não faz sentido oferecer escolher
+          // outra ali (pedido do cliente).
+          filters={productTypeParam ? [] : financeProductFilters}
+          initialFilterValues={{ type: productTypeParam }}
+          allowImport
+          allowTemplateDownload
+          templateFilename="modelo-importacao-produtos.xlsx"
+          context={financeRecordContext}
+          enablePhotoUpload
         />
       );
     }
@@ -253,33 +310,7 @@ const Financeiro = () => {
 
   return (
     <div className={classes.pageRoot}>
-      <div className={classes.layoutRow}>
-        <Tabs
-          value={financeTab}
-          onChange={(e, v) => setFinanceTab(v)}
-          orientation="vertical"
-          variant="scrollable"
-          indicatorColor="primary"
-          textColor="primary"
-          className={classes.sideTabs}
-        >
-          {user.super && <Tab className={classes.sideTab} value="saas" label="Painel SaaS" />}
-          <Tab className={classes.sideTab} value="painel" label="Painel Financeiro" />
-          <Tab className={classes.sideTab} value="expenses" label="Contas a Pagar" />
-          <Tab className={classes.sideTab} value="receivables" label="Contas a Receber" />
-          <Tab className={classes.sideTab} value="customers" label="Clientes" />
-          <Tab className={classes.sideTab} value="suppliers" label="Fornecedores" />
-          <Tab className={classes.sideTab} value="products" label="Produtos" />
-          {showFiscalTabs && (
-            <Tab className={classes.sideTab} value="sales" label="Vendas" />
-          )}
-          {showFiscalTabs && (
-            <Tab className={classes.sideTab} value="fiscalConfig" label="Configuração Fiscal" />
-          )}
-        </Tabs>
-
-        <div className={classes.content}>{renderPanel()}</div>
-      </div>
+      <div className={classes.content}>{renderPanel()}</div>
     </div>
   );
 };

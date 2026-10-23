@@ -21,8 +21,21 @@ ENV NODE_ENV=production
 # tzdata: a imagem "slim" não traz os dados de fuso horário por padrão —
 # sem isso, a variável de ambiente TZ (docker-compose.coolify.yml) seria
 # ignorada silenciosamente e o container continuaria rodando em UTC.
+#
+# libreoffice-{writer,calc,impress}: usado só pra converter Word/Excel/
+# PowerPoint/OpenDocument pra PDF sob demanda (visualização de documento
+# recebido/enviado no chat — ConvertDocumentToPdfService). --no-install-
+# recommends evita puxar pacote de ambiente gráfico/help em todos os
+# idiomas, que não servem pra uso headless. Aumenta bastante o tamanho da
+# imagem (centenas de MB) — ciente disso, é o trade-off aceito pra não
+# depender de serviço externo (Google/Microsoft) pra essa conversão.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends tzdata \
+  && apt-get install -y --no-install-recommends \
+       tzdata \
+       libreoffice-writer \
+       libreoffice-calc \
+       libreoffice-impress \
+       fonts-liberation2 \
   && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/node_modules ./node_modules

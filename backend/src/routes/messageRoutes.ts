@@ -4,6 +4,7 @@ import isAuth from "../middleware/isAuth";
 import uploadConfig from "../config/upload";
 
 import * as MessageController from "../controllers/MessageController";
+import * as DocumentPreviewController from "../controllers/DocumentPreviewController";
 
 const messageRoutes = Router();
 
@@ -113,6 +114,14 @@ messageRoutes.post(
   "/messages/:messageId/reactions",
   isAuth,
   MessageController.addReaction
+);
+
+// Converte documento (Word/Excel/PowerPoint/OpenDocument) pra PDF sob
+// demanda, pra visualização na caixa do chat
+messageRoutes.get(
+  "/messages/:messageId/document-preview",
+  isAuth,
+  DocumentPreviewController.show
 );
 
 export default messageRoutes;

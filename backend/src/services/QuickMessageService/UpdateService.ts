@@ -1,5 +1,6 @@
 import AppError from "../../errors/AppError";
 import QuickMessage from "../../models/QuickMessage";
+import SyncFromQuickMessageService from "../PromptFilesServices/SyncFromQuickMessageService";
 
 interface Data {
   shortcode: string;
@@ -36,6 +37,12 @@ const UpdateService = async (data: Data): Promise<QuickMessage> => {
     mediaPath,
     visao
   });
+
+  try {
+    await SyncFromQuickMessageService(record);
+  } catch (err) {
+    console.error("Falha ao sincronizar mensagem rápida com Arquivos da IA:", err);
+  }
 
   return record;
 };

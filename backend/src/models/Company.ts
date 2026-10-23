@@ -55,6 +55,13 @@ class Company extends Model<Company> {
   @Column({ defaultValue: "" })
   paymentMethod: string;
 
+  // Logo da empresa-cliente (upload próprio, não genérico/hardcoded — cada
+  // empresa-cliente do AtendeFlow tem a sua) — usada no cabeçalho de
+  // relatórios impressos, ex.: Termo de Cautela do Serviço Armaria. Ver
+  // CompanyController.uploadLogo.
+  @Column({ defaultValue: "" })
+  logoUrl: string;
+
   @Column
   lastLogin: Date;
 

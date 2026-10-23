@@ -1,48 +1,11 @@
-function notifyUpdateAvailable() {
-  Promise.all([
-    import('react'),
-    import('react-toastify'),
-    import('@material-ui/icons/Cached'),
-  ]).then(([{ default: React }, { toast }, { default: CachedIcon }]) => {
-    const reload = () => window.location.reload();
-
-    const UpdateToast = () => (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <CachedIcon fontSize="small" />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 600 }}>Nova versão disponível</div>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>
-            Atualize para ver as últimas novidades.
-          </div>
-        </div>
-        <button
-          onClick={reload}
-          style={{
-            background: '#fff',
-            color: '#1565c0',
-            border: 'none',
-            borderRadius: 4,
-            padding: '6px 12px',
-            fontWeight: 600,
-            fontSize: 13,
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          Atualizar agora
-        </button>
-      </div>
-    );
-
-    toast.info(<UpdateToast />, {
-      autoClose: false,
-      closeOnClick: false,
-      icon: false,
-      style: { background: '#1565c0', color: '#fff' },
-    });
-  });
-}
-
+// O aviso "Nova versão disponível" (toast com botão "Atualizar agora")
+// foi removido a pedido do cliente (v2.3.170) — o `reload()` do botão
+// derrubava o operador de volta pra tela inicial no meio de um
+// atendimento, obrigando a procurar o ticket de novo. O service worker
+// continua registrado e atualizando em segundo plano (skipWaiting +
+// clients.claim() em public/service-worker.js) — a aba só passa a usar a
+// versão nova na PRÓXIMA vez que recarregar sozinha (login, F5 manual),
+// nunca forçado por aqui.
 export function register() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -52,21 +15,6 @@ export function register() {
         .catch((error) => {
           console.error('Erro durante o registro do service worker:', error);
         });
-
-      // A primeira mudança de controller ocorre no registro inicial do SW
-      // (via clients.claim()) e não representa uma atualização real.
-      let hadControllerAtLoad = !!navigator.serviceWorker.controller;
-      let refreshing = false;
-
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!hadControllerAtLoad) {
-          hadControllerAtLoad = true;
-          return;
-        }
-        if (refreshing) return;
-        refreshing = true;
-        notifyUpdateAvailable();
-      });
     });
   }
 }

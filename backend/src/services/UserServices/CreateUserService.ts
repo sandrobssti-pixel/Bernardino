@@ -29,6 +29,8 @@ interface CreateUserRequest {
   defaultTicketsManagerWidth?: number;
   allowRealTime?: string;
   allowConnections?: string;
+  allowImport?: string;
+  allowExport?: string;
   canViewAllContacts?: boolean; // << adicionado
   financialAccess?: boolean;
   blockMultipleLogins?: boolean;
@@ -76,6 +78,8 @@ const CreateUserService = async ({
   defaultTicketsManagerWidth = 550,
   allowRealTime,
   allowConnections,
+  allowImport,
+  allowExport,
   canViewAllContacts,
   financialAccess,
   blockMultipleLogins = true,
@@ -164,6 +168,8 @@ const CreateUserService = async ({
       defaultTicketsManagerWidth,
       allowRealTime,
       allowConnections,
+      allowImport,
+      allowExport,
       canViewAllContacts: !!canViewAllContacts, // << persistência do novo campo
       financialAccess: !!financialAccess,
       blockMultipleLogins: !!blockMultipleLogins,

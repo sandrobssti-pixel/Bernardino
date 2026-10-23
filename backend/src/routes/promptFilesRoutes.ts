@@ -48,6 +48,13 @@ promptFilesRoutes.post(
   PromptFilesController.store
 );
 
+promptFilesRoutes.put(
+  "/prompt-files/:promptFileId",
+  isAuth,
+  upload.single("file"),
+  PromptFilesController.update
+);
+
 promptFilesRoutes.delete(
   "/prompt-files/:promptFileId",
   isAuth,

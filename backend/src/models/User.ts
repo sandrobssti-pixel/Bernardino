@@ -210,6 +210,22 @@ class User extends Model<User> {
   @Column
   allowConnections: string;
 
+  // Usuário comum só vê/usa os botões "Importar planilha" (Clientes/
+  // Fornecedores/Produtos, Vendas) se isso for ligado aqui — Admin sempre
+  // tem acesso, não depende desse campo (ver isAuth.ts). Mesmo padrão de
+  // allowConnections/allowRealTime acima (string "enabled"/"disabled").
+  @Default("disabled")
+  @Column
+  allowImport: string;
+
+  // Permissão separada de `allowImport` — usuário comum só vê os botões
+  // "Imprimir / Exportar PDF"/"Exportar Excel" das listas do Financeiro se
+  // isso for ligado aqui. 100% client-side (sem endpoint pra proteger), só
+  // controla visibilidade de botão — ver FinanceRecordList.js.
+  @Default("disabled")
+  @Column
+  allowExport: string;
+
   @Default(true)
   @Column(DataType.BOOLEAN)
   blockMultipleLogins: boolean;
@@ -238,6 +254,21 @@ class User extends Model<User> {
   @Default(false)
   @Column(DataType.BOOLEAN)
   supervisorPanelAccess: boolean;
+
+  // Acesso ao Despachante Bélico (gestão de processo CAC/Posse-Porte/
+  // Militar) — mesmo padrão do financialAccess/hrAccess/
+  // supervisorPanelAccess: só tem efeito se o plano incluir
+  // (Plan.useWeaponDispatch); Admin e Master sempre têm acesso quando o
+  // módulo está ativo, independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  weaponDispatchAccess: boolean;
+
+  // Acesso ao Serviço Armaria — mesmo padrão de weaponDispatchAccess acima
+  // (só tem efeito se Plan.useWeaponArmory estiver ligado).
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  weaponArmoryAccess: boolean;
 
   @Default("pt-BR")
   @Column(DataType.STRING)

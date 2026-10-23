@@ -83,12 +83,8 @@ else
   cp -r "$SOURCE_DIR"/. "$INSTALL_DIR/"
   rm -rf "$INSTALL_DIR/installers" "$INSTALL_DIR/package-lock.json"
 
-  # Mesma correção do install.sh pro "file:../shared/auth" — o shared/
-  # também precisa ficar atualizado como irmão do diretório de instalação.
-  SHARED_SOURCE_DIR="$(cd "$SOURCE_DIR/../shared" && pwd)"
-  SHARED_DEST_DIR="$(cd "$INSTALL_DIR/.." && pwd)/shared"
-  mkdir -p "$SHARED_DEST_DIR"
-  cp -r "$SHARED_SOURCE_DIR"/. "$SHARED_DEST_DIR/"
+  # O shared/ (toolkit-auth, "file:./shared/auth") agora vive dentro do
+  # próprio disk-monitor e já é copiado junto com o código-fonte acima.
 
   echo "Reinstalando dependências..."
   (cd "$INSTALL_DIR" && npm install --omit=dev --no-audit --no-fund)

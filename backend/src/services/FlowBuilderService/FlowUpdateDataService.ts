@@ -1,6 +1,7 @@
 import { FlowBuilderModel } from "../../models/FlowBuilder";
 import { WebhookModel } from "../../models/Webhook";
 import { randomString } from "../../utils/randomCode";
+import { encryptFlowNodesApiKeys } from "../../helpers/flowBuilderApiKeyCrypto";
 
 interface node {
     id: string,
@@ -39,12 +40,16 @@ const FlowUpdateDataService = async ({
 
     const currentSettings = (currentFlow?.flow as any)?.settings || null;
 
+    // v2.3.197 — cifra a API key de qualquer nó "openai" antes de gravar
+    // (ver flowBuilderApiKeyCrypto.ts) — o editor manda a API key em
+    // texto puro (ele não sabe nada sobre cifra), só o backend cifra na
+    // hora de salvar, igual já acontece com a tabela Prompts.
     const flow = await FlowBuilderModel.update({
         flow: {
-            nodes: bodyData.nodes,
+            nodes: encryptFlowNodesApiKeys(bodyData.nodes),
             connections: bodyData.connections,
             settings: bodyData.settings ?? currentSettings
-        } 
+        }
     },{
       where: {id: bodyData.idFlow, company_id: companyId}
     });

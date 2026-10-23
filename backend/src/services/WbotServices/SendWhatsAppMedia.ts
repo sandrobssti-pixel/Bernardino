@@ -490,6 +490,9 @@ if (isPrivate === true) {
     console.log(`ERRO AO ENVIAR MIDIA ${ticket.id} media ${media.originalname}`);
     Sentry.captureException(err);
     console.log(err);
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") {
+      throw new AppError("ERR_MEDIA_FILE_NOT_FOUND", 404);
+    }
     throw new AppError("ERR_SENDING_WAPP_MSG");
   }
 };

@@ -19,12 +19,15 @@ import CircularProgress from "@material-ui/core/CircularProgress";
 import Switch from "@material-ui/core/Switch";
 import MenuItem from "@material-ui/core/MenuItem";
 import Alert from "@material-ui/lab/Alert";
+import Chip from "@material-ui/core/Chip";
+import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 
 import { i18n } from "../../translate/i18n";
 
 import api from "../../services/api";
 import toastError from "../../errors/toastError";
 import { TagsContainer } from "../TagsContainer";
+import useFinance from "../../hooks/useFinance";
 // import AsyncSelect from "../AsyncSelect";
 
 const useStyles = makeStyles(theme => ({
@@ -286,6 +289,7 @@ const ContactModal = ({
 }) => {
 	const classes = useStyles();
 	const isMounted = useRef(true);
+	const finance = useFinance();
 
 	const initialState = {
 		name: "",
@@ -305,6 +309,9 @@ const ContactModal = ({
 	const [kanbanTags, setKanbanTags] = useState([]);
 	const [kanbanTagId, setKanbanTagId] = useState("");
 	const [kanbanError, setKanbanError] = useState(false);
+	const [financeAccess, setFinanceAccess] = useState(null);
+	const [linkedFinanceCustomer, setLinkedFinanceCustomer] = useState(null);
+	const [linkingFinanceCustomer, setLinkingFinanceCustomer] = useState(false);
 	useEffect(() => {
 		return () => {
 			isMounted.current = false;
@@ -345,6 +352,47 @@ const ContactModal = ({
 
 		fetchContact();
 	}, [contactId, open, initialValues]);
+
+	// Vínculo Contato <-> Cliente do Financeiro (ver docs/MANUAL_TECNICO.md):
+	// só mostra a opção pra quem tem acesso ao módulo (reaproveita o mesmo
+	// `finance.getAccess()` já usado na tela do Financeiro, em vez de
+	// replicar a regra Admin/Master/plano no frontend) e só faz sentido num
+	// Contato que já existe (não dá pra vincular um contato ainda não
+	// salvo).
+	useEffect(() => {
+		if (!open || !contactId) {
+			setFinanceAccess(null);
+			setLinkedFinanceCustomer(null);
+			return;
+		}
+
+		(async () => {
+			try {
+				const access = await finance.getAccess();
+				if (!isMounted.current) return;
+				setFinanceAccess(access);
+				if (access?.hasAccess) {
+					const customer = await finance.getCustomerByContact(contactId);
+					if (isMounted.current) setLinkedFinanceCustomer(customer);
+				}
+			} catch (err) {
+				if (isMounted.current) setFinanceAccess({ hasAccess: false });
+			}
+		})();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open, contactId]);
+
+	const handleLinkAsFinanceCustomer = async () => {
+		setLinkingFinanceCustomer(true);
+		try {
+			const customer = await finance.linkContactAsCustomer(contactId);
+			setLinkedFinanceCustomer(customer);
+			toast.success(i18n.t("contactModal.finance.linkSuccess"));
+		} catch (err) {
+			toastError(err);
+		}
+		setLinkingFinanceCustomer(false);
+	};
 
 	useEffect(() => {
 		if (!open || !requireFullRegistration || !ticketId) return;
@@ -436,6 +484,30 @@ const ContactModal = ({
 									<Alert severity="info" style={{ marginBottom: 16 }}>
 										{i18n.t("contactModal.form.fullRegistrationNotice")}
 									</Alert>
+								)}
+								{contactId && financeAccess?.hasAccess && (
+									<div style={{ marginBottom: 16 }}>
+										{linkedFinanceCustomer ? (
+											<Chip
+												icon={<CheckCircleIcon />}
+												label={i18n.t("contactModal.finance.linkedLabel")}
+												color="primary"
+												variant="outlined"
+											/>
+										) : (
+											<Button
+												variant="outlined"
+												color="primary"
+												size="small"
+												disabled={linkingFinanceCustomer}
+												onClick={handleLinkAsFinanceCustomer}
+											>
+												{linkingFinanceCustomer
+													? `${i18n.t("contactModal.finance.linkButton")}...`
+													: i18n.t("contactModal.finance.linkButton")}
+											</Button>
+										)}
+									</div>
 								)}
 								<Typography variant="subtitle1" className={classes.sectionTitle}>
 									{i18n.t("contactModal.form.mainInfo")}

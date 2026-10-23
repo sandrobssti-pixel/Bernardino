@@ -218,7 +218,16 @@ const PromptSchema = Yup.object().shape({
     .min(0, "Mínimo 0")
     .max(1, "Máximo 1")
     .required("Informe a temperatura"),
-  apiKey: Yup.string().required("Informe a API Key"),
+  // v2.3.195 — a API key não volta mais em texto puro do backend (ver
+  // PromptController.maskPrompt); só é obrigatória quando NÃO tem
+  // nenhuma já salva (`apiKeyConfigured`, preenchido ao carregar um
+  // Assistente IA existente). Deixar o campo vazio numa edição mantém a
+  // chave atual; só obriga digitar algo numa criação nova.
+  apiKey: Yup.string().when("apiKeyConfigured", {
+    is: true,
+    then: Yup.string().notRequired(),
+    otherwise: Yup.string().required("Informe a API Key"),
+  }),
   queueId: Yup.number()
     .transform((value, originalValue) =>
       originalValue === "" || originalValue === null ? undefined : value
@@ -257,6 +266,7 @@ const PromptModal = ({ open, onClose, promptId }) => {
     maxTokens: 100,
     temperature: 1,
     apiKey: "",
+    apiKeyConfigured: false,
     queueId: "",
     maxMessages: 10
   };
@@ -301,8 +311,9 @@ const PromptModal = ({ open, onClose, promptId }) => {
 
   const handleSavePrompt = async (values, { setSubmitting, setErrors }) => {
     try {
+      const { apiKeyConfigured, ...restValues } = values;
       const promptData = {
-        ...values,
+        ...restValues,
         // garante que enviamos número (Formik pode manter como string em inputs type=number)
         temperature: Number(values.temperature),
         // se não for o modelo de voz, força "texto" só pra garantir
@@ -417,11 +428,16 @@ const PromptModal = ({ open, onClose, promptId }) => {
                     name="apiKey"
                     type={showApiKey ? "text" : "password"}
                     error={touched.apiKey && Boolean(errors.apiKey)}
-                    helperText={touched.apiKey && errors.apiKey}
+                    helperText={
+                      (touched.apiKey && errors.apiKey) ||
+                      (values.apiKeyConfigured
+                        ? "Já tem uma chave salva — deixe em branco pra mantê-la, ou digite uma nova pra trocar."
+                        : "")
+                    }
                     variant="outlined"
                     margin="dense"
                     fullWidth
-                    required
+                    required={!values.apiKeyConfigured}
                     InputProps={{
                       endAdornment: (
                         <InputAdornment position="end">

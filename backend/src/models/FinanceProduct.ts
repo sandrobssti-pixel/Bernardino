@@ -13,6 +13,7 @@ import {
   DataType
 } from "sequelize-typescript";
 import Company from "./Company";
+import FinanceSupplier from "./FinanceSupplier";
 
 // Cadastro de produtos/serviços do módulo Financeiro (Fase 1 do roadmap —
 // ver docs/MANUAL_TECNICO.md, seção 6.2). Campos como NCM já ficam previstos
@@ -58,6 +59,38 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   costPrice: string;
 
+  // Alíquota de imposto única (%), usada pro dashboard de lucro (v2.3.117) —
+  // lucro líquido = preço de venda - custo - (preço de venda × taxRate/100).
+  // Simplificação de propósito (um % só, não o detalhamento de ICMS/PIS/
+  // COFINS/IPI/ISS separados) — decisão confirmada com o cliente.
+  @Default("0")
+  @Column
+  taxRate: string;
+
+  // Reforma Tributária 2027 (CBS/IBS) — CST e alíquotas estimadas, mais o
+  // indicador de redução de 60% pra curso/treinamento. Sem efeito nenhum
+  // enquanto `FiscalConfig.reform2027Enabled` for false — ver
+  // `Iva2027Service.ts`.
+  @Default("")
+  @Column
+  ivaCstCbs: string;
+
+  @Default("")
+  @Column
+  ivaCstIbs: string;
+
+  @Default("0")
+  @Column
+  ivaCbsRate: string;
+
+  @Default("0")
+  @Column
+  ivaIbsRate: string;
+
+  @Default(false)
+  @Column
+  ivaEducationReduction: boolean;
+
   @Default(false)
   @Column
   controlStock: boolean;
@@ -66,6 +99,14 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Column
   stockQuantity: number;
 
+  // Aviso de estoque baixo (Painel Financeiro) dispara quando
+  // `stockQuantity <= minStockQuantity` — `0` (padrão) significa "sem
+  // aviso configurado", nunca entra na lista de estoque baixo mesmo
+  // zerado, até o cliente definir um mínimo de propósito pra esse produto.
+  @Default(0)
+  @Column
+  minStockQuantity: number;
+
   @Default("")
   @Column(DataType.TEXT)
   notes: string;
@@ -73,6 +114,392 @@ class FinanceProduct extends Model<FinanceProduct> {
   @Default(true)
   @Column
   active: boolean;
+
+  // Foto do produto (v2.3.167, pedido do cliente) — mesmo padrão de
+  // WeaponDispatchClient.photoUrl: upload via rota dedicada depois do
+  // produto já existir (precisa de um id pra saber em qual pasta
+  // gravar), nunca parte do payload JSON do cadastro em si.
+  @Default("")
+  @Column
+  photoUrl: string;
+
+  // --------------------------------------------------------------------
+  // "3 - Fornecedor / Produção" (v2.3.168) — modelo do sistema de
+  // referência do cliente (print de tela). `mainSupplierId` reaproveita o
+  // cadastro de Fornecedor já existente (FinanceSupplier) em vez de um
+  // campo de texto solto — pedido do cliente era só "Distribuidor/
+  // Fornecedor Principal", mas a empresa já tem cadastro de fornecedor
+  // de verdade, não faz sentido duplicar.
+  // --------------------------------------------------------------------
+
+  @ForeignKey(() => FinanceSupplier)
+  @Column
+  mainSupplierId: number;
+
+  @BelongsTo(() => FinanceSupplier)
+  mainSupplier: FinanceSupplier;
+
+  @Default("")
+  @Column
+  productionLeadTime: string;
+
+  @Default("")
+  @Column
+  designCode: string;
+
+  @Default("")
+  @Column
+  productionScale: string;
+
+  @Default("")
+  @Column
+  manufacturerCnpj: string;
+
+  // --------------------------------------------------------------------
+  // "1 - Dados Gerais" complementar (v2.3.168) — campos do sistema de
+  // referência que não existiam ainda aqui. `sku` já cobre "Código
+  // Interno" (não duplicado).
+  // --------------------------------------------------------------------
+
+  @Default("")
+  @Column
+  barcodeGtin: string;
+
+  @Default("")
+  @Column
+  supplierCode: string;
+
+  @Default("")
+  @Column
+  originalCode: string;
+
+  @Default("")
+  @Column
+  similarProductCode: string;
+
+  @Default("")
+  @Column
+  colorSizeFlavor: string;
+
+  @Column
+  weight: number;
+
+  @Default("")
+  @Column
+  category: string;
+
+  @Default("")
+  @Column
+  subcategory: string;
+
+  @Default("")
+  @Column
+  packaging: string;
+
+  @Default("")
+  @Column
+  productFamily: string;
+
+  @Default("")
+  @Column
+  storageLocation: string;
+
+  // Tabela 1 de preço já é o `price` existente — Tabelas 2 a 5 são
+  // listas de preço alternativas (ex.: atacado, promoção), mesmo padrão
+  // string (não float) do resto do cadastro.
+  @Default("0")
+  @Column
+  priceTable2: string;
+
+  @Default("0")
+  @Column
+  priceTable3: string;
+
+  @Default("0")
+  @Column
+  priceTable4: string;
+
+  @Default("0")
+  @Column
+  priceTable5: string;
+
+  @Default(0)
+  @Column
+  reservedStock: number;
+
+  @Default(0)
+  @Column
+  idealStock: number;
+
+  // "Por Lote" (quantidade por lote) — separado do switch `lotControl`
+  // abaixo ("Controle por Lote", se esse produto rastreia lote ou não).
+  @Default(0)
+  @Column
+  stockByLot: number;
+
+  @Default(false)
+  @Column
+  lotControl: boolean;
+
+  @Default(false)
+  @Column
+  isComposite: boolean;
+
+  @Default(false)
+  @Column
+  isRawMaterial: boolean;
+
+  @Default(false)
+  @Column
+  isEquipment: boolean;
+
+  @Default(false)
+  @Column
+  soldByWeight: boolean;
+
+  @Default("0")
+  @Column
+  commissionRate: string;
+
+  @Default("0")
+  @Column
+  maxDiscountMargin: string;
+
+  @Default(0)
+  @Column
+  loyaltyPoints: number;
+
+  @Default(0)
+  @Column
+  redemptionPoints: number;
+
+  // --------------------------------------------------------------------
+  // Cadastro de armas/munições/insumos controlados (clube de tiro, loja de
+  // armas, armaria) — type "weapon"/"ammunition". Normas de referência:
+  // Decreto 11.615/2023, Decreto 12.345/2024, Estatuto do Desarmamento
+  // (Lei 10.826/2003). Campos só preenchidos/exibidos quando aplicável
+  // (financeConfig.js, `visibleWhen`) — ver docs/MANUAL_TECNICO.md.
+  // --------------------------------------------------------------------
+
+  // Pistola, revólver, fuzil, carabina, espingarda, submetralhadora...
+  @Default("")
+  @Column
+  weaponType: string;
+
+  // Fabricante (Taurus, Glock, CBC, Imbramun...) — texto livre, não select,
+  // pra não travar em uma lista fixa de marcas.
+  @Default("")
+  @Column
+  brand: string;
+
+  @Default("")
+  @Column
+  model: string;
+
+  // Calibre nominal (ex.: ".40 S&W", "9mm", "12", "5.56x45mm") — usado
+  // tanto em arma quanto em munição/insumo.
+  @Default("")
+  @Column
+  caliber: string;
+
+  // Número de série da arma — único por empresa (índice parcial na
+  // migration), obrigatório quando type = "weapon" (FinanceProductService).
+  @Column
+  serialNumber: string;
+
+  @Column
+  cartridgeCapacity: number;
+
+  // Semiautomática, repetição, ação simples, ação dupla, automática...
+  @Default("")
+  @Column
+  operatingMode: string;
+
+  @Column
+  barrelCount: number;
+
+  // Comprimento do cano, em centímetros.
+  @Column
+  barrelLength: number;
+
+  // "Lisa" (espingarda) ou "raiada" (pistola/revólver/fuzil/carabina).
+  @Default("")
+  @Column
+  boreType: string;
+
+  // Energia cinética da munição, em Joules — um dos critérios usados pelos
+  // decretos citados pra classificar uso permitido x restrito.
+  @Column
+  kineticEnergyJ: number;
+
+  // "Permitido" ou "Restrito" — classificação de uso regulatória. Campo
+  // informativo preenchido manualmente: a validação final de qual
+  // classificação se aplica a cada arma/munição é responsabilidade do
+  // usuário/especialista legal, não calculada automaticamente aqui.
+  @Default("")
+  @Column
+  useClassification: string;
+
+  // Número de registro no SIGMA/SINARM (Exército).
+  @Default("")
+  @Column
+  sigmaRegistrationNumber: string;
+
+  // "Nacional" ou "Importada".
+  @Default("")
+  @Column
+  origin: string;
+
+  // Situação da arma: em estoque, vendida, em manutenção, baixada...
+  @Default("")
+  @Column
+  weaponStatus: string;
+
+  // Munição/insumo controlado (CBC, Imbramun) — lote de fabricação, pra
+  // rastreabilidade.
+  @Default("")
+  @Column
+  manufacturingLotNumber: string;
+
+  // Código de barras/código da embalagem da munição/insumo.
+  @Default("")
+  @Column
+  packageBarcode: string;
+
+  // --------------------------------------------------------------------
+  // Aba "2 - Dados Fiscais" (v2.3.167) — modelo exato que o cliente mandou
+  // de um sistema de referência (print de tela), confirmado contra 4 notas
+  // fiscais reais do cliente (venda a consumidor + compras de fornecedores
+  // CBC/Pavei/Inbramun). IPI foi pedido explicitamente "zerado" (fora de
+  // escopo, nenhum campo de IPI aqui — ver seção 145 do manual técnico).
+  // Nem todo campo abaixo vai de verdade no payload da Focus NFe ainda —
+  // ver aviso de confiança em FocusNFeService.ts/buildIndicadores.
+  // --------------------------------------------------------------------
+
+  @Default(false)
+  @Column
+  icmsExempt: boolean;
+
+  @Default(false)
+  @Column
+  icmsSubstitution: boolean;
+
+  // Origem da mercadoria (Sefaz) — "0" a "8". Confirmado variar de
+  // verdade por produto (visto "0" e "5" em notas reais do mesmo
+  // fornecedor), nunca fixar um valor só.
+  @Default("0")
+  @Column
+  icmsOrigin: string;
+
+  // CSOSN (Simples Nacional) — um valor pra quando o destinatário é
+  // Contribuinte do ICMS, outro pra Não Contribuinte (indIEDest da Venda,
+  // ver Sale.ieIndicator) — mesma ideia do sistema de referência do
+  // cliente. Defaults 101/102 batem com o que já era hardcoded antes
+  // desta entrega e com a nota real de venda (CSOSN 0102 pra consumidor
+  // final).
+  @Default("101")
+  @Column
+  csosnContribuinte: string;
+
+  @Default("102")
+  @Column
+  csosnNaoContribuinte: string;
+
+  // Modalidade de determinação da BC do ICMS — "0" a "3". "3" (Valor da
+  // Operação) é o padrão mais comum, confirmado no print do cliente.
+  @Default("3")
+  @Column
+  icmsBcModality: string;
+
+  // Modalidade de determinação da BC do ICMS-ST — "0" a "6". Só relevante
+  // quando `icmsSubstitution` true.
+  @Default("")
+  @Column
+  icmsStBcModality: string;
+
+  @Default("0")
+  @Column
+  icmsRate: string;
+
+  // "ICMS ECF" — campo do sistema de referência do cliente, formato não
+  // documentado por ele; guardado como texto livre, sem uso no payload da
+  // Focus NFe ainda (não confirmado contra nenhuma nota real).
+  @Default("")
+  @Column
+  icmsEcf: string;
+
+  @Default("0")
+  @Column
+  icmsDesoneration: string;
+
+  @Default("0")
+  @Column
+  icmsStRate: string;
+
+  // IVA-ST / MVA (Margem de Valor Agregado) — só relevante quando
+  // `icmsSubstitution` true.
+  @Default("0")
+  @Column
+  icmsStMva: string;
+
+  @Default("")
+  @Column
+  taxableUnit: string;
+
+  // "Valor Aproximado dos Tributos" (Lei da Transparência, Lei 12.741/
+  // 2012) — v2.3.183, pedido do cliente após comparar com nota real
+  // emitida no sistema antigo ("Total de Tributos Federais, Estaduais e
+  // Municipais: R$ 166,21 (40,05%) Fonte: IBPT A906AF", no rodapé de
+  // Dados Adicionais). Não existe campo estruturado pronto pra isso na
+  // NF-e (o oficial, vTotTrib, exige validação item-a-item que este
+  // sistema não implementa) — aqui vai como TEXTO no rodapé da nota,
+  // igual ao sistema antigo. ⚠️ Preenchimento manual, responsabilidade do
+  // usuário: a alíquota vem da tabela do IBPT (atualizada a cada 6
+  // meses, por NCM) — este sistema não calcula nem valida contra a
+  // tabela oficial, só usa o número informado aqui pra montar o texto.
+  @Default("0")
+  @Column
+  ibptRate: string;
+
+  @Default("")
+  @Column
+  ibptSource: string;
+
+  // CFOP padrão pra venda dentro da Bahia (interna) — usado como default
+  // ao escolher o produto numa venda (ver SaleModal.js), não trava o CFOP
+  // do item (sempre editável por venda).
+  @Default("5102")
+  @Column
+  cfopPrincipal: string;
+
+  // CFOP padrão pra venda interestadual (fora da BA) — mesma lógica
+  // acima, usado quando `Sale.operationType` for "interstate".
+  @Default("6102")
+  @Column
+  cfopOutState: string;
+
+  @Default("")
+  @Column
+  taxArticle: string;
+
+  @Default("")
+  @Column
+  fiscalBenefitCode: string;
+
+  // "Utilizar Alíq. de Fundo de Combate à Pobreza (FCP)" — guardado por
+  // enquanto só como registro/exibição. Nenhuma das 4 notas reais usadas
+  // pra validar esta entrega teve FCP destacado, então NÃO está sendo
+  // mandado no payload da Focus NFe ainda (sem percentual confirmado pra
+  // usar com segurança) — ver seção 145 do manual técnico.
+  @Default(false)
+  @Column
+  usesFcp: boolean;
+
+  // "Desconto Condicional na NFe/NFCe" — informativo por enquanto (o
+  // sistema ainda não tem campo de desconto por item de venda).
+  @Default(false)
+  @Column
+  conditionalDiscountNfe: boolean;
 
   @ForeignKey(() => Company)
   @Column

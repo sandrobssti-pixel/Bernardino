@@ -48,6 +48,7 @@ import officialCampaignRoutes from "./officialCampaignRoutes";
 
 import promptRoutes from "./promptRouter";
 import promptFilesRoutes from "./promptFilesRoutes";
+import promptBlockedNumberRoutes from "./promptBlockedNumberRoutes";
 import statisticsRoutes from "./statisticsRoutes";
 import scheduleMessageRoutes from "./ScheduledMessagesRoutes";
 import flowDefaultRoutes from "./flowDefaultRoutes";
@@ -65,6 +66,9 @@ import financeRoutes from "./financeRoutes";
 import fiscalRoutes from "./fiscalRoutes";
 import hrRoutes from "./hrRoutes";
 import supervisorPanelRoutes from "./supervisorPanelRoutes";
+import weaponDispatchRoutes from "./weaponDispatchRoutes";
+import serviceRoutes from "./serviceRoutes";
+import weaponArmoryRoutes from "./weaponArmoryRoutes";
 
 const routes = Router();
 
@@ -118,6 +122,7 @@ routes.use(autoImportContactsRoutes);
 
 routes.use(promptRoutes);
 routes.use(promptFilesRoutes);
+routes.use(promptBlockedNumberRoutes);
 routes.use(statisticsRoutes);
 routes.use(companySettingsRoutes);
 routes.use(scheduleMessageRoutes);
@@ -135,5 +140,8 @@ routes.use(financeRoutes);
 routes.use(fiscalRoutes);
 routes.use(hrRoutes);
 routes.use(supervisorPanelRoutes);
+routes.use(weaponDispatchRoutes);
+routes.use(serviceRoutes);
+routes.use(weaponArmoryRoutes);
 
 export default routes;

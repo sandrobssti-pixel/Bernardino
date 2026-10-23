@@ -42,6 +42,7 @@ import CompaniesSettings from "../models/CompaniesSettings";
 import LogTicket from "../models/LogTicket";
 import Prompt from "../models/Prompt";
 import PromptFiles from "../models/PromptFiles";
+import PromptBlockedNumber from "../models/PromptBlockedNumber";
 import Partner from "../models/Partner";
 import ContactWallet from "../models/ContactWallet";
 import ScheduledMessages from "../models/ScheduledMessages";
@@ -66,14 +67,24 @@ import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceReceivable from "../models/FinanceReceivable";
+import FinancePaymentConfig from "../models/FinancePaymentConfig";
 import FiscalConfig from "../models/FiscalConfig";
 import Sale from "../models/Sale";
 import SaleItem from "../models/SaleItem";
 import FiscalDocument from "../models/FiscalDocument";
+import FiscalDocumentEmailLog from "../models/FiscalDocumentEmailLog";
+import FiscalNumberingInvalidation from "../models/FiscalNumberingInvalidation";
 import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
+import WeaponDispatchClient from "../models/WeaponDispatchClient";
+import WeaponDispatchProcess from "../models/WeaponDispatchProcess";
+import WeaponDispatchStatusHistory from "../models/WeaponDispatchStatusHistory";
+import WeaponDispatchAppointment from "../models/WeaponDispatchAppointment";
+import WeaponDispatchGovPasswordAccessLog from "../models/WeaponDispatchGovPasswordAccessLog";
+import Service from "../models/Service";
+import WeaponArmoryService from "../models/WeaponArmoryService";
 
 // eslint-disable-next-line
 const dbConfig = require("../config/database");
@@ -124,6 +135,7 @@ const models = [
   LogTicket,
   Prompt,
   PromptFiles,
+  PromptBlockedNumber,
   Partner,
   ContactWallet,
   ScheduledMessages,
@@ -148,14 +160,24 @@ const models = [
   FinanceProduct,
   FinanceExpense,
   FinanceReceivable,
+  FinancePaymentConfig,
   FiscalConfig,
   Sale,
   SaleItem,
   FiscalDocument,
+  FiscalDocumentEmailLog,
+  FiscalNumberingInvalidation,
   JobPosting,
   JobApplication,
   SlaRule,
-  Notification
+  Notification,
+  WeaponDispatchClient,
+  WeaponDispatchProcess,
+  WeaponDispatchStatusHistory,
+  WeaponDispatchAppointment,
+  WeaponDispatchGovPasswordAccessLog,
+  Service,
+  WeaponArmoryService
 ];
 
 sequelize.addModels(models);

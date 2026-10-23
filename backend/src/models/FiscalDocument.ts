@@ -34,7 +34,9 @@ class FiscalDocument extends Model<FiscalDocument> {
   @Column
   type: string;
 
-  // "processing" | "authorized" | "error" | "cancelled"
+  // "processing" | "authorized" | "error" | "cancelled" | "pending_correction"
+  // (último, v2.3.166 — marcação manual sobre um "error", ver
+  // FiscalDocumentService.togglePendingCorrection; nunca vem do gateway)
   @Default("processing")
   @Column
   status: string;
@@ -66,6 +68,20 @@ class FiscalDocument extends Model<FiscalDocument> {
   @Default("")
   @Column(DataType.TEXT)
   errorMessage: string;
+
+  // Resposta BRUTA do gateway (JSON completo), pra diagnosticar quando o
+  // `errorMessage` (já processado/resumido) não traz detalhe suficiente —
+  // ver docs/MANUAL_TECNICO.md, seção 103.
+  @Column(DataType.JSONB)
+  raw: unknown;
+
+  // "sandbox" | "production" — qual ambiente estava ativo
+  // (`FiscalConfigService.isProductionActive`) no momento da emissão.
+  // Documento "" (vazio) é legado, de antes desta coluna existir — tratado
+  // como não-produção pra fins de exclusão (ver `SaleService.remove`).
+  @Default("")
+  @Column
+  environment: string;
 
   @Column(DataType.DATE)
   issuedAt: Date;

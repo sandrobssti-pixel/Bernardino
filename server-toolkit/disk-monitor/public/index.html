@@ -307,6 +307,10 @@
     padding: 10px 16px; border-radius: 8px; display: none; max-width: 320px;
   }
   /* ---------- Painel do NAS ---------- */
+  .nas-dot { display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; vertical-align:middle; background: var(--text-muted); }
+  .nas-dot.on { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .nas-dot.off { background: var(--crit); }
+  .nas-status-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:8px; }
   .roots-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
   .root-btn {
     background: rgba(148,163,184,0.1); color: var(--text);
@@ -472,6 +476,13 @@
   <div class="panel" style="margin-bottom:16px">
     <h2 data-i18n="processConsumptionTitle">Consumo por processo</h2>
     <canvas id="processChart"></canvas>
+  </div>
+
+  <div class="panel" id="nasStatusPanel" style="display:none; margin-bottom:16px">
+    <h2 data-i18n="nasStatusTitle">Status do NAS</h2>
+    <div id="nasStatusList"></div>
+    <div class="sub" id="nasStatusChecked"></div>
+    <button id="nasStatusRefreshBtn" data-i18n="nasStatusRefreshBtn">↻ Atualizar</button>
   </div>
 
   <div id="nasSection" style="display:none">
@@ -724,6 +735,8 @@ const translations = {
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} livres)`,
+    nasStatusTitle: "Status do NAS", nasStatusOnline: "Online", nasStatusOffline: "Offline",
+    nasStatusRefreshBtn: "↻ Atualizar", nasStatusCheckedAt: "Verificado às", nasStatusNoIp: "IP não detectado",
     filesTitle: "Arquivos do NAS",
     thName: "Nome", thSize: "Tamanho", thModified: "Modificado",
     uploadBtn: "Enviar arquivo",
@@ -945,6 +958,8 @@ const translations = {
     chartCpuLabel: "Uso de CPU (%)",
     chartMemLabel: "Uso de RAM (%)",
     diskDetail: (used, total, free) => `${used} de ${total} usados (${free} libres)`,
+    nasStatusTitle: "Estado del NAS", nasStatusOnline: "En línea", nasStatusOffline: "Sin conexión",
+    nasStatusRefreshBtn: "↻ Actualizar", nasStatusCheckedAt: "Verificado a las", nasStatusNoIp: "IP no detectada",
     filesTitle: "Archivos del NAS",
     thName: "Nombre", thSize: "Tamaño", thModified: "Modificado",
     uploadBtn: "Enviar archivo",
@@ -1166,6 +1181,8 @@ const translations = {
     chartCpuLabel: "CPU usage (%)",
     chartMemLabel: "RAM usage (%)",
     diskDetail: (used, total, free) => `${used} of ${total} used (${free} free)`,
+    nasStatusTitle: "NAS status", nasStatusOnline: "Online", nasStatusOffline: "Offline",
+    nasStatusRefreshBtn: "↻ Refresh", nasStatusCheckedAt: "Checked at", nasStatusNoIp: "IP not detected",
     filesTitle: "NAS files",
     thName: "Name", thSize: "Size", thModified: "Modified",
     uploadBtn: "Upload file",
@@ -1293,6 +1310,7 @@ function setLang(lang) {
   // tenha alguma ferramenta de disco aberta (ao contrário do refresh
   // periódico automático, que nunca deve fazer isso).
   loadDiskTopology(true);
+  loadNasStatus();
   if (nasConfigured) {
     renderNasRoots();
     loadNasFolder();
@@ -2805,6 +2823,34 @@ document.getElementById("nasUploadBtn").addEventListener("click", async () => {
   }
 });
 
+async function loadNasStatus() {
+  const panel = document.getElementById("nasStatusPanel");
+  const btn = document.getElementById("nasStatusRefreshBtn");
+  btn.disabled = true;
+  try {
+    const res = await apiFetch("/api/nas/status");
+    if (!res.ok) { panel.style.display = "none"; return; }
+    const data = await res.json();
+    panel.style.display = "block";
+    const esc = v => String(v).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    document.getElementById("nasStatusList").innerHTML = data.nas.length
+      ? data.nas.map(n => `
+        <div class="nas-status-row">
+          <span><span class="nas-dot ${n.online ? "on" : "off"}"></span><strong>${esc(n.ip)}</strong></span>
+          <span>${n.online ? t("nasStatusOnline") + (n.latencyMs != null ? ` (${n.latencyMs} ms)` : "") : t("nasStatusOffline")}</span>
+          <span class="sub">${esc(n.sources.join(", "))}</span>
+        </div>`).join("")
+      : `<div class="nas-status-row"><span class="nas-dot"></span><span class="sub">${t("nasStatusNoIp")}</span></div>`;
+    document.getElementById("nasStatusChecked").textContent =
+      `${t("nasStatusCheckedAt")} ${new Date(data.checkedAt).toLocaleTimeString(LOCALE_MAP[currentLang] || "pt-BR")}`;
+  } catch (err) {
+    console.error("Falha ao carregar status do NAS:", err);
+  } finally {
+    btn.disabled = false;
+  }
+}
+document.getElementById("nasStatusRefreshBtn").addEventListener("click", loadNasStatus);
+
 async function loadNasRoots() {
   try {
     const res = await apiFetch("/api/nas/roots");
@@ -3349,11 +3395,13 @@ bindDiskCardActions("usbDisksGrid");
   await loadProcesses();
   await loadLive();
   await loadNasRoots();
+  loadNasStatus();
   if (nasConfigured) {
     await loadNasFolder();
     await loadDsmDisks();
   }
   setInterval(loadStatus, 30000);
+  setInterval(loadNasStatus, 30000);
   setInterval(loadRaidHealth, 30000);
   // Processos e CPU/RAM/discos mudam rápido — intervalo mais curto pra dar
   // sensação de "tempo real" de verdade, sem sobrecarregar o servidor.

@@ -1,12 +1,23 @@
 import { Request, Response } from "express";
 import AppError from "../errors/AppError";
 import EnsureFinancialAccess from "../services/FinanceService/EnsureFinancialAccess";
+import EnsurePaymentAccess from "../services/FinanceService/EnsurePaymentAccess";
 import * as FinanceReceivableService from "../services/FinanceService/FinanceReceivableService";
+import * as FinanceReceivablePaymentService from "../services/FinanceService/FinanceReceivablePaymentService";
 
 const ensureAccess = async (req: Request): Promise<void> => {
   const allowed = await EnsureFinancialAccess(req.user as any);
   if (!allowed) {
     throw new AppError("ERR_NO_FINANCIAL_MODULE_ACCESS", 403);
+  }
+};
+
+// Cobrança via gateway é um add-on à parte do Financeiro (Plan.usePayment)
+// — gate adicional, só nessas duas ações (ver EnsurePaymentAccess).
+const ensurePaymentAccess = async (req: Request): Promise<void> => {
+  const allowed = await EnsurePaymentAccess(req.user as any);
+  if (!allowed) {
+    throw new AppError("ERR_NO_PAYMENT_MODULE_ACCESS", 403);
   }
 };
 
@@ -62,4 +73,33 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
 
   await FinanceReceivableService.remove(id, companyId);
   return res.status(200).json({ message: "FinanceReceivable deleted" });
+};
+
+// Gera cobrança via gateway (Mercado Pago e/ou Asaas, os dois podem estar
+// ligados ao mesmo tempo — ver FinanceReceivablePaymentService.resolveProvider)
+// — ver docs/MANUAL_TECNICO.md.
+export const generatePix = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  await ensurePaymentAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+  const { provider } = req.body;
+
+  const record = await FinanceReceivablePaymentService.generatePixCharge(id, companyId, provider);
+  return res.status(200).json(record);
+};
+
+export const generateBoleto = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  await ensurePaymentAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+  const { provider } = req.body;
+
+  const record = await FinanceReceivablePaymentService.generateBoletoCharge(
+    id,
+    companyId,
+    provider
+  );
+  return res.status(200).json(record);
 };

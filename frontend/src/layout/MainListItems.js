@@ -40,6 +40,19 @@ import CakeIcon from "@material-ui/icons/Cake";
 import ForumIcon from "@material-ui/icons/Forum";
 import LocalAtmIcon from "@material-ui/icons/LocalAtm";
 import WorkOutlineIcon from "@material-ui/icons/WorkOutline";
+import ReceiptIcon from "@material-ui/icons/Receipt";
+import MonetizationOnIcon from "@material-ui/icons/MonetizationOn";
+import ShoppingCartIcon from "@material-ui/icons/ShoppingCart";
+import StoreIcon from "@material-ui/icons/Store";
+import LocalShippingIcon from "@material-ui/icons/LocalShipping";
+import GavelIcon from "@material-ui/icons/Gavel";
+import FlagIcon from "@material-ui/icons/Flag";
+import PublicIcon from "@material-ui/icons/Public";
+import BuildIcon from "@material-ui/icons/Build";
+import NatureIcon from "@material-ui/icons/Nature";
+import SecurityIcon from "@material-ui/icons/Security";
+import RoomServiceIcon from "@material-ui/icons/RoomService";
+import BuildOutlinedIcon from "@material-ui/icons/BuildOutlined";
 import {
   AllInclusive,
   AttachFile,
@@ -261,7 +274,14 @@ function ListItemLink(props) {
   const classes = useStyles();
   const { activeMenu } = useActiveMenu();
   const location = useLocation();
-  const isActive = !href && (activeMenu === to || location.pathname === to);
+  // Sub-itens do Financeiro (ver "Financeiro" em MainListItems) usam a
+  // mesma rota com query strings diferentes (`/financeiro?tab=products`) —
+  // `location.pathname` sozinho não diferencia entre eles.
+  const isActive =
+    !href &&
+    (activeMenu === to ||
+      location.pathname === to ||
+      (to && to.includes("?") && `${location.pathname}${location.search}` === to));
   const iconColor = iconColors[iconKey] || iconColors.default;
 
   // Para links externos (ex.: manual técnico) renderiza uma <a> normal em vez
@@ -437,6 +457,12 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   const [connectionWarning, setConnectionWarning] = useState(false);
   const [openCampaignSubmenu, setOpenCampaignSubmenu] = useState(false);
   const [openDashboardSubmenu, setOpenDashboardSubmenu] = useState(false);
+  const [openFinanceiroSubmenu, setOpenFinanceiroSubmenu] = useState(
+    location.pathname.startsWith("/financeiro")
+  );
+  const [openFinanceiroProductsSubmenu, setOpenFinanceiroProductsSubmenu] = useState(
+    location.pathname.startsWith("/financeiro") && location.search.includes("tab=products")
+  );
   const [showCampaigns, setShowCampaigns] = useState(false);
   const [showKanban, setShowKanban] = useState(false);
   const [showOpenAi, setShowOpenAi] = useState(false);
@@ -445,6 +471,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
   const [showSchedules, setShowSchedules] = useState(false);
   const [showInternalChat, setShowInternalChat] = useState(false);
   const [showExternalApi, setShowExternalApi] = useState(false);
+  const [showFlowbuilder, setShowFlowbuilder] = useState(false);
   const [hasTicketUnread, setHasTicketUnread] = useState(false);
   const [hasTaskNotification, setHasTaskNotification] = useState(false);
 
@@ -511,6 +538,8 @@ const MainListItems = ({ collapsed, drawerClose }) => {
     location.pathname.startsWith("/flowbuilders") ||
     location.pathname.startsWith("/flowbuilder");
 
+  const isFinanceiroRouteActive = location.pathname.startsWith("/financeiro");
+
   const isSubscriptionExpired =
     user?.company?.id !== 1 &&
     Boolean(user?.company?.dueDate) &&
@@ -576,6 +605,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
           setShowSchedules(true);
           setShowInternalChat(true);
           setShowExternalApi(true);
+          setShowFlowbuilder(true);
         } else {
           // Empresa sem plano vinculado (dado legado — ver
           // docs/MANUAL_TECNICO.md sobre o bug de "não aparece o plano"):
@@ -590,6 +620,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
           setShowSchedules(!!plan?.useSchedules);
           setShowInternalChat(!!plan?.useInternalChat);
           setShowExternalApi(!!plan?.useExternalApi);
+          setShowFlowbuilder(!!plan?.useFlowbuilder);
         }
       } catch (error) {
         if (error?.response?.status !== 401) {
@@ -1202,21 +1233,23 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               />
             )}
 
-            <Can
-              role={user.profile}
-              perform="dashboard:view"
-              yes={() => (
-                <ListItemLink
-                  to="/flowbuilders/conversation"
-                  primary={i18n.t(
-                    "mainDrawer.listItems.flowbuilder"
-                  )}
-                  icon={<Webhook />}
-                  iconKey="flowbuilder"
-                  tooltip={collapsed}
-                />
-              )}
-            />
+            {showFlowbuilder && (
+              <Can
+                role={user.profile}
+                perform="dashboard:view"
+                yes={() => (
+                  <ListItemLink
+                    to="/flowbuilders/conversation"
+                    primary={i18n.t(
+                      "mainDrawer.listItems.flowbuilder"
+                    )}
+                    icon={<Webhook />}
+                    iconKey="flowbuilder"
+                    tooltip={collapsed}
+                  />
+                )}
+              />
+            )}
 
             {user.super && (
               <ListItemLink
@@ -1373,15 +1406,244 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               role={user.profile}
               perform="dashboard:view"
               yes={() => (
-                <ListItemLink
-                  to="/financeiro"
-                  primary={i18n.t(
-                    "mainDrawer.listItems.financeiro"
-                  )}
-                  icon={<LocalAtmIcon />}
-                  iconKey="financial"
-                  tooltip={collapsed}
-                />
+                <>
+                  <Tooltip
+                    placement="right"
+                    arrow
+                    title={
+                      collapsed ? (
+                        <Typography
+                          style={{ fontWeight: 700, fontSize: "0.9rem" }}
+                        >
+                          {i18n.t("mainDrawer.listItems.financeiro")}
+                        </Typography>
+                      ) : (
+                        ""
+                      )
+                    }
+                  >
+                    <ListItem
+                      dense
+                      button
+                      className={`${classes.listItem} ${
+                        isFinanceiroRouteActive ? classes.listItemActive : ""
+                      } ${collapsed ? classes.listItemIconOnly : ""}`}
+                      onClick={() =>
+                        setOpenFinanceiroSubmenu((prev) => !prev)
+                      }
+                    >
+                      <ListItemIcon
+                        className={`${classes.listItemIcon} ${
+                          collapsed ? classes.listItemIconOnlyWrap : ""
+                        }`}
+                      >
+                        <span
+                          className={classes.iconWrap}
+                          style={{ color: iconColors.financial }}
+                        >
+                          <LocalAtmIcon />
+                        </span>
+                      </ListItemIcon>
+                      {!collapsed && (
+                        <ListItemText
+                          className={classes.listItemText}
+                          primary={
+                            <Typography className={classes.listItemLabel}>
+                              {i18n.t("mainDrawer.listItems.financeiro")}
+                            </Typography>
+                          }
+                        />
+                      )}
+                      {!collapsed &&
+                        (openFinanceiroSubmenu ? (
+                          <ExpandLessIcon className={classes.groupExpandIcon} />
+                        ) : (
+                          <ExpandMoreIcon className={classes.groupExpandIcon} />
+                        ))}
+                    </ListItem>
+                  </Tooltip>
+                  <Collapse
+                    in={openFinanceiroSubmenu}
+                    timeout="auto"
+                    unmountOnExit
+                    className={classes.submenuSection}
+                  >
+                    <List dense component="div" disablePadding>
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=painel"
+                        primary="📊 Painel Financeiro"
+                        icon={<Dashboard />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=expenses"
+                        primary="💸 Contas a Pagar"
+                        icon={<ReceiptIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=receivables"
+                        primary="💰 Contas a Receber"
+                        icon={<MonetizationOnIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=paymentConfig"
+                        primary="💳 Config. Pagamento"
+                        icon={<MonetizationOnIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=sales"
+                        primary="🛒 Vendas"
+                        icon={<ShoppingCartIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=customers"
+                        primary="👥 Clientes"
+                        icon={<PeopleIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+
+                      {!collapsed ? (
+                        <ListItem
+                          dense
+                          button
+                          className={`${classes.listItem} ${classes.listItemCompact}`}
+                          onClick={() =>
+                            setOpenFinanceiroProductsSubmenu((prev) => !prev)
+                          }
+                        >
+                          <ListItemIcon className={classes.listItemIcon}>
+                            <span
+                              className={classes.iconWrap}
+                              style={{ color: iconColors.financial }}
+                            >
+                              <StoreIcon />
+                            </span>
+                          </ListItemIcon>
+                          <ListItemText
+                            className={classes.listItemText}
+                            primary={
+                              <Typography className={classes.listItemLabel}>
+                                📦 Produtos
+                              </Typography>
+                            }
+                          />
+                          {openFinanceiroProductsSubmenu ? (
+                            <ExpandLessIcon className={classes.groupExpandIcon} />
+                          ) : (
+                            <ExpandMoreIcon className={classes.groupExpandIcon} />
+                          )}
+                        </ListItem>
+                      ) : (
+                        <ListItemLink
+                          small
+                          to="/financeiro?tab=products"
+                          primary="📦 Produtos"
+                          icon={<StoreIcon />}
+                          iconKey="financial"
+                          tooltip={collapsed}
+                        />
+                      )}
+                      <Collapse
+                        in={!collapsed && openFinanceiroProductsSubmenu}
+                        timeout="auto"
+                        unmountOnExit
+                        className={classes.submenuSection}
+                      >
+                        <List dense component="div" disablePadding>
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products"
+                            primary="📦 Todos os produtos"
+                            icon={<ListIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=weapon:national"
+                            primary="🔫 Armas nacionais"
+                            icon={<FlagIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=weapon:imported"
+                            primary="🌎 Armas importadas"
+                            icon={<PublicIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=ammunition"
+                            primary="🧰 Munições/Insumos"
+                            icon={<BuildIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=accessory"
+                            primary="🎒 Acessórios"
+                            icon={<LocalOfferIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=hunting_fishing"
+                            primary="🎣 Caça & Pesca"
+                            icon={<NatureIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                          <ListItemLink
+                            small
+                            to="/financeiro?tab=products&type=service"
+                            primary="🔧 Serviços"
+                            icon={<SettingsOutlinedIcon />}
+                            iconKey="financial"
+                            tooltip={collapsed}
+                          />
+                        </List>
+                      </Collapse>
+
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=suppliers"
+                        primary="🚚 Fornecedores"
+                        icon={<LocalShippingIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
+                        to="/financeiro?tab=fiscalConfig"
+                        primary="🧾 Configuração Fiscal"
+                        icon={<GavelIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                    </List>
+                  </Collapse>
+                </>
               )}
             />
             <Can
@@ -1395,6 +1657,51 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<WorkOutlineIcon />}
                   iconKey="rh"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/weapon-dispatch"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.weaponDispatch"
+                  )}
+                  icon={<SecurityIcon />}
+                  iconKey="weaponDispatch"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/services"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.services"
+                  )}
+                  icon={<RoomServiceIcon />}
+                  iconKey="services"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/weapon-armory"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.weaponArmory"
+                  )}
+                  icon={<BuildOutlinedIcon />}
+                  iconKey="weaponArmory"
                   tooltip={collapsed}
                 />
               )}

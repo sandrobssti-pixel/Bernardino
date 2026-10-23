@@ -43,7 +43,16 @@ export default {
     filename(req, file, cb) {
       const { typeArch } = req.body;
 
-      const fileName = typeArch && typeArch !== "announcements" ? file.originalname.replace('/', '-').replace(/ /g, "_") : new Date().getTime() + '_' + file.originalname.replace('/', '-').replace(/ /g, "_");
+      // Busboy (usado pelo multer) decodifica o nome original do multipart
+      // como Latin-1 por padrão, mesmo quando o navegador manda em UTF-8 de
+      // verdade — sem reinterpretar, qualquer caractere especial (º, ç, ã
+      // etc.) vira bytes errados no disco, quebrando o download/visualização
+      // depois (a URL gerada não bate mais com o arquivo real salvo).
+      const originalName = Buffer.from(file.originalname, "latin1").toString(
+        "utf8"
+      );
+
+      const fileName = typeArch && typeArch !== "announcements" ? originalName.replace('/', '-').replace(/ /g, "_") : new Date().getTime() + '_' + originalName.replace('/', '-').replace(/ /g, "_");
       return cb(null, fileName);
     }
   })

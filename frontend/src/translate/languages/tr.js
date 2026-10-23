@@ -506,6 +506,11 @@ const messages = {
           cancel: "İptal",
         },
         success: "Kişi başarıyla kaydedildi.",
+        finance: {
+          linkButton: "Müşteri olarak kaydet (Finans)",
+          linkedLabel: "Finans müşterisi bağlandı",
+          linkSuccess: "Kişi, Finans modülünün Müşteriler kaydına bağlandı.",
+        },
       },
       flowbuilder: {
         title: "Flowbuilder",
@@ -1819,6 +1824,8 @@ const messages = {
           "Kimlik doğrulama hatası. Lütfen tekrar deneyin.",
         ERR_SENDING_WAPP_MSG:
           "WhatsApp mesajı gönderilirken hata oluştu. Bağlantılar sayfasını kontrol edin.",
+        ERR_MEDIA_FILE_NOT_FOUND:
+          "İletilemedi: orijinal dosya artık sunucuda mevcut değil.",
         ERR_DELETE_WAPP_MSG: "WhatsApp mesajı silinemedi.",
         ERR_OTHER_OPEN_TICKET: "Bu kişi için zaten açık bir ticket var.",
         ERR_SESSION_EXPIRED: "Oturum süresi doldu. Lütfen giriş yapın.",

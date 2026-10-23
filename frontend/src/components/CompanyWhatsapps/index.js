@@ -12,6 +12,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   TableRow,
   Table,
   TableHead,
@@ -33,6 +34,7 @@ import {
   Instagram,
   WhatsApp,
   Business,
+  Close,
 } from "@material-ui/icons";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
@@ -60,6 +62,15 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(1.5),
+    justifyContent: "space-between",
+  },
+  titleMain: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+  },
+  closeButton: {
+    color: theme.palette.type === "dark" ? "#94a3b8" : "#64748b",
   },
   titleIconWrap: {
     width: 36,
@@ -505,17 +516,26 @@ const WhatsAppModalCompany = ({ open, onClose, whatsAppId, filteredWhatsapps, co
       {/* ── Dialog Title ── */}
       <DialogTitle disableTypography className={classes.dialogTitle}>
         <div className={classes.titleRow}>
-          <div className={classes.titleIconWrap}>
-            <Business style={{ fontSize: 18, color: "#f59e0b" }} />
+          <div className={classes.titleMain}>
+            <div className={classes.titleIconWrap}>
+              <Business style={{ fontSize: 18, color: "#f59e0b" }} />
+            </div>
+            <div>
+              <Typography className={classes.titleText}>
+                {companyInfos?.name || "Empresa"}
+              </Typography>
+              <Typography className={classes.titleSubtext}>
+                {filteredWhatsapps?.length || 0} conexão{filteredWhatsapps?.length !== 1 ? "ões" : ""} cadastrada{filteredWhatsapps?.length !== 1 ? "s" : ""}
+              </Typography>
+            </div>
           </div>
-          <div>
-            <Typography className={classes.titleText}>
-              {companyInfos?.name || "Empresa"}
-            </Typography>
-            <Typography className={classes.titleSubtext}>
-              {filteredWhatsapps?.length || 0} conexão{filteredWhatsapps?.length !== 1 ? "ões" : ""} cadastrada{filteredWhatsapps?.length !== 1 ? "s" : ""}
-            </Typography>
-          </div>
+          <IconButton
+            className={classes.closeButton}
+            size="small"
+            onClick={handleClose}
+          >
+            <Close style={{ fontSize: 20 }} />
+          </IconButton>
         </div>
       </DialogTitle>
 
@@ -641,6 +661,12 @@ const WhatsAppModalCompany = ({ open, onClose, whatsAppId, filteredWhatsapps, co
           </div>
         </Paper>
       </DialogContent>
+
+      <DialogActions>
+        <Button onClick={handleClose} color="default">
+          Fechar
+        </Button>
+      </DialogActions>
     </Dialog>
   );
 };

@@ -2,6 +2,7 @@ import path, { join } from "path";
 import { readFile, writeFile } from "fs/promises";
 import fs from "fs";
 import { createHash } from "crypto";
+import { decryptApiKey } from "../../utils/promptApiKeyCrypto";
 import * as Sentry from "@sentry/node";
 import { isNil, isNull } from "lodash";
 import { REDIS_URI_MSG_CONN } from "../../config/redis";
@@ -87,6 +88,7 @@ import { add, differenceInMilliseconds } from "date-fns";
 import { FlowCampaignModel } from "../../models/FlowCampaign";
 import ShowTicketService from "../TicketServices/ShowTicketService";
 import { handleOpenAi } from "../IntegrationsServices/OpenAiService";
+import IsNumberBlockedService from "../PromptBlockedNumberServices/IsNumberBlockedService";
 import { IOpenAi } from "../../@types/openai";
 import HandleNpsReplyService from "../TicketServices/HandleNpsReplyService";
 import type { MessageUserReceiptUpdate } from "baileys";
@@ -5564,7 +5566,34 @@ const handleMessage = async (
       Sentry.captureException(e);
       console.log(e);
     }
-    
+
+    // v2.3.203 — cliente respondeu algo que NÃO é nota de avaliação, mas o
+    // ticket continua em "nps" (aguardando avaliação — fica assim pra
+    // sempre se o cliente nunca avalia, o que é o caso mais comum).
+    // Reabre como atendimento novo de verdade: limpa fila/atendente
+    // antigos e volta pro status "pending" — NÃO cria ticket novo nem
+    // apaga histórico (mesmo ticket.id, mesmas mensagens continuam
+    // ligadas a ele). Sem isso, os dois gatilhos de IA logo abaixo nunca
+    // disparam de novo pra esse contato, porque exigem ticket sem
+    // fila/atendente — ele ficaria preso com a fila/atendente do
+    // atendimento anterior, já encerrado.
+    if (!msg.key.fromMe && ticket.status === "nps") {
+      try {
+        await ticket.update({
+          status: "pending",
+          queueId: null,
+          userId: null
+        });
+        // `ticket.queue` é a associação já carregada em memória — o
+        // `.update()` acima só mexe na coluna `queueId`, não limpa esse
+        // objeto sozinho, e os gatilhos de IA checam `!ticket.queue`.
+        ticket.queue = null;
+      } catch (e) {
+        Sentry.captureException(e);
+        console.log(e);
+      }
+    }
+
     // Atualiza o ticket se a ultima mensagem foi enviada por mim, para que possa ser finalizado.
     try {
       await ticket.update({
@@ -5874,7 +5903,14 @@ const handleMessage = async (
     }
 
     
-    if (isOpenai && !isNil(flow) && !ticket.queueId) {
+    // "Números sem IA" (PromptBlockedNumber) — checado uma vez só, reusado
+    // nos dois gatilhos de IA abaixo (nó do Flowbuilder e IA na conexão).
+    const numberBlockedForAI = await IsNumberBlockedService(
+      ticket.companyId,
+      contact?.number
+    );
+
+    if (isOpenai && !isNil(flow) && !ticket.queueId && !numberBlockedForAI) {
       const nodeSelected = flow.flow["nodes"].find(
         (node: any) => node.id === ticket.lastFlowId
       );
@@ -5909,26 +5945,35 @@ const handleMessage = async (
         voiceRegion,
         maxTokens: Number(maxTokens) || 0,
         temperature: Number(temperature) || 0,
-        apiKey,
+        // v2.3.197 — a API key salva no nó do FlowBuilder pode estar
+        // cifrada (ver FlowUpdateDataService.ts); `decryptApiKey` já
+        // devolve sem mexer se o valor não estiver nesse formato (nó
+        // antigo, salvo antes dessa mudança).
+        apiKey: decryptApiKey(apiKey),
         queueId: Number(queueId) || 0,
         maxMessages: Number(maxMessages) || 0,
         maxResponseMessages: Number(maxResponseMessages) || 3,
         model
       };
     
+      // v2.3.201 — corrige o remoteJid antes de responder (mesmo padrão já
+      // usado pelo typebotListener): sem isso, uma mensagem recebida via
+      // @lid (identidade alternativa do WhatsApp) faz a IA responder pro
+      // @lid bruto, que o WhatsApp não entrega — a chamada à OpenAI
+      // acontece e é cobrada, mas o cliente nunca recebe nada.
       await handleOpenAi(
         openAiSettings,
-        msg,
+        { ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } },
         wbot,
         ticket,
         contact,
         mediaSent,
         ticketTraking
       );
-    
+
       return;
     }
-    
+
 
 
 
@@ -5938,12 +5983,14 @@ const handleMessage = async (
       !isGroup &&
       !msg.key.fromMe &&
       !ticket.userId &&
-      !isNil(whatsapp.promptId)
+      !isNil(whatsapp.promptId) &&
+      !numberBlockedForAI
     ) {
       const { prompt } = whatsapp;
+      // v2.3.201 — mesma correção de remoteJid (@lid) do bloco acima.
       await handleOpenAi(
         prompt,
-        msg,
+        { ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } },
         wbot,
         ticket,
         contact,

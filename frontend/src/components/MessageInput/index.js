@@ -897,6 +897,7 @@ const MessageInput = ({
   const handleQuickAnswersClick = async (value) => {
     if (value.mediaPath) {
       try {
+        setLoading(true);
         const { data } = await axios.get(value.mediaPath, {
           responseType: "blob",
         });
@@ -906,6 +907,7 @@ const MessageInput = ({
         return;
         //  handleChangeMedias(response)
       } catch (err) {
+        setLoading(false);
         toastError(err);
       }
     }
@@ -2449,8 +2451,13 @@ const MessageInput = ({
                         className={classes.sendIconButton}
                         size="small"
                       >
-                        {showSelectMessageCheckbox ?
-                          <Reply fontSize="small" /> : <Send fontSize="small" />}
+                        {loading ? (
+                          <CircularProgress size={18} className={classes.audioLoading} />
+                        ) : showSelectMessageCheckbox ? (
+                          <Reply fontSize="small" />
+                        ) : (
+                          <Send fontSize="small" />
+                        )}
                       </IconButton>
                     </Tooltip>
                   </>
@@ -2519,8 +2526,13 @@ const MessageInput = ({
                     className={classes.sendIconButton}
                     size="small"
                   >
-                    {showSelectMessageCheckbox ?
-                      <Reply fontSize="small" /> : <Send fontSize="small" />}
+                    {loading ? (
+                      <CircularProgress size={18} className={classes.audioLoading} />
+                    ) : showSelectMessageCheckbox ? (
+                      <Reply fontSize="small" />
+                    ) : (
+                      <Send fontSize="small" />
+                    )}
                   </IconButton>
                 </Tooltip>
               </>

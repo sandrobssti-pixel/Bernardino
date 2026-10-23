@@ -1,4 +1,5 @@
 import AppError from "../../errors/AppError";
+import { decryptApiKey } from "../../utils/promptApiKeyCrypto";
 import axios from "axios";
 import https from "https";
 import os from "os";
@@ -475,7 +476,11 @@ export const ActionsWebhookService = async (
           voiceRegion,
           maxTokens,
           temperature,
-          apiKey,
+          // v2.3.197 — a API key salva no nó do FlowBuilder pode estar
+          // cifrada (ver FlowUpdateDataService.ts); `decryptApiKey` já
+          // devolve sem mexer se o valor não estiver nesse formato (nó
+          // antigo, salvo antes dessa mudança).
+          apiKey: decryptApiKey(apiKey),
           queueId,
           maxMessages,
           maxResponseMessages,

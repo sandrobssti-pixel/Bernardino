@@ -20,6 +20,16 @@ const useFiscal = () => {
       const { data: responseData } = await api.put("/fiscal/config", data);
       return responseData;
     },
+    gateways: async () => {
+      const { data } = await api.get("/fiscal/gateways");
+      return data;
+    },
+    // "Enviar para um destinatário" (v2.3.174) — testa a configuração
+    // da Resend antes de confiar nela numa nota de verdade.
+    testResendEmail: async ({ to, subject, message }) => {
+      const { data } = await api.post("/fiscal/config/resend-test", { to, subject, message });
+      return data;
+    },
   };
 
   const sales = {
@@ -47,8 +57,22 @@ const useFiscal = () => {
       const { data } = await api.post(`/sales/${id}/cancel`);
       return data;
     },
-    remove: async (id) => {
-      const { data } = await api.delete(`/sales/${id}`);
+    // `force` (v2.3.143, admin-only — backend ignora se não for): bypassa a
+    // trava que impede excluir venda com nota fiscal de Produção. Usado só
+    // na seleção em massa, com confirmação extra (ver SaleList.js).
+    remove: async (id, force = false) => {
+      const { data } = await api.delete(`/sales/${id}`, { params: force ? { force: true } : undefined });
+      return data;
+    },
+    // Importação de vendas históricas via planilha (migração de ERP,
+    // v2.3.116) — registra vendas que já têm nota fiscal emitida no sistema
+    // anterior, sem chamar o gateway e sem mexer em estoque.
+    importSpreadsheet: async (file) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const { data } = await api.post("/sales/import", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return data;
     },
   };
@@ -66,13 +90,58 @@ const useFiscal = () => {
       const { data } = await api.post(`/fiscal-documents/${id}/refresh-status`);
       return data;
     },
+    // Marca/desmarca uma nota com erro como "pendente de correção"
+    // (amarelo) — ver comentário completo em FiscalDocumentService.ts.
+    togglePendingCorrection: async (id) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/toggle-pending-correction`);
+      return data;
+    },
     cancel: async (id, justification) => {
       const { data } = await api.post(`/fiscal-documents/${id}/cancel`, { justification });
       return data;
     },
+    correctionLetter: async (id, text) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/correction-letter`, { text });
+      return data;
+    },
+    sendEmail: async (id, emails) => {
+      const { data } = await api.post(`/fiscal-documents/${id}/send-email`, { emails });
+      return data;
+    },
+    // Auditoria de envios/reenvios (v2.3.190) — quem pediu, quando, pra
+    // qual(is) e-mail(s) e se deu certo.
+    emailLogs: async (id) => {
+      const { data } = await api.get(`/fiscal-documents/${id}/email-logs`);
+      return data;
+    },
+    // Resposta é o PDF em binário, não JSON — pede o blob direto do axios.
+    previewDanfe: async (saleId) => {
+      const { data } = await api.post(`/sales/${saleId}/fiscal-documents/preview`, null, {
+        responseType: "blob",
+      });
+      return data;
+    },
+    // Exclui de verdade um documento de teste (Homologação) — o backend
+    // recusa (ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION) se for um
+    // documento de Produção, nota fiscal real (v2.3.118).
+    remove: async (id) => {
+      const { data } = await api.delete(`/fiscal-documents/${id}`);
+      return data;
+    },
   };
 
-  return { getAccess, config, sales, fiscalDocuments };
+  const numbering = {
+    list: async () => {
+      const { data } = await api.get("/fiscal/numbering/invalidations");
+      return data;
+    },
+    invalidate: async (data) => {
+      const { data: responseData } = await api.post("/fiscal/numbering/invalidations", data);
+      return responseData;
+    },
+  };
+
+  return { getAccess, config, sales, fiscalDocuments, numbering };
 };
 
 export default useFiscal;

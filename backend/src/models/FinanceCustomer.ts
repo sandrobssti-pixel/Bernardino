@@ -49,6 +49,14 @@ class FinanceCustomer extends Model<FinanceCustomer> {
   @Column
   phone: string;
 
+  // Separado de `phone` de propósito — pedido do cliente (Despachante
+  // Bélico): o número de WhatsApp é o que alimenta disparo automático de
+  // cobrança/lembrete (campanha de inadimplência, notificação de troca de
+  // status), nem sempre é o mesmo telefone de contato geral cadastrado.
+  @Default("")
+  @Column
+  whatsapp: string;
+
   @Default("")
   @Column
   zipCode: string;
@@ -80,6 +88,18 @@ class FinanceCustomer extends Model<FinanceCustomer> {
   @Default("")
   @Column(DataType.TEXT)
   notes: string;
+
+  // Reforma Tributária 2027 (CBS/IBS) — perfil do destinatário da nota
+  // ("B2C"/"B2B"/"B2G") e isenção do órgão público (quando B2G), usados
+  // pelo motor de cálculo em `Iva2027Service.ts`. Sem efeito enquanto
+  // `FiscalConfig.reform2027Enabled` for false.
+  @Default("B2C")
+  @Column
+  ivaTaxpayerProfile: string;
+
+  @Default(false)
+  @Column
+  ivaGovExempt: boolean;
 
   @Default(true)
   @Column

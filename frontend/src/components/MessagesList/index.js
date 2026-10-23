@@ -13,7 +13,8 @@ import {
   Divider,
   IconButton,
   makeStyles,
-  Badge
+  Badge,
+  Typography
 } from "@material-ui/core";
 
 import {
@@ -35,7 +36,6 @@ import {
   RotateRight,
   WhatsApp,
   Reply,
-  Close,
   PersonOutline,
   BarChart,
   EventNote,
@@ -911,10 +911,12 @@ const MessagesList = ({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [pdfPreview, setPdfPreview] = useState({
+  const [docPreview, setDocPreview] = useState({
     open: false,
-    href: "",
-    name: "Documento"
+    originalHref: "",
+    previewHref: "",
+    name: "Documento",
+    status: "idle"
   });
   const history = useHistory();
   const lastMessageRef = useRef();
@@ -1764,7 +1766,15 @@ const safeBasename = (value) => {
   const raw = typeof value === "string" ? value : "";
   const trimmed = raw.trim();
   if (!trimmed) return "";
-  return path.basename(trimmed.split("?")[0]);
+  const name = path.basename(trimmed.split("?")[0]);
+  // mediaUrl agora vem com o nome do arquivo codificado (ver Message.ts,
+  // getter mediaUrl) — decodifica pra exibir um nome legível no fallback
+  // de rótulo do documento, em vez do "%C2%BA" cru.
+  try {
+    return decodeURIComponent(name);
+  } catch (error) {
+    return name;
+  }
 };
 
 const parseVcard = (body) => {
@@ -1905,6 +1915,33 @@ const extractDocumentNameFromDataJson = (message) => {
   return "";
 };
 
+const extractDocumentMimeFromDataJson = (message) => {
+  const rawDataJson = message?.dataJson;
+  if (!rawDataJson || typeof rawDataJson !== "string") return "";
+
+  try {
+    const parsed = JSON.parse(rawDataJson);
+    const candidates = [
+      getNestedValue(parsed, ["Message", "documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["message", "documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["documentMessage", "mimetype"]),
+      getNestedValue(parsed, ["Info", "Media", "MimeType"]),
+      getNestedValue(parsed, ["info", "media", "mimetype"]),
+      getNestedValue(parsed, ["mimetype"]),
+      getNestedValue(parsed, ["mimeType"])
+    ];
+
+    for (const candidate of candidates) {
+      const value = String(candidate || "").trim();
+      if (value) return value.toLowerCase();
+    }
+  } catch (error) {
+    // Sem mimetype no dataJson — segue com checagem por extensão do nome.
+  }
+
+  return "";
+};
+
 const getDocumentLabel = (message) => {
   const dataJsonName = extractDocumentNameFromDataJson(message);
   if (dataJsonName) return dataJsonName;
@@ -1921,53 +1958,116 @@ const getDocumentLabel = (message) => {
   return "Documento";
 };
 
-const isPdfDocument = (message) => {
+const CONVERTIBLE_DOC_EXTENSIONS_RE = /\.(doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|rtf)$/i;
+
+const isNativelyRenderableDocument = (message) => {
+  const mimetype = extractDocumentMimeFromDataJson(message);
+  if (mimetype) {
+    return (
+      mimetype === "application/pdf" ||
+      mimetype.startsWith("text/plain") ||
+      mimetype === "application/xml" ||
+      mimetype === "text/xml"
+    );
+  }
+
   const label = getDocumentLabel(message);
   const mediaUrl = String(message?.mediaUrl || "");
-  return /\.pdf$/i.test(label) || /\.pdf(?:$|\?)/i.test(mediaUrl);
+  return (
+    /\.(pdf|txt|xml)$/i.test(label) ||
+    /\.(pdf|txt|xml)(?:$|\?)/i.test(mediaUrl)
+  );
 };
 
-const handleOpenPdfPreview = (message) => {
+const isConvertibleDocument = (message) => {
+  const label = getDocumentLabel(message);
+  const mediaUrl = String(message?.mediaUrl || "");
+  return (
+    CONVERTIBLE_DOC_EXTENSIONS_RE.test(label) ||
+    CONVERTIBLE_DOC_EXTENSIONS_RE.test(mediaUrl)
+  );
+};
+
+const handleOpenDocumentPreview = async (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return;
-  setPdfPreview({
+  const name = getDocumentLabel(message);
+
+  if (isNativelyRenderableDocument(message)) {
+    setDocPreview({
+      open: true,
+      originalHref: mediaHref,
+      previewHref: mediaHref,
+      name,
+      status: "ready"
+    });
+    return;
+  }
+
+  if (isConvertibleDocument(message) && message?.id) {
+    setDocPreview({
+      open: true,
+      originalHref: mediaHref,
+      previewHref: "",
+      name,
+      status: "loading"
+    });
+    try {
+      const { data } = await api.get(`/messages/${message.id}/document-preview`);
+      setDocPreview({
+        open: true,
+        originalHref: mediaHref,
+        previewHref: resolveMediaUrl(data?.previewUrl),
+        name,
+        status: "ready"
+      });
+    } catch (err) {
+      setDocPreview({
+        open: true,
+        originalHref: mediaHref,
+        previewHref: "",
+        name,
+        status: "error"
+      });
+    }
+    return;
+  }
+
+  setDocPreview({
     open: true,
-    href: mediaHref,
-    name: getDocumentLabel(message)
+    originalHref: mediaHref,
+    previewHref: "",
+    name,
+    status: "unsupported"
   });
 };
 
-const handleClosePdfPreview = () => {
-  setPdfPreview({
+const handleCloseDocumentPreview = () => {
+  setDocPreview({
     open: false,
-    href: "",
-    name: "Documento"
+    originalHref: "",
+    previewHref: "",
+    name: "Documento",
+    status: "idle"
   });
 };
 
 const renderDocumentPreview = (message) => {
   const mediaHref = resolveMediaUrl(message?.mediaUrl);
   if (!mediaHref) return null;
-  const isPdf = isPdfDocument(message);
 
   return (
     <div
-      className={clsx(classes.documentCard, {
-        [classes.documentCardClickable]: isPdf
-      })}
-      onClick={isPdf ? () => handleOpenPdfPreview(message) : undefined}
-      role={isPdf ? "button" : undefined}
-      tabIndex={isPdf ? 0 : undefined}
-      onKeyDown={
-        isPdf
-          ? (event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              handleOpenPdfPreview(message);
-            }
-          }
-          : undefined
-      }
+      className={clsx(classes.documentCard, classes.documentCardClickable)}
+      onClick={() => handleOpenDocumentPreview(message)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          handleOpenDocumentPreview(message);
+        }
+      }}
     >
       <span className={classes.documentIconWrap}>
         <Description fontSize="small" />
@@ -1979,18 +2079,16 @@ const renderDocumentPreview = (message) => {
       </div>
 
       <div className={classes.documentActions}>
-        {isPdf && (
-          <IconButton
-            size="small"
-            title="Visualizar PDF"
-            onClick={(event) => {
-              event.stopPropagation();
-              handleOpenPdfPreview(message);
-            }}
-          >
-            <Visibility fontSize="small" />
-          </IconButton>
-        )}
+        <IconButton
+          size="small"
+          title="Visualizar"
+          onClick={(event) => {
+            event.stopPropagation();
+            handleOpenDocumentPreview(message);
+          }}
+        >
+          <Visibility fontSize="small" />
+        </IconButton>
         <IconButton
           component="a"
           href={mediaHref}
@@ -2851,6 +2949,85 @@ return (
       </DialogActions>
     </Dialog>
 
+    <Dialog
+      open={docPreview.open}
+      onClose={handleCloseDocumentPreview}
+      fullWidth
+      maxWidth="md"
+    >
+      <DialogTitle disableTypography>
+        <div className={classes.pdfDialogTitle}>
+          <span className={classes.pdfDialogName}>{docPreview.name}</span>
+        </div>
+      </DialogTitle>
+      <DialogContent dividers>
+        <div className={classes.pdfIframeWrap}>
+          {docPreview.status === "ready" && docPreview.previewHref ? (
+            <iframe
+              title={docPreview.name || "Visualização do documento"}
+              src={docPreview.previewHref}
+              className={classes.pdfIframe}
+            />
+          ) : docPreview.status === "loading" ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 380,
+                textAlign: "center",
+                padding: 16
+              }}
+            >
+              <CircularProgress size={32} />
+              <Typography variant="body2" color="textSecondary">
+                Convertendo documento para visualização...
+              </Typography>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                height: 380,
+                textAlign: "center",
+                padding: 16
+              }}
+            >
+              <Description fontSize="large" />
+              <Typography variant="body1">
+                {docPreview.status === "error"
+                  ? "Não foi possível converter esse documento"
+                  : "Visualização não disponível"}
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                {docPreview.name}
+              </Typography>
+            </div>
+          )}
+        </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCloseDocumentPreview} color="default">
+          Fechar
+        </Button>
+        <Button
+          component="a"
+          href={docPreview.originalHref}
+          color="primary"
+          startIcon={<GetApp />}
+          download={docPreview.name}
+        >
+          Baixar
+        </Button>
+      </DialogActions>
+    </Dialog>
+
     {(channel !== "whatsapp" && channel !== "webchat" && channel !== undefined) && (
       <div className={classes.channelWarning}>
         {channel === "facebook" ? <Facebook /> : channel === "whatsapp_oficial" ? <WhatsApp /> : <Instagram />}
@@ -2860,56 +3037,6 @@ return (
         </span>
       </div>
     )}
-    <Dialog
-      open={pdfPreview.open}
-      onClose={handleClosePdfPreview}
-      fullWidth
-      maxWidth="md"
-    >
-      <DialogTitle disableTypography>
-        <div className={classes.pdfDialogTitle}>
-          <span className={classes.pdfDialogName}>{pdfPreview.name}</span>
-          <IconButton size="small" onClick={handleClosePdfPreview}>
-            <Close fontSize="small" />
-          </IconButton>
-        </div>
-      </DialogTitle>
-      <DialogContent dividers>
-        <div className={classes.pdfIframeWrap}>
-          {pdfPreview.href ? (
-            <iframe
-              title={pdfPreview.name || "Visualização PDF"}
-              src={pdfPreview.href}
-              className={classes.pdfIframe}
-            />
-          ) : null}
-        </div>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={handleClosePdfPreview} color="default">
-          Fechar
-        </Button>
-        <Button
-          component="a"
-          href={pdfPreview.href}
-          target="_blank"
-          rel="noreferrer"
-          color="primary"
-          startIcon={<OpenInNew />}
-        >
-          Abrir em nova aba
-        </Button>
-        <Button
-          component="a"
-          href={pdfPreview.href}
-          color="primary"
-          startIcon={<GetApp />}
-          download={pdfPreview.name}
-        >
-          Baixar
-        </Button>
-      </DialogActions>
-    </Dialog>
     {loading && (
       <div>
         <CircularProgress className={classes.circleLoading} />

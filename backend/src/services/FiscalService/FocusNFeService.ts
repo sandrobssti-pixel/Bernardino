@@ -19,8 +19,22 @@ import Company from "../../models/Company";
 // (`parseDocumentResponse`) e ajustar se necessário. Erros da API ficam
 // registrados no campo `errorMessage` do FiscalDocument pra facilitar esse
 // ajuste sem precisar instrumentar nada na hora.
-const BASE_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
-const BASE_URL_PRODUCTION = "https://api.focusnfe.com.br";
+//
+// v2.3.166 — indicadores fiscais pedidos pelo contador do cliente (tipo de
+// operação/idDest, natureza da operação, presença do consumidor/indPres,
+// intermediador/indIntermed, consumidor final/indFinal, indicador IE do
+// destinatário, forma de pagamento/tPag) — ver `buildIndicadores` e
+// `IE_INDICATOR_CODES`/`OPERATION_TYPE_CODES`/`INTERMEDIARY_CODES`/
+// `PAYMENT_METHOD_CODES` mais abaixo. Os CÓDIGOS oficiais da Sefaz usados
+// aí têm confiança alta (conferidos contra o schema público); o NOME de
+// cada chave no JSON que a Focus NFe espera é que carrega o mesmo nível de
+// incerteza do resto deste adapter — testar contra Homologação antes de
+// confiar isso em Produção, já que o contador tratou esses campos como
+// obrigatórios pra evitar problema com o fisco.
+// Exportados pra FiscalDocumentService.resolveDocumentUrls poder prefixar
+// caminho_danfe/caminho_xml_nota_fiscal (relativos) sem duplicar os hosts.
+export const BASE_URL_SANDBOX = "https://homologacao.focusnfe.com.br";
+export const BASE_URL_PRODUCTION = "https://api.focusnfe.com.br";
 
 export interface FocusEmitResult {
   status: "processing" | "authorized" | "error";
@@ -34,12 +48,16 @@ export interface FocusEmitResult {
 }
 
 const buildClient = (config: FiscalConfig): AxiosInstance => {
-  const baseURL =
-    config.gatewayEnvironment === "production" ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
+  // Qual ambiente usar é derivado direto do toggle "Produção habilitada"
+  // (v2.3.112) — não tem mais um seletor separado pra isso, ver
+  // FiscalConfigService.isProductionActive.
+  const isProduction = !!config.productionEnabled;
+  const baseURL = isProduction ? BASE_URL_PRODUCTION : BASE_URL_SANDBOX;
+  const token = isProduction ? config.gatewayTokenProduction : config.gatewayTokenSandbox;
 
   return axios.create({
     baseURL,
-    auth: { username: config.gatewayToken, password: "" },
+    auth: { username: token, password: "" },
     headers: { "Content-Type": "application/json" },
     timeout: 30000
   });
@@ -55,6 +73,16 @@ const documentEndpoint = (type: string): string => {
 // retorna "processando_autorizacao", e o status final (autorizado/erro) só
 // fica disponível numa consulta GET seguinte ou via webhook. Por isso o
 // mesmo parser serve tanto pra resposta do POST quanto do GET de status.
+//
+// `caminho_danfe`/`caminho_xml_nota_fiscal` vêm da Focus como CAMINHO
+// relativo (ex.: "/v2/nfe/.../danfe.pdf"), não URL completa — guardado
+// cru aqui de propósito. Quem resolve pra URL absoluta (prefixando o
+// host certo, sandbox/produção) é `FiscalDocumentService.resolveDocumentUrls`,
+// no momento de SERVIR o documento pro frontend — não aqui no momento de
+// salvar — porque isso também conserta documentos que já foram emitidos
+// e salvos ANTES dessa correção existir (v2.3.131), sem precisar de
+// nenhuma migração/backfill: o `environment` ("sandbox"/"production") já
+// fica gravado em cada `FiscalDocument` desde a v2.3.125.
 const parseDocumentResponse = (data: any): FocusEmitResult => {
   const rawStatus = String(data?.status || "").toLowerCase();
 
@@ -65,10 +93,23 @@ const parseDocumentResponse = (data: any): FocusEmitResult => {
     status = "error";
   }
 
+  // A Focus NFe costuma devolver uma `mensagem` GENÉRICA ("Erro na
+  // validação do Schema XML, verifique o detalhamento dos erros") separada
+  // de `erros`, um array com o detalhe campo a campo de verdade. Antes
+  // (v2.3.113-118) `mensagem` tinha prioridade no `||` e o `erros` nunca
+  // aparecia — a mensagem genérica saía inteira na tela, mas sem o
+  // "detalhamento" que ela mesma promete. Agora sempre concatena os dois
+  // quando `erros` existe, em vez de escolher um ou outro.
+  const genericMessage = String(data?.mensagem_sefaz || data?.mensagem || "");
+  const detailedErrors = Array.isArray(data?.erros)
+    ? data.erros
+        .map((e: any) => (typeof e === "string" ? e : e?.mensagem || e?.message || JSON.stringify(e)))
+        .filter(Boolean)
+        .join("; ")
+    : "";
   const errorMessage =
     status === "error"
-      ? String(data?.mensagem_sefaz || data?.mensagem || (Array.isArray(data?.erros) ? data.erros.join("; ") : "")) ||
-        "Erro não detalhado retornado pelo gateway."
+      ? [genericMessage, detailedErrors].filter(Boolean).join(" — ") || "Erro não detalhado retornado pelo gateway."
       : "";
 
   return {
@@ -83,15 +124,108 @@ const parseDocumentResponse = (data: any): FocusEmitResult => {
   };
 };
 
+// A Sefaz exige NCM com exatamente 8 dígitos — um valor presente mas com
+// formato errado (ex.: "0", espaço, menos de 8 dígitos) passava direto pelo
+// `item.ncm || "00000000"` antigo (qualquer string não-vazia é truthy),
+// causando "não é do tamanho correto" no gateway (v2.3.123). Agora valida o
+// formato, não só a presença.
+const normalizeNcm = (ncm: string | null | undefined): string => {
+  const digits = (ncm || "").replace(/\D/g, "");
+  return digits.length === 8 ? digits : "00000000";
+};
+
 // Monta o payload de itens compartilhado entre NF-e e NFC-e — estruturalmente
 // muito parecidas na API da Focus NFe (a NFC-e é uma NF-e simplificada pro
 // consumidor final).
+// SIGMA/SINARM, lote de munição e ID de embalagem (v2.3.166) — exigidos
+// pela legislação de controle de armas/munições (Exército/Polícia
+// Federal), mas não existem como campo próprio no schema padrão da
+// NF-e/NFC-e — vão como texto nas informações adicionais do PRODUTO
+// (infAdProd), prática comum pra dado regulatório sem campo dedicado.
+// Só gera texto quando pelo menos um dos três estiver preenchido (a
+// maioria dos itens de uma venda não é arma/munição). Rótulos ajustados
+// na v2.3.183 pra bater com o formato da nota real do sistema antigo
+// ("LOTE: X / ID: Y" / "SIGMA: Z") — mesma informação, só o texto do
+// rótulo mudou.
+const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefined => {
+  const parts: string[] = [];
+  if (item.ammoLot) parts.push(`LOTE: ${item.ammoLot}`);
+  if (item.packageId) parts.push(`ID: ${item.packageId}`);
+  if (item.sigmaSinarm) parts.push(`SIGMA: ${item.sigmaSinarm}`);
+  return parts.length > 0 ? parts.join(" / ") : undefined;
+};
+
+// ICMS por item (v2.3.167) — lido da aba "Dados Fiscais" do Produto
+// (`FinanceProduct`), confirmado contra 4 notas fiscais reais do cliente
+// (venda a consumidor final + 3 compras de fornecedores CBC/Pavei/
+// Inbramun): CSOSN 101/102 pro regime Simples Nacional (mesmo regime já
+// assumido em `buildEmitente`), Origem variando de verdade por produto
+// ("0" e "5" vistos em notas reais, nunca fixo), CFOP 5102 interno / 61xx
+// interestadual. O CSOSN usado depende de quem é o destinatário
+// (`sale.ieIndicator` — Contribuinte usa `csosnContribuinte`, os outros
+// dois usam `csosnNaoContribuinte`, mesma lógica do sistema de
+// referência do cliente). ICMS-ST (base/alíquota/MVA) só entra quando o
+// produto tem `icmsSubstitution` marcado — nenhuma das 4 notas reais
+// teve ICMS-ST, então esse caminho nunca foi validado contra nota de
+// verdade, só contra o schema público — mesmo aviso de confiança do
+// resto do arquivo.
+const buildItemIcms = (item: Sale["items"][number], sale: Sale) => {
+  const product = item.product;
+  const csosn =
+    sale.ieIndicator === "contributor"
+      ? product?.csosnContribuinte || "101"
+      : product?.csosnNaoContribuinte || "102";
+
+  const fields: Record<string, unknown> = {
+    icms_origem: product?.icmsOrigin || "0",
+    icms_situacao_tributaria: csosn
+  };
+
+  if (!product?.icmsExempt) {
+    const rate = Number(product?.icmsRate) || 0;
+    if (rate > 0) {
+      fields.icms_percentual = rate;
+      fields.icms_modalidade_base_calculo = product?.icmsBcModality || "3";
+    }
+  }
+
+  if (product?.icmsSubstitution) {
+    const stRate = Number(product?.icmsStRate) || 0;
+    const mva = Number(product?.icmsStMva) || 0;
+    if (stRate > 0 || mva > 0) {
+      fields.icms_modalidade_base_calculo_st = product?.icmsStBcModality || "4";
+      if (mva > 0) fields.icms_percentual_margem_valor_adicionado_st = mva;
+      if (stRate > 0) fields.icms_aliquota_st = stRate;
+    }
+  }
+
+  // Valor ICMS Desonerado (vICMSDeson, v2.3.183, pedido do cliente) — campo
+  // livre, opcional (fica zerado/em branco se não usar, mesma filosofia dos
+  // outros campos de ICMS-ST). ⚠️ A Sefaz também pode exigir o "motivo da
+  // desoneração" (motDesICMS) junto quando esse valor é informado — campo
+  // que este sistema ainda não tem (não implementado por falta de nota
+  // real confirmando qual motivo o cliente usa) — se uma emissão com esse
+  // valor preenchido for rejeitada (código 934 ou parecido), é isso que
+  // está faltando.
+  const desoneratedValue = Number(product?.icmsDesoneration) || 0;
+  if (desoneratedValue > 0) {
+    fields.icms_valor_desonerado = desoneratedValue;
+  }
+
+  return fields;
+};
+
 const buildItemsPayload = (sale: Sale) =>
   (sale.items || []).map((item, index) => ({
     numero_item: index + 1,
-    codigo_produto: item.productId ? String(item.productId) : `ITEM-${index + 1}`,
+    // Código do produto que vai na nota: o SKU real do cadastro (snapshot em
+    // SaleItem.sku no momento da venda) — nunca o id interno do banco, que
+    // não tem nenhum significado fora do AtendeFlow e não é o "código do
+    // produto" que a Sefaz/o cliente espera ver na nota.
+    codigo_produto: item.sku || (item.productId ? String(item.productId) : `ITEM-${index + 1}`),
     descricao: item.description,
-    ncm: item.ncm || "00000000",
+    informacoes_adicionais_produto: buildItemAdditionalInfo(item),
+    codigo_ncm: normalizeNcm(item.ncm),
     cfop: item.cfop || "5102",
     unidade_comercial: item.unit || "UN",
     quantidade_comercial: Number(item.quantity) || 0,
@@ -100,10 +234,45 @@ const buildItemsPayload = (sale: Sale) =>
     unidade_tributavel: item.unit || "UN",
     quantidade_tributavel: Number(item.quantity) || 0,
     valor_unitario_tributavel: Number(item.unitPrice) || 0,
-    icms_origem: "0",
-    icms_situacao_tributaria: "102"
+    ...buildItemIcms(item, sale),
+    // Grupo do PIS/COFINS, que faltava por completo (rejeição Sefaz 745,
+    // "NF-e sem grupo do PIS", v2.3.126) — a Sefaz exige o grupo mesmo
+    // quando não há valor a destacar. "99" = Outras Operações, o CST
+    // correto pra regime Simples Nacional (PIS/COFINS são recolhidos via
+    // DAS, não destacados nota a nota — confirmado: nenhuma das 4 notas
+    // reais usadas pra validar esta entrega teve PIS/COFINS destacado
+    // nas vendas do cliente, só nas compras de fornecedor que não é
+    // Simples — esse lado, de quem RECEBE a nota, não é modelado aqui).
+    pis_situacao_tributaria: "99",
+    pis_valor_base_calculo: 0,
+    pis_aliquota_porcentual: 0,
+    pis_valor: 0,
+    cofins_situacao_tributaria: "99",
+    cofins_valor_base_calculo: 0,
+    cofins_aliquota_porcentual: 0,
+    cofins_valor: 0
   }));
 
+// indIEDest (Sefaz) — "1" Contribuinte ICMS, "2" Contribuinte isento de
+// Inscrição, "9" Não Contribuinte. Código confirmado contra o schema
+// público da NF-e; o NOME do campo que a Focus NFe espera no JSON
+// (`indicador_ie`) é um palpite consistente com o resto do adapter
+// (nunca testado contra conta de homologação de verdade — mesmo aviso do
+// topo do arquivo).
+const IE_INDICATOR_CODES: Record<string, string> = {
+  contributor: "1",
+  exempt: "2",
+  non_contributor: "9"
+};
+
+// Endereço do destinatário (v2.3.171) — prioriza o snapshot gravado na
+// própria Venda (`sale.recipient*`, preenchido ao escolher o Cliente em
+// SaleModal.js, sempre editável) em vez de ler direto de
+// `sale.customer.*` — mesma lógica de snapshot já usada em
+// SaleItem.sku/ncm/cfop (cadastro do Cliente pode mudar depois, a nota
+// já emitida não deve mudar retroativamente). Vendas antigas, de antes
+// desta entrega, nunca tiveram esse snapshot preenchido — por isso cada
+// campo cai pra `customer.*` quando o campo da Venda está vazio.
 const buildDestinatario = (sale: Sale) => {
   const customer = sale.customer;
   if (!customer) return {};
@@ -116,39 +285,272 @@ const buildDestinatario = (sale: Sale) => {
       : { cpf_destinatario: (customer.document || "").replace(/\D/g, "") }),
     email_destinatario: customer.email || undefined,
     telefone_destinatario: customer.phone || undefined,
-    logradouro_destinatario: customer.street || undefined,
-    numero_destinatario: customer.number || undefined,
-    bairro_destinatario: customer.neighborhood || undefined,
-    municipio_destinatario: customer.city || undefined,
-    uf_destinatario: customer.state || undefined,
-    cep_destinatario: (customer.zipCode || "").replace(/\D/g, "") || undefined
+    logradouro_destinatario: sale.recipientStreet || customer.street || undefined,
+    numero_destinatario: sale.recipientNumber || customer.number || undefined,
+    complemento_destinatario: sale.recipientComplement || customer.complement || undefined,
+    bairro_destinatario: sale.recipientNeighborhood || customer.neighborhood || undefined,
+    municipio_destinatario: sale.recipientCity || customer.city || undefined,
+    uf_destinatario: sale.recipientState || customer.state || undefined,
+    cep_destinatario:
+      (sale.recipientZipCode || customer.zipCode || "").replace(/\D/g, "") || undefined,
+    indicador_ie: IE_INDICATOR_CODES[sale.ieIndicator] || IE_INDICATOR_CODES.non_contributor
   };
+};
+
+// ⚠️ Campos fiscais pedidos pelo contador do cliente (v2.3.166) — cada
+// indicador abaixo tem um código OFICIAL da Sefaz (conferido contra o
+// schema público da NF-e/NFC-e, confiança alta nesse código em si), mas o
+// NOME EXATO que a Focus NFe espera pra cada chave no JSON não veio de
+// nenhum exemplo real testado (mesma ressalva do topo do arquivo) —
+// validar contra uma nota de Homologação de verdade antes de confiar em
+// Produção, e ajustar o nome da chave aqui se a Focus devolver erro de
+// campo desconhecido.
+//
+// idDest (Identificador de local de destino da operação): 1-Interna,
+// 2-Interestadual, 3-Exterior.
+const OPERATION_TYPE_CODES: Record<string, string> = {
+  internal: "1",
+  interstate: "2",
+  foreign: "3"
+};
+
+// indIntermed: 0-Operação sem intermediador, 1-Operação em site ou
+// plataforma de terceiro. "none" (sem int./site próprio) não manda o
+// campo — só obrigatório quando existe de fato uma plataforma de
+// terceiro envolvida.
+const INTERMEDIARY_CODES: Record<string, string> = {
+  own_site: "0",
+  marketplace: "1"
+};
+
+// Forma de pagamento (tPag) — tabela oficial da Sefaz. "cash_upfront"
+// ("À vista") e "money" ("Dinheiro") foram pedidos como DUAS opções
+// separadas pelo cliente, mas a Sefaz só tem um código de dinheiro ("01")
+// — mapeadas iguais aqui de propósito. "imported_xml" ("Importado do
+// XML") não corresponde a nenhum código oficial conhecido — tratado como
+// "99" (Outros) até o contador confirmar o que esse caso realmente
+// significa pra nota fiscal.
+const PAYMENT_METHOD_CODES: Record<string, string> = {
+  cash_upfront: "01",
+  money: "01",
+  credit_card: "03",
+  debit_card: "04",
+  pix: "17",
+  no_payment: "90",
+  imported_xml: "99"
+};
+
+const buildIndicadores = (sale: Sale) => {
+  const fields: Record<string, unknown> = {
+    natureza_operacao: sale.operationNature || "Venda",
+    id_destino: OPERATION_TYPE_CODES[sale.operationType] || OPERATION_TYPE_CODES.internal,
+    consumidor_final: sale.finalConsumerType === "normal" ? "0" : "1"
+  };
+
+  if (sale.intermediaryType && sale.intermediaryType !== "none") {
+    // Quando a venda é por marketplace/plataforma de terceiro, a Sefaz
+    // também exige CNPJ + identificador do intermediador — não coletado
+    // ainda (não fazia parte do pedido original), então só o indicador
+    // vai por enquanto. Terminar isso exige um campo novo se algum
+    // cliente usar NFC-e via marketplace de verdade.
+    fields.indicador_intermediador = INTERMEDIARY_CODES[sale.intermediaryType] || "0";
+  }
+
+  const paymentCode = PAYMENT_METHOD_CODES[sale.paymentMethod];
+  if (paymentCode) {
+    fields.formas_pagamento = [
+      {
+        forma_pagamento: paymentCode,
+        valor_pagamento: paymentCode === "90" ? 0 : Number(sale.totalValue) || 0
+      }
+    ];
+  }
+
+  return fields;
 };
 
 const buildEmitente = (company: Company, config: FiscalConfig) => ({
   cnpj_emitente: (company.document || "").replace(/\D/g, ""),
-  nome_emitente: company.name,
+  // Razão social dedicada pra nota (v2.3.193, `emitterLegalName`), cai
+  // pra `company.name` (nome operacional da empresa no AtendeFlow)
+  // quando vazio — ver comentário completo em FiscalConfig.ts.
+  nome_emitente: config.emitterLegalName || company.name,
   regime_tributario_emitente: config.taxRegime === "simples" || config.taxRegime === "mei" ? "1" : "3",
-  inscricao_estadual_emitente: config.stateRegistrationExempt ? "ISENTO" : config.stateRegistration
+  // Formatada com pontuação no cadastro (ex.: "182.174.539") — a Sefaz
+  // espera só dígitos nesse campo; achado comparando com o print da tela
+  // de Configuração Fiscal do cliente (v2.3.122), causa provável de o
+  // erro de schema continuar mesmo depois do endereço do emitente ter
+  // sido preenchido corretamente.
+  inscricao_estadual_emitente: config.stateRegistrationExempt
+    ? "ISENTO"
+    : (config.stateRegistration || "").replace(/\D/g, ""),
+  // Endereço do emitente — obrigatório no XML (enderEmit), faltava por
+  // completo até a v2.3.119 (causa raiz confirmada do "Erro na validação
+  // do Schema XML" no primeiro teste real).
+  logradouro_emitente: config.emitterStreet || undefined,
+  numero_emitente: config.emitterNumber || undefined,
+  complemento_emitente: config.emitterComplement || undefined,
+  bairro_emitente: config.emitterNeighborhood || undefined,
+  municipio_emitente: config.emitterCity || undefined,
+  uf_emitente: config.emitterState || undefined,
+  cep_emitente: (config.emitterZipCode || "").replace(/\D/g, "") || undefined,
+  telefone_emitente: (config.emitterPhone || "").replace(/\D/g, "") || undefined
 });
 
-const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  natureza_operacao: "Venda",
-  data_emissao: new Date().toISOString(),
-  tipo_documento: "1",
-  finalidade_emissao: "1",
-  cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
-  serie: config.nfeSeries,
-  ...buildEmitente(company, config),
-  ...buildDestinatario(sale),
-  items: buildItemsPayload(sale)
-});
+// finNFe (Sefaz) — "1" Normal, "2" Complementar, "3" Ajuste, "4"
+// Devolução de mercadoria. "NF Crédito"/"NF Débito" (duas das 6 opções
+// do sistema de referência do cliente) NÃO correspondem a nenhum valor
+// oficial de finNFe conhecido — mapeadas pra "1" (Normal) até confirmar
+// com o contador o que o cliente realmente precisa nesses dois casos.
+const ISSUANCE_PURPOSE_CODES: Record<string, string> = {
+  normal: "1",
+  complementary: "2",
+  adjustment: "3",
+  return: "4",
+  credit_note: "1",
+  debit_note: "1"
+};
+
+// "Dados de Transporte" (v2.3.168) — grupo `transp` da NF-e. Nomes de
+// campo (volumes[]/transportadora/entrega) seguem a mesma convenção
+// snake_case do resto do adapter, mas NÃO foram confirmados contra
+// nenhuma resposta real da Focus NFe — mesmo aviso de confiança do topo
+// do arquivo, reforçado aqui porque é a parte mais nova.
+const buildTransporte = (sale: Sale) => {
+  const fields: Record<string, unknown> = {
+    modalidade_frete: sale.freightResponsibility || "9"
+  };
+
+  if (sale.volumeQuantity > 0 || sale.volumeSpecies || sale.volumeBrand) {
+    fields.volumes = [
+      {
+        quantidade_volumes: sale.volumeQuantity || undefined,
+        especie_volumes: sale.volumeSpecies || undefined,
+        marca_volumes: sale.volumeBrand || undefined,
+        numeracao_volumes: sale.volumeNumber || undefined,
+        peso_bruto_volumes: Number(sale.volumeGrossWeight) || undefined,
+        peso_liquido_volumes: Number(sale.volumeNetWeight) || undefined
+      }
+    ];
+  }
+
+  if (sale.carrierName) {
+    fields.nome_transportador = sale.carrierName;
+    fields.endereco_transportador = sale.carrierAddress || undefined;
+    fields.municipio_transportador = sale.carrierCity || undefined;
+    fields.uf_transportador = sale.carrierState || undefined;
+    fields.cnpj_transportador = (sale.carrierCnpj || "").replace(/\D/g, "") || undefined;
+    fields.inscricao_estadual_transportador = sale.carrierIe || undefined;
+  }
+
+  if (sale.vehiclePlate) {
+    fields.placa_veiculo = sale.vehiclePlate;
+    fields.uf_placa_veiculo = sale.vehicleState || undefined;
+  }
+
+  // Local de entrega diferente do destinatário — grupo `entrega`, só
+  // enviado quando preenchido (a maioria das vendas entrega no mesmo
+  // endereço do destinatário, já coberto por `buildDestinatario`).
+  if (sale.deliveryName || sale.deliveryAddress) {
+    fields.entrega = {
+      nome_entrega: sale.deliveryName || undefined,
+      logradouro_entrega: sale.deliveryAddress || undefined,
+      numero_entrega: sale.deliveryNumber || undefined,
+      complemento_entrega: sale.deliveryComplement || undefined,
+      bairro_entrega: sale.deliveryNeighborhood || undefined,
+      municipio_entrega: sale.deliveryCity || undefined,
+      uf_entrega: sale.deliveryState || undefined,
+      cep_entrega: (sale.deliveryZipCode || "").replace(/\D/g, "") || undefined,
+      fone_entrega: (sale.deliveryPhone || "").replace(/\D/g, "") || undefined
+    };
+  }
+
+  return fields;
+};
+
+// "Informações Complementares" da nota (infCpl) — v2.3.183, pedido do
+// cliente após comparar com nota real do sistema antigo: duas linhas
+// fixas no rodapé de Dados Adicionais —
+// 1) aviso padrão de ME/EPP optante pelo Simples Nacional (só quando
+//    `config.taxRegime` for "simples"/"mei", mesmo regime já assumido em
+//    `buildEmitente`/`buildItemIcms`);
+// 2) "Total de Tributos Federais, Estaduais e Municipais: R$ X (Y%) Fonte:
+//    IBPT Z" — Lei da Transparência (Lei 12.741/2012). Soma
+//    `item.totalPrice * (product.ibptRate/100)` de cada item (campo
+//    manual, ver FinanceProduct.ts) pra chegar no valor e no percentual
+//    sobre o total da venda; "Fonte" usa o código do primeiro item que
+//    tiver um preenchido (nota real só tinha 1 item — vários itens com
+//    fontes IBPT diferentes na mesma nota não têm um jeito "certo" de
+//    combinar num texto só, essa é a simplificação adotada). Não gera
+//    nada quando nenhum item tem `ibptRate` preenchido.
+const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefined => {
+  const lines: string[] = [];
+
+  if (config.taxRegime === "simples" || config.taxRegime === "mei") {
+    lines.push(
+      "DOC. EMITIDO POR ME/EPP OPTANTE PELO SIMPLES NACIONAL NAO GERA DIREITO A CREDITO FISCAL DE ISS E IPI."
+    );
+  }
+
+  const items = sale.items || [];
+  const totalTributos = items.reduce((sum, item) => {
+    const rate = Number(item.product?.ibptRate) || 0;
+    return rate > 0 ? sum + Number(item.totalPrice || 0) * (rate / 100) : sum;
+  }, 0);
+
+  if (totalTributos > 0) {
+    const saleTotal = Number(sale.totalValue) || 0;
+    const percent = saleTotal > 0 ? (totalTributos / saleTotal) * 100 : 0;
+    const source = items.find((item) => item.product?.ibptSource)?.product?.ibptSource;
+    const sourceText = source ? ` Fonte: IBPT ${source}` : "";
+    lines.push(
+      `Total de Tributos Federais, Estaduais e Municipais: R$ ${totalTributos.toFixed(2).replace(".", ",")} (${percent
+        .toFixed(2)
+        .replace(".", ",")}%)${sourceText}`
+    );
+  }
+
+  return lines.length > 0 ? lines.join("\n") : undefined;
+};
+
+// Data/hora de saída da mercadoria (dhSaiEnt, campo B10 do leiaute da
+// NF-e) — v2.3.183, pedido do cliente após comparar com nota real emitida
+// no sistema antigo (campos "DATA DA SAÍDA"/"HORA DA SAÍDA" preenchidos,
+// ficavam em branco aqui). Usa o MESMO instante de `data_emissao` (nunca
+// pode ser anterior à emissão, Sefaz rejeita com o código 506 se for) — só
+// entra na NF-e (modelo 55); a NFC-e REJEITA esse campo (código 705), por
+// isso `buildNfcePayload`/`buildNfsePayload` não o têm. ⚠️ nome do campo
+// (`data_entrada_saida`) confirmado contra exemplo público da
+// documentação da Focus NFe, nunca testado contra conta/chave real nesta
+// sessão.
+const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => {
+  const now = new Date().toISOString();
+  return {
+    data_emissao: now,
+    data_entrada_saida: now,
+    tipo_documento: "1",
+    finalidade_emissao: ISSUANCE_PURPOSE_CODES[sale.issuancePurpose] || "1",
+    informacoes_adicionais_contribuinte: buildAdditionalInfo(sale, config),
+    cnpj_emitente: buildEmitente(company, config).cnpj_emitente,
+    serie: config.nfeSeries,
+    // indPres (presença do consumidor) — nome de campo usado aqui
+    // (`indicador_presenca`) é diferente do usado em NFC-e
+    // (`presenca_comprador`, convenção já existente antes desta entrega);
+    // ver aviso de confiança em `buildIndicadores`.
+    indicador_presenca: sale.consumerPresence || "1",
+    ...buildIndicadores(sale),
+    ...buildTransporte(sale),
+    ...buildEmitente(company, config),
+    ...buildDestinatario(sale),
+    items: buildItemsPayload(sale)
+  };
+};
 
 const buildNfcePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  natureza_operacao: "Venda ao consumidor",
   data_emissao: new Date().toISOString(),
-  presenca_comprador: "1",
+  presenca_comprador: sale.consumerPresence || "1",
   serie: config.nfceSeries,
+  ...buildIndicadores(sale),
   ...buildEmitente(company, config),
   ...buildDestinatario(sale),
   items: buildItemsPayload(sale)
@@ -276,5 +678,153 @@ export const cancel = async (
       ok: false,
       errorMessage: String(responseData?.mensagem || err?.message || "Falha ao cancelar no gateway fiscal.")
     };
+  }
+};
+
+// ⚠️ As cinco funções abaixo usam endpoints confirmados pelo próprio cliente
+// (curls copiados direto da documentação oficial da Focus NFe, v2.3.106) —
+// método/URL têm certeza alta. O FORMATO DO CORPO de cada request (nomes de
+// campo) não veio nos exemplos (só `{}`/`{"items":[]}` genéricos), então foi
+// reconstruído por conhecimento geral da API — mesmo nível de confiança que
+// o resto do adapter (emit/getStatus/cancel): precisa validar contra conta
+// de homologação de verdade antes de confiar em produção.
+
+// Carta de Correção — só existe pra NF-e (modelo 55), não pra NFC-e/NFS-e.
+export const emitCorrectionLetter = async (
+  type: string,
+  externalRef: string,
+  correctionText: string,
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  if (type !== "nfe") {
+    return { ok: false, errorMessage: "ERR_FISCAL_CORRECTION_LETTER_ONLY_NFE" };
+  }
+
+  const client = buildClient(config);
+
+  try {
+    await client.post(`/v2/nfe/${externalRef}/carta_correcao`, { correcao: correctionText });
+    return { ok: true, errorMessage: "" };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao emitir carta de correção no gateway fiscal.")
+    };
+  }
+};
+
+export const sendByEmail = async (
+  type: string,
+  externalRef: string,
+  emails: string[],
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string }> => {
+  const client = buildClient(config);
+  const endpoint = documentEndpoint(type);
+
+  try {
+    await client.post(`/v2/${endpoint}/${externalRef}/email`, { emails });
+    return { ok: true, errorMessage: "" };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao enviar a nota por e-mail pelo gateway fiscal.")
+    };
+  }
+};
+
+// Pré-visualização — monta o mesmo payload de `emit`, mas chama o endpoint
+// de prévia (não transmite nada pra Sefaz, não gera `ref`/FiscalDocument).
+// Só existe pra NF-e. Resposta é o PDF em binário, não JSON.
+// v2.3.186 — dois ajustes feitos depois que o cliente mandou a
+// documentação oficial deste endpoint (natureza_operacao, data_emissao,
+// data_entrada_saida, tipo_documento como INTEGER 0/1, local_destino):
+// 1) o `client.post` não mandava o header `Accept: application/pdf` que o
+//    exemplo oficial da Focus NFe usa — adicionado só nesta chamada (o
+//    `buildClient` compartilhado continua só com Content-Type, pros
+//    outros endpoints que esperam JSON).
+// 2) `tipo_documento` vinha como STRING ("1") dentro de `buildNfePayload`
+//    (campo também usado por `emit`, que já funciona em Produção — por
+//    isso não mexido ali) — aqui é convertido pra NUMBER só pra esta
+//    chamada, pra bater com o tipo documentado (`integer enum`).
+// Nenhum dos dois explica por si só como esse endpoint, que a própria
+// Focus NFe documenta como "não possui valor fiscal", resultou numa nota
+// real autorizada pela Sefaz (nota 498, ver FiscalDocumentService.ts) —
+// por isso NÃO foi religado direto em Produção: `FiscalDocumentService.
+// previewDanfe` só chama esta função quando a empresa está em
+// Homologação (sandbox). Em Produção continua bloqueado no backend até
+// o cliente confirmar um teste limpo em Homologação (ou uma resposta do
+// suporte da Focus NFe explicando o que aconteceu).
+export const previewDanfe = async (
+  sale: Sale,
+  company: Company,
+  config: FiscalConfig
+): Promise<{ ok: boolean; pdf: Buffer | null; errorMessage: string }> => {
+  const client = buildClient(config);
+  const payload = buildNfePayload(sale, company, config);
+
+  try {
+    const { data } = await client.post(
+      "/v2/nfe/danfe",
+      { ...payload, tipo_documento: Number(payload.tipo_documento) || 1 },
+      { responseType: "arraybuffer", headers: { Accept: "application/pdf" } }
+    );
+    return { ok: true, pdf: Buffer.from(data), errorMessage: "" };
+  } catch (err: any) {
+    return {
+      ok: false,
+      pdf: null,
+      errorMessage: err?.message || "Falha ao gerar a pré-visualização do DANFe no gateway fiscal."
+    };
+  }
+};
+
+// Inutilização de numeração — nível empresa/série, não está ligado a um
+// FiscalDocument específico (é justamente pra um número que NUNCA foi
+// usado). Só existe pra NF-e.
+export const invalidateNumbering = async (
+  series: string,
+  numberStart: number,
+  numberEnd: number,
+  justification: string,
+  config: FiscalConfig
+): Promise<{ ok: boolean; errorMessage: string; raw: unknown }> => {
+  const client = buildClient(config);
+
+  try {
+    const { data } = await client.post("/v2/nfe/inutilizacao", {
+      serie: series,
+      numero_inicial: numberStart,
+      numero_final: numberEnd,
+      justificativa: justification
+    });
+    return { ok: true, errorMessage: "", raw: data };
+  } catch (err: any) {
+    const responseData = err?.response?.data;
+    return {
+      ok: false,
+      errorMessage: String(responseData?.mensagem || err?.message || "Falha ao inutilizar numeração no gateway fiscal."),
+      raw: responseData || null
+    };
+  }
+};
+
+// Bug real batido em produção (v2.3.115): sem try/catch aqui, qualquer
+// falha nessa chamada (ex.: a Focus NFe não tem nenhuma inutilização
+// registrada ainda e responde de um jeito que a lib de HTTP trata como
+// erro) derrubava a Configuração Fiscal inteira com 500 — a tela chama
+// isso toda vez que abre (`NumberingInvalidationPanel`). Mesmo padrão das
+// outras seis funções deste arquivo: nunca deixar a UI quebrar por causa
+// de uma falha de rede/API do gateway.
+export const listInvalidations = async (config: FiscalConfig): Promise<unknown[]> => {
+  const client = buildClient(config);
+
+  try {
+    const { data } = await client.get("/v2/nfe/inutilizacoes");
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
   }
 };

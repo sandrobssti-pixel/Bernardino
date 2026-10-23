@@ -554,6 +554,11 @@ const messages = {
           cancel: "Cancelar",
         },
         success: "Contato salvo com sucesso.",
+        finance: {
+          linkButton: "Cadastrar como cliente (Financeiro)",
+          linkedLabel: "Cliente financeiro vinculado",
+          linkSuccess: "Contato vinculado ao cadastro de Clientes do Financeiro.",
+        },
       },
       flowbuilder: {
         title: "Flowbuilder",
@@ -999,6 +1004,9 @@ const messages = {
           chats: "Chat Interno",
           financeiro: "Financeiro",
           rh: "RH",
+          weaponDispatch: "Despachante Bélico",
+          services: "Serviços Adms.",
+          weaponArmory: "Serviço Armaria",
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",
@@ -1872,11 +1880,15 @@ const messages = {
       backendErrors: {
         ERR_COMPANY_PLAN_REQUIRED: "Selecione um plano para vincular à empresa.",
         ERR_SALE_REQUIRES_ITEMS: "Adicione pelo menos um item à venda.",
-        ERR_SALE_NOT_EDITABLE: "Só é possível editar vendas em rascunho.",
+        ERR_SALE_NOT_EDITABLE: "Não é possível editar uma venda cancelada.",
+        ERR_SALE_HAS_FISCAL_DOCUMENT: "Esta venda já tem nota fiscal autorizada ou em processamento — para corrigir, use carta de correção ou cancele a nota.",
+        ERR_SALE_RECEIVABLE_HAS_PAYMENT: "A conta a receber desta venda já tem cobrança gerada ou paga — cancele a venda e refaça se precisar corrigir.",
         ERR_SALE_ALREADY_CONFIRMED: "Esta venda já foi confirmada.",
         ERR_SALE_NOT_CONFIRMED: "Confirme a venda antes de emitir a nota fiscal.",
         ERR_SALE_NOT_FOUND: "Venda não encontrada.",
         ERR_FISCAL_DOCUMENT_INVALID_TYPE: "Tipo de documento fiscal inválido.",
+        ERR_FISCAL_DOCUMENT_EMAIL_REQUIRED: "Informe pelo menos um e-mail.",
+        ERR_FISCAL_DOCUMENT_EMAIL_INVALID: "Tem um e-mail com formato inválido na lista — confira e tente de novo.",
         ERR_FISCAL_GATEWAY_NOT_CONFIGURED:
           "Configure o token do gateway fiscal em Configuração Fiscal antes de emitir notas.",
         ERR_FISCAL_DOCUMENT_NOT_CANCELLABLE:
@@ -1885,6 +1897,17 @@ const messages = {
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
         ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
+        ERR_NO_PAYMENT_MODULE_ACCESS: "Seu plano não inclui a cobrança via gateway (Pix/boleto).",
+        ERR_NO_FLOWBUILDER_MODULE_ACCESS: "Seu plano não inclui criar/editar fluxos no Flowbuilder.",
+        ERR_FINANCE_PAYMENT_GATEWAY_NOT_CONFIGURED:
+          "Configure o token do Mercado Pago em Configuração de Pagamento antes de gerar cobrança.",
+        ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED:
+          "Mercado Pago e Asaas estão ativos ao mesmo tempo — escolha qual gateway usar nesta cobrança.",
+        ERR_FINANCE_PAYMENT_NO_CUSTOMER:
+          "Vincule um cliente a esta conta antes de gerar a cobrança.",
+        ERR_FINANCE_PAYMENT_INVALID_VALUE:
+          "Informe um valor maior que zero antes de gerar a cobrança.",
+        ERR_NO_IMPORT_PERMISSION: "Seu usuário não tem permissão pra importar planilha. Peça pro administrador liberar em Usuários.",
         ERR_NO_HR_MODULE_ACCESS: "Seu plano não inclui o módulo de RH.",
         ERR_CONTACT_REGISTRATION_REQUIRED: "Complete o cadastro do cliente e escolha a coluna do Kanban antes de fechar o atendimento.",
         ERR_JOB_POSTING_INVALID_TITLE: "Informe um título para a vaga.",
@@ -1916,6 +1939,8 @@ const messages = {
           "Erro de autenticação. Por favor, tente novamente.",
         ERR_SENDING_WAPP_MSG:
           "Erro ao enviar mensagem do WhatsApp. Verifique a página de conexões.",
+        ERR_MEDIA_FILE_NOT_FOUND:
+          "Não foi possível reencaminhar: o arquivo original não está mais disponível no servidor.",
         ERR_DELETE_WAPP_MSG: "Não foi possível excluir a mensagem do WhatsApp.",
         ERR_OTHER_OPEN_TICKET: "Já existe um tíquete aberto para este contato.",
         ERR_SESSION_EXPIRED: "Sessão expirada. Por favor entre.",

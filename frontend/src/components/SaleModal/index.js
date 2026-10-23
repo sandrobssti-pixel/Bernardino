@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Formik, Form, FieldArray, Field } from "formik";
 import { toast } from "react-toastify";
 
@@ -10,7 +10,6 @@ import DialogActions from "@material-ui/core/DialogActions";
 import DialogContent from "@material-ui/core/DialogContent";
 import DialogTitle from "@material-ui/core/DialogTitle";
 import Grid from "@material-ui/core/Grid";
-import MenuItem from "@material-ui/core/MenuItem";
 import CircularProgress from "@material-ui/core/CircularProgress";
 import IconButton from "@material-ui/core/IconButton";
 import Typography from "@material-ui/core/Typography";
@@ -21,6 +20,46 @@ import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 
 import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
+import { fetchAddressByCep } from "../../utils/cep";
+import MenuItem from "@material-ui/core/MenuItem";
+import CfopAutocomplete from "../CfopAutocomplete";
+import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
+import {
+  PRODUCT_TYPE_LABELS,
+  PRODUCT_TYPE_OPTIONS,
+  SALE_OPERATION_TYPE_OPTIONS,
+  SALE_CONSUMER_PRESENCE_OPTIONS,
+  SALE_INTERMEDIARY_TYPE_OPTIONS,
+  SALE_FINAL_CONSUMER_TYPE_OPTIONS,
+  SALE_RECIPIENT_TYPE_OPTIONS,
+  SALE_IE_INDICATOR_OPTIONS,
+  SALE_PAYMENT_METHOD_OPTIONS,
+  SALE_ISSUANCE_PURPOSE_OPTIONS,
+  SALE_FREIGHT_RESPONSIBILITY_OPTIONS,
+} from "../../pages/Financeiro/financeConfig";
+
+// Mostra o Tipo junto do nome NA LISTA de resultados da busca de item da
+// venda (não no campo já preenchido, que fica compacto só com o nome) —
+// sem isso, Produto/Serviço/Arma/Munição apareciam todos misturados sem
+// nenhuma pista visual de qual é qual (pedido do cliente, depois que o
+// catálogo de Serviços do Despachante Bélico cresceu e passou a dividir
+// espaço com arma/munição na mesma busca).
+const renderProductOption = (opt) =>
+  opt?.type ? `${opt.name} — ${PRODUCT_TYPE_LABELS[opt.type] || opt.type}` : opt?.name || "";
+
+// Mesma lista de opções do campo "Produto/serviço" acima, mas com o SKU
+// em destaque primeiro — usado no dropdown do campo "Código (SKU)"
+// (v2.3.194), que busca pelos dois (SKU ou nome) igual o de cima.
+const renderProductOptionBySku = (opt) => `${opt?.sku ? `${opt.sku} — ` : ""}${opt?.name || ""}`;
+
+// Filtro de Tipo por item da venda — não é um dado que a venda guarda (o
+// que fica salvo é só o `productId` escolhido), por isso vive em estado
+// local do componente (por índice da linha), não no Formik/`emptyItem`.
+// Pedido explícito do cliente: a busca de "Produto/serviço" misturava
+// tudo (arma, munição, serviço...) na mesma lista, e mostrar o Tipo no
+// texto do resultado (acima) não bastou — ele queria conseguir RESTRINGIR
+// a busca de verdade, não só identificar visualmente o que já apareceu.
+const PRODUCT_TYPE_FILTER_OPTIONS = [{ value: "", label: "Todos os tipos" }, ...PRODUCT_TYPE_OPTIONS];
 
 const useStyles = makeStyles((theme) => ({
   dialogPaper: {
@@ -46,27 +85,82 @@ const useStyles = makeStyles((theme) => ({
 const emptyItem = {
   productId: "",
   description: "",
+  sku: "",
   ncm: "",
   cfop: "5102",
   unit: "UN",
   quantity: 1,
   unitPrice: 0,
+  sigmaSinarm: "",
+  ammoLot: "",
+  packageId: "",
 };
 
 const buildInitialValues = (sale, defaultCfop) => ({
   customerId: sale?.customerId || "",
   saleDate: sale?.saleDate || new Date().toISOString().slice(0, 10),
   notes: sale?.notes || "",
+  // Campos fiscais pedidos pelo contador do cliente (v2.3.166) — defaults
+  // iguais aos do backend (Sale.ts), pra uma venda nova já nascer com o
+  // valor mais comum pré-selecionado em vez de vazio.
+  operationType: sale?.operationType || "internal",
+  operationNature: sale?.operationNature || "Venda",
+  consumerPresence: sale?.consumerPresence || "1",
+  intermediaryType: sale?.intermediaryType || "none",
+  finalConsumerType: sale?.finalConsumerType || "final",
+  recipientType: sale?.recipientType || "customer",
+  ieIndicator: sale?.ieIndicator || "non_contributor",
+  paymentMethod: sale?.paymentMethod || "",
+  // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168).
+  issuancePurpose: sale?.issuancePurpose || "normal",
+  volumeQuantity: sale?.volumeQuantity || 0,
+  volumeSpecies: sale?.volumeSpecies || "",
+  volumeBrand: sale?.volumeBrand || "",
+  volumeNumber: sale?.volumeNumber || "",
+  volumeGrossWeight: sale?.volumeGrossWeight || "0",
+  volumeNetWeight: sale?.volumeNetWeight || "0",
+  carrierName: sale?.carrierName || "",
+  carrierAddress: sale?.carrierAddress || "",
+  carrierCity: sale?.carrierCity || "",
+  carrierState: sale?.carrierState || "",
+  carrierCnpj: sale?.carrierCnpj || "",
+  carrierIe: sale?.carrierIe || "",
+  deliveryName: sale?.deliveryName || "",
+  deliveryAddress: sale?.deliveryAddress || "",
+  deliveryNumber: sale?.deliveryNumber || "",
+  deliveryComplement: sale?.deliveryComplement || "",
+  deliveryNeighborhood: sale?.deliveryNeighborhood || "",
+  deliveryCity: sale?.deliveryCity || "",
+  deliveryState: sale?.deliveryState || "",
+  deliveryZipCode: sale?.deliveryZipCode || "",
+  deliveryPhone: sale?.deliveryPhone || "",
+  freightResponsibility: sale?.freightResponsibility || "9",
+  boardingLocation: sale?.boardingLocation || "",
+  boardingState: sale?.boardingState || "",
+  vehiclePlate: sale?.vehiclePlate || "",
+  vehicleState: sale?.vehicleState || "",
+  // "Endereço completo" do destinatário (v2.3.171).
+  recipientZipCode: sale?.recipientZipCode || "",
+  recipientStreet: sale?.recipientStreet || "",
+  recipientNumber: sale?.recipientNumber || "",
+  recipientComplement: sale?.recipientComplement || "",
+  recipientNeighborhood: sale?.recipientNeighborhood || "",
+  recipientCity: sale?.recipientCity || "",
+  recipientState: sale?.recipientState || "",
   items:
     sale?.items?.length > 0
       ? sale.items.map((item) => ({
           productId: item.productId || "",
           description: item.description,
+          sku: item.sku || item.product?.sku || "",
           ncm: item.ncm || "",
           cfop: item.cfop || defaultCfop || "5102",
           unit: item.unit || "UN",
           quantity: Number(item.quantity),
           unitPrice: Number(item.unitPrice),
+          sigmaSinarm: item.sigmaSinarm || "",
+          ammoLot: item.ammoLot || "",
+          packageId: item.packageId || "",
         }))
       : [{ ...emptyItem, cfop: defaultCfop || "5102" }],
 });
@@ -75,9 +169,49 @@ const buildInitialValues = (sale, defaultCfop) => ({
 // docs/MANUAL_TECNICO.md, seção 6.2). Só permite editar vendas em rascunho —
 // depois de confirmada, os itens ficam travados (viram base pra nota fiscal
 // e conta a receber, não podem mudar retroativamente).
-const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop }) => {
+// Reforma Tributária 2027 (IVA) — espelho simplificado do cálculo real
+// (`Iva2027Service.ts`, backend), só pra pré-visualização enquanto a venda
+// ainda está sendo montada. O valor gravado de verdade é recalculado no
+// servidor ao salvar (`SaleService.buildItemRows`) — esta função nunca é a
+// fonte de verdade, só evita que o vendedor precise salvar pra ver uma
+// estimativa. Mesma lógica de B2C/B2B/B2G do motor real.
+const calculateIvaPreview = (items, product, customer) => {
+  const customerProfile = customer?.ivaTaxpayerProfile || "B2C";
+  const customerGovExempt = !!customer?.ivaGovExempt;
+
+  return items.reduce(
+    (acc, item) => {
+      const qty = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      const base = qty * unitPrice;
+      acc.netValue += base;
+
+      if (customerProfile === "B2C" || (customerProfile === "B2G" && customerGovExempt)) {
+        return acc;
+      }
+
+      const prod = product(item.productId);
+      const reduction = prod?.ivaEducationReduction ? 0.4 : 1;
+      const cbsRate = (Number(prod?.ivaCbsRate) || 0) * reduction;
+      const ibsRate = (Number(prod?.ivaIbsRate) || 0) * reduction;
+      acc.cbsValue += base * (cbsRate / 100);
+      acc.ibsValue += base * (ibsRate / 100);
+      return acc;
+    },
+    { netValue: 0, cbsValue: 0, ibsValue: 0 }
+  );
+};
+
+const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCfop, finance, reform2027Enabled }) => {
   const classes = useStyles();
   const [initialValues, setInitialValues] = useState(buildInitialValues(null, defaultCfop));
+  // Filtro de Tipo por linha de item (ver comentário de
+  // PRODUCT_TYPE_FILTER_OPTIONS acima) — chave é o índice da linha.
+  const [itemTypeFilters, setItemTypeFilters] = useState({});
+  // Debounce por linha do SKU/Descrição digitado à mão (ver
+  // `handleSkuOrNameLookup` abaixo) — um timer por índice, sobrevive a
+  // re-render (Formik recalcula a cada tecla digitada).
+  const skuLookupTimers = useRef({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(sale, defaultCfop));
@@ -102,15 +236,140 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     }
   };
 
-  const handleProductChange = (index, productId, setFieldValue) => {
-    const product = products.find((p) => p.id === productId);
-    setFieldValue(`items.${index}.productId`, productId);
+  // Ao escolher o Cliente, pré-preenche os campos fiscais que dependem de
+  // quem é o destinatário (v2.3.167, pedido do cliente: "digita o nome do
+  // cliente e preenche automaticamente os campos relacionados") — CPF
+  // nunca é Contribuinte do ICMS nem tem Inscrição Estadual (regra geral,
+  // pessoa física não é contribuinte), então é um default seguro; CNPJ
+  // fica como "Contribuinte"/"Normal" por padrão, mas ambos continuam
+  // campos de select completos, editáveis se o caso real for diferente
+  // (ex.: produtor rural pessoa física com IE, ou CNPJ isento).
+  const handleCustomerChange = (customer, setFieldValue) => {
+    setFieldValue("customerId", customer?.id || "");
+    if (!customer) return;
+    if (customer.documentType === "cpf") {
+      setFieldValue("ieIndicator", "non_contributor");
+      setFieldValue("finalConsumerType", "final");
+    } else {
+      setFieldValue("ieIndicator", "contributor");
+      setFieldValue("finalConsumerType", "normal");
+    }
+    // "Endereço completo" do destinatário (v2.3.171, pedido do cliente:
+    // "coloque no campo vendas o endereço completo conforme o cadastro
+    // do cliente") — snapshot do endereço do Cliente no momento da
+    // escolha (mesma lógica de SaleItem.sku/ncm/cfop), sempre editável
+    // depois.
+    setFieldValue("recipientZipCode", customer.zipCode || "");
+    setFieldValue("recipientStreet", customer.street || "");
+    setFieldValue("recipientNumber", customer.number || "");
+    setFieldValue("recipientComplement", customer.complement || "");
+    setFieldValue("recipientNeighborhood", customer.neighborhood || "");
+    setFieldValue("recipientCity", customer.city || "");
+    setFieldValue("recipientState", customer.state || "");
+  };
+
+  // Autopreenchimento do "Endereço completo" do destinatário por CEP
+  // (ViaCEP) — mesma lógica de `handleDeliveryCepBlur` abaixo, campo
+  // próprio porque são dois endereços diferentes na mesma venda
+  // (destinatário x local de entrega).
+  const handleRecipientCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    if (address.street) setFieldValue("recipientStreet", address.street);
+    if (address.neighborhood) setFieldValue("recipientNeighborhood", address.neighborhood);
+    if (address.city) setFieldValue("recipientCity", address.city);
+    if (address.state) setFieldValue("recipientState", address.state);
+  };
+
+  // Autopreenchimento do "Local de entrega" por CEP (ViaCEP) — mesma
+  // lógica do FinanceRecordModal.js (Cliente/Fornecedor), aplicada aqui
+  // porque o endereço de entrega da venda é um formulário próprio, não o
+  // genérico.
+  const handleDeliveryCepBlur = async (e, setFieldValue) => {
+    const address = await fetchAddressByCep(e.target.value);
+    if (!address) return;
+    if (address.street) setFieldValue("deliveryAddress", address.street);
+    if (address.neighborhood) setFieldValue("deliveryNeighborhood", address.neighborhood);
+    if (address.city) setFieldValue("deliveryCity", address.city);
+    if (address.state) setFieldValue("deliveryState", address.state);
+  };
+
+  const handleProductChange = (index, product, setFieldValue, operationType) => {
+    setFieldValue(`items.${index}.productId`, product?.id || "");
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
+      setFieldValue(`items.${index}.sku`, product.sku || "");
       setFieldValue(`items.${index}.ncm`, product.ncm || "");
       setFieldValue(`items.${index}.unit`, product.unit || "UN");
       setFieldValue(`items.${index}.unitPrice`, Number(product.price) || 0);
+      // CFOP padrão do produto (aba Dados Fiscais, v2.3.167) — interno ou
+      // fora da BA conforme o "Tipo de operação" já escolhido na venda.
+      // Continua editável por item (CfopAutocomplete logo abaixo).
+      const defaultProductCfop =
+        operationType === "interstate" ? product.cfopOutState : product.cfopPrincipal;
+      setFieldValue(`items.${index}.cfop`, defaultProductCfop || "5102");
     }
+  };
+
+  const fetchCustomerOptions = async (searchParam) => {
+    if (!finance) return customers;
+    const { records } = await finance.customers.list({ searchParam });
+    return records || [];
+  };
+
+  const fetchProductOptions = async (index, searchParam) => {
+    if (!finance) return products;
+    const type = itemTypeFilters[index] || undefined;
+    const { records } = await finance.products.list({ searchParam, type });
+    return records || [];
+  };
+
+  // Digitar o nome direto no campo "Descrição" (sem passar pelo
+  // "Produto/serviço" de cima nem pelo dropdown do "Código (SKU)")
+  // também preenche os campos relacionados — pedido do cliente (v2.3.172,
+  // reforçado v2.3.191). Até a v2.3.193 esse mesmo mecanismo também
+  // cobria o campo "Código (SKU)"; na v2.3.194 esse campo virou um
+  // dropdown de busca ao vivo igual o "Produto/serviço" (ver
+  // `FinanceAsyncAutocomplete freeSolo` abaixo), então só "Descrição"
+  // ainda usa essa busca por correspondência. Só dispara quando o item
+  // ainda não tem um Produto vinculado (senão sobrescreveria uma escolha
+  // já feita de propósito). Busca igual o `fetchProductOptions` (mesmo
+  // endpoint, já compara contra SKU e nome — ver
+  // FinanceProductService.list): se o texto digitado bate EXATO com um
+  // resultado, ou sobra só UM resultado parcial, seleciona esse
+  // automaticamente; se sobrar mais de um, não adivinha — deixa a pessoa
+  // usar o campo "Produto/serviço" de cima ou o dropdown do SKU pra
+  // escolher.
+  const handleSkuOrNameLookup = async (index, value, item, setFieldValue, operationType, { silent = false } = {}) => {
+    const typed = (value || "").trim();
+    if (!typed || item.productId) return;
+
+    const list = finance ? (await finance.products.list({ searchParam: typed })).records || [] : products;
+    const exact = list.find(
+      (p) => p.sku?.toLowerCase() === typed.toLowerCase() || p.name?.toLowerCase() === typed.toLowerCase()
+    );
+    const match = exact || (list.length === 1 ? list[0] : null);
+    if (match) {
+      handleProductChange(index, match, setFieldValue, operationType);
+      if (!silent) toast.success(`Produto encontrado: ${match.name}`, { autoClose: 1500 });
+    } else if (!silent && list.length > 1) {
+      toast.info(
+        `${list.length} produtos encontrados pra "${typed}" — use o campo "Produto/serviço" acima pra escolher.`,
+        { autoClose: 2500 }
+      );
+    }
+  };
+
+  // Dispara a busca ~450ms depois da última tecla digitada (não a cada
+  // tecla — evitaria bater no servidor toda hora) — `silent` porque,
+  // digitando, um match no meio do código ainda incompleto seria
+  // confuso mostrar toast de sucesso a cada letra; o toast "de verdade"
+  // só aparece no `onBlur` (campo perde o foco, texto final).
+  const scheduleSkuOrNameLookup = (index, value, item, setFieldValue, operationType) => {
+    if (skuLookupTimers.current[index]) clearTimeout(skuLookupTimers.current[index]);
+    skuLookupTimers.current[index] = setTimeout(() => {
+      handleSkuOrNameLookup(index, value, item, setFieldValue, operationType, { silent: true });
+    }, 450);
   };
 
   return (
@@ -124,10 +383,19 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     >
       <DialogTitle>{sale?.id ? `Editar venda #${sale.id}` : "Nova venda"}</DialogTitle>
       <Formik initialValues={initialValues} enableReinitialize onSubmit={handleSubmit}>
-        {({ values, setFieldValue, isSubmitting }) => {
+        {({ values, setFieldValue, isSubmitting, handleBlur }) => {
           const total = values.items.reduce(
             (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
             0
+          );
+
+          const selectedCustomer =
+            customers.find((c) => c.id === values.customerId) ||
+            (sale?.customer?.id === values.customerId ? sale.customer : null);
+          const ivaPreview = calculateIvaPreview(
+            values.items,
+            (productId) => products.find((p) => p.id === productId),
+            selectedCustomer
           );
 
           return (
@@ -135,24 +403,18 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
               <DialogContent dividers={false}>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={8}>
-                    <Field
-                      as={TextField}
-                      select
-                      fullWidth
-                      variant="outlined"
-                      size="small"
-                      name="customerId"
+                    <FinanceAsyncAutocomplete
                       label="Cliente"
-                    >
-                      <MenuItem value="">
-                        <em>Nenhum (consumidor não identificado)</em>
-                      </MenuItem>
-                      {customers.map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.name}
-                        </MenuItem>
-                      ))}
-                    </Field>
+                      placeholder="Nome, CPF/CNPJ ou e-mail"
+                      value={
+                        customers.find((c) => c.id === values.customerId) ||
+                        (sale?.customer?.id === values.customerId ? sale.customer : null)
+                      }
+                      initialOptions={sale?.customer ? [sale.customer, ...customers] : customers}
+                      getOptionLabel={(opt) => opt?.name || ""}
+                      fetchOptions={fetchCustomerOptions}
+                      onChange={(e, newValue) => handleCustomerChange(newValue, setFieldValue)}
+                    />
                   </Grid>
                   <Grid item xs={12} sm={4}>
                     <Field
@@ -168,6 +430,44 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                   </Grid>
                 </Grid>
 
+                <Typography variant="subtitle2" style={{ marginTop: 8 }} gutterBottom>
+                  Endereço completo (destinatário)
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={6} sm={3}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="CEP"
+                      name="recipientZipCode"
+                      onBlur={(e) => {
+                        handleBlur(e);
+                        handleRecipientCepBlur(e, setFieldValue);
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Rua" name="recipientStreet" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="recipientNumber" />
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Complemento" name="recipientComplement" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Bairro" name="recipientNeighborhood" />
+                  </Grid>
+                  <Grid item xs={8} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="recipientCity" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="recipientState" />
+                  </Grid>
+                </Grid>
+
                 <Divider style={{ margin: "16px 0" }} />
 
                 <Typography variant="subtitle2" gutterBottom>
@@ -177,31 +477,70 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                 <FieldArray name="items">
                   {({ push, remove }) => (
                     <>
-                      {values.items.map((item, index) => (
+                      {values.items.map((item, index) => {
+                        const selectedProduct = products.find((p) => p.id === item.productId);
+                        const isWeaponOrAmmo =
+                          selectedProduct?.type === "weapon" || selectedProduct?.type === "ammunition";
+
+                        return (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
-                          <Grid item xs={12} sm={4}>
+                          <Grid item xs={12} sm={3}>
                             <TextField
                               select
                               fullWidth
                               variant="outlined"
                               size="small"
-                              label="Produto/serviço"
-                              value={item.productId}
+                              label="Tipo"
+                              value={itemTypeFilters[index] || ""}
                               onChange={(e) =>
-                                handleProductChange(index, e.target.value, setFieldValue)
+                                setItemTypeFilters((prev) => ({ ...prev, [index]: e.target.value }))
                               }
+                              style={{ marginBottom: 4 }}
                             >
-                              <MenuItem value="">
-                                <em>Item avulso</em>
-                              </MenuItem>
-                              {products.map((p) => (
-                                <MenuItem key={p.id} value={p.id}>
-                                  {p.name}
+                              {PRODUCT_TYPE_FILTER_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                  {opt.label}
                                 </MenuItem>
                               ))}
                             </TextField>
+                            <FinanceAsyncAutocomplete
+                              key={`product-${index}-${itemTypeFilters[index] || ""}`}
+                              label="Produto/serviço"
+                              placeholder="Nome ou SKU (vazio = item avulso)"
+                              value={products.find((p) => p.id === item.productId) || null}
+                              initialOptions={products}
+                              getOptionLabel={(opt) => opt?.name || ""}
+                              renderOption={renderProductOption}
+                              fetchOptions={(searchParam) => fetchProductOptions(index, searchParam)}
+                              onChange={(e, newValue) =>
+                                handleProductChange(index, newValue, setFieldValue, values.operationType)
+                              }
+                            />
                           </Grid>
-                          <Grid item xs={12} sm={3}>
+                          <Grid item xs={6} sm={2}>
+                            <FinanceAsyncAutocomplete
+                              freeSolo
+                              key={`sku-${index}-${itemTypeFilters[index] || ""}`}
+                              label="Código (SKU)"
+                              placeholder="Digite o código ou nome"
+                              value={item.sku || ""}
+                              initialOptions={selectedProduct ? [selectedProduct] : []}
+                              getOptionLabel={(opt) => (typeof opt === "string" ? opt : opt?.sku || "")}
+                              renderOption={renderProductOptionBySku}
+                              fetchOptions={(searchParam) => fetchProductOptions(index, searchParam)}
+                              onChange={(e, newValue) => {
+                                if (newValue && typeof newValue === "object") {
+                                  // Selecionou da lista — mesmo efeito do campo
+                                  // "Produto/serviço" de cima, preenche tudo.
+                                  handleProductChange(index, newValue, setFieldValue, values.operationType);
+                                } else {
+                                  // Texto livre (item avulso) ou campo limpo.
+                                  setFieldValue(`items.${index}.sku`, newValue || "");
+                                }
+                              }}
+                            />
+                          </Grid>
+                          <Grid item xs={6} sm={2}>
                             <Field
                               as={TextField}
                               fullWidth
@@ -209,6 +548,14 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               size="small"
                               label="Descrição"
                               name={`items.${index}.description`}
+                              onChange={(e) => {
+                                setFieldValue(`items.${index}.description`, e.target.value);
+                                scheduleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
+                              onBlur={(e) => {
+                                handleBlur(e);
+                                handleSkuOrNameLookup(index, e.target.value, item, setFieldValue, values.operationType);
+                              }}
                             />
                           </Grid>
                           <Grid item xs={4} sm={2}>
@@ -253,13 +600,9 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>
-                            <Field
-                              as={TextField}
-                              fullWidth
-                              variant="outlined"
-                              size="small"
-                              label="CFOP"
-                              name={`items.${index}.cfop`}
+                            <CfopAutocomplete
+                              value={item.cfop}
+                              onChange={(code) => setFieldValue(`items.${index}.cfop`, code)}
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>
@@ -277,8 +620,48 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               {money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
                             </Typography>
                           </Grid>
+
+                          {/* SIGMA/SINARM, lote de munição e ID de embalagem
+                              (v2.3.166) — só aparecem quando o item é Arma ou
+                              Munição (controle exigido por lei pra esses dois
+                              tipos, pedido do contador do cliente). */}
+                          {isWeaponOrAmmo && (
+                            <>
+                              <Grid item xs={12} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="SIGMA/SINARM"
+                                  name={`items.${index}.sigmaSinarm`}
+                                />
+                              </Grid>
+                              <Grid item xs={6} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="Lote munição"
+                                  name={`items.${index}.ammoLot`}
+                                />
+                              </Grid>
+                              <Grid item xs={6} sm={4}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="ID embalagem"
+                                  name={`items.${index}.packageId`}
+                                />
+                              </Grid>
+                            </>
+                          )}
                         </Grid>
-                      ))}
+                        );
+                      })}
                       <Button
                         size="small"
                         startIcon={<AddIcon />}
@@ -289,6 +672,279 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     </>
                   )}
                 </FieldArray>
+
+                <Divider style={{ margin: "16px 0" }} />
+
+                <Typography variant="subtitle2" gutterBottom>
+                  Dados fiscais da nota
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo de operação"
+                      name="operationType"
+                    >
+                      {SALE_OPERATION_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={8}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Natureza da operação"
+                      name="operationNature"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Presença do consumidor"
+                      name="consumerPresence"
+                    >
+                      {SALE_CONSUMER_PRESENCE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo de intermediador"
+                      name="intermediaryType"
+                    >
+                      {SALE_INTERMEDIARY_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Tipo consumidor"
+                      name="finalConsumerType"
+                    >
+                      {SALE_FINAL_CONSUMER_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Destinatário: Tipo"
+                      name="recipientType"
+                    >
+                      {SALE_RECIPIENT_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Indicador IE"
+                      name="ieIndicator"
+                    >
+                      {SALE_IE_INDICATOR_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Forma de pagamento"
+                      name="paymentMethod"
+                    >
+                      {SALE_PAYMENT_METHOD_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                </Grid>
+
+                <Divider style={{ margin: "16px 0" }} />
+
+                <Typography variant="subtitle2" gutterBottom>
+                  Finalidade da Emissão / Dados de Transporte
+                </Typography>
+                <Grid container spacing={1}>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Finalidade da Emissão"
+                      name="issuancePurpose"
+                    >
+                      {SALE_ISSUANCE_PURPOSE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field
+                      as={TextField}
+                      select
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="Frete por Conta"
+                      name="freightResponsibility"
+                    >
+                      {SALE_FREIGHT_RESPONSIBILITY_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
+                  </Grid>
+
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Volumes" name="volumeQuantity" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Espécie" name="volumeSpecies" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Marca (volumes)" name="volumeBrand" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="volumeNumber" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Peso Bruto (kg)" name="volumeGrossWeight" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" type="number" label="Peso Líquido (kg)" name="volumeNetWeight" />
+                  </Grid>
+
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Transportadora — Nome/Razão Social" name="carrierName" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Transportadora — Endereço" name="carrierAddress" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="carrierCity" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="carrierState" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="CNPJ Transportadora" name="carrierCnpj" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Inscrição Estadual Transportadora" name="carrierIe" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Placa do Veículo" name="vehiclePlate" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF da Placa" name="vehicleState" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Local de Embarque" name="boardingLocation" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF de Embarque" name="boardingState" />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="textSecondary">
+                      Local de entrega (só se for diferente do endereço do cliente)
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Nome" name="deliveryName" />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Endereço" name="deliveryAddress" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Número" name="deliveryNumber" />
+                  </Grid>
+                  <Grid item xs={6} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Complemento" name="deliveryComplement" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Bairro" name="deliveryNeighborhood" />
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Cidade" name="deliveryCity" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="UF" name="deliveryState" />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      label="CEP"
+                      name="deliveryZipCode"
+                      onBlur={(e) => {
+                        handleBlur(e);
+                        handleDeliveryCepBlur(e, setFieldValue);
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={4} sm={2}>
+                    <Field as={TextField} fullWidth variant="outlined" size="small" label="Telefone" name="deliveryPhone" />
+                  </Grid>
+                </Grid>
 
                 <Field
                   as={TextField}
@@ -305,6 +961,29 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                 <Box className={classes.totalBox}>
                   <Typography className={classes.totalValue}>
                     Total: {money(total)}
+                  </Typography>
+                </Box>
+
+                {/* Reforma Tributária 2027 (IVA) — aparece sempre, mas só
+                    com números de verdade (e sem o aspecto acinzentado)
+                    quando a chave global estiver ativada em Configuração
+                    Fiscal; até lá serve só de visualização técnica, sem
+                    nenhum efeito no total/faturamento desta venda. */}
+                <Box
+                  mt={1}
+                  p={1.5}
+                  display="flex"
+                  justifyContent="flex-end"
+                  style={{ gap: 24, opacity: reform2027Enabled ? 1 : 0.5 }}
+                >
+                  <Typography variant="body2" color="textSecondary">
+                    Subtotal líquido (IVA 2027): {money(ivaPreview.netValue)}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Previsão CBS por fora: {money(ivaPreview.cbsValue)}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    Previsão IBS por fora: {money(ivaPreview.ibsValue)}
                   </Typography>
                 </Box>
               </DialogContent>

@@ -1,8 +1,8 @@
 # Manual Técnico — AtendeFlow
 
-**Versão do documento:** 2.3.57
-**Etapa:** 6.22 — Upload de capa/logo do login não persistia no banco (Painel Master)
-**Última atualização:** 2026-10-05
+**Versão do documento:** 2.3.157
+**Etapa:** 6.2 Fase 7 — Cobrança Pix/boleto (Mercado Pago + Asaas), selo de marca por painel
+**Última atualização:** 2026-10-19
 
 > ⚠️ **Manutenção do número de versão exibido no sistema**: o chip de versão na barra
 > lateral vem de `backend/src/utils/version.ts` (`export const version = '...'`) — um
@@ -258,7 +258,7 @@ personalizar por cima da identidade padrão sem mexer em código.
 
 ---
 
-## 6.2 Roadmap — módulo Financeiro completo (Etapa 4, planejado, ainda não iniciado)
+## 6.2 Roadmap — módulo Financeiro completo (Etapa 4 — Fases 1, 2 e 5 concluídas; Fase 3 iniciada e não validada contra gateway real; Fase 4 adiada; Fase 6 iniciada v2.3.95)
 
 O módulo "Financeiro" (hoje `frontend/src/pages/Financeiro/index.js`, rota `/financeiro`)
 vai deixar de ser só a tela de fatura/assinatura da empresa com o Master e virar um
@@ -642,6 +642,172 @@ Financeiro (cards de resumo + gráficos, `dataviz` do projeto).
   nome da empresa (novo — os endpoints públicos `listPublicOpen`/`showPublic` agora
   incluem `company.name` via `include`) e um badge com a contagem de vagas abertas.
   Cards de vaga com efeito de elevação/leve translação no hover.
+
+### Fase 6 — Cadastro de armas/munições/insumos (clube de tiro, loja de armas, armaria) — iniciada v2.3.95
+
+Pedido do cliente pra atender o segmento de clube de tiro/loja de armas/armaria
+(marcas citadas: Taurus, CBC, Glock, Imbramun — fabricante de espoletas/pólvoras),
+seguindo como referência regulatória o Decreto 11.615/2023, o Decreto 12.345/2024 e o
+Estatuto do Desarmamento (Lei 10.826/2003). **Decisão confirmada com o cliente antes de
+começar** (3 perguntas, ver histórico de decisão): (1) estender o `FinanceProduct`
+existente em vez de criar entidades dedicadas (`FinanceWeapon`/`FinanceAmmunition`);
+(2) contas bancárias entram "junto com o resto" (ver item em aberto abaixo, ainda não
+implementado nesta etapa); (3) prioridade de implementação: Cadastro de Armas primeiro.
+
+**⚠️ Aviso de responsabilidade, já comunicado ao cliente**: os campos abaixo foram
+levantados com base no livro de registro/SIGMA do Exército e nos decretos citados,
+mas **não há validação automática de conformidade legal** nesta versão (ex.: não se
+calcula automaticamente se uma combinação calibre/energia cinética é "permitida" ou
+"restrita" conforme os decretos). O campo "Classificação de uso" é preenchido
+manualmente — a responsabilidade por preenchê-lo corretamente, e por qualquer
+obrigação legal correlata (livro de registro físico, relatório ao Exército/SIGMA,
+etc.), é do cliente/especialista legal, não do sistema.
+
+- **`FinanceProduct` estendido** (`backend/src/models/FinanceProduct.ts`,
+  migration `20261015120000-add-weapon-fields-to-finance-products.ts`): novo `type`
+  pode ser `"weapon"` ou `"ammunition"` (além de `"product"`/`"service"` já
+  existentes). Campos novos, todos opcionais a nível de banco (só relevantes conforme
+  o `type`):
+  - **Arma**: `weaponType` (tipo — pistola/revólver/fuzil/carabina/espingarda/
+    submetralhadora/outro), `brand` (marca/fabricante, texto livre), `model`,
+    `caliber` (calibre nominal), `serialNumber` (número de série — **obrigatório e
+    único por empresa** quando `type = "weapon"`), `cartridgeCapacity` (capacidade de
+    cartuchos), `operatingMode` (regime de funcionamento), `barrelCount` (quantidade
+    de canos), `barrelLength` (comprimento do cano, cm), `boreType` (lisa/raiada),
+    `kineticEnergyJ` (energia cinética da munição, Joules), `useClassification`
+    (permitido/restrito), `sigmaRegistrationNumber` (nº de registro SIGMA/SINARM),
+    `origin` (nacional/importada), `weaponStatus` (em estoque/vendida/em manutenção/
+    baixada).
+  - **Munição/insumo** (reaproveita `brand`/`caliber`/`kineticEnergyJ`/
+    `useClassification`/`origin` da arma, mais dois campos próprios):
+    `manufacturingLotNumber` (número do lote de fabricação, rastreabilidade) e
+    `packageBarcode` (código de barras/código da embalagem).
+  - **Fora de escopo nesta fase, identificado durante o levantamento**: CPF do
+    titular, número do CRAF, quantidade vendida, chave de acesso da NF-e e status de
+    entrega ao cliente **não** são campos do cadastro de produto — são dados da
+    **venda** de um item controlado a um comprador específico (documentação do
+    comprador/CR, já prevista como item futuro do roadmap). Registrado aqui pra não
+    perder o levantamento feito com o cliente; a implementação liga ao `Sale`/
+    `SaleItem` já existentes (Fase 3), não ao `FinanceProduct`.
+  - **Número de série único**: índice único parcial no Postgres
+    (`idx_finance_products_company_serial_unique`, `WHERE "serialNumber" IS NOT NULL
+    AND "serialNumber" <> ''`) — não afeta produtos/serviços comuns (ficam com
+    `serialNumber` NULL). `FinanceProductService` faz um checque amigável antes do
+    insert/update (`ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL`) e também captura
+    `SequelizeUniqueConstraintError` como rede de segurança contra corrida entre duas
+    requisições simultâneas.
+  - **Validação condicional** (Yup, backend e frontend): `serialNumber` só é
+    obrigatório quando `type = "weapon"` (`Yup.string().when("type", {...})` — yup
+    0.32, sintaxe de objeto antiga, não a função `(schema) => schema` do yup 1.x).
+- **Frontend** (`frontend/src/pages/Financeiro/financeConfig.js`): `PRODUCT_TYPE_OPTIONS`
+  ganhou "Arma" e "Munição / Insumo"; novos campos de arma/munição têm
+  `visibleWhen: (values) => boolean`, uma capacidade **nova** adicionada ao
+  `FinanceRecordModal` (`frontend/src/components/FinanceRecordModal/index.js`) —
+  antes desse componente não suportava nenhuma visibilidade condicional, todo campo
+  do array `fields` sempre renderizava. Dois comportamentos novos:
+  - `field.visibleWhen(values)`: se existir e devolver `false`, o campo não renderiza
+    (checado dentro do `fields.map`, usando os `values` atuais do Formik).
+  - Ao submeter, `stripHiddenFieldValues` zera (pro `defaultValue` ou vazio) qualquer
+    campo que ficou invisível no momento do submit — evita que, ao trocar o Tipo de
+    "Arma" pra "Produto" antes de salvar, dados de arma escondidos continuem sendo
+    enviados junto com um produto comum.
+  - `field.requiredWhen(values)` (usado só por `serialNumber`): mesma ideia, pra
+    validação (`Yup.string().test(...)`, lendo `context.parent` pra acessar os outros
+    valores do form).
+- **Convenção de i18n deste módulo, confirmada antes de decidir não traduzir os
+  novos rótulos**: `financeConfig.js` nunca usou o catálogo de 5 idiomas
+  (`frontend/src/translate/languages/`) — todo rótulo de campo/coluna é string fixa
+  em PT-BR, e **nenhum** código de erro `ERR_FINANCE_*` (nem os já existentes antes
+  desta fase, ex. `ERR_FINANCE_PRODUCT_INVALID_NAME`) tem entrada em
+  `backendErrors` em nenhum dos 5 idiomas — cai pro fallback de `toastError.js`, que
+  mostra o código bruto. Isso é consistente com o módulo inteiro ser voltado à
+  regulamentação brasileira (CPF/CNPJ, NF-e, SIGMA/SINARM), então os novos campos e
+  os dois novos códigos de erro (`ERR_FINANCE_PRODUCT_SERIAL_REQUIRED`,
+  `ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL`) seguiram a mesma convenção — **não** é uma
+  violação da regra geral de i18n do projeto (seção 3 da skill `atendeflow-dev`),
+  é um módulo que já nasceu fora desse catálogo. Débito pré-existente, não criado
+  nesta fase: se algum dia decidirem internacionalizar o Financeiro, são **todos** os
+  `ERR_FINANCE_*`/rótulos de uma vez, não só os desta fase.
+
+#### Testado
+- `npx tsc --noEmit` limpo no backend (instalado `npm ci` nesta sessão pra validar
+  de verdade — sem isso, `npx tsc` cai num TypeScript global incompatível com o
+  `tsconfig.json` do projeto e dá erro falso de configuração).
+- `eslint` limpo em `financeConfig.js`/`FinanceRecordModal/index.js` (só aviso
+  pré-existente de import não usado em `FinanceRecordModal`, não introduzido nesta
+  fase).
+- Migration não executada contra um banco real nesta sessão (sem Postgres disponível
+  no ambiente) — revisão manual cuidadosa do SQL do índice único parcial e dos
+  `addColumn`, seguindo exatamente o padrão de outras migrations do projeto.
+  **Pendente**: cliente validar em homologação antes do deploy em produção.
+- Pendente (próxima parte, "fazer por parte"): importação de produtos/clientes/
+  fornecedores via Excel (detecção automática de coluna, atualiza registro existente
+  em caso de duplicata por CPF/CNPJ ou SKU/nome) e contas bancárias.
+
+#### Importação via Excel (v2.3.96)
+
+Decisão confirmada com o cliente antes de implementar (outra pergunta com mais de um
+caminho razoável — detecção automática de coluna vs. tela de mapeamento manual, qual
+cadastro entra primeiro, o que fazer com duplicata): detecção automática por nome de
+cabeçalho, nos três cadastros (Produtos, Clientes, Fornecedores) desde já, e duplicata
+sempre atualiza o registro existente.
+
+- **`FinanceImportService.ts`** (`backend/src/services/FinanceService/`): lê a
+  planilha com a lib `xlsx` (mesma já usada por `ContactListService/ImportContacts.ts`,
+  dependência já existente no backend — não precisou instalar nada novo), normaliza
+  o nome de cada cabeçalho (remove acento, deixa minúsculo, só `[a-z0-9]`) e casa
+  contra uma lista de aliases por campo — ex.: a coluna de nome do produto reconhece
+  "nome", "name", "produto" ou "descricao", a de calibre reconhece "calibre" ou
+  "calibrenominal". Mesma técnica de normalização de cabeçalho do
+  `ContactListService/ImportContacts.ts`, reescrita localmente (helpers próprios, não
+  um util compartilhado) porque os campos/entidades são completamente diferentes —
+  ver seção 11 da skill `atendeflow-dev` antes de duplicar esse padrão de novo.
+  - **Produtos**: reconhece também todos os campos de arma/munição da Fase 6 acima
+    (marca, calibre, número de série, energia cinética...). A coluna "Tipo" aceita o
+    rótulo em português ("Produto"/"Serviço"/"Arma"/"Munição"/"Insumo") ou o valor
+    interno ("product"/"weapon"/...).
+  - Cada linha chama `FinanceProductService.create`/`update` (não grava direto no
+    model) — reaproveita a mesma validação Yup e o mesmo checque de número de série
+    único já implementados na Fase 6, em vez de duplicar a regra.
+  - **Dedup**: produto com SKU preenchido na planilha → casa por
+    `(companyId, sku)`; sem SKU → casa por `(companyId, name)`. Cliente/fornecedor
+    com CPF/CNPJ preenchido → casa por `(companyId, document)` (dígitos só, sem
+    máscara); sem documento → casa por `(companyId, name)`. Se achar, chama
+    `.update(...)`; se não, `.create(...)`.
+  - **Inferência de tipo de documento**: se a planilha não trouxer uma coluna de
+    tipo de documento, infere CPF (11 dígitos) x CNPJ (14 dígitos) pelo tamanho —
+    sem isso, toda importação de fornecedor cairia no default do modelo ("cpf"),
+    errado pra maioria dos fornecedores (pessoa jurídica).
+- **Rotas** (`backend/src/routes/financeRoutes.ts`): `POST
+  /finance/products|customers|suppliers/import`, `isAuth` + `multer`
+  (`upload.array("file")`, mesma config `uploadConfig` já usada por
+  `contactListRoutes.ts` pra importação de lista de contatos).
+- **Risco identificado e corrigido antes de expor o endpoint**: `uploadConfig` salva
+  o arquivo em `public/company{id}/`, servido estaticamente pelo Express — o mesmo
+  padrão usado por `ContactListController.upload` (que **não** remove o arquivo
+  depois, deixando a planilha de contato acessível por URL indefinidamente, debito
+  pré-existente não tocado aqui). Como a planilha do Financeiro pode ter dado
+  comercial mais sensível (preço de custo, documento de cliente/fornecedor),
+  `FinanceImportController.ts` remove o arquivo temporário no `finally` de cada
+  endpoint (sucesso ou erro), em vez de repetir o mesmo risco.
+- **Frontend**: `useFinance` (`makeResource`) ganhou `importSpreadsheet(file)`
+  (`FormData` + `POST /finance/<recurso>/import`). `FinanceRecordList` ganhou a prop
+  `allowImport` (só ligada nas abas Produtos/Clientes/Fornecedores em
+  `Financeiro/index.js` — Contas a Pagar/Receber não têm endpoint de import, não
+  ligar `allowImport` nelas) — mostra um botão "Importar planilha" que abre um
+  `<input type="file">` oculto, sobe o arquivo e mostra um toast-resumo
+  (criados/atualizados/inválidos) ao final, recarregando a lista.
+
+#### Testado
+- `npx tsc --noEmit` limpo no backend.
+- `eslint` limpo em `useFinance/index.js`, `FinanceRecordList/index.js`,
+  `Financeiro/index.js` (zero erros/avisos novos).
+- Endpoint não testado contra um banco/arquivo real nesta sessão (sem Postgres
+  disponível no ambiente) — revisão manual do fluxo de leitura/dedup/upsert.
+  **Pendente**: cliente testar em homologação com uma planilha real antes do deploy
+  em produção, incluindo o caso de reimportar a mesma planilha (deve atualizar, não
+  duplicar).
+- Pendente (próxima parte): contas bancárias.
 
 ### Decisões em aberto antes de iniciar a Fase 3+
 Fases 1 e 2 são construção "normal" de CRUD + relatórios, dá pra tocar direto. A partir
@@ -5276,3 +5442,7493 @@ e o de edição de texto estavam quebrados, o que explica por que
   pré-existentes de sempre, não relacionados a esta mudança).
 - Pendente: confirmar em produção, depois do deploy, que enviar a capa
   e editar o link do WhatsApp sobrevivem a um F5.
+
+## 71. Indicador de carregamento ao enviar resposta rápida com anexo (v2.3.87)
+
+### Contexto
+
+Durante a migração de dados da Empresa 1 (zappro → AtendeFlow,
+companyId=3), depois de reimportar os arquivos físicos das respostas
+rápidas que tinham anexo (ver seção da migração, companyId=3), o
+cliente relatou que enviar uma resposta rápida com vídeo (~8MB)
+"travava" na hora de enviar — sem erro no console do navegador, sem
+erro no log do backend, só demora sem feedback visual.
+
+### Causa raiz
+
+`handleQuickAnswersClick` (`frontend/src/components/MessageInput/index.js`)
+faz duas viagens de rede quando a resposta rápida tem anexo:
+
+1. `axios.get(value.mediaPath, { responseType: "blob" })` — baixa o
+   arquivo do servidor pro navegador.
+2. `handleUploadQuickMessageMedia(blob, message)` — reenvia esse mesmo
+   arquivo como anexo da mensagem (`POST /messages/:ticketId`).
+
+O passo 2 já tinha `setLoading(true)`/`setLoading(false)` num
+`try/finally`, mas o passo 1 (o download) não tinha nenhum indicador —
+pra um anexo grande como vídeo, essa espera (download completo antes
+de sequer começar o upload) parecia travamento, mesmo o fluxo
+funcionando normalmente até o fim.
+
+Decisão de escopo: o pedido explícito era só adicionar indicador
+visual, não eliminar a viagem dupla (que exigiria mudar o fluxo de
+envio de mensagem/anexo no backend — área sinalizada como delicada por
+histórico de bugs no WhatsApp/Baileys, fora do escopo pedido).
+
+### O que foi feito
+
+- `handleQuickAnswersClick`: `setLoading(true)` logo antes do
+  `axios.get` do passo 1 (cobre a janela que antes ficava sem
+  feedback), e `setLoading(false)` explícito no `catch` (já que nesse
+  caminho de erro `handleUploadQuickMessageMedia` — que teria seu
+  próprio `finally` — nunca chega a ser chamado).
+- Botão de enviar mensagem (os dois, versão normal e versão
+  mensagem privada): mostra um `CircularProgress` pequeno no lugar do
+  ícone de enviar/encaminhar enquanto `loading` é `true`, reaproveitando
+  a classe `audioLoading` já existente (mesmo padrão visual já usado no
+  botão de enviar áudio gravado).
+
+### Testado
+
+- `eslint` limpo em `MessageInput/index.js` (só os mesmos avisos
+  pré-existentes de sempre — hooks de `useEffect` e uma variável não
+  usada, nada relacionado a esta mudança).
+- Pendente: confirmar em produção, depois do deploy, que o spinner
+  aparece durante o envio de uma resposta rápida com vídeo grande.
+
+## 72. Documento/PDF recebido abre em nova aba, não mais em preview embutido (v2.3.88)
+
+### Contexto
+
+Usuário reportou que, ao clicar num documento (PDF) recebido numa
+conversa, o arquivo abria dentro da própria tela do AtendeFlow (um
+modal com iframe), em vez de abrir como um arquivo normal numa aba
+separada do navegador — comportamento inesperado, já que o botão
+"Abrir" (ícone de nova janela) ao lado do card já abria em nova aba
+corretamente.
+
+### Causa raiz
+
+`frontend/src/components/MessagesList/index.js`: o card de documento
+(`renderDocumentPreview`) só tornava clicável o card inteiro e o botão
+"Visualizar PDF" quando `isPdf` era verdadeiro, e esse clique chamava
+`handleOpenPdfPreview`, que guardava `{ open: true, href, name }` no
+estado `pdfPreview` e abria um `<Dialog>` com um `<iframe src={href}>`
+— um visualizador embutido na própria página do sistema. O botão
+"Abrir" (ícone `OpenInNew`), ao lado, sempre usou `<a href target="_blank">`
+e abria corretamente em nova aba — só o clique no card/"Visualizar PDF"
+tinha esse comportamento diferente.
+
+### O que foi feito
+
+- `handleOpenPdfPreview` agora só faz `window.open(mediaHref, "_blank", "noopener,noreferrer")`,
+  em vez de popular o estado do modal.
+- Removido o estado `pdfPreview` (não usado mais em nenhum outro lugar),
+  `handleClosePdfPreview`, e o bloco `<Dialog>` com o `<iframe>` de
+  preview embutido (título, botões "Fechar"/"Abrir em nova aba"/"Baixar"
+  — os dois últimos já eram redundantes com os botões do próprio card).
+- Removida a importação do ícone `Close`, que só era usado nesse modal
+  removido (confirmado por lint — nenhum outro uso no arquivo).
+- `DialogTitle`/`Dialog`/`DialogContent`/`DialogActions` continuam
+  importados normalmente, pois ainda são usados por outro modal no
+  mesmo arquivo (galeria de imagens).
+
+### Testado
+
+- `eslint` limpo em `MessagesList/index.js` (só os mesmos avisos
+  pré-existentes de sempre, nenhum novo relacionado a esta mudança —
+  confirma que não sobrou import nem variável órfã do modal removido).
+- Pendente: confirmar em produção, depois do deploy, que o clique no
+  documento abre nova aba em vez do preview embutido.
+
+## 74. Botão de visualizar (nova aba) em todo tipo de documento (v2.3.89)
+
+### Contexto
+
+Cliente (Compliance Sandro) testou o envio de Word (`.docx`) e PDF numa
+conversa real e reparou que o card do `.docx` recebido não tinha o
+botão de "olho" (Visualizar) que o card do PDF tinha — só o ícone
+"Abrir" (nova aba) funcionava pro Word, o card inteiro também não era
+clicável.
+
+### Causa raiz
+
+Na seção 72 (v2.3.88), o clique no card virou `window.open` em nova
+aba — mas a condição `isPdf` que decidia se o card era clicável e se
+mostrava o botão "Visualizar" não tinha sido removida, só o
+comportamento por trás dela mudou. Então o comportamento "melhor"
+(abrir em nova aba) continuava restrito a PDF por acidente, mesmo
+depois de deixar de ser uma limitação técnica real (não tinha mais
+iframe embutido pra justificar restringir a um tipo só).
+
+### O que foi feito
+
+- `isPdfDocument`/`isPdf` removidos de `renderDocumentPreview`
+  (`frontend/src/components/MessagesList/index.js`) — não faziam mais
+  sentido depois da seção 72.
+- `handleOpenPdfPreview` renomeado pra `handleOpenDocumentPreview`
+  (mais preciso, já que não é exclusivo de PDF).
+- Card do documento sempre clicável, e botão "Visualizar" sempre
+  presente, pra qualquer tipo (txt, Word, Excel, PDF, etc.) — mesmo
+  `window.open` em nova aba que já existia só pra PDF.
+
+### Testado
+
+- `eslint` limpo (só os mesmos avisos pré-existentes de sempre).
+- Pendente: confirmar em produção, depois do deploy no servidor, que o
+  botão de olho aparece em documentos Word/Excel/txt, não só PDF.
+
+## 75. "Visualizar" documento abre caixa, não salva/abre direto (v2.3.90)
+
+### Contexto
+
+Depois da seção 74 (olho em todo tipo de documento), cliente testou
+com Word (`.docx`) e Excel (`.xlsx`) reais numa conversa e viu que
+clicar no olho fazia o navegador sair baixando o arquivo direto (sem
+nenhuma "espiada" antes) — porque `window.open` numa URL de
+`.docx`/`.xlsx` não tem como ser renderizado pelo navegador, então ele
+baixa sozinho, sem opção.
+
+Perguntei se a solução seria usar um visualizador externo (Google Docs
+Viewer/Microsoft Office Viewer), que mostra o conteúdo de verdade mas
+manda a URL do documento pros servidores do Google/Microsoft — cliente
+(Compliance Sandro) recusou essa opção por implicação de privacidade/
+compliance (documento sensível passando por terceiro só pra
+visualizar). Decisão: manter 100% local, sem serviço externo.
+
+### Causa raiz
+
+`handleOpenDocumentPreview` (seção 74) fazia `window.open` direto pra
+qualquer tipo de documento. Isso funciona bem pra PDF (navegador
+renderiza nativamente em nova aba) mas pra Word/Excel o navegador não
+tem visualizador embutido — o resultado prático é idêntico a clicar em
+"Baixar", só que sem avisar, e sem o operador decidir antes.
+
+### O que foi feito
+
+- `handleOpenDocumentPreview` agora abre uma caixa (estado `docPreview`
+  + `<Dialog>`) em vez de `window.open` direto.
+- Novo helper `isInlineRenderableDocument(message)`: `true` só pra
+  `.pdf`/`.txt` (os únicos tipos que o navegador consegue mostrar
+  sozinho, sem plugin nem serviço externo).
+- Conteúdo da caixa: `<iframe>` apontando pro arquivo quando
+  renderizável (PDF/txt — o próprio navegador desenha o conteúdo); card
+  "Visualização não disponível" + nome do arquivo quando não
+  (Word/Excel/outros) — mesmo padrão visual que já existe no modal de
+  ENVIO de arquivo (`MessageUploadMedias`, fallback pra tipos sem
+  preview).
+- Caixa tem botão "Baixar" explícito (só baixa se o operador clicar) e
+  "Fechar" — nenhum download acontece só por abrir a caixa.
+- Os botões de ícone "Abrir" (nova aba, raw) e "Baixar" (link direto)
+  que já existiam no card continuam exatamente como estavam — só o
+  botão/card "Visualizar" mudou de comportamento.
+- `Typography` adicionado ao import de `@material-ui/core` (precisa
+  pro texto do fallback).
+
+### Testado
+
+- `eslint` limpo em `MessagesList/index.js` (só os mesmos avisos
+  pré-existentes de sempre).
+- Pendente: confirmar em produção, depois do deploy no servidor, que a
+  caixa abre pra Word/Excel sem baixar sozinha, e que PDF/txt mostram
+  o conteúdo dentro da caixa.
+
+## 76. Corrige caminho errado do arquivo ao reencaminhar mídia (v2.3.91)
+
+### Contexto
+
+Depois da seção 74 (deixa de apagar mídia após enviar), cliente
+(Compliance Sandro) continuou testando "Reencaminhar" e o erro
+persistia — inclusive pra uma foto enviada na hora, nunca apagada.
+Isso indicava que a causa raiz não era (só) a exclusão do arquivo.
+
+### Causa raiz
+
+`forwardMessage` (`backend/src/controllers/MessageController.ts`)
+reconstrói o caminho físico do arquivo original a partir do
+`message.mediaUrl`, pra poder relê-lo e reenviar como anexo novo. A
+montagem da pasta pública estava assim:
+
+```ts
+const publicFolder = path.join(
+  __dirname, "..", "..", "..", "backend", "public"
+);
+```
+
+Em produção, o código compilado roda de `/app/dist/controllers/`
+(`WORKDIR /app` no Dockerfile). Subir três níveis (`../../../`) a
+partir daí chega na raiz do sistema de arquivos (`/`), e aí o código
+ainda concatenava mais `backend/public` — resultando em
+`/backend/public`, uma pasta que **nunca existiu** no container (os
+uploads reais ficam em `/app/public`, declarado como `VOLUME` no
+Dockerfile). Todo `readFileSync` dentro de `SendWhatsAppMedia`
+disparava `ENOENT` — sempre, pra qualquer arquivo, novo ou antigo,
+apagado ou não.
+
+Esse bug é anterior a qualquer mudança feita nesta sessão — sempre
+existiu desde que `forwardMessage` foi escrito. A exclusão
+pós-envio (seção 74) era um problema real, mas secundário: mesmo
+resolvendo ela sozinha, reencaminhar continuaria quebrado por causa
+deste caminho errado.
+
+`upload.ts` (fonte confiável de como montar esse caminho) usa:
+
+```ts
+const publicFolder = path.resolve(__dirname, "..", "..", "public");
+```
+
+Dois `".."` a partir de `dist/config/`, não três a partir de
+`dist/controllers/` mais um segmento `"backend"` extra.
+
+### O que foi feito
+
+- `forwardMessage`: `publicFolder` agora usa
+  `path.join(__dirname, "..", "..", "public")` — mesmo padrão de
+  `upload.ts`, resolve corretamente pra `/app/public`.
+- Confirmado por busca (`grep "backend"` em todo `backend/src`) que
+  essa era a única ocorrência desse padrão de caminho errado no
+  projeto.
+
+### Testado
+
+- `npx tsc --noEmit` limpo (só o aviso pré-existente de
+  `moduleResolution` deprecated, não relacionado).
+- Pendente: confirmar em produção, depois do deploy, que reencaminhar
+  uma mídia enviada após este fix funciona de ponta a ponta.
+
+## 77. Visualização real de Word/Excel/PowerPoint/OpenDocument via LibreOffice (v2.3.92)
+
+### Contexto
+
+Depois da seção 75 (botão de visualizar em todo documento), cliente
+testou com Word/Excel/`.odt` reais e viu que a caixa só mostrava
+"Visualização não disponível" — esperado até então (decisão da seção
+75: sem visualizador externo tipo Google Docs Viewer, por questão de
+privacidade/compliance de documentos sensíveis). Cliente pediu pra
+implementar visualização real mesmo assim, usando conversão local —
+confirmou explicitamente (pergunta feita antes de mexer, dado o peso
+de infraestrutura): "sim, pode começar", "manter para os dois
+libreOffice e para o Office da microsoft também" (ou seja, cobrir
+tanto arquivos nativos do LibreOffice/OpenDocument quanto do
+Microsoft Office).
+
+### Decisão de arquitetura
+
+Conversão **no próprio servidor**, via LibreOffice headless instalado
+no container do backend — nunca manda o arquivo pra um serviço
+externo. Trade-off aceito: imagem Docker do backend fica bem maior
+(LibreOffice + dependências, centenas de MB a mais), e cada conversão
+gasta CPU/alguns segundos — mitigado com cache em disco (converte uma
+vez só por arquivo).
+
+### O que foi feito
+
+**Backend:**
+- `backend/Dockerfile`: adiciona `libreoffice-writer`,
+  `libreoffice-calc`, `libreoffice-impress` e `fonts-liberation2` no
+  estágio final (runtime), com `--no-install-recommends` pra não
+  puxar pacote de ambiente gráfico/idiomas desnecessários.
+- `backend/src/services/DocumentServices/ConvertDocumentToPdfService.ts`
+  (novo): roda `soffice --headless --convert-to pdf`, com perfil de
+  usuário isolado por chamada (`-env:UserInstallation=file://...`) —
+  evita o erro clássico "soffice already running" quando duas
+  conversões acontecem perto uma da outra (dois atendentes clicando em
+  "Visualizar" ao mesmo tempo). Timeout de 45s. Resultado em cache na
+  pasta `company{id}/_previews/` — reaberturas seguintes não
+  reconvertem.
+- `backend/src/controllers/DocumentPreviewController.ts` (novo) +
+  rota `GET /messages/:messageId/document-preview`
+  (`messageRoutes.ts`): busca a mensagem, **reconfere
+  `message.companyId !== req.user.companyId`** (regra de multiempresa
+  da seção 4 da skill `atendeflow-dev` — nunca confiar só no id da
+  mensagem), resolve o nome do arquivo direto do valor bruto salvo no
+  banco (`message.getDataValue("mediaUrl")`, não precisa reparsear
+  URL como o `forwardMessage` fazia antes do fix da seção 76), chama o
+  serviço de conversão, devolve a URL pública do PDF convertido.
+- Tipos convertíveis: `.doc .docx .xls .xlsx .ppt .pptx .odt .ods .odp
+  .rtf` (cobre Microsoft Office e LibreOffice/OpenDocument).
+
+**Frontend:**
+- `MessagesList/index.js`: `isInlineRenderableDocument` virou
+  `isNativelyRenderableDocument` (PDF, `.txt`, **e agora `.xml`** —
+  navegador renderiza esses três sozinho, sem conversão) +
+  `isConvertibleDocument` (a lista acima, precisa chamar o backend).
+- `handleOpenDocumentPreview` agora é assíncrono: se renderizável
+  nativo, abre a caixa direto; se convertível, abre a caixa já com
+  spinner "Convertendo documento para visualização...", chama
+  `GET /messages/:id/document-preview`, e troca pro PDF convertido
+  quando a resposta chega; se a conversão falhar, mostra aviso
+  específico ("Não foi possível converter esse documento") em vez do
+  genérico "Visualização não disponível" — sempre com o botão
+  "Baixar" apontando pro arquivo **original** (não o convertido),
+  mesmo em erro.
+- Estado `docPreview` reestruturado: `originalHref` (sempre o arquivo
+  real, usado no botão Baixar) separado de `previewHref` (só setado
+  quando a conversão/renderização nativa está pronta) e `status`
+  (`idle`/`loading`/`ready`/`error`/`unsupported`).
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- `eslint` limpo em `MessagesList/index.js` (só avisos pré-existentes).
+- Pendente: confirmar em produção, depois do deploy (rebuild completo
+  do backend, mais demorado dessa vez por causa do `apt-get install`
+  do LibreOffice), que Word/Excel/PowerPoint/`.odt` abrem com conteúdo
+  real na caixa, e que o fallback de erro funciona (ex.: arquivo
+  corrompido).
+
+## 78. Corrige nome de arquivo com caractere especial (º, ç, ã...) (v2.3.93)
+
+### Contexto
+
+Depois do deploy da seção 77, cliente testou abrir/baixar uma nota
+fiscal real (`NF_Nº_481-_MARCIO_BISPO_DOS_SANTOS_assinado.pdf` — o "º"
+de "Número") e deu `Cannot GET` tanto no "Visualizar" quanto no
+"Baixar". A URL que o navegador pedia era
+`.../1791991777504_NF_N%C2%BA_481-..._1791991777504.pdf`.
+
+### Causa raiz
+
+`backend/src/config/upload.ts`, função `filename()`, usava
+`file.originalname` direto, sem nenhum tratamento de encoding. O
+Busboy (biblioteca usada internamente pelo `multer` pra parsear
+multipart/form-data) decodifica o campo de nome de arquivo do upload
+como **Latin-1 (ISO-8859-1)** por padrão — é o que a especificação
+multipart tecnicamente permite — mesmo quando o navegador, na prática,
+manda os bytes em UTF-8 de verdade (como fazem Chrome/Firefox hoje).
+
+Resultado: um caractere especial como "º" (que em UTF-8 são os bytes
+`0xC2 0xBA`) chega interpretado como **dois caracteres Latin-1
+separados** (`0xC2` → "Â", `0xBA` → "º") — ou seja, a string em memória
+já nasce errada. Quando o Node grava essa string errada no disco (ele
+usa UTF-8 por padrão pra nomes de arquivo), grava os bytes UTF-8
+*desses dois caracteres errados* (4 bytes: `0xC3 0x82 0xC2 0xBA`), não
+os 2 bytes corretos de "º" sozinho. O nome salvo no banco (mesma
+string em memória) fica consistente com o arquivo no disco — o
+problema só aparece quando a URL é montada/percorrida em outro ponto
+do pipeline (navegador, `encodeURIComponent`/getter do Sequelize) que
+reinterpreta esses caracteres de forma diferente, produzindo uma URL
+que não bate mais, byte a byte, com o nome real gravado no disco.
+
+### O que foi feito
+
+- `upload.ts`: `file.originalname` passa por
+  `Buffer.from(file.originalname, "latin1").toString("utf8")` antes de
+  virar o nome salvo — reinterpreta corretamente os bytes que o
+  Busboy decodificou errado, prevenindo a mangling na origem.
+
+### Limitação importante — não é retroativo
+
+Esse fix só evita o problema em **uploads novos**, a partir de agora.
+Arquivos que já foram salvos com o nome corrompido antes dessa
+correção **continuam com o nome errado no disco** — não existe como
+"corrigir" isso por código depois do fato, os bytes errados já foram
+gravados no sistema de arquivos. Se um arquivo específico antigo com
+caractere especial no nome for crítico recuperar, a única saída é
+achar o arquivo físico no servidor (`ls` na pasta
+`public/company{id}/`, procurando pelo nome visualmente parecido) e
+renomear manualmente, ou pedir pro cliente reenviar o documento.
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- Pendente: confirmar em produção, depois do deploy, que um upload
+  novo com caractere especial no nome (ex.: outra nota fiscal com "Nº")
+  salva e abre corretamente.
+
+## 79. Link de arquivo sempre funciona, mesmo com caractere fora do padrão no nome (v2.3.94)
+
+### Contexto
+
+Depois do deploy da seção 78, cliente testou com uma nota fiscal real
+já assinada digitalmente no gov.br
+(`NF_Nº_481-_MARCIO_BISPO_DOS_SANTOS_assinado.pdf`) e o mesmo erro
+`Cannot GET` apareceu de novo — mas o arquivo físico no servidor
+**não estava corrompido** (localizado via
+`docker exec atendeflow-backend-1 find /app/public/company3 -iname
+"*481*"`): o nome salvo em disco tinha a sequência `%C2%BA` como texto
+**literal** (os caracteres `%`, `C`, `2`, `%`, `B`, `A`), não o
+caractere "º" de verdade nem bytes mal-decodificados — ou seja, um
+problema diferente do da seção 78 (aquele era sobre Latin-1 vs UTF-8
+no upload; este é sobre o link gerado não escapar corretamente um "%"
+literal que já vinha no nome do arquivo, venha ele de onde vier).
+
+Confirmado manualmente: montando a URL com esse "%" literal escapado
+como "%25" (`.../NF_N%25C2%25BA_481-..._assinado....pdf`), o PDF abriu
+normal — o arquivo está intacto, só o link automático da tela estava
+quebrado.
+
+Cliente confirmou que o nome "fora do padrão" provavelmente vem do
+processo de assinatura digital do gov.br (o nome do arquivo já chega
+assim quando baixado/reenviado) — e pediu uma correção **geral**, não
+um reparo pontual nesse arquivo: qualquer documento com caractere
+atípico no nome, não importa a origem, deveria sempre virar um link
+funcional.
+
+### Causa raiz
+
+`backend/src/models/Message.ts`, getter `mediaUrl`: montava a URL
+pública concatenando o nome do arquivo salvo em disco (`storedMediaUrl`)
+direto na string, sem nenhum `encodeURIComponent`. Pra nomes com
+caractere Unicode comum (tipo "º" de verdade) isso "funcionava
+sozinho" por sorte — o navegador escapa automaticamente caractere
+não-ASCII ao montar a requisição HTTP a partir de um `href`. Mas um
+"%" **literal** no nome do arquivo é ASCII válido, então o navegador
+NÃO reescapa — manda exatamente como está, e o Express tenta decodificar
+esse "%C2%BA" como se fosse um escape de verdade, resultando numa
+string diferente do nome real salvo no disco.
+
+### O que foi feito
+
+- `Message.ts`: o getter `mediaUrl` agora aplica `encodeURIComponent`
+  no nome do arquivo antes de montar a URL — centralizado nesse único
+  lugar, usado por toda a aplicação (frontend principal, webchat,
+  `forwardMessage`, IA/transcrição, etc.), então qualquer nome de
+  arquivo — com "º" de verdade, com "%" literal, ou qualquer outra
+  coisa fora do padrão — sempre gera um link que bate exatamente com o
+  arquivo físico.
+- Conferido que `forwardMessage` (`obterNomeEExtensaoDoArquivo`) já
+  fazia `decodeURIComponent` na extração do nome a partir da URL —
+  continua funcionando corretamente com o novo encoding, sem precisar
+  de ajuste ali.
+- `OpenAiService.ts` (transcrição de áudio e visão de imagem pra IA):
+  duas ocorrências que extraíam o nome do arquivo direto de
+  `mediaSent.mediaUrl!.split("/").pop()` pra montar um caminho de
+  disco — precisavam de `decodeURIComponent` explícito agora que o
+  getter sempre devolve o nome codificado (sem isso, a checagem
+  `fs.existsSync` ia sempre falhar pra arquivo com caractere especial).
+- Frontend (`MessagesList/index.js`, `safeBasename`): decodifica o
+  nome extraído da URL antes de usar como rótulo de exibição (fallback
+  quando não há nome mais legível vindo do `dataJson`) — evita mostrar
+  o nome cru codificado (tipo "%C2%BA") pro atendente.
+
+### Testado
+
+- `npx tsc --noEmit` limpo.
+- `eslint` limpo em `MessagesList/index.js` (só avisos pré-existentes).
+- Pendente: confirmar em produção que o PDF do Márcio Bispo (ou outro
+  documento com nome fora do padrão) abre pelos botões normais da
+  tela, sem precisar do link manual com "%25".
+
+## 80. Cadastro de armas/munições/insumos no módulo Financeiro (v2.3.95)
+
+### Contexto
+
+Cliente pediu pra atualizar o módulo Financeiro (que já existia, considerado "muito
+básico") pra atender clube de tiro/loja de armas/armaria — cadastro de armas,
+munições e insumos (marcas citadas: Taurus, CBC, Glock, Imbramun), seguindo como
+referência o Decreto 11.615/2023, o Decreto 12.345/2024 e o Estatuto do Desarmamento
+(Lei 10.826/2003). Pedido explícito de fazer por partes ("vamos fazer por parte"), com
+esta sendo a primeira: Cadastro de Armas.
+
+Como o pedido admitia mais de um caminho razoável de implementação — entidade nova
+dedicada (`FinanceWeapon`) vs. estender o `FinanceProduct` já existente; conjunto de
+campos regulatórios (não há uma única lista "óbvia") — e o `CLAUDE.md` do projeto
+pede pra pausar e perguntar antes de codar nesses casos, foram feitas duas rodadas de
+pergunta ao cliente antes de qualquer código: (1) arquitetura — estender Produto
+existente (confirmado) ou criar entidade dedicada; implementar contas bancárias agora
+ou depois; qual item priorizar primeiro; (2) conjunto exato de campos pra arma e pra
+munição/insumo, e se o número de série deveria ser único por empresa.
+
+### Causa raiz (do "muito básico")
+
+`FinanceProduct` (Fase 1 do roadmap) foi desenhado só pra produto/serviço genérico —
+nome, SKU, unidade, preço, estoque. Não existia nenhum campo que capturasse as
+características regulatórias de uma arma de fogo ou munição/insumo controlado (marca,
+modelo, calibre, número de série, classificação de uso etc.), então não dava pra usar
+esse cadastro pro segmento de clube de tiro/loja de armas sem perder informação
+essencial pro negócio (e, potencialmente, pra conformidade legal do cliente).
+
+### O que foi feito
+
+Ver detalhamento completo na seção 6.2, "Fase 6 — Cadastro de armas/munições/insumos",
+mais acima neste documento (campos adicionados, migration, validação condicional,
+capacidade nova de visibilidade condicional em `FinanceRecordModal`, e o que ficou
+fora de escopo — dados de venda/comprador, que pertencem ao `Sale`, não ao
+`FinanceProduct`).
+
+### Testado
+
+Ver "Testado" no final da seção 6.2, Fase 6.
+
+### Pendente / próximas partes deste mesmo pedido
+
+- Importação de produtos/clientes/fornecedores via planilha Excel (detecção
+  automática de coluna por nome do cabeçalho; duplicata por CPF/CNPJ ou SKU/nome
+  atualiza o registro existente) — decisão já confirmada com o cliente, implementação
+  ainda não iniciada nesta versão.
+- Contas bancárias (`FinanceBankAccount` — entidade nova, sem nenhum cadastro
+  equivalente hoje) — cliente confirmou implementar "junto com o resto", ainda não
+  implementada nesta versão.
+- Cadastro de munição/insumo: os campos de catálogo (lote de fabricação, código de
+  barras/embalagem) já foram implementados nesta versão; os campos de venda
+  controlada (CPF do titular, nº do CRAF, chave de acesso da NF-e, status de entrega)
+  ficam pro item de "documentação do comprador" já previsto no roadmap, ligado ao
+  `Sale`/`SaleItem`.
+
+## 81. Importação de produtos/clientes/fornecedores via Excel (v2.3.96)
+
+### Contexto
+
+Segunda parte do pedido de atualização do módulo Financeiro ("vamos fazer por
+parte"): cliente pediu importação por Excel dos cadastros de produto/cliente/
+fornecedor, pra facilitar o cadastro inicial (principalmente de produtos — incluindo
+armas/munições recém-adicionadas na v2.3.95). Antes de implementar, confirmado com o
+cliente (pedido admitia mais de um caminho razoável): detecção automática de coluna
+por nome do cabeçalho (não tela de mapeamento manual), nos três cadastros desde já, e
+duplicata sempre atualiza o registro existente.
+
+### O que foi feito
+
+Ver detalhamento completo na seção 6.2, "Fase 6", subseção "Importação via Excel
+(v2.3.96)", mais acima — serviço de leitura/dedup/upsert, rotas, remoção do arquivo
+temporário depois de processado (diferente do import de lista de contatos existente,
+que não remove), e a UI (botão "Importar planilha" nas três abas).
+
+### Testado
+
+Ver "Testado" no final da subseção correspondente, seção 6.2 Fase 6.
+
+### Pendente
+
+- Validação em homologação com planilha real, incluindo reimportação da mesma
+  planilha (deve atualizar, não duplicar).
+- Contas bancárias (próxima parte deste mesmo pedido, ainda não implementada).
+
+## 82. Migration de armas/munições travava em produção — corrigida pra idempotente (v2.3.97)
+
+### Contexto
+
+Ao rodar `db:migrate` em produção pra aplicar a v2.3.95, o cliente recebeu:
+
+```
+ERROR: column "weaponType" of relation "FinanceProducts" already exists
+```
+
+logo na primeira coluna da migration `20261015120000-add-weapon-fields-to-finance-products`,
+mesmo sendo (pelo histórico do deploy) a primeira vez que esse código realmente chegou no
+servidor — as duas tentativas anteriores tinham rodado com código antigo (sem essa
+migration), por causa da divergência git/GitHub descrita no acompanhamento do deploy desta
+versão.
+
+### Causa raiz
+
+A migration original fazia uma sequência de `queryInterface.addColumn(...)`, um por coluna,
+**sem nenhuma transação explícita envolvendo todos eles**. O runner do Sequelize só marca
+uma migration como concluída (`SequelizeMeta`) depois que a função `up` inteira termina sem
+erro — mas se ela falhar no meio (nesse caso, provavelmente numa corrida/timing entre o
+`docker compose up --force-recreate` ainda de pé da tentativa anterior e o `exec ... migrate`
+rodando contra o mesmo banco, ou qualquer outro erro transitório depois de já ter criado as
+primeiras colunas), as colunas já criadas **continuam no banco** — só a migration como um
+todo não fica registrada como aplicada. Rodar `db:migrate` de novo faz o Sequelize tentar
+executar a função `up` do zero, batendo em "already exists" na primeira coluna que já tinha
+sido criada da vez anterior, e travando ali pra sempre — nenhuma tentativa seguinte
+conseguiria progredir sem intervenção manual.
+
+### O que foi feito
+
+- Reescrita a migration inteira pra idempotente: cada coluna agora usa
+  `ALTER TABLE "FinanceProducts" ADD COLUMN IF NOT EXISTS "<coluna>" <tipo>;` via SQL puro
+  (`queryInterface.sequelize.query`) em vez de `queryInterface.addColumn`. O índice único
+  parcial também passou a usar `CREATE UNIQUE INDEX IF NOT EXISTS` (em vez de `CREATE UNIQUE
+  INDEX`). Rodar a migration de novo agora sempre completa — pula qualquer coluna/índice que
+  já exista e cria só o que falta, terminando sem erro e sendo corretamente registrada no
+  `SequelizeMeta`.
+- **Lição pro futuro**: qualquer migration nova com mais de um `addColumn`/`addIndex` em
+  sequência deveria preferir SQL com `IF NOT EXISTS` (Postgres aceita isso em `ALTER TABLE
+  ADD COLUMN`/`CREATE INDEX` desde a 9.5/9.6) em vez do `queryInterface.addColumn` padrão do
+  Sequelize, que não tem esse idempotência embutida — evita esse exato tipo de trava numa
+  tentativa futura que falhe no meio por qualquer motivo.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado contra um banco com o estado exato de produção (coluna `weaponType` já criada,
+  resto faltando) nesta sessão — a lógica `IF NOT EXISTS` é padrão e bem estabelecida do
+  Postgres, mas o cliente deve confirmar que `db:migrate` completa sem erro desta vez antes
+  de considerar a v2.3.95/96/97 totalmente no ar.
+
+## 83. Importação reconhece o Relatório de Produtos do ERP da loja de armas (v2.3.98)
+
+### Contexto
+
+Depois de validar o cadastro manual de arma, o cliente pediu "vamos adequar uma tabela de
+produtos" — a princípio descrita como XML, mas o arquivo enviado foi na verdade um `.xlsx`:
+`RELATORIO_DE_PRODUTOS_GERAIS_DE_ARMAS...xlsx`, um relatório exportado do sistema atual da
+loja (cabeçalho "CONFIANCA COMERCIO DE ARMAS BAHIA LTDA" — ERP tipo Procfy, já mencionado
+antes nesta mesma etapa do roadmap). Pedido confirmado com o cliente antes de implementar
+(campos que vêm automático vs. os que ficam em branco pra preencher manual — "mantém o que
+tem no sistema pra preencher manual").
+
+### Causa raiz (por que o importador genérico da v2.3.96 não bastava)
+
+O importador da v2.3.96 assume uma planilha simples: cabeçalho na primeira linha, um
+produto por linha. O relatório real enviado pelo cliente é completamente diferente:
+
+- O cabeçalho de verdade ("Cód. Produto", "Nome Produto", "Categoria"...) está na **linha
+  10**, não na primeira — linhas acima têm nome/endereço da empresa e o título "Relatório de
+  Produtos".
+- Usa **células mescladas**: o texto do cabeçalho "Nome Produto" fica na coluna E, mas o
+  dado real de cada produto está um a coluna à esquerda, na D (os merges do cabeçalho e dos
+  dados começam em colunas diferentes no mesmo relatório — inconsistência do próprio
+  template do ERP de origem, não um padrão a generalizar).
+- O cabeçalho **se repete a cada página** do relatório (confirmado: reaparece na linha 65).
+- Existe uma **linha de rodapé** entre blocos de página ("Emissão: 15/10/2026" / "Página:
+  1") que não é produto nem cabeçalho.
+- Números vêm em **dois formatos diferentes na mesma planilha**: "Qtde." e "Tabela 1"
+  (preço) em formato pt-BR com separador de milhar ("3.000,00", "R$ 7,80"), enquanto "Custo
+  Un." já vem com ponto decimal direto ("6797.64") — um importador genérico que só troca
+  vírgula por ponto quebraria o primeiro formato.
+
+### O que foi feito
+
+- `FinanceImportService.ts`, nova função `parseGunStoreReport`: detecta esse formato
+  automaticamente (procura a célula com texto exato "Cód. Produto" pra achar a linha do
+  cabeçalho) e, se achar, usa um mapeamento de coluna **fixo por posição** (A=SKU, D=Nome,
+  L=Categoria, P=Qtde., S=Preço, V=Ativo, X=Controla Estoque, AC=Unidade, AE=NCM, AM=Custo)
+  em vez de alias de cabeçalho — essas colunas são fixas nesse template de relatório, então
+  buscar por nome de cabeçalho não funcionaria de qualquer forma (a célula de dado real não
+  fica embaixo do cabeçalho correspondente, por causa do merge). Se a planilha enviada não
+  tiver essa assinatura, `importProducts` cai pro importador genérico por alias (v2.3.96),
+  sem quebrar o caso já existente.
+- **Categoria → Tipo do produto**: "PISTOLA"/"REVÓLVER"/"CARABINA"/"ESPINGARDA"/"RIFLE"/
+  "ARMA" → `type: "weapon"` (+ `weaponType` quando a categoria for específica o bastante,
+  ex. "CARABINA" → `"carbine"`); "MUNIÇÃO"/"ESPOLETA"/"CARTELA"/"POLVORA" →
+  `type: "ammunition"`; qualquer outra categoria → `type: "product"` (fallback seguro).
+- **`parseBrazilianDecimal`**: remove tudo que não é dígito/vírgula/ponto/sinal (tira o
+  "R$ " de propósito), e só trata "." como separador de milhar quando a string também tem
+  vírgula — detecta e lida com os dois formatos vistos no mesmo arquivo sem precisar saber
+  de antemão qual coluna usa qual formato.
+- **Marca e calibre — best-effort, por decisão explícita do cliente** ("tentar também se
+  tiver no arquivo", não adivinhar): `extractBrandFromName`/`extractCaliberFromName`
+  procuram na descrição do produto (texto livre, abreviado, sem padrão fixo) por:
+  - Marca: lista de marcas conhecidas do mercado de armas/munição brasileiro (Taurus, CBC,
+    Glock, Imbramun, Beretta, Rossi, CZ, Sig Sauer, etc.), busca textual simples — **não**
+    tenta reconhecer marca por código de modelo (ex. "G2C" → Taurus), porque isso estaria
+    fora do que "tem no arquivo" e arriscaria adivinhar errado. Na prática, a maioria dos
+    produtos CBC e Glock testados teve marca reconhecida (a descrição cita a marca); a
+    maioria dos modelos Taurus (G2C, G3, GX4, TH380...) **não** cita "Taurus" na descrição
+    e fica com marca em branco — consistente com "mantém o que tem no sistema pra preencher
+    manual".
+  - Calibre: só padrões de alta confiança (notação com ponto ".38TPC", com X "9X19", bitola
+    de espingarda "12/70", "MM" explícito, ou sufixo de cartucho colado no número — "380ACP",
+    "38SPL", "357MAG", "40S&W") — de propósito NÃO tenta reconhecer número solto nenhum como
+    calibre (evitaria confundir código de modelo como "7022" ou comprimento de cano "76" com
+    calibre).
+- **Teste com o arquivo real** enviado pelo cliente (planilha de produtos da Confiança
+  Technologies/Cactus Clube de Tiro, 60 produtos): 36 reconhecidos como arma, 24 como
+  munição/insumo, 0 caiu no fallback genérico "product"; marca reconhecida em 35 e calibre
+  em 43 dos 60. Validado rodando o parser isolado (`ts-node --transpile-only`) contra o
+  arquivo real antes de considerar pronto — não só revisão de código.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Parser testado isoladamente (fora do fluxo HTTP completo, sem banco disponível nesta
+  sessão) contra o arquivo real do cliente — resultado em "O que foi feito" acima.
+- **Pendente**: cliente rodar a importação de verdade (fluxo completo, upload → banco) em
+  homologação/produção com esse arquivo, e revisar manualmente os produtos sem marca/calibre
+  reconhecidos antes de considerar o catálogo completo.
+
+## 84. Vincula Contato do Atendimento a Cliente do Financeiro (v2.3.99)
+
+### Contexto
+
+Cliente pediu que o cadastro de cliente usado pelo Atendimento (`Contact`, quem fala com o
+atendente pelo WhatsApp) e o cadastro de cliente do Financeiro (`FinanceCustomer`, usado em
+vendas/contas a receber) "virem uma base só": o atendente cadastra o contato no Atendimento
+e isso deveria refletir no cadastro de Clientes do Financeiro; quem trabalha só no Financeiro
+continua podendo cadastrar um cliente direto por lá; tudo isso condicionado à permissão de
+acesso ao módulo Financeiro que o Admin já concede por usuário.
+
+Pedido admitia mais de um caminho (gatilho automático vs. manual; sincronia uni ou
+bidirecional depois do vínculo) — confirmado com o cliente antes de implementar: (1) o
+vínculo só acontece quando alguém marca explicitamente o Contato como cliente financeiro
+(não todo Contato vira Cliente automaticamente — evitaria encher a base financeira com todo
+contato de WhatsApp que nunca comprou nada); (2) depois de vinculado, o Contato manda
+nome/telefone (edição no Financeiro não volta pro Contato) — CPF/CNPJ/endereço só existem e
+só são editáveis no Financeiro.
+
+### O que foi feito
+
+- **`FinanceCustomer.contactId`** já existia desde a Fase 1 (FK opcional pro `Contact`), mas
+  sem nenhuma forma de usar isso pela interface — ficava um campo de banco sem uso real.
+  Nenhuma migration nova precisou ser criada nesta etapa.
+- **`FinanceCustomerService.ts`**, duas funções novas:
+  - `linkFromContact(contactId, companyId)`: busca o `Contact` (reconferindo `companyId`,
+    regra de multiempresa), e se já existir um `FinanceCustomer` com esse `contactId` pra
+    essa empresa, devolve ele (idempotente — clicar duas vezes não duplica). Senão, cria um
+    novo `FinanceCustomer` copiando `name`→`name`, `number`→`phone`, `email`→`email`,
+    `document`→`document` (inferindo `documentType` cpf/cnpj pela quantidade de dígitos,
+    mesma heurística já usada no importador de Excel da v2.3.98).
+  - `showByContact(contactId, companyId)`: busca o `FinanceCustomer` vinculado a um
+    `Contact`, usado pelo frontend só pra saber se já existe vínculo (mostrar o botão ou o
+    indicador "vinculado").
+- **Rotas** (`financeRoutes.ts`): `GET /finance/customers/by-contact/:contactId` e `POST
+  /finance/customers/link-contact/:contactId`, registradas ANTES da rota genérica `GET
+  /finance/customers/:id` — sem essa ordem, Express tentaria casar `"by-contact"`/
+  `"link-contact"` como se fossem o parâmetro `:id`.
+- **Frontend** (`ContactModal/index.js`): ao abrir o modal de um Contato já existente (não
+  aparece em "Adicionar contato", só em "Editar contato"), busca `finance.getAccess()` (o
+  MESMO endpoint que a tela do Financeiro usa — reaproveita a regra Admin/Master/plano já
+  correta no backend, em vez de replicar essa lógica no frontend) e, se tiver acesso, busca
+  se já existe vínculo (`getCustomerByContact`). Mostra um botão "Cadastrar como cliente
+  (Financeiro)" (chama `linkContactAsCustomer`) ou, se já vinculado, um `Chip` "Cliente
+  financeiro vinculado" — ação independente do formulário principal do Contato (Formik),
+  não interfere no salvar/editar normal do Contato.
+- **i18n**: `contactModal.finance.*` (botão, label do chip, mensagem de sucesso) — esse
+  componente (`ContactModal`, diferente do módulo Financeiro) já usa o catálogo de 5
+  idiomas normalmente, então as chaves novas entraram nos 5 (`pt.js`, `en.js`, `es.js`,
+  `esES.js`, `tr.js`), ao contrário dos textos do próprio módulo Financeiro (ver seção 11
+  da skill `atendeflow-dev` — convenção diferente, cada uma no seu lugar certo).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `eslint` limpo em `ContactModal/index.js` e `useFinance/index.js`.
+- `node --check` limpo nos 5 arquivos de tradução.
+- Não testado end-to-end (sem banco disponível nesta sessão). **Pendente**: cliente testar
+  em homologação/produção — abrir um Contato existente com usuário que tem acesso ao
+  Financeiro, clicar "Cadastrar como cliente (Financeiro)", e confirmar que aparece em
+  Financeiro > Clientes com nome/telefone corretos.
+
+## 85. Diagnóstico: importação de produtos não reconheceu o relatório em produção (v2.3.100)
+
+### Contexto
+
+Depois do deploy da v2.3.98 (seção 83), cliente testou a importação do arquivo real
+(`RELATORIO_DE_PRODUTOS_GERAIS_DE_ARMAS...xlsx`, o mesmo enviado nesta sessão) pela tela em
+produção e recebeu o toast "Importação concluída: 0 criado(s), 0 atualizado(s), 165
+inválido(s)/ignorado(s))" — ou seja, a requisição chegou no backend e respondeu normalmente
+(sem erro HTTP), mas **nenhuma linha foi reconhecida como produto válido**.
+
+Isso é inesperado: o arquivo enviado é confirmado como sendo o mesmo (cliente confirmou
+explicitamente), e rodar `parseGunStoreReport` contra essa mesma cópia local do arquivo,
+usando exatamente o código da v2.3.98/99 (reconferido nesta sessão, depois do relato),
+continua reconhecendo os 60 produtos normalmente. A causa raiz da divergência entre o teste
+local e o comportamento em produção **não foi identificada ainda** — hipóteses não
+descartadas: versão da lib `xlsx` resolvida diferente no `npm install` do Dockerfile (usa
+`npm install`, não `npm ci` — não é garantido pegar exatamente a mesma versão que o
+`package-lock.json` fixa) vs. o `node_modules` desta sessão (instalado via `npm ci`);
+diferença de encoding/acento na célula "Cód. Produto" que só se manifesta em certas
+condições; ou algo específico do ambiente de produção ainda não mapeado.
+
+### O que foi feito (diagnóstico, não correção definitiva)
+
+- `parseGunStoreReport` (`FinanceImportService.ts`): quando não encontra o cabeçalho "Cód.
+  Produto" (condição que faz cair no importador genérico), agora registra via `logger.info`:
+  a versão da lib `xlsx` efetivamente carregada em produção, e o conteúdo bruto das
+  primeiras 15 linhas da coluna A da planilha — isso revela exatamente o que o código está
+  enxergando ali, em vez de precisar reproduzir o ambiente de produção pra descobrir.
+- **Próximo passo, assim que o cliente testar de novo com o log do backend aberto**: a
+  linha de log vai aparecer com o prefixo `[FinanceImportService] parseGunStoreReport:` —
+  o conteúdo dela decide o próximo passo (se a versão da lib `xlsx` for diferente da
+  esperada, trocar `npm install` por `npm ci` no Dockerfile pra fixar a versão; se o texto
+  da célula estiver sutilmente diferente, ajustar a comparação pra ser mais tolerante —
+  ex. `trim()` + normalização de espaço, já que `trim()` sozinho não remove um espaço
+  não-quebrável (` `) no meio do texto).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Reconfirmado nesta sessão (depois do relato do cliente) que `parseGunStoreReport` continua
+  reconhecendo os 60 produtos corretamente contra a cópia local do arquivo exato enviado
+  pelo cliente — a lógica em si não regrediu; o log novo existe justamente porque a causa da
+  divergência com produção não é óbvia a partir do código sozinho.
+- **Pendente**: cliente rodar `docker compose logs -f backend` e tentar importar de novo —
+  o log vai apontar a causa exata.
+
+### Atualização (v2.3.101) — o log da v2.3.100 nunca apareceu
+
+Cliente confirmou, em mais de uma tentativa, que o terminal com `logs -f backend | grep
+FinanceImportService` ficava completamente em branco mesmo depois de importar a planilha
+de novo — nem a linha de diagnóstico, nem nenhum erro. Isso por si só é uma pista: outras
+partes do sistema logam bastante (`[WBOT] upsert event`, `DADOS DO USUÁRIO...`) e aparecem
+normalmente — todas via `console.log`/`console.warn` direto, nunca via o utilitário
+`logger` (`backend/src/utils/logger.ts`, Pino + transporte `pino-pretty`).
+
+**Causa provável** (não confirmada com certeza absoluta, mas evidência forte): o transporte
+`pino-pretty` do Pino roda numa worker thread separada — se essa thread falhar silenciosamente
+nesse ambiente de produção (ex.: `pino-pretty` resolvido de um jeito diferente dentro do
+container Docker), o Pino engole a saída sem erro visível nenhum, e nada chega no `stdout`
+que o `docker compose logs` lê. Como nunca tinha existido um log de diagnóstico via `logger`
+testado em produção antes (só `console.log` espalhado pelo sistema), esse problema nunca
+tinha sido notado.
+
+**Correção**: trocado `logger.info` por `console.log` no log de diagnóstico de
+`parseGunStoreReport`, e adicionados dois logs a mais em `importProducts` (`console.log` no
+início, com o caminho do arquivo recebido, e no fim, com o resumo final) — isso serve tanto
+pra ver a causa raiz da planilha não ser reconhecida quanto, como fallback, confirmar se a
+função está sendo chamada de verdade.
+
+**Lição pro futuro, já registrada na skill `atendeflow-dev`**: não confiar que `logger.info`
+do Pino vai aparecer nos logs do Docker neste projeto sem antes confirmar — preferir
+`console.log` pra qualquer log de diagnóstico temporário que precise ser visto com certeza.
+
+## 86. Causa raiz real do "deploy não aplicou nada" + planilha-modelo pra download (v2.3.102)
+
+### Contexto
+
+Depois do log de diagnóstico da v2.3.101 também não aparecer em produção (mesmo sendo
+`console.log`, à prova de falha), ficou claro que o problema não era mais no código — era
+no próprio arquivo que estava sendo enviado pro build. Confirmado rodando `wc -l` no
+arquivo `FinanceImportService.ts` do servidor: **310 linhas**, batendo exatamente com a
+versão da v2.3.96 (antes do reconhecedor de relatório), enquanto o arquivo correto tem 514.
+
+### Causa raiz
+
+O roteiro de deploy usado desde a divergência git/GitHub (seção 7 da skill
+`atendeflow-dev`) copia cada arquivo individualmente com
+`git show origin/claude/tender-carson-h1zc86:<caminho> > <caminho>`. Esse comando lê do
+**cache local** da referência `origin/claude/tender-carson-h1zc86` — que só é atualizado
+rodando `git fetch` (ou `git pull`). A primeira tentativa de `git pull` (que falhou na
+hora de reconciliar o merge) **fez o fetch com sucesso antes de falhar**, deixando a
+referência local travada no commit da v2.3.96 (`bf6ca5a`). Nenhuma instrução de deploy
+dada depois disso incluiu um novo `git fetch` — então toda cópia de arquivo nas rodadas
+seguintes (correção da migration v2.3.97, reconhecedor do relatório v2.3.98, vínculo
+Contato/Cliente v2.3.99, os dois logs de diagnóstico v2.3.100/101) continuava lendo essa
+mesma referência desatualizada, trazendo sempre o conteúdo da v2.3.96 de volta — mesmo com
+os commits certos já publicados no GitHub havia várias versões.
+
+**Por que os builds "funcionavam" sem erro**: o Docker builda o que está no disco do
+servidor naquele momento — como o `git show` sempre escrevia o mesmo conteúdo antigo (só
+que de novo), o build sempre completava normalmente, só que recompilando a mesma versão
+desatualizada repetidas vezes. Nada indicava isso nos logs do build.
+
+**Nem tudo foi afetado**: os arquivos da Fase 6 original (campos de arma, migration — antes
+de `bf6ca5a`) já estavam corretos porque a v2.3.96 (onde a referência ficou travada) é
+posterior a eles, então já continha essas mudanças. `version.ts`/`package.json` também
+sempre ficaram certos, porque são alterados por `sed` direto no conteúdo atual do arquivo,
+sem depender de git nenhum momento.
+
+### O que foi feito
+
+- Identificado e corrigido rodando `git fetch origin claude/tender-carson-h1zc86` antes de
+  repetir a cópia de todos os 8 arquivos de código afetados (ver lista completa na skill
+  `atendeflow-dev`, seção dedicada a isso) — confirmado via `wc -l` batendo 514 linhas no
+  `FinanceImportService.ts` antes de rebuildar.
+- **Lição permanente, registrada na skill**: toda instrução de deploy baseada em
+  `git show origin/<branch>:<arquivo>` (o fluxo usado enquanto o servidor estiver
+  divergente do GitHub, seção 7) precisa vir precedida de `git fetch origin <branch>` —
+  nunca assumir que a referência local já está atualizada, mesmo que um `git pull`
+  anterior tenha rodado (ele pode ter feito o fetch e falhado só no merge).
+
+### Planilha-modelo pra download (pedido separado, mesma sessão)
+
+Cliente pediu, depois de validar a importação funcionando, um jeito de gerar a planilha do
+zero "de acordo com os campos corretos do sistema" — cadastro de Clientes e Produtos por
+enquanto (Fornecedores fica pra depois, mesmo padrão "fazer por parte").
+
+- `FinanceImportService.ts`: `buildProductTemplate()`/`buildCustomerTemplate()` geram um
+  `.xlsx` (via `XLSX.utils.aoa_to_sheet` + `XLSX.write(..., {type:"buffer"})`) com uma linha
+  de cabeçalho e uma linha de exemplo preenchida (produto de exemplo: pistola Taurus G2C,
+  mostrando os campos de arma preenchidos; cliente de exemplo com CPF e endereço completo).
+  **Os títulos de coluna foram escolhidos a dedo pra normalizar exatamente igual a um alias
+  já reconhecido** pelos mapeamentos de importação (`PRODUCT_MAPPINGS`/`CUSTOMER_MAPPINGS`)
+  — ex.: "Preço Venda" em vez de "Preço de Venda", porque a preposição "de" mudaria o texto
+  normalizado e o campo não seria reconhecido na reimportação (o casamento de alias é por
+  igualdade exata do texto normalizado, não substring). Validado rodando o parser contra o
+  próprio buffer gerado antes de considerar pronto.
+- Rotas novas: `GET /finance/products/import-template`, `GET /finance/customers/import-template`
+  (antes das rotas genéricas `/:id`, mesmo motivo já documentado pro vínculo Contato/Cliente).
+- Frontend: `useFinance().<resource>.downloadTemplate(filename)` (blob + link temporário pra
+  disparar o download do navegador) e botão "Baixar modelo" em `FinanceRecordList` — nova
+  prop `allowTemplateDownload` (separada de `allowImport`, porque só Produtos/Clientes têm
+  o endpoint; Fornecedores continua com importação mas sem modelo pra baixar, por enquanto).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo nos arquivos de frontend tocados.
+- Gerado o buffer de cada modelo e reprocessado pelo próprio parser (`ts-node`) — todas as
+  colunas reconhecidas corretamente, confirmado campo a campo contra os aliases.
+- Não testado o download/fluxo completo no navegador nesta sessão (sem acesso à produção).
+  **Pendente**: cliente confirmar que os botões aparecem e os arquivos baixam corretamente.
+
+## 87. Busca com filtro em Produto/Cliente/Fornecedor — Vendas e Contas (v2.3.103)
+
+### Contexto
+
+Depois de importar o catálogo real (65 produtos), cliente pediu que os campos de
+Produto (na tela de Vendas) e Cliente/Fornecedor (Vendas, Contas a Pagar/Receber)
+tivessem busca com filtro — "o usuário digita o nome ou o código do produto e filtra
+pra não ficar procurando um a um" — e que o mesmo valesse pra qualquer campo do
+Financeiro que aponte pra outro cadastro.
+
+### Causa raiz (por que não dava só pra trocar o componente visual)
+
+Os dois lugares afetados montavam a lista de opções de formas diferentes, mas ambos
+com o mesmo problema de fundo:
+
+- **`SaleModal`** (Produto/Cliente na venda): recebia os arrays `customers`/`products`
+  já prontos via prop, buscados **uma única vez** pelo `FiscalSalesPanel` ao entrar na
+  aba Vendas, com `searchParam: ""`.
+- **`FinanceRecordModal`**, campo tipo `asyncSelect` (Fornecedor em Despesas, Cliente em
+  Contas a Receber): buscava a lista uma vez, ao abrir o modal, também com
+  `searchParam: ""`.
+
+Em ambos os casos, o endpoint `list()` de Produtos/Clientes/Fornecedores é **paginado,
+20 registros por página** (`FinanceProductService.list`/`FinanceCustomerService.list`/
+`FinanceSupplierService.list`) — com 65 produtos reais já cadastrados, esses campos só
+enxergavam os 20 primeiros (por nome, ordem alfabética) e **os outros 45 produtos eram
+impossíveis de selecionar na venda**, independente de qualquer melhoria visual. Só
+trocar o componente de "select simples" por um "autocomplete com filtro" sobre essa
+mesma lista capada não resolveria o problema de verdade — o filtro teria que buscar no
+servidor, não só filtrar o que já tinha sido carregado.
+
+### O que foi feito
+
+- **`FinanceAsyncAutocomplete`** (`frontend/src/components/FinanceAsyncAutocomplete/`),
+  componente novo reaproveitável: `Autocomplete` (`@material-ui/lab`, mesmo padrão já
+  usado em `NewTicketModal` pra busca de contato) com busca no servidor via
+  `fetchOptions(searchParam)`, atraso de 350ms na digitação (debounce, evita uma
+  requisição por tecla), e `initialOptions` — garante que o registro já selecionado
+  (ex.: editando uma conta cujo fornecedor não está entre os 20 mais recentes) sempre
+  apareça como opção, mesmo antes de qualquer busca.
+- **`FinanceRecordModal`**: campo `asyncSelect` trocado pra usar esse componente —
+  removida a busca única ao abrir o modal (`asyncOptions`), cada campo busca sob
+  demanda. Usa `record.<singular do optionsResource>` (ex. `record.supplier`,
+  já embutido na resposta de listagem, usado pela própria coluna da tabela) como opção
+  inicial ao editar.
+- **`SaleModal`**: campos "Cliente" e "Produto/serviço" (por item) trocados da mesma
+  forma — precisou passar a prop `finance` (o hook inteiro) por toda a cadeia
+  `FiscalSalesPanel` → `SaleList` → `SaleModal`, que antes só recebiam os arrays já
+  prontos. Os arrays `customers`/`products` que o `FiscalSalesPanel` já buscava uma vez
+  continuam existindo, agora só como opção inicial (primeira exibição, antes de
+  buscar) — a busca de verdade passa a ir sempre ao servidor.
+- **Busca por CPF/CNPJ/e-mail já funcionava no backend** (`FinanceCustomerService.list`/
+  `FinanceSupplierService.list`, `Op.or` em nome/documento/e-mail) — não precisou de
+  nenhuma mudança de backend, só reaproveitar o `searchParam` já existente.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend (sem mudança de backend nesta parte, só
+  reconfirmado); `eslint` limpo nos 5 arquivos de frontend tocados.
+- Não testado o fluxo completo no navegador nesta sessão (sem acesso à produção).
+  **Pendente**: cliente confirmar, numa venda nova, que o campo Produto encontra um dos
+  produtos importados que não está entre os 20 primeiros (ex.: buscar por "RIFLE" ou
+  por um SKU específico) — esse é o caso que antes não tinha solução nenhuma.
+
+### Ajuste (v2.3.104) — rótulo longo quebrando linha
+
+Cliente testou em produção e reportou o rótulo dos dois campos ("Cliente (nome, CPF/CNPJ
+ou e-mail — vazio = consumidor não identificado)" e "Produto/serviço (nome ou SKU — vazio
+= item avulso)") quebrando linha dentro do campo compacto (`size="small"`), ficando
+descentralizado. Rótulo longo cabe numa label de `TextField` padrão (uma linha, acima do
+campo), mas não num campo pequeno lado a lado com outros. Trocado pra rótulo curto
+("Cliente"/"Produto/serviço") + o texto de apoio movido pra `placeholder` (texto dentro
+do campo, nunca quebra linha, só fica visível quando o campo está vazio) —
+`FinanceAsyncAutocomplete` ganhou a prop `placeholder`, repassada direto pro `TextField`
+interno do `Autocomplete`.
+
+## 88. Fiscal multi-gateway + emissão automática na venda + código do produto nas vendas (v2.3.105)
+
+### Contexto
+
+Cliente perguntou como configurar o certificado digital pra emitir nota fiscal na hora
+da venda. Investigando, o módulo Fiscal só tinha um gateway de verdade implementado
+(Focus NFe) apesar do campo `gatewayProvider` já existir no model desde a Fase 3 "pra
+usar no futuro". Ao explicar a arquitetura atual, cliente mudou o pedido: não tem
+certeza se vai usar a Focus NFe, quer poder **escolher** o gateway; quer que a venda já
+saia com a nota emitida (PDF/XML) assim que confirmada, sem passo manual extra; e no
+longo prazo quer reconhecer um certificado digital instalado na máquina e falar direto
+com Prefeitura/Sefaz, sem gateway nenhum.
+
+Expliquei (não sou especialista em legislação fiscal, isso é responsabilidade do
+cliente/contador validar) que emissão direta contra Sefaz/Prefeitura sem gateway é
+ordens de grandeza mais complexo do que parece — 27 webservices estaduais diferentes,
+nenhum padrão único de NFS-e entre os milhares de municípios, assinatura digital XML,
+tratamento de contingência, risco de nota inválida gerando problema fiscal de verdade.
+Perguntado qual caminho seguir, cliente escolheu **"Vários gateways, escolhível"**:
+continuar emitindo por gateway homologado (como hoje), só que com a empresa podendo
+trocar de gateway, em vez de ficar travada na Focus NFe ou de eu construir integração
+direta/sem assinatura.
+
+Durante a mesma sessão, revendo a tela de Vendas, cliente pediu separadamente que o
+código do produto (SKU) aparecesse no módulo de Vendas — achado, ao investigar, que o
+item da venda nunca guardava o SKU em lugar nenhum, e a nota fiscal usava o **id interno
+do banco** como "código do produto" na Focus NFe (bug real, não só falta de exibição).
+
+### O que foi feito — dispatcher de gateway
+
+- **`FiscalGatewayService.ts`** (novo): interface `FiscalGatewayAdapter` com as mesmas
+  três funções que `FocusNFeService` já exportava (`emit`/`getStatus`/`cancel`, mesma
+  assinatura) — zero mudança necessária no `FocusNFeService` existente, só passou a ser
+  registrado num mapa `GATEWAYS` por `provider`. `getGateway(provider)` lança
+  `ERR_FISCAL_GATEWAY_NOT_SUPPORTED` pra um provider não registrado.
+  `SUPPORTED_GATEWAYS` é a lista exposta pro frontend montar o seletor sem hardcodar
+  nada lá — hoje só tem `focusnfe`, mas o próximo gateway real adicionado aparece na
+  tela automaticamente.
+- **`FiscalDocumentService.ts`**: as três chamadas que importavam `FocusNFeService`
+  direto (`emit`, `refreshStatus`, `cancel`) passaram a usar
+  `FiscalGatewayService.getGateway(config.gatewayProvider)` antes de chamar.
+- **`FiscalConfigController.ts`** + `fiscalRoutes.ts`: novo endpoint
+  `GET /fiscal/gateways`, mesma trava de acesso (`EnsureFiscalAccess`) dos outros.
+- **`FiscalConfigPanel`**: seção "Gateway de emissão" deixou de ter o subtítulo fixo
+  "(Focus NFe)" — ganhou um seletor (`gatewayProvider`) cujas opções vêm de
+  `fiscal.config.gateways()`.
+
+### O que foi feito — emissão automática ao confirmar a venda
+
+- Novo campo `FiscalConfig.defaultDocumentType` (migration
+  `20261016120000-add-default-document-type-to-fiscal-configs.ts`, `ADD COLUMN IF NOT
+  EXISTS` — mesmo padrão idempotente da migration de armas, seção 11 da skill) —
+  `""` (padrão) = não emitir automático, continua manual; `"nfe"`/`"nfce"`/`"nfse"` =
+  emite esse tipo assim que a venda é confirmada.
+- **`SaleController.confirm`**: depois de `SaleService.confirm` criar a conta a
+  receber, se `defaultDocumentType` e `gatewayToken` estiverem configurados, chama
+  `FiscalDocumentService.emit(...)` dentro de um `try/catch` — **nunca** deixa uma
+  falha de emissão (gateway fora do ar, token errado, etc.) impedir a confirmação da
+  venda ou a criação da conta a receber, que são o que realmente não pode falhar. A
+  resposta ganhou um campo extra `fiscalAutoEmit: { attempted, success, type,
+  errorMessage? }` pro frontend poder refletir o resultado se quiser (ainda não
+  consumido no toast de confirmação — fica pra um próximo ajuste, se o cliente notar
+  falta).
+- **Decisão de onde colocar a orquestração**: no controller, não dentro de
+  `SaleService.confirm`. `FiscalDocumentService.ts` já importa `SaleService` (pra
+  revalidar que a venda existe e pertence à empresa antes de emitir) — se
+  `SaleService` importasse `FiscalDocumentService` de volta, seria import circular.
+  O botão manual "Emitir NF-e/NFC-e/NFS-e" em `SaleDetailModal` continua existindo
+  normalmente, como fallback/override mesmo com emissão automática configurada.
+- Fluxo de certificado digital (upload direto no AtendeFlow, decisão anterior do
+  cliente) **ainda não implementado** — ficou decidido antes da mudança pra
+  multi-gateway, precisa ser revisto quando um segundo gateway de verdade entrar,
+  porque cada gateway pode ter uma forma diferente (ou nenhuma) de lidar com
+  certificado pela própria API.
+
+### O que foi feito — código do produto (SKU) nas vendas
+
+- Novo campo `SaleItem.sku` (migration `20261016130000-add-sku-to-sale-items.ts`,
+  mesmo padrão idempotente) — snapshot do SKU no momento da venda, mesma lógica já
+  usada pra `description`/`ncm`/`cfop` (cadastro do produto pode mudar depois, a venda
+  e a nota já emitida não podem mudar retroativamente).
+  `SaleService`: `SaleItemData`/`buildItemRows` passam o `sku` adiante.
+- **`FocusNFeService.buildItemsPayload`**: `codigo_produto` agora usa `item.sku` em
+  vez do id interno do banco — esse era o valor que de fato ia pra nota fiscal emitida
+  até aqui, corrigido independente do dispatcher de gateway.
+- **Frontend**: `SaleModal` ganhou campo "Código (SKU)" por item (preenchido
+  automaticamente ao escolher o produto no autocomplete, mas editável — item avulso
+  sem produto cadastrado pode digitar um código à mão); `SaleDetailModal` ganhou a
+  coluna "Código" na tabela de itens da venda confirmada.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de frontend
+  tocados (`FiscalConfigPanel`, `SaleModal`, `SaleDetailModal`, `useFiscal`).
+- **Não testado** contra credencial de sandbox real de nenhum gateway (mesma ressalva
+  já documentada pro `FocusNFeService` desde a Fase 3 — nunca foi validado end-to-end).
+  **Pendente**: cliente decidir se/quando vai testar a emissão de verdade (precisa de
+  um CNPJ homologado na Focus NFe ou no gateway escolhido), e confirmar visualmente
+  que o SKU aparece certo nas vendas depois do deploy.
+
+## 89. Focus NFe: carta de correção, e-mail, pré-visualização de DANFe, inutilização de numeração (v2.3.106)
+
+### Contexto
+
+Depois da v2.3.105 (gateway escolhível), cliente perguntou sobre um segundo gateway.
+Expliquei que, sem conseguir abrir a documentação oficial de um gateway novo (bloqueio
+de rede deste ambiente — `nfe.io`, `focusnfe.com.br`, `doc.focusnfe.com.br` todos dão
+`ENOTFOUND` mesmo via `WebFetch`; só a busca por palavra-chave funciona, e só traz
+resumo indireto), implementar um gateway novo "às cegas" seria arriscado demais pra
+nota fiscal de verdade. Cliente decidiu contratar um gateway primeiro e me mandar a
+documentação depois — enquanto isso, colou o índice inteiro da documentação da Focus
+NFe (`doc.focusnfe.com.br/reference/nfe`) com o método/URL de cada endpoint (ele
+conseguia abrir as páginas no navegador dele, mesmo eu não conseguindo daqui).
+
+Com os endpoints confirmados de verdade (não mais só conhecimento geral), ficou viável
+expandir o que já estava implementado (emitir/consultar/cancelar) com mais cobertura —
+focando só no que faz sentido pra "venda de produto" numa loja física (não logística de
+transportadora, não conciliação financeira, não o lado de notas recebidas de
+fornecedor — tudo isso ficou registrado como ideia de backlog, não implementado).
+
+### O que foi feito
+
+- **`FocusNFeService.ts`**: cinco funções novas, batendo contra os endpoints reais
+  confirmados pelo cliente:
+  - `emitCorrectionLetter` — `POST /v2/nfe/{ref}/carta_correcao`, body `{ correcao }`.
+    Só NF-e (carta de correção não existe pra NFC-e/NFS-e).
+  - `sendByEmail` — `POST /v2/{tipo}/{ref}/email`, body `{ emails: [...] }`.
+  - `previewDanfe` — `POST /v2/nfe/danfe`, mesmo payload de `buildNfePayload` (reaproveitado
+    de `emit`), resposta é PDF binário (`responseType: "arraybuffer"`), não JSON. Não
+    transmite nada pra Sefaz nem gera `ref`/`FiscalDocument` — só prévia.
+  - `invalidateNumbering` — `POST /v2/nfe/inutilizacao`, body `{ serie, numero_inicial,
+    numero_final, justificativa }`.
+  - `listInvalidations` — `GET /v2/nfe/inutilizacoes`.
+  - **Ressalva igual ao resto do adapter**: método/URL de cada endpoint vieram de curl
+    real colado pelo cliente (alta confiança), mas o **formato do corpo** de cada
+    request (nomes de campo) foi reconstruído por conhecimento geral — os exemplos do
+    cliente só mostravam `{}`/`{"items":[]}` genérico, sem o schema completo. Precisa
+    validar contra conta de homologação de verdade.
+- **`FiscalGatewayAdapter`** (`FiscalGatewayService.ts`): as cinco funções entraram como
+  métodos **opcionais** na interface (`emitCorrectionLetter?`, `sendByEmail?`,
+  `previewDanfe?`, `invalidateNumbering?`, `listInvalidations?`) — nem todo gateway
+  futuro vai ter equivalente de cada uma. Novo helper `requireFeature(gateway, nome)`
+  lança `ERR_FISCAL_FEATURE_NOT_SUPPORTED_BY_GATEWAY` se o gateway atual não implementa
+  aquele método, em vez de cada service repetir o mesmo `if (!gateway.x) throw`.
+- **`FiscalDocumentService.ts`**: `emitCorrectionLetter`/`sendByEmail`/`previewDanfe`
+  novos — os dois primeiros exigem documento `authorized`; `previewDanfe` funciona com
+  a venda ainda em rascunho (é justamente pra conferir antes de confirmar/emitir).
+- **`FiscalNumberingService.ts`** (novo arquivo): `invalidate`/`list` — inutilização é
+  nível empresa+série, não está ligada a nenhuma venda/FiscalDocument específico, por
+  isso não entrou em `FiscalDocumentService`.
+- Rotas novas em `fiscalRoutes.ts`: `POST /fiscal-documents/:id/correction-letter`,
+  `POST /fiscal-documents/:id/send-email`, `POST /sales/:saleId/fiscal-documents/preview`
+  (devolve o PDF direto, `Content-Type: application/pdf`, não JSON),
+  `GET`/`POST /fiscal/numbering/invalidations`.
+- **Frontend**: `SaleDetailModal` ganhou botões "Enviar por e-mail" e "Carta de
+  correção" por nota autorizada (com diálogo próprio cada um — e-mail pré-preenchido
+  com o do cliente da venda), e "Pré-visualizar DANFe" na venda confirmada (abre o PDF
+  em nova aba via blob URL). `FiscalConfigPanel` ganhou uma segunda seção
+  (`NumberingInvalidationPanel`, sub-componente no mesmo arquivo) com formulário de
+  inutilização + tabela das já registradas — não usa Formik como o resto do painel
+  porque não é um valor salvo pra reinicializar, é uma ação pontual a cada envio.
+
+### Descartado por enquanto (fora do escopo "venda de produto")
+
+Da documentação completa que o cliente colou, ficou de fora: Registrar/Cancelar Ator
+Interessado, Registrar/Cancelar Insucesso na Entrega (logística de transportadora),
+Conciliação Financeira/ECONF, Emitir/Cancelar Evento genérico, Importar NFe, DANFe
+Etiqueta (HTML/PDF), Reenvio de notificação de webhook, toda a seção "Documentos
+Recebidos" (CTe/NFe/NFSe recebidas — é o lado de COMPRA, reconciliação com nota de
+fornecedor, feature separada e maior), "Gestão" (Criar/Listar/Atualizar/Excluir Empresa,
+Backups, Emails Bloqueados, Webhooks) e "Ferramentas" (Comunicador Offline — app local
+pra contingência de NFC-e sem internet no PDV, arquitetura bem diferente). Também veio
+a lista de "APIs Acessórias" (CEP, CFOP, CNAE, CNPJ, Municípios, NCM) — ideia de
+backlog pra facilitar cadastro (auto-preencher endereço por CEP, dados de cliente por
+CNPJ, achar NCM/CFOP/código IBGE certo), não implementado.
+
+Confirmado com o cliente: o cadastro da empresa na própria Focus NFe ("Criar Empresa")
+já foi feito manualmente pelo painel deles — não é um passo que falta automatizar no
+AtendeFlow.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo nos 3 arquivos de frontend
+  tocados (`FiscalConfigPanel`, `SaleDetailModal`, `useFiscal`).
+- **Não testado contra API real** — mesma ressalva de sempre, agora também pras cinco
+  funções novas. Cliente está em contato com a Focus NFe pra conseguir o token de
+  homologação; assim que tiver, é o primeiro teste de ponta a ponta de todo o módulo
+  fiscal desde que ele existe.
+
+## 90. Importação de Clientes: ajustes pro Relatório de Clientes real (v2.3.107)
+
+### Contexto
+
+Cliente pediu pra "migrar" o cadastro de clientes do ERP antigo — chamou de "XMLs" na
+primeira mensagem, mas era na verdade `.xls` (Excel antigo). Mandou o arquivo real
+("Relatorio de Clientes - Excel - Confiança Armas"), 205 linhas de clientes.
+
+### Causa raiz
+
+O importador genérico de Clientes/Fornecedores já existia (v2.3.96), mas o casamento de
+cabeçalho é por **igualdade exata** do texto normalizado (sem acento, minúsculo, só
+`[a-z0-9]`), não substring — mesma pegadinha já batida e documentada pro importador de
+Produtos (planilha-modelo, v2.3.102). Três colunas do relatório real não batiam com
+nenhum apelido cadastrado:
+- "Nome / Razão Social" normaliza pra `nomerazaosocial`, mas só existia o apelido
+  `razaosocial` (sem o prefixo "nome").
+- "Telefone 1" normaliza pra `telefone1`, mas só existia `telefone` (sem o número).
+- "Compl." normaliza pra `compl`, mas só existiam `complemento`/`complement` por
+  extenso.
+
+Resultado antes do ajuste: 0 de 205 linhas reconhecidas (nome sempre vazio → toda linha
+cai em `summary.invalid`). Achado rodando o parser contra o arquivo real num script
+Node avulso (reaproveitando a lib `xlsx` já instalada no backend) **antes** de mudar
+qualquer código — mesma disciplina de "testar contra o dado real primeiro" que vinha
+sendo seguida pro importador de Produtos.
+
+### O que foi feito
+
+- `FinanceImportService.ts`: adicionados os três apelidos que faltavam
+  (`nomerazaosocial` em `name`, `telefone1` em `PHONE_ALIASES`, `compl` em
+  `complement`) — correção mínima, sem mexer em mais nada do importador genérico.
+- **Preservação de dado sem campo correspondente**: o relatório real tem várias colunas
+  que não existem em `FinanceCustomer`/`FinanceSupplier` (Código do sistema antigo,
+  Nome Fantasia/Apelido, Data Nasc., RG/IE, Telefone 2/3, Fax, Nome para Contato). Em
+  vez de descartar, `buildLegacyNotes()` (novo helper) concatena esses valores no campo
+  `notes`, com dedup inteligente: pula a linha quando o valor é idêntico (comparado via
+  o mesmo `normalizeHeader` já usado pro casamento de cabeçalho — ignora
+  acento/case/pontuação) a um campo já capturado (`name` ou `phone`) — comum nesse
+  relatório real: "Nome Fantasia" igual ao nome (cliente pessoa física sem nome
+  fantasia próprio) e "Telefone 2"/"Telefone 3"/"Fax"/"Nome para Contato" repetindo o
+  mesmo número de "Telefone 1" com formatações diferentes.
+- **Data de nascimento como serial do Excel**: `readRows()` lê com `raw: true`
+  (intencional — Produtos depende disso pro parser de preço/estoque em formato
+  brasileiro, não dá pra mudar o default sem revalidar aquele importador também), então
+  uma célula de data vem como número (dias desde 30/12/1899), não como texto. Resolvido
+  pontual, só pro campo "Data nascimento" das notas, com `excelSerialToDateString()`.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- **Rodado o parser (réplica fiel da lógica, sem gravar no banco) contra o arquivo real
+  do cliente**: 205/205 linhas reconhecidas depois do ajuste (eram 0/205 antes). Datas
+  de nascimento conferidas manualmente contra o valor bruto da planilha (bate: célula
+  mostrando "4/10/88" vira "10/04/1988" nas notas). Conferido que as colunas
+  redundantes (Nome Fantasia/Telefone 2-3/Fax/Nome para Contato) não aparecem
+  duplicadas nas notas quando repetem valor já capturado.
+- **Não rodado o import de verdade contra o banco** (sem acesso a produção/banco desta
+  sessão) — só a lógica de parsing/mapeamento foi validada. Cliente precisa fazer o
+  upload de verdade pela tela (Financeiro → Clientes → Importar) depois do deploy pra
+  confirmar os 205 registros criados.
+
+## 91. Paginação na lista de Produtos/Clientes/Fornecedores/Contas (v2.3.108)
+
+### Contexto
+
+Depois de importar o cadastro de Clientes (seção 90), cliente reportou: "tem 206
+clientes cadastrados e só aparece 20 (...) a mesma coisa está para cadastro de
+produto" (60 produtos cadastrados) — queria um jeito de avançar página conforme for
+adicionando mais registros.
+
+### Causa raiz
+
+`FinanceCustomerService.list()`/`FinanceProductService.list()`/`FinanceSupplierService
+.list()` (e os services de Contas a Pagar/Receber) já paginam no servidor — `limit = 20`
+fixo, aceitam `pageNumber`, devolvem `{ records, count, hasMore }` — desde a Fase 1/2 do
+roadmap. Mas `FinanceRecordList` (`frontend/src/components/FinanceRecordList/`), o
+componente de lista/CRUD genérico usado por todos esses cadastros, **nunca mandava
+`pageNumber`** no `resource.list(...)` e **não tinha nenhum controle de página na
+tela** — sempre buscava (e só conseguia mostrar) a página 1. Com até 20 registros
+cadastrados isso nunca apareceu como problema; só virou visível de verdade agora que o
+cliente importou o cadastro de Clientes real (205 registros, seção 90) e tem 60
+produtos — a partir do 21º registro, não tinha NENHUM jeito de ver o resto pela tela
+(só achando um registro específico pela busca).
+
+### O que foi feito
+
+- `FinanceRecordList`: novo estado `pageNumber`/`count`; `fetchRecords` passa
+  `pageNumber` pro `resource.list(...)` e guarda `count` da resposta. `TablePagination`
+  (`@material-ui/core`, já uma dependência existente) no rodapé da tabela —
+  `rowsPerPageOptions={[20]}` fixo (não é configurável aqui, só reflete o `limit` fixo
+  do backend).
+- Novo `useEffect` separado reseta `pageNumber` pra 1 sempre que `searchParam` ou
+  `filterValues` mudam (ou ao trocar de aba — reaproveita o `resource` já usado como
+  dependência “reforço” documentado na seção anterior do componente) — sem isso, uma
+  busca nova podia abrir numa página sem nenhum resultado (ex.: filtrando e ficando na
+  página 5 de uma busca que só tem 2 páginas).
+- Nenhuma mudança de backend — os services já devolviam tudo que a paginação precisava
+  desde que foram criados, só não tinha consumidor nenhum na tela.
+
+### Testado
+
+- `npx eslint` limpo no arquivo tocado; `npx tsc --noEmit` limpo no backend (sem mudança
+  de backend nesta parte, só reconfirmado).
+- Não testado no navegador nesta sessão (sem acesso à produção). **Pendente**: cliente
+  confirmar, depois do deploy, que a paginação aparece nas 4 telas (Produtos, Clientes,
+  Fornecedores, Contas) e que navegar entre páginas mostra os registros certos (ex.:
+  achar um dos 205 clientes importados que não está na primeira página).
+
+## 92. Homologação/Produção separadas, CFOP e Município com busca (v2.3.109)
+
+### Contexto
+
+Cliente conseguiu o token da Focus NFe e mandou print do painel deles pra configurar
+antes de testar a emissão de verdade pela primeira vez. Olhando o print, pediu quatro
+coisas:
+1. CFOP com busca ("quando digitar aparece, pra não ficar procurando").
+2. Código IBGE do município preenchido automático (escolhe Estado, depois Município).
+3. Homologação e Produção como campos separados, cada uma com botão de ligar/desligar
+   — copiando o padrão que viu no próprio painel da Focus NFe (lá os dois ambientes
+   são blocos de credencial simultâneos, não um token único alternando).
+4. Perguntou se precisa anexar certificado digital no AtendeFlow ou se já está
+   atrelado ao token.
+
+### Resolvido sem código — pergunta 4
+
+Pelo próprio print que o cliente mandou: "Certificado Digital: Válido" aparece como
+dado da conta **na Focus NFe** (`app-v2.focusnfe.com.br/minhas-empresas/empresas/...`),
+não é nada que o AtendeFlow precise receber/guardar. O token de acesso só autentica
+as chamadas de API em nome dessa empresa já com certificado anexado lá. Resolve de vez
+a dúvida que ficou em aberto desde o início da Fase 3 fiscal sobre upload de
+certificado — **não existe esse passo no nosso sistema, pelo menos pra Focus NFe.**
+
+### Homologação/Produção separadas (pergunta 3)
+
+- **Migration** `20261016140000-split-fiscal-gateway-token-by-environment.ts`:
+  `gatewayToken` (coluna única antiga) não é removida do banco (evita perder token já
+  salvo), mas novo código não lê/escreve mais nela. Colunas novas:
+  `gatewayTokenSandbox`, `gatewayTokenProduction`, `sandboxEnabled` (default `true`),
+  `productionEnabled` (default `false`). A migration copia o valor antigo de
+  `gatewayToken` pra `gatewayTokenSandbox` (homologação era o único ambiente usado até
+  aqui).
+- **`FiscalConfigService.getActiveGatewayToken(config)`**: helper central que decide
+  qual token vale AGORA (baseado em `gatewayEnvironment`) — usado por
+  `FocusNFeService.buildClient`, `FiscalDocumentService` (emit/preview) e
+  `FiscalNumberingService`, em vez de cada um checar os dois campos na mão.
+- **`FiscalConfigService.update`** ganhou uma validação: não deixa salvar um estado
+  onde o "Ambiente ativo" (`gatewayEnvironment`) aponta pra um ambiente que está sendo
+  desabilitado na mesma chamada — evita "emitir sem token nenhum" sem nenhum aviso
+  (`ERR_FISCAL_ENVIRONMENT_NOT_ENABLED`, sem tradução, mesma convenção do resto do
+  Financeiro — ver seção 11 da skill `atendeflow-dev`).
+- **Frontend**: `FiscalConfigPanel` — "Ambiente ativo" (era só "Ambiente") só lista os
+  ambientes habilitados; dois cartões lado a lado "Homologação"/"Produção", cada um com
+  `Switch` "Habilitada" + campo de token próprio (desabilitado quando o switch está
+  desligado).
+
+### CFOP e Município com busca (perguntas 1 e 2)
+
+- **Sem acesso à documentação oficial de novo** (mesmo bloqueio de rede de sempre —
+  `WebFetch` não abre `nfe.io`/`focusnfe.com.br`), mas dessa vez os dados não dependem
+  de nenhum gateway: são tabelas públicas e fixas (CFOP é definido por Convênio/Ajuste
+  SINIEF, municípios são do IBGE). `WebFetch`/`curl` CONSEGUEM acessar
+  `raw.githubusercontent.com` normalmente (diferente de `nfe.io`/`focusnfe.com.br`) —
+  descoberta nova: o bloqueio de rede deste ambiente parece ser por domínio
+  específico, não geral.
+  - CFOP: `github.com/gleisonnanet/cfop` (CSV público, MIT), 601 linhas, conferido
+    manualmente contra códigos conhecidos (5101/5102/5405/5929) antes de usar.
+  - Municípios: `github.com/kelvins/municipios-brasileiros` (CSV público, MIT), 5.570
+    municípios + DF, conferido contra contagem oficial por estado (MG 853, SP 645,
+    RS 497 batem).
+- **`frontend/src/data/cfopList.js`** (novo, ~600 entradas `{value, label}`) e
+  **`frontend/src/data/municipiosBrasil.js`** (novo — `UF_LIST`, `MUNICIPIOS_BY_UF`
+  agrupado por sigla, `UF_BY_CODE_PREFIX` pra inferir a UF a partir dos 2 primeiros
+  dígitos de um código IBGE já salvo) — gerados uma vez por script Node a partir dos
+  CSVs baixados, não buscados em tempo de execução (tabela fixa, não muda com
+  frequência; evita dependência de rede em produção).
+- **`CfopAutocomplete`** (novo componente reaproveitável,
+  `frontend/src/components/CfopAutocomplete/`): `Autocomplete` do `@material-ui/lab`
+  com a lista inteira já carregada, filtro 100% client-side — diferente do
+  `FinanceAsyncAutocomplete` (busca no servidor), não precisa disso aqui porque não é
+  paginado nem específico de empresa. Usado no "CFOP padrão" da Configuração Fiscal e
+  no CFOP de cada item em `SaleModal`.
+- **`CityCodeSelector`** (sub-componente local em `FiscalConfigPanel`): select de UF
+  + `Autocomplete` de Município (filtrado pela UF escolhida) — ao selecionar o
+  município, preenche `cityCode` com o código IBGE. A UF não é um campo do model (só
+  `cityCode` é salvo) — ao reabrir um registro já salvo, a UF inicial é inferida dos 2
+  primeiros dígitos do próprio `cityCode` via `UF_BY_CODE_PREFIX`.
+- Bundle do frontend cresceu ~65 KB (gzip) com as duas tabelas — aceitável pra uma
+  ferramenta administrativa interna, confirmado rodando `npm run build` completo
+  antes de considerar pronto.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de
+  frontend tocados (incluindo os dois arquivos de dados gerados).
+- **`npm run build` completo do frontend rodado com sucesso** (não só lint) — confirma
+  que os dois arquivos de dados grandes (82 KB/373 KB de código fonte) não quebram o
+  build nem o bundling.
+- **Não testado contra o gateway de verdade nesta parte** — o cliente já tem o token
+  de homologação, mas ainda não confirmou ter configurado/testado através dessa tela
+  nova. **Pendente**: cliente configurar Homologação com o token real, emitir a
+  primeira NF-e/NFC-e de teste, e confirmar que CFOP/Município aparecem e filtram
+  certo na tela.
+
+### Ajuste (v2.3.110) — alinhamento do grid
+
+Cliente testou em produção e reportou "painel desorganizado" (print). Causa: o
+`Grid` (MUI, `flex-wrap`) preenche linha por linha somando a largura (`sm`) de cada
+item — um campo de largura menor logo depois de um grupo que não fechava a linha em
+12 "escorregava" pro lado errado. Especificamente: "Tipo de documento padrão" (`sm=6`)
+deixava só 6 livres na linha, que o cartão "Homologação" (`sm=6`) preenchia; o cartão
+"Produção" (`sm=6`) então abria linha nova sozinho, e "Série NF-e" (`sm=4`) grudava do
+lado dele em vez de ficar junto de "Série NFC-e"/"Série NFS-e". Corrigido fazendo
+"Tipo de documento padrão" e "CFOP padrão" ocuparem a linha inteira (`sm=12`) — assim
+Homologação/Produção (6+6=12) e as três Séries (4+4+4=12) sempre fecham a própria
+linha antes do próximo grupo começar, sem depender de sobra de espaço do grupo
+anterior. **Lição**: ao montar um formulário com `Grid` misturando itens de larguras
+diferentes (cartão grande + campo pequeno), somar a largura de cada "grupo" e garantir
+que feche 12 antes do próximo, ou isolar grupos de tamanho diferente em linhas
+(`xs=12`) próprias — não só empilhar itens na ordem e confiar no wrap automático.
+
+### Ajuste (v2.3.111) — "Tipo de documento padrão" só NF-e/NFC-e
+
+Cliente reportou o seletor mostrando 3 tipos (NF-e/NFC-e/NFS-e) quando só trabalha com
+dois — confirma o que já tinha dito mais cedo ao escolher quais funções habilitar no
+painel da Focus NFe. Removido "NFS-e" de `DEFAULT_DOCUMENT_TYPE_OPTIONS`
+(`FiscalConfigPanel`). Não mexeu em mais nada NFS-e-relacionado (emissão manual
+continua em `SaleDetailModal`, `FocusNFeService.buildNfsePayload` intacto) — só deixou
+de aparecer como opção de emissão AUTOMÁTICA, caso o cliente volte a precisar depois
+(ex.: cobrar serviço separado de venda de produto) é só adicionar de volta na lista.
+
+## 93. Removido o seletor "Ambiente ativo" da Configuração Fiscal (v2.3.112)
+
+### Contexto
+
+Pedido do cliente, depois de testar a tela nova de Homologação/Produção separadas
+(v2.3.109): "que só deveria ter os campos homologação e produção" — o campo "Ambiente
+ativo" (select separado escolhendo qual das duas credenciais vale pra emitir) saiu,
+ficando só os dois cartões (cada um com seu liga/desliga próprio). Antes de mexer,
+cheguei a perguntar se a ideia era os dois toggles virarem mutuamente exclusivos — não
+era isso, era simplesmente tirar o terceiro campo redundante.
+
+### O que foi feito
+
+- **`FiscalConfigService.isProductionActive(config)`** (novo): deriva qual ambiente
+  está ativo direto de `productionEnabled` — Produção habilitada tem prioridade (é a
+  "de verdade", bate com o fluxo descrito pelo cliente: testa em Homologação, quando
+  valida passa a usar Produção); senão usa Homologação, se estiver habilitada; se
+  nenhuma estiver, não tem token (tratado como gateway não configurado pelos
+  callers). `getActiveGatewayToken` passou a usar esse helper em vez de ler
+  `config.gatewayEnvironment`.
+- **`FocusNFeService.buildClient`**: mesma lógica (`!!config.productionEnabled`) pra
+  decidir a URL-base (homologação/produção), duplicada ali de propósito — evita
+  acoplar `FocusNFeService` a `FiscalConfigService` só por uma linha.
+- **`FiscalConfigService.update`**: a validação `ERR_FISCAL_ENVIRONMENT_NOT_ENABLED`
+  (impedir o seletor apontar pra um ambiente desligado, da v2.3.109) saiu junto — não
+  fazia mais sentido sem o seletor pra validar.
+- `FiscalConfig.gatewayEnvironment` (coluna) não foi removida do banco (mesmo motivo
+  de `gatewayToken`, seção 92) — só nenhum código novo lê/escreve nela.
+- Frontend: campo "Ambiente ativo" e `ENVIRONMENT_OPTIONS` saíram de
+  `FiscalConfigPanel`; "Gateway" virou largura cheia (sozinho na linha agora);
+  helper text do token de Produção ganhou uma nota ("tem prioridade sobre
+  Homologação") pra deixar a regra visível na tela, já que não tem mais um campo
+  explícito mostrando qual está ativo.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo no `FiscalConfigPanel`.
+- Não testado contra o gateway de verdade nesta parte (mesma ressalva de sempre).
+  **Pendente**: cliente confirmar visualmente que a tela ficou só com os dois cartões,
+  e que ligar/desligar Produção realmente muda qual token é usado ao emitir.
+
+## 94. Primeiro teste real contra a Focus NFe — erro de validação de XML (v2.3.113)
+
+### Contexto
+
+Cliente configurou o token de Homologação e tentou emitir NF-e/NFC-e/NFS-e numa
+venda de teste — primeira chamada de verdade contra a Focus NFe desde que o módulo
+fiscal existe. NFS-e deu "Empresa ainda não habilitada para emissão" (esperado — só
+NFe/NFCe foram habilitadas no painel deles). NF-e e NFC-e deram "Erro na validação do
+Schema XML" — confirma que a chamada chegou no gateway (token/conexão funcionando),
+só o payload que `FocusNFeService.buildNfePayload`/`buildNfcePayload` monta não bate
+com o que a Sefaz espera em algum campo. Precisa da mensagem completa do erro pra
+saber qual campo corrigir.
+
+### Bloqueio encontrado ao diagnosticar
+
+A mensagem de erro aparecia cortada em 40 caracteres na tela ("Erro na validação do
+Schema XML, verifiq...") com o resto só visível passando o mouse (tooltip) — não dá
+pra ler/copiar isso de um print de tela (que é como o cliente está me mandando a
+informação). Corrigido: `SaleDetailModal` agora mostra a mensagem de erro inteira,
+direto na linha (sem cortar, sem depender de hover).
+
+### Pendente
+
+Aguardando o cliente mandar a mensagem de erro completa (depois do deploy desta
+versão) pra eu poder comparar o payload que `FocusNFeService` monta contra o que a
+API da Focus NFe realmente espera, e corrigir o campo que estiver errado — é
+exatamente o tipo de ajuste já previsto desde que o adapter foi escrito sem acesso a
+sandbox real.
+
+## 95. Módulo de estoque: bloqueio, desconto/devolução automática, painel de saúde (v2.3.114)
+
+### Contexto
+
+Testando a emissão de NF-e, cliente notou: "o produto não tem em estoque" — o sistema
+nunca mexia em `stockQuantity` em venda nenhuma (nem descontava, nem bloqueava vender
+mais do que tinha). Perguntado como queria que funcionasse, pediu um módulo
+completo: painel pra ver se o estoque está saudável, aviso configurável de estoque
+baixo por produto, e bloquear a venda quando não tiver disponível (confirmado
+"opção 1" — bloquear, não só avisar). Desconto só na confirmação da venda (não no
+rascunho), confirmado também.
+
+### O que foi feito
+
+- **Migration** `20261016150000-add-min-stock-quantity-to-finance-products.ts`:
+  `FinanceProduct.minStockQuantity` (padrão `0` = sem aviso configurado pra esse
+  produto).
+- **`SaleService.ts`**:
+  - `ensureStockAvailable(sale)`: antes de confirmar, para cada item com produto
+    vinculado E `controlStock` ligado, compara `quantity` pedida contra
+    `stockQuantity` disponível — se algum item pedir mais do que tem, lança
+    `AppError` com mensagem listando produto/disponível/pedido (não é um código
+    `ERR_*` fixo — mensagem dinâmica, mesma convenção do Financeiro de não traduzir
+    esses erros, seção 11 da skill).
+  - `adjustStock(sale, direction)`: `1` desconta (ao confirmar), `-1` devolve (ao
+    cancelar uma venda que ESTAVA confirmada) — mesma função nos dois sentidos,
+    usando `FinanceProduct.increment("stockQuantity", {by, where})`. Só mexe em
+    item com produto vinculado + `controlStock` ligado, igual a validação acima.
+  - `confirm()`: chama `ensureStockAvailable` antes de criar a conta a receber (se
+    tiver falta, nem chega a criar a conta), e `adjustStock(sale, 1)` depois de
+    criar — desconta só se tudo deu certo.
+  - `cancel()`: chama `adjustStock(sale, -1)` **só se `sale.status === "confirmed"`**
+    antes de cancelar — uma venda ainda em rascunho nunca descontou nada, não tem o
+    que devolver. Resolve também o caso de limpar vendas de teste (cliente perguntou
+    sobre isso testando a Focus NFe): cancelar uma venda de teste confirmada já
+    devolve o estoque sozinho.
+  - `includeOptions` (usado em `show`/`list`) ganhou `controlStock`/`stockQuantity`
+    nos atributos do `product` incluído — `confirm`/`cancel` precisam desses campos
+    sem fazer outra consulta.
+- **`FinanceReportService.getStockHealth(companyId)`** (novo): lista produtos com
+  `controlStock = true` e `active = true`, separados em `outOfStock`
+  (`stockQuantity <= 0`) e `lowStock` (`stockQuantity <= minStockQuantity`, só
+  quando `minStockQuantity > 0` — `0` é "sem aviso configurado", não "o mínimo é
+  zero"). Rota `GET /finance/reports/stock-health`, mesmo padrão dos outros
+  relatórios (`summary`/`cashflow`/`expenses-by-category`).
+- **Frontend**:
+  - `financeConfig.js`: novo campo "Estoque mínimo (aviso no painel, 0 = sem aviso)"
+    no formulário de Produto, só visível quando "Controlar estoque" está ligado
+    (`visibleWhen: hasStockControl`, mesmo padrão já usado pros campos de
+    arma/munição).
+  - `FinancePainel`: nova seção "Situação do estoque" — tabela com os produtos
+    zerados/baixos (zerados primeiro), chip vermelho "Zerado"/laranja "Baixo". Três
+    estados: nenhum produto rastreado, tudo saudável, ou lista de problemas.
+  - `useFinance().reports.stockHealth()` — mesmo padrão dos outros relatórios.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend; `eslint` limpo em todos os arquivos de
+  frontend tocados.
+- Não testado contra dado real (sem acesso a produção). **Pendente**: cliente
+  confirmar, numa venda de teste, que (a) vender mais do que o estoque disponível é
+  bloqueado com mensagem clara, (b) confirmar desconta o estoque certo, (c) cancelar
+  uma venda confirmada devolve o estoque, (d) o Painel Financeiro mostra a seção de
+  estoque corretamente.
+
+## 96. Erro interno sempre que abria a Configuração Fiscal (v2.3.115)
+
+### Contexto
+
+Cliente reportou "dando erro interno toda vez que abre o módulo fiscal" (print
+mostrando um toast "Internal server error" por cima da tela, mas a tela em si já
+carregada com os dados reais — regime tributário, Estado/Município, gateway, token de
+Homologação, tudo certo). O erro vinha de outra chamada da mesma tela, não da que
+carrega a configuração.
+
+### Causa raiz
+
+`NumberingInvalidationPanel` (seção "Inutilizar numeração de NF-e", dentro de
+`FiscalConfigPanel`) busca a lista de inutilizações já registradas assim que a tela
+abre (`fiscal.numbering.list()`). Essa chamada desce até
+`FocusNFeService.listInvalidations(config)` — que, revendo o arquivo, era a ÚNICA das
+sete funções novas da Focus NFe (v2.3.106) sem `try/catch` em volta da chamada HTTP.
+Qualquer falha ali (ex.: a Focus NFe responder de um jeito que a lib HTTP trata como
+erro quando não existe nenhuma inutilização registrada ainda) virava uma exceção não
+tratada, subindo até o Express e voltando como 500 — derrubando a tela inteira com
+"Internal server error" mesmo ela já tendo os dados principais carregados e exibidos.
+
+### O que foi feito
+
+- `FocusNFeService.listInvalidations`: adicionado `try/catch` igual às outras seis
+  funções do arquivo — em caso de falha, devolve lista vazia em vez de propagar o
+  erro. A seção "Inutilizações já registradas" já tratava lista vazia graciosamente
+  ("Nenhuma inutilização registrada ainda."), então o conserto é só não deixar a
+  exceção escapar.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado contra o gateway de verdade nesta sessão (sem acesso a produção).
+  **Pendente**: cliente confirmar que a Configuração Fiscal abre sem o erro depois
+  do deploy.
+
+## 97. Importação de vendas históricas — migração de ERP (v2.3.116)
+
+### Contexto
+
+Cliente migrou de outro sistema (ERP anterior) para o AtendeFlow e pediu pra
+"lançar as vendas pela planilha excel pois fiz a migração de outro sistema pra
+esse" — essas vendas **já aconteceram de verdade** e **já têm NF-e emitida** no
+sistema anterior (confirmado: "todas com notas fiscais"). A importação precisa
+só *registrar* esse histórico no AtendeFlow, nunca tratar como venda nova.
+
+Três decisões confirmadas explicitamente com o cliente antes de implementar
+(pedido ambíguo o bastante pra exigir checagem, por instrução permanente deste
+repositório):
+
+1. **Nunca chamar o gateway de emissão** (Focus NFe) — a nota já existe de
+   verdade no sistema anterior; chamar o gateway geraria uma segunda nota
+   fiscal real pra uma venda que já foi faturada. A numeração de produção da
+   Focus NFe (quando o cliente trocar de homologação pra produção) deve
+   recomeçar em 492 — mas isso é configuração no próprio painel da Focus NFe,
+   não no código do AtendeFlow.
+2. **Nunca mexer em `FinanceProduct.stockQuantity`** — confirmado: "não mexe
+   no estoque, pois só a partir de hoje as vendas lançadas que vai mexer no
+   estoque". A importação faz os registros `Sale`/`SaleItem` diretamente,
+   sem passar por `SaleService.confirm()` (que é o único lugar que desconta
+   estoque).
+3. **Quais situações importar, e o que cada uma gera** — perguntado via
+   questionário porque o relatório real do cliente ("Relatório de Notas –
+   Consulta de Notas Fiscais - Analítico") trouxe 3 situações distintas
+   (Aprovada / Cancelada / "NF-e Rejeitado") sem um mapeamento óbvio pro
+   modelo de dados do AtendeFlow (`Sale.status` tem só
+   draft/confirmed/cancelled; `FiscalDocument.status` tem
+   processing/authorized/error/cancelled). Cliente confirmou: importar as 3,
+   e criar `FinanceReceivable` já como "recebida" pra cada venda importada
+   (pedido: "Cria conta a receber já como 'recebida'").
+
+Sobre o pedido de "gravar o ID da nota num arquivo na pasta do AtendeFlow pra
+backup" — esclarecido com o cliente que era só querer **saber em qual pasta**
+esse tipo de arquivo ficaria (não necessariamente um pedido firme de construir
+um novo recurso de log em arquivo). Resposta dada: o único caminho que
+sobrevive a um rebuild é o volume Docker nomeado `atendeflow_public`, montado
+em `/app/public` dentro do container `backend` (ver `docker-compose.coolify.yml`)
+— qualquer outro caminho dentro do container é perdido em todo
+`docker compose up -d --build`. Como os dados já ficam gravados no Postgres
+(que já tem backup diário, segundo o próprio cliente), nenhum arquivo extra
+foi criado — ficaria redundante.
+
+### Formato do relatório — máquina de estados, não offset fixo
+
+O "Relatório de Produtos" original (seção 6.2 Fase 6, importador de produtos)
+usa um offset de linha FIXO por registro. O "Relatório de Notas" **não dá**
+pra parsear assim: cada nota tem um bloco de tamanho **variável**, porque o
+número de linhas de item depende de quantos produtos aquela nota teve.
+
+Solução: `SaleImportService.parseNotesReport()` lê linha a linha e classifica
+cada uma pelo *conteúdo das colunas* (reconhecimento de padrão), não pela
+posição:
+
+- **Linha de cabeçalho de nota**: coluna 0 é só dígitos (número da nota),
+  coluna 3 contém "/" (é uma data) e coluna 12 é uma das 3 situações
+  conhecidas (`KNOWN_STATUSES`). Início de uma nota nova.
+- **Linha de item**: coluna 1 (SKU) e coluna 5 (descrição) não vazias.
+  Acumula no array `items` da nota atual.
+- Qualquer outra linha (resumo "Qtde Produtos: N", linha em branco, rodapé de
+  página) não casa com nenhum dos dois padrões acima — ignorada por omissão,
+  sem precisar de uma checagem explícita de exclusão.
+
+Validado com o arquivo real do cliente ("Relatorio_de_Notas - Federacao
+Baiana.xlsx") antes de liberar: 486 notas extraídas de 5.535 linhas, 100% com
+cliente e pelo menos 1 item, soma do total das notas (R$ 801.825,25) e soma
+calculada a partir dos itens (R$ 801.995,25) batendo a menos de 0,1% de
+diferença (1 nota em 486 com uma diferença maior que R$ 1 — provavelmente um
+desconto real do próprio sistema anterior, não um erro de parsing).
+
+### Formato numérico americano — outro helper, não reaproveitar `parseBrazilianDecimal`
+
+Esse relatório específico usa separador de milhar "," e decimal "."
+(ex.: `"5,100.00"`) — o **inverso** do formato brasileiro que
+`parseBrazilianDecimal` (usado nos outros importadores) espera. Criado um
+helper dedicado, `parseUsNumber`, só pra este arquivo:
+
+```ts
+const parseUsNumber = (raw: unknown): number => {
+  const n = parseFloat(String(raw ?? "").replace(/,/g, "").trim());
+  return Number.isNaN(n) ? 0 : n;
+};
+```
+
+**Lição**: nunca presumir que todo relatório do mesmo cliente usa o mesmo
+formato de número — cada exportação de um sistema legado pode ter sido
+gerada com uma configuração regional diferente. Sempre inspecionar uma
+amostra de valores reais antes de escolher o parser numérico.
+
+### Idempotência
+
+Reimportar a mesma planilha (ex.: depois de corrigir uma linha) não duplica:
+antes de criar qualquer registro, `importSales()` verifica se já existe um
+`FiscalDocument` com `externalRef = "legado-nf-${numero}"` pra aquela nota —
+se existir, pula (conta em `summary.skipped`). Mesmo padrão já usado nos
+importadores de Cliente/Fornecedor/Produto (dedup por SKU/documento).
+
+### Onde entra
+
+- `backend/src/services/FiscalService/SaleImportService.ts` (novo) —
+  `parseNotesReport()` (parser) + `importSales()` (grava `Sale`, `SaleItem`,
+  `FiscalDocument` com `externalRef` determinístico, e `FinanceReceivable`
+  já "recebida" quando a venda conta como confirmada).
+- `backend/src/controllers/SaleImportController.ts` (novo) — mesmo padrão de
+  `getUploadedFile`/`removeUploadedFile` do `FinanceImportController.ts`.
+- `backend/src/routes/fiscalRoutes.ts` — `POST /sales/import` (multer, mesmo
+  `uploadConfig` dos outros importadores).
+- `frontend/src/hooks/useFiscal/index.js` — `sales.importSpreadsheet(file)`.
+- `frontend/src/components/SaleList/index.js` — botão "Importar planilha" no
+  topo da tela de Vendas.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo nos arquivos de frontend tocados.
+- Parser validado com script local (sem gravar no banco) contra o arquivo real
+  do cliente — ver números acima.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem acesso).
+  **Pendente**: cliente rodar a importação de verdade depois do deploy e
+  confirmar as contagens (486 notas esperadas, nenhuma venda tocando estoque).
+
+## 98. Dashboard de lucro: compra × imposto × venda × lucro (v2.3.117)
+
+### Contexto
+
+Depois da importação histórica (seção 97), cliente apontou um problema de
+fundo: "já fica registrado como vendas certas, contas a receber, só que eu
+quero (...) uma visão se está gerando lucro ou não na precificação" — mesmo
+com venda/conta a receber funcionando, não havia nenhum jeito de saber se o
+preço de venda cadastrado cobre custo + imposto e ainda dá lucro.
+
+Pedido chegou em várias mensagens seguidas, com bastante espaço pra
+interpretação (onde gravar custo/imposto, quantos tributos detalhar, o que
+exatamente "só aplicar quando for pra produção" queria dizer, onde colocar
+o painel). Por instrução permanente deste repositório (pedido com mais de
+um caminho razoável de implementação → perguntar antes de codar), as 4
+decisões de arquitetura foram confirmadas via questionário antes de
+implementar:
+
+1. **Onde fica custo/imposto**: no cadastro do Produto (não digitado a cada
+   venda) — assim todo item de venda já nasce sabendo seu custo/alíquota,
+   sem trabalho manual do vendedor.
+2. **Quantos tributos detalhar**: um `%` de imposto único por produto (não
+   o detalhamento ICMS/PIS/COFINS/IPI/ISS separado) — mais rápido de
+   cadastrar, suficiente pro que foi pedido (visão de margem, não apuração
+   fiscal formal).
+3. **"Só aplicar quando for pra produção"**: o painel de lucro só aparece
+   quando a empresa está com a Focus NFe em modo **Produção** (não quando
+   só Homologação está ligada) — assim venda de teste e o histórico
+   importado da migração de ERP (seção 97, que pode ter acontecido todo em
+   Homologação) não contaminam a conta de lucro.
+4. **Onde entra o painel**: dentro do Painel Financeiro já existente (não
+   uma tela nova) — mais uma seção, ao lado de "Situação do estoque".
+
+### Modelo de dados — snapshot de custo/imposto no item, igual sku/ncm/cfop
+
+`FinanceProduct` ganhou `taxRate` (string, %, default "0") — ao lado do
+`costPrice` que já existia. `SaleItem` ganhou `costPrice`/`taxRate`
+(migration `20261016160000-...`), gravados como **snapshot** no momento da
+venda (`SaleService.buildItemRows`, que agora é `async` e busca
+`costPrice`/`taxRate` dos produtos vendidos antes de montar os itens) — não
+vêm do formulário de venda (o vendedor nunca vê/edita isso), e não mudam
+retroativamente se o cadastro do produto for atualizado depois. Mesma
+lógica de snapshot já usada pra `description`/`sku`/`ncm`/`cfop`.
+
+### Cálculo de lucro
+
+Por item: `lucro = totalPrice - (costPrice × quantity) - (totalPrice × taxRate / 100)`.
+Margem (%) = `lucro / totalPrice × 100` (0 se totalPrice for 0, evita
+divisão por zero). Isso é intencionalmente uma simplificação de
+precificação (todo imposto calculado sobre o preço de venda, não sobre uma
+base de cálculo fiscal formal) — adequado pra dar visão de margem ao
+analista financeiro, não pra apuração fiscal (que continua sendo feita pela
+contabilidade/Focus NFe de verdade).
+
+### Onde entra
+
+- `backend/src/models/FinanceProduct.ts` — campo `taxRate`.
+- `backend/src/models/SaleItem.ts` — campos `costPrice`/`taxRate` (snapshot).
+- `backend/src/database/migrations/20261016160000-...` — `IF NOT EXISTS`
+  nas 3 colunas novas (mesma lição da seção 11 da skill `atendeflow-dev`).
+- `backend/src/services/FiscalService/SaleService.ts` — `buildItemRows`
+  agora assíncrono, busca `costPrice`/`taxRate` do produto antes de montar
+  cada `SaleItem`.
+- `backend/src/services/FinanceService/FinanceReportService.ts` —
+  `getProfitDashboard(companyId)`: devolve `{ enabled: false }` quando a
+  empresa não tem `FiscalConfig` ou não está com `isProductionActive()`
+  (reaproveitado de `FiscalConfigService.ts`, sem criar um registro de
+  config como efeito colateral — usa `findOne`, não o `findOrCreate` da
+  tela de Configuração Fiscal); senão agrega todo `SaleItem` de venda
+  `confirmed` por produto e por mês (compra/imposto/venda/lucro/margem).
+- `backend/src/controllers/FinanceReportController.ts` +
+  `backend/src/routes/financeRoutes.ts` — `GET /finance/reports/profit-dashboard`.
+- `frontend/src/pages/Financeiro/financeConfig.js` — campo "Alíquota de
+  imposto (%)" no formulário de Produto (ao lado de "Preço de custo",
+  `gridSize: 6` + `6` = 12, soma certa — ver seção 11 da skill sobre Grid).
+- `frontend/src/components/FinancePainel/index.js` — seção "Compra ×
+  imposto × venda × lucro": cartões de totais, gráfico de barra empilhada
+  por mês (custo+imposto+lucro = venda, com tooltip no hover) e tabela
+  "Produtos por margem de lucro" com exportação Excel (`XLSX.writeFile`,
+  mesmo padrão já usado em `pages/Reports/index.js`). Reaproveita o botão
+  "Imprimir / Exportar PDF" que já existe no topo do Painel Financeiro
+  (`window.print()`) — não precisou de nada novo pra isso.
+- `frontend/src/components/SaleDetailModal/index.js` — mostra Valor
+  bruto/Impostos/Valor líquido no detalhe da venda (calculado a partir do
+  `taxRate` snapshot de cada item, não é uma dedução real do que foi
+  recebido — é informativo, pro cliente visualizar a margem).
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em todos os arquivos de frontend tocados.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem
+  acesso). **Pendente**: cliente cadastrar a alíquota de imposto nos
+  produtos, confirmar que o painel aparece só depois de ligar Produção na
+  Configuração Fiscal, e validar os números do dashboard contra uma venda
+  de teste conhecida.
+
+## 99. Reforma Tributária 2027 (IVA/CBS/IBS) — preparação + excluir vendas/notas de teste (v2.3.118)
+
+### Contexto
+
+O cliente enviou uma especificação técnica bem detalhada (campos, tipos,
+telas, pseudocódigo do motor de cálculo) pedindo pra preparar o sistema
+pra transição tributária de janeiro de 2027 (fim do PIS/Cofins/ICMS/ISS
+tradicionais, entrada da CBS/IBS) — com uma regra central: os campos
+devem existir e aparecer na tela, mas **sem nenhum efeito** no
+faturamento/impressão atual até uma chave global ser ativada. Na mesma
+leva de pedidos, veio também "deletar as notas feitas em homologação e
+[...] a opção de deletar a venda quando tiver no modulo teste de
+homologação" — consequência direta do fluxo de teste real deste cliente
+(primeiras tentativas de NF-e em Homologação, catalogadas nas seções 94 e
+96), que até aqui só podiam ser canceladas, nunca excluídas de verdade.
+
+A especificação do cliente usa nomes de tabela/coluna genéricos
+(`tab_clientes`, `tab_itens`, `tab_nota_itens`, `tab_financeiro_transacoes`,
+`flg_ativar_reforma_2027`, `vUnComLiq` etc., em snake_case/português) — não
+é o schema real deste projeto. Mapeado 1:1 pro schema existente, em
+camelCase (convenção já usada em toda a base), preservando a intenção de
+cada campo:
+
+| Spec do cliente | Tabela/campo real neste projeto |
+|---|---|
+| `tab_clientes` | `FinanceCustomer` |
+| `tab_itens` (produtos) | `FinanceProduct` |
+| `tab_nota_itens` | `SaleItem` |
+| `flg_ativar_reforma_2027` | `FiscalConfig.reform2027Enabled` |
+| `tab_financeiro_transacoes` (Asaas) | **`FinanceReceivable`** (ver decisão abaixo, não uma tabela nova) |
+
+### Decisão: reaproveitar `FinanceReceivable`, não criar uma tabela nova pro Asaas
+
+A especificação pede pra criar os campos de controle do Asaas (split
+payment) "na tabela de transações financeiras" — mas esse projeto não tem
+(e não precisa ter) uma tabela de transações separada: cada venda confirmada
+já gera exatamente UM `FinanceReceivable` (ver `SaleService.confirm`), que
+É a conta a receber daquela venda. Criar uma tabela nova só pros 3 campos
+do Asaas (`asaasPaymentId`/`splitIvaRetido`/`netReceivedViaAsaas`) geraria
+uma tabela sem nenhuma FK de volta pra venda e sem nenhum código que a
+leia/escreva (o próprio pedido do cliente é só "preparação arquitetural",
+a API do Asaas ainda nem suporta isso) — exatamente o tipo de abstração
+prematura que as instruções deste projeto pedem pra evitar. Os 3 campos
+entraram direto em `FinanceReceivable`.
+
+**Atenção pra não confundir**: o projeto já tem um `AsaasBillingProvider.ts`
+(`backend/src/services/BillingProviders/`), mas é de outro domínio
+completamente — a cobrança da própria assinatura do AtendeFlow (SaaS), não
+a venda ao cliente final de uma empresa-cliente. Os campos novos aqui são
+exclusivos do módulo Financeiro/Fiscal, nada a ver com aquele provider.
+
+### Chave global e o padrão "existe mas não faz nada"
+
+`FiscalConfig.reform2027Enabled` (switch na Configuração Fiscal) é a única
+porta de entrada pra tudo isso. Com ela desligada (padrão):
+- Os campos novos de Cliente/Produto aparecem na tela, mas **desabilitados**
+  (`FinanceRecordModal` ganhou suporte a `disabledWhen(values, context)` —
+  diferente de `visibleWhen`/`requiredWhen`, que só recebem `values`, porque
+  aqui o motivo de desabilitar é um estado de FORA do formulário, lido da
+  Configuração Fiscal e repassado via a nova prop `context` em
+  `FinanceRecordList`/`FinanceRecordModal`, preenchida em `Financeiro/index.js`).
+- `SaleService.buildItemRows` nem consulta a `FiscalConfig`/cliente pra
+  isso além do necessário pra saber que está desligado — e nenhum dos 9
+  campos `iva*` do `SaleItem` é calculado (ficam no default "0").
+- A tela de fechamento de venda (`SaleModal`) mostra os blocos "Subtotal
+  líquido"/"Previsão CBS"/"Previsão IBS" sempre, só acinzentados (`opacity:
+  0.5`) enquanto desligado — igual pedido explicitamente na especificação
+  ("campos aparecem desabilitados, servindo só de visualização técnica"),
+  não escondidos condicionalmente.
+- O motor de cálculo em si (`Iva2027Service.calculate`) é uma função pura,
+  sem I/O — só é chamada de dentro do `if (reformEnabled)`.
+
+O dia em que o cliente ligar a chave, o cálculo entra em vigor
+imediatamente pra toda venda nova, sem precisar de deploy.
+
+### Motor de cálculo (`Iva2027Service.ts`)
+
+Implementado seguindo o pseudocódigo do cliente ao pé da letra:
+- **B2C** (pessoa física): sem CBS/IBS por fora, preço final não muda
+  (fica dentro do Simples/DAS).
+- **B2G isento** (órgão público com isenção em edital,
+  `FinanceCustomer.ivaGovExempt`): alíquotas zeradas.
+- **B2B e B2G sem isenção**: regime híbrido — o preço digitado já é o
+  líquido, CBS/IBS somados por fora. `FinanceProduct.ivaEducationReduction`
+  aplica a redução de 60% (`Aliquota_Efetiva = Aliquota × 0,40`) pra
+  curso/treinamento.
+
+Duas lacunas do pseudocódigo do cliente, resolvidas por inferência própria
+(documentadas no código, não bloqueantes porque tudo fica inerte até a
+chave ligar):
+- O pseudocódigo não definia a regra pra B2G SEM isenção — tratado igual
+  B2B (regime híbrido), já que B2G sem isenção em edital é, em princípio,
+  tributável normalmente.
+- O rateio exato entre a parte estadual (UF) e municipal (Município) do
+  IBS (`vIBS_UF`/`vIBS_Mun` do spec, aqui `ivaIbsStateValue`/
+  `ivaIbsCityValue`) ainda não foi regulamentado por nenhuma UF/município —
+  é definido jurisdição por jurisdição, mais perto de 2027. Por ora, todo
+  o IBS calculado vai pra `ivaIbsStateValue`, `ivaIbsCityValue` fica "0"
+  até essa regra existir de verdade.
+
+### Snapshot no item — mesma lógica já usada pra sku/ncm/cfop/costPrice/taxRate
+
+Os 9 campos `iva*` do `SaleItem` são gravados como **snapshot** no momento
+da venda (dentro de `buildItemRows`), nunca recalculados depois — se o
+cliente mudar a alíquota de um produto ou o perfil de um cliente depois,
+vendas já feitas não mudam retroativamente. Consistente com o padrão já
+estabelecido pro resto do item da venda.
+
+### Excluir vendas e notas de teste (Homologação)
+
+Problema: `FiscalDocument`/`Sale` só podiam ser **cancelados**, nunca
+excluídos de verdade — bom pra nota real (cancelamento é o ato legal
+correto), ruim pra limpar lixo de teste feito em Homologação antes de
+passar pra Produção.
+
+Solução: nova coluna `FiscalDocument.environment` ("sandbox"/"production"),
+gravada em `FiscalDocumentService.emit` a partir de
+`FiscalConfigService.isProductionActive(config)` no momento da emissão.
+A partir dela:
+- `DELETE /fiscal-documents/:id` (`FiscalDocumentService.remove`) exclui
+  de verdade um documento — **recusa** (`ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION`)
+  se `environment === "production"`.
+- `SaleService.remove`, antes só aceitava venda "draft". Agora também
+  aceita "confirmed"/"cancelled" quando a venda é de teste: nenhum dos
+  `FiscalDocument` dela é de Produção, E (se não tiver nenhum documento
+  ainda) a empresa não está com Produção ativa agora — essa segunda
+  condição existe pra não deixar excluir uma venda real confirmada que
+  ainda nem foi emitida. Exclusão cascateia `FiscalDocument`/`SaleItem`/
+  `FinanceReceivable` (se houver) e a própria `Sale`.
+- **Explicitamente não ajusta estoque** nessa exclusão (pedido do
+  cliente), mesmo que a venda tenha descontado estoque ao confirmar
+  durante o teste — diferente do `cancel()` normal, que devolve.
+- `Sale` ganhou `@HasMany(() => FiscalDocument) fiscalDocuments` (mesmo
+  padrão circular já usado entre `Sale`/`SaleItem`) só pra essa checagem
+  — incluído em `includeOptions` do `SaleService`.
+- Frontend: `SaleList` mostra o botão excluir pra venda confirmada/
+  cancelada só quando ela é "de teste" (mesma regra replicada em
+  `isTestSale()`, cliente, pra não precisar de uma chamada extra só pra
+  decidir se mostra o botão); `SaleDetailModal` mostra excluir em cada
+  linha de nota com `environment !== "production"`.
+
+### Onde entra
+
+- Migrations `20261016170000`–`20261016170400` (chave global, campos de
+  Cliente/Produto/SaleItem/Receivable da Reforma) e `20261016180000`
+  (`FiscalDocument.environment`) — todas `IF NOT EXISTS`.
+- `backend/src/services/FiscalService/Iva2027Service.ts` (novo).
+- `backend/src/services/FiscalService/SaleService.ts` — `buildItemRows`
+  (cálculo da Reforma) e `remove` (exclusão de teste) reescritos.
+- `backend/src/services/FiscalService/FiscalDocumentService.ts` — `emit`
+  grava `environment`; novo `remove`.
+- `backend/src/models/Sale.ts` — nova associação `fiscalDocuments`.
+- `frontend/src/components/FinanceRecordModal/index.js` — suporte a
+  `disabledWhen`/`context` e ao pseudo-campo `sectionTitle`.
+- `frontend/src/pages/Financeiro/index.js` — busca `reform2027Enabled` uma
+  vez (só se tiver acesso ao Fiscal) e repassa via `context`.
+- `frontend/src/pages/Financeiro/financeConfig.js` — campos novos de
+  Cliente/Produto.
+- `frontend/src/components/FiscalConfigPanel/index.js` — switch global.
+- `frontend/src/components/SaleModal/index.js` — preview Subtotal
+  líquido/CBS/IBS.
+- `frontend/src/components/SaleList/index.js` — botão excluir venda de
+  teste.
+- `frontend/src/components/SaleDetailModal/index.js` — botão excluir nota
+  de teste.
+- `frontend/src/hooks/useFiscal/index.js` — `fiscalDocuments.remove(id)`.
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em todos os arquivos de frontend tocados.
+- **`craco build` (build de produção) rodado localmente antes de cada
+  entrega** — lição da v2.3.117/v2.3.118 (ver seção 11 da skill
+  `atendeflow-dev`): um `import default` de um pacote sem export default
+  (`xlsx`) passou no dev server e no ESLint, e só quebrou no build de
+  produção real.
+- Não testado end-to-end contra o banco de produção nesta sessão (sem
+  acesso). **Pendente**: cliente ativar a chave da Reforma 2027 num
+  ambiente de teste e confirmar que uma venda nova grava os campos `iva*`
+  corretamente; testar a exclusão de uma venda/nota de Homologação de
+  verdade e confirmar que uma nota/venda de Produção continua protegida
+  (só cancelável).
+
+## 100. Primeiro teste real contra a Focus NFe — endereço do emitente faltando + inutilização não listava (v2.3.119)
+
+### Contexto
+
+Cliente fez o primeiro teste de verdade de emissão de NF-e (Homologação)
+contra a Federação Baiana de Tiro Defensivo & Olímpico e todas as
+tentativas vieram com "Erro na validação do Schema XML, verifique o
+detalhamento dos erros" (NF-e, NFC-e e NFS-e — esta última com erro
+diferente: "Empresa ainda não habilitada para emissão de NFSe"). Cliente
+também mandou uma nota fiscal modelo (NF-e nº 491, emitida por outro
+sistema — RenaSoft/MASTER) com os dados reais da empresa, e testou a tela
+de inutilização de numeração, reportando que depois de inutilizar a lista
+"Inutilizações já registradas" continuava vazia.
+
+### Causa raiz 1 — endereço do emitente nunca existiu no sistema
+
+Nenhum model (`Company`, `FiscalConfig`) tinha endereço da PRÓPRIA empresa
+(a que emite a nota) — só o endereço do destinatário (cliente da venda) é
+coletado hoje (`FocusNFeService.buildDestinatario`). Endereço do emitente
+(`enderEmit`: logradouro, número, bairro, município, UF, CEP) é campo
+obrigatório no XML da NF-e/NFC-e — causa mais provável do erro de schema,
+confirmada comparando com a nota modelo enviada pelo cliente (mostra
+exatamente esse bloco preenchido: "RUA ESPATODEAS ROXAS, 298 - JARDIM DAS
+MARGARIDAS - SALVADOR - BA - CEP: 41502-445 - Fone: (71)99636-5862").
+
+### Causa raiz 2 — inutilização nunca checava o retorno do gateway, e a lista dependia de endpoint não confirmado
+
+Dois bugs empilhados em `NumberingInvalidationPanel`
+(`frontend/src/components/FiscalConfigPanel/index.js`) e
+`FiscalNumberingService.ts`:
+
+- `handleSubmit` descartava o retorno de `fiscal.numbering.invalidate(...)`
+  e sempre mostrava "Numeração inutilizada junto à Sefaz." — mesmo quando
+  o gateway respondia `ok: false` (ex.: mesma falta de endereço do
+  emitente acima). O usuário nunca via o erro de verdade.
+- A listagem (`FiscalNumberingService.list`) dependia só de
+  `GET /v2/nfe/inutilizacoes` na Focus NFe — um dos cinco endpoints de
+  `FocusNFeService.ts` reconstruído por conhecimento geral (nunca
+  confirmado contra a doc oficial, bloqueada nesta sessão — ver seção 11
+  da skill `atendeflow-dev`), com `try/catch` que engole qualquer falha e
+  devolve `[]` silenciosamente. Mesmo que o `POST` de inutilização
+  funcionasse, não havia garantia nenhuma de que esse `GET` existisse ou
+  devolvesse os dados certos.
+
+### Correção
+
+- `FiscalConfig` ganhou `emitterZipCode`/`emitterStreet`/`emitterNumber`/
+  `emitterComplement`/`emitterNeighborhood`/`emitterCity`/`emitterState`/
+  `emitterPhone` (texto livre, mesmo padrão já usado pro endereço do
+  destinatário — não derivado do `cityCode`/IBGE já existente, que seguiu
+  servindo só pra NFC-e/NFS-e). Novo seção "Endereço do emitente" na tela
+  de Configuração Fiscal.
+- `FocusNFeService.buildEmitente` passou a enviar
+  `logradouro_emitente`/`numero_emitente`/`complemento_emitente`/
+  `bairro_emitente`/`municipio_emitente`/`uf_emitente`/`cep_emitente`/
+  `telefone_emitente`.
+- Nova tabela `FiscalNumberingInvalidations` — `FiscalNumberingService.invalidate`
+  agora grava um registro local só quando o gateway confirma (`ok: true`);
+  `FiscalNumberingService.list` passou a ler dessa tabela, não mais do
+  gateway. Mesmo padrão já usado pro `FiscalDocument` (fonte de verdade
+  local, não re-consultar o gateway pra listar).
+- `NumberingInvalidationPanel.handleSubmit` agora confere `result.ok` antes
+  de mostrar sucesso — mostra `result.errorMessage` (toast de erro) quando
+  o gateway rejeita.
+
+### Pendente — logo da empresa na nota
+
+Cliente pediu pra colocar a logo da empresa (mandou o arquivo) saindo na
+nota fiscal. Não encontrada nenhuma documentação (bloqueada/sem resultado
+direto via busca) confirmando que a Focus NFe aceita logo por campo no
+payload de emissão — pelo padrão do setor (Alterdata/NFeasy, outros
+emissores pesquisados), esse tipo de personalização do DANFe costuma ser
+configurada uma vez direto no painel do próprio gateway (cadastro da
+empresa), não por API a cada nota. A nota modelo que o cliente mandou (de
+outro sistema) também não tem logo no bloco do emitente, só texto. Não
+implementado nesta leva — precisa confirmar com o cliente/suporte da Focus
+NFe se existe campo de API pra isso antes de codar algo que pode não ter
+efeito nenhum na nota real.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261016190000-add-emitter-address-to-fiscal-configs.ts`
+- `backend/src/database/migrations/20261017090000-create-fiscal-numbering-invalidations.ts`
+- `backend/src/models/FiscalConfig.ts`
+- `backend/src/models/FiscalNumberingInvalidation.ts` (novo)
+- `backend/src/database/index.ts`
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `backend/src/services/FiscalService/FiscalConfigService.ts`
+- `backend/src/services/FiscalService/FiscalNumberingService.ts`
+- `frontend/src/components/FiscalConfigPanel/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em `FiscalConfigPanel/index.js`.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente preencher o endereço do emitente na Configuração
+  Fiscal, rodar a migration em produção, e tentar emitir uma NF-e de teste
+  de novo — se o erro de schema mudar (em vez de sumir), o detalhamento
+  completo da mensagem (já visível por inteiro desde a v2.3.113) é o
+  próximo ponto de investigação. Testar também a inutilização de novo:
+  deve aparecer na lista se o gateway confirmar, ou mostrar o erro real
+  (toast) se não confirmar.
+
+## 101. Depois do deploy da v2.3.119: "Pré-visualizar DANFe" dava "An error occurred!" + mesma mensagem genérica de Schema XML sem detalhe (v2.3.120)
+
+### Contexto
+
+Cliente rodou o deploy da v2.3.119 (migration + rebuild) e testou de novo
+numa venda nova (#4): "Pré-visualizar DANFe" deu um toast genérico "An
+error occurred!" (sem nenhum detalhe), e "Emitir NF-e" voltou com a MESMA
+mensagem genérica de antes ("Erro na validação do Schema XML, verifique o
+detalhamento dos erros") — igual, palavra por palavra, ao erro antes do
+fix de endereço do emitente, o que não dava pra saber se o fix tinha
+pegado ou se tinha outra coisa faltando.
+
+### Causa raiz 1 — preview: erro verdadeiro escondido por causa do `responseType: "blob"`
+
+`SaleDetailModal.handlePreview` chama `fiscal.fiscalDocuments.previewDanfe`,
+que usa `responseType: "blob"` no axios (a resposta de SUCESSO é o PDF em
+binário). Só que isso também faz o axios devolver `err.response.data` como
+`Blob` numa resposta de ERRO (o backend responde 502 com JSON
+`{error: "..."}`, mas o axios não sabe antecipadamente que esse body é
+JSON e segue o `responseType` configurado). `toastError` só olha
+`err.response.data.error` — que não existe num Blob — e cai no fallback
+genérico "An error occurred!", escondendo a mensagem real do gateway.
+Corrigido lendo o Blob como texto (`blob.text()` + `JSON.parse`) no
+`catch` do `handlePreview` antes de desistir pro `toastError` padrão.
+
+### Causa raiz 2 — mensagem de erro da Focus NFe: genérica engolia o detalhe
+
+`FocusNFeService.parseDocumentResponse` montava `errorMessage` com
+`data.mensagem_sefaz || data.mensagem || data.erros.join(...)` — um
+`||` que PARA no primeiro campo não vazio. A Focus NFe parece devolver os
+dois ao mesmo tempo num erro de schema: `mensagem` genérica ("...verifique
+o detalhamento dos erros") E `erros`, um array com o detalhe campo a campo
+de verdade — mas como `mensagem` vinha primeiro no `||`, `erros` nunca era
+lido, e a tela sempre mostrava só a mensagem genérica, por mais detalhado
+que fosse o conteúdo de `erros`. Ninguém (nem o cliente, nem esta sessão)
+conseguia ver o campo específico que está falhando. Corrigido pra sempre
+concatenar os dois (`mensagem — detalhe1; detalhe2; ...`) em vez de
+escolher um.
+
+**Isso não significa que o fix de endereço do emitente (seção 100) não
+funcionou** — os dois documentos com erro na venda #4 do print já foram
+criados ANTES desse ajuste de mensagem (dado histórico, `FiscalDocument`
+já salvo), então claro que mostram o texto antigo. Só uma tentativa NOVA,
+depois deste deploy, vai mostrar o detalhe de verdade.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo em `SaleDetailModal/index.js`.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente rodar o deploy e tentar de novo (preview E
+  emissão) numa venda nova — se ainda der erro de schema, agora o
+  detalhamento completo (`erros`) deve aparecer na tela, apontando o campo
+  exato que falta/está errado.
+
+## 102. Cabeçalho/rodapé personalizado (logo + endereço) na impressão do Painel Financeiro (v2.3.121)
+
+### Contexto
+
+Cliente pediu pra sair a logomarca da empresa (mandou o arquivo — escudo da
+Federação Baiana de Tiro Defensivo e Olímpico) na impressão/PDF de
+relatório, "personalizado, com endereço da empresa", logo no canto
+superior direito, e rodapé. Diferente do pedido anterior de logo na NF-e
+(seção 100, ainda pendente — depende de confirmar com a Focus NFe), este é
+sobre a impressão própria do AtendeFlow (`window.print()` do Painel
+Financeiro), totalmente sob controle do sistema — sem a incerteza do
+gateway fiscal.
+
+### Decisões
+
+- **Logo**: reaproveitado o logotipo de whitelabel que a empresa já pode
+  cadastrar em Configurações → Whitelabel (`appLogoLight`,
+  `frontend/src/components/Settings/Whitelabel.js`) — exposto via
+  `theme.calculatedLogoLight()` (já usado no Drawer/sidebar). Nenhum upload
+  novo criado; se a empresa ainda não tiver cadastrado um logo próprio, usa
+  o fallback padrão do sistema (mesmo comportamento do resto do app).
+- **Endereço**: reaproveitados os campos `emitterStreet`/`emitterNumber`/
+  `emitterNeighborhood`/`emitterCity`/`emitterState`/`emitterZipCode`/
+  `emitterPhone` de `FiscalConfig` (seção 100, já existiam pro endereço do
+  emitente na NF-e) — formatado no mesmo padrão da nota modelo do cliente
+  ("Rua Espatódeas Roxas, 298 - Jardim das Margaridas - Salvador - BA -
+  CEP: 41502-445"). Nenhum campo novo no banco; mesma fonte de dado dos
+  dois lugares (nota fiscal e relatório impresso), evita cadastro
+  duplicado.
+- **Busca condicional**: `Financeiro/index.js` já buscava `FiscalConfig`
+  pra ler `reform2027Enabled` só quando a empresa tem acesso ao Fiscal
+  (`fiscalAccess?.hasAccess`) — reaproveitado o mesmo fetch (guardado em
+  `fiscalConfig`, passado como prop) em vez de `FinancePainel` buscar de
+  novo por conta própria. Evita o anti-padrão já documentado (seção 11 da
+  skill `atendeflow-dev`): chamar `FiscalConfigService.show()` direto
+  criaria uma linha de configuração fiscal vazia pra toda empresa que
+  abrisse o Painel Financeiro, mesmo sem usar o módulo fiscal.
+- **Nome da empresa**: `user.company.name` (já vem no payload de login,
+  `AuthUserService` inclui `Company`), não `theme.appName` (esse é o nome
+  "de marca" configurável no whitelabel, pode ser diferente da razão
+  social que deve aparecer no relatório).
+- Cabeçalho/rodapé só aparecem no papel/PDF — mesmo mecanismo inverso do
+  `#finance-painel-print-hide` já existente (CSS `display: none` na tela,
+  `@media print { display: flex/block !important }`), nunca poluindo a
+  tela normal do painel.
+
+### Arquivos alterados
+
+- `frontend/src/components/FinancePainel/index.js`
+- `frontend/src/pages/Financeiro/index.js`
+
+### Testado
+
+- `npx eslint` limpo nos dois arquivos.
+- `craco build` (build de produção) rodado localmente — compilou sem erro
+  (regra da seção 11 da skill: eslint sozinho não pega tudo).
+- Não testado visualmente num navegador real nesta sessão (sem acesso).
+  **Pendente**: cliente preencher "Endereço do emitente" em Configuração
+  Fiscal (se ainda não preencheu, seção 100) e cadastrar o logo em
+  Configurações → Whitelabel, depois testar "Imprimir / Exportar PDF" no
+  Painel Financeiro e conferir se logo (canto superior direito), nome +
+  endereço (canto superior esquerdo) e rodapé saem corretos no PDF.
+
+## 103. IE do emitente com pontuação quebrava o schema + resposta bruta da Focus NFe agora fica salva (v2.3.122)
+
+### Contexto
+
+Cliente confirmou (print da Configuração Fiscal) que já tinha preenchido o
+"Endereço do emitente" (seção 100) corretamente — mesmo assim a emissão
+continuava com "Erro na validação do Schema XML, verifique o
+detalhamento dos erros", já na v2.3.120 (que já tinha o fix de mostrar o
+detalhamento junto da mensagem genérica). O detalhamento simplesmente não
+vinha — sinal de que ou a Focus NFe não manda `erros` pra esse tipo de
+falha, ou tinha outro campo mal formatado que nem chega a gerar erro
+"de campo", só rejeita o XML inteiro.
+
+### Causa raiz 1 — Inscrição Estadual com pontuação
+
+No print da Configuração Fiscal, "Inscrição estadual" está como
+`182.174.539` (com pontos) — `FocusNFeService.buildEmitente` mandava esse
+valor DIRETO pro campo `inscricao_estadual_emitente`, sem tirar a
+pontuação, diferente do CNPJ/CEP/telefone do emitente (que já passavam por
+`.replace(/\D/g, "")`). A Sefaz espera só dígitos nesse campo — provável
+causa real do erro de schema persistir mesmo com o endereço certo.
+Corrigido: `inscricao_estadual_emitente` agora também passa por
+`.replace(/\D/g, "")` antes de ir pro payload.
+
+### Causa raiz 2 (diagnóstico) — resposta bruta da Focus NFe nunca era salva
+
+Pra não ficar mais adivinhando qual campo a Sefaz está rejeitando,
+`FiscalDocument` ganhou uma coluna `raw` (JSONB) — `FiscalDocumentService.emit`
+e `.refreshStatus` agora salvam a resposta completa do gateway, não só o
+`errorMessage` já resumido. Na tela de detalhe da venda
+(`SaleDetailModal`), toda nota com status "Erro" ganhou um botão (ícone
+`</>`) que abre um diálogo com o JSON bruto completo (+ botão copiar) — útil
+pra qualquer erro futuro, não só este.
+
+### Observação (não bloqueante)
+
+No mesmo print, "Inscrição municipal" está como `00.914.493/001-43` —
+formato de CNPJ, não de inscrição municipal. Não afeta NF-e/NFC-e (só
+NFS-e usa esse campo), não mexido nesta leva — vale o cliente conferir se
+esse valor está certo antes de tentar emitir NFS-e no futuro.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261017100000-add-raw-response-to-fiscal-documents.ts`
+- `backend/src/models/FiscalDocument.ts`
+- `backend/src/services/FiscalService/FiscalDocumentService.ts`
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` + `craco build` limpos no frontend.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente rodar a migration + deploy e tentar emitir de
+  novo — se ainda der erro, abrir o botão "ver resposta completa" (ícone
+  `</>` na linha do erro) e mandar o JSON pra investigar o campo exato.
+
+## 104. modalidade_frete faltando + NCM mal formatado — achados pelo botão "ver resposta completa" (v2.3.123)
+
+### Contexto
+
+Com o botão novo (seção 103), o cliente conseguiu abrir a resposta bruta de
+uma tentativa real de emissão de NF-e e mandar o JSON completo. Resultado:
+o endereço do emitente e a Inscrição Estadual (seções 100/102) estavam
+corretos — nenhum erro sobre eles. Os erros reais eram outros:
+
+```json
+{
+  "erros": [
+    { "campo": "logradouro_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "numero_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "bairro_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "municipio_destinatario", "mensagem": "... não pode ser vazio" },
+    { "campo": "modalidade_frete", "mensagem": "... não pode ser vazio" },
+    { "campo": "itens.1.codigo_ncm", "mensagem": "... não pode ser vazio" },
+    { "campo": "itens.1.codigo_ncm", "mensagem": "... não é do tamanho correto (precisa ter 8 caracteres)" }
+  ],
+  "codigo": "erro_validacao_schema"
+}
+```
+
+### Causa raiz 1 — `modalidade_frete` nunca existia no payload
+
+Campo obrigatório da NF-e (modalidade do frete — 0 a 4, ou 9 pra "sem
+frete") que `buildNfePayload` simplesmente nunca enviava, bug de código
+puro, não dado de cadastro. Corrigido com `modalidade_frete: "9"` fixo
+(venda de balcão, sem transportadora — se um dia o cliente vender com
+frete, precisa virar campo configurável, não hardcoded).
+
+### Causa raiz 2 — NCM com formato inválido passava pelo fallback
+
+`ncm: item.ncm || "00000000"` só cobre valor VAZIO — um `item.ncm` com
+conteúdo mas formato errado (não exatamente 8 dígitos, ex.: um só
+caractere) passa direto pelo `||` (qualquer string não-vazia é truthy) e
+vai pro payload do jeito errado. Corrigido com `normalizeNcm()`: só aceita
+o NCM cadastrado se tiver exatamente 8 dígitos numéricos, senão cai no
+fallback "00000000".
+
+### Causa raiz 3 (não é bug, é dado faltando) — endereço do destinatário
+
+O cliente (`FinanceCustomer`) dessa venda específica não tinha endereço
+cadastrado — a Sefaz exige o bloco completo quando o destinatário é
+identificado por CPF/CNPJ (não é uma nota "balcão sem identificação").
+Nenhuma mudança de código — o cliente precisa completar o cadastro do
+cliente antes de emitir pra ele. Como ficou claro ver isso só depois de
+uma tentativa real falhar, pode valer a pena, numa leva futura, avisar na
+tela ANTES de tentar emitir se o destinatário escolhido não tem endereço
+completo (validação client-side preventiva) — não implementado agora,
+fora do escopo desta correção pontual.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não testado end-to-end contra a Focus NFe nesta sessão (sem acesso).
+  **Pendente**: cliente completar o endereço do cliente dessa venda,
+  conferir o NCM do segundo item (pode ser produto sem NCM cadastrado
+  corretamente — "00000000" é só um placeholder de fallback, não um NCM
+  válido de verdade; o certo é cadastrar o NCM real do produto), rodar o
+  deploy e tentar emitir de novo.
+
+## 105. Campo NCM do item com nome errado — `ncm` em vez de `codigo_ncm` (v2.3.124)
+
+### Contexto
+
+Com o fix da seção 104 (`modalidade_frete` + `normalizeNcm`) já em produção,
+o cliente testou uma emissão de verdade (Venda #9, token de homologação da
+Focus NFe já configurado). O erro de `modalidade_frete` sumiu — confirmando
+que o fix anterior funcionou — mas `itens.1.codigo_ncm` continuou dando
+erro, com as DUAS mensagens ao mesmo tempo:
+
+```json
+{ "campo": "itens.1.codigo_ncm", "mensagem": "... não pode ser vazio" },
+{ "campo": "itens.1.codigo_ncm", "mensagem": "... não é do tamanho correto (precisa ter 8 caracteres)" }
+```
+
+As duas mensagens juntas pro mesmo campo (vazio E tamanho errado) não batem
+com o que `normalizeNcm` devolve (sempre 8 dígitos reais ou `"00000000"`,
+nunca vazio) — sinal de que o valor nem estava chegando no campo que a
+Focus NFe espera.
+
+### Causa raiz
+
+`buildItemsPayload` montava o item com a chave `ncm:`, mas o nome do campo
+na API da Focus NFe é `codigo_ncm` (confirmado pelo próprio erro, que cita
+`itens.1.codigo_ncm`). Como a chave enviada não existia no schema deles, a
+Focus tratava o campo esperado (`codigo_ncm`) como completamente ausente —
+daí os dois erros simultâneos (ausente conta como "vazio" e, sem valor, não
+bate o tamanho).
+
+Reforça a observação já registrada no cabeçalho deste arquivo (seção 7 do
+header do `FocusNFeService.ts`): esse adapter foi escrito a partir da
+documentação pública, sem validação end-to-end antes dessa sessão — nomes
+de campo "quase certos" (como `ncm` em vez de `codigo_ncm`) são exatamente
+o tipo de erro que só aparece testando contra o gateway real.
+
+### Correção
+
+```ts
+// antes
+ncm: normalizeNcm(item.ncm),
+// depois
+codigo_ncm: normalizeNcm(item.ncm),
+```
+
+A validação de formato (`normalizeNcm`, seção 104) não mudou — só o nome
+da chave no payload.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir a Venda #9 de novo.
+  Se ainda der erro de NCM, o próximo passo é conferir se o produto
+  "MUN CBC 380 AUTO LPC 95GR POLYMATCH C" tem NCM cadastrado de verdade
+  (sem isso, cai no fallback `"00000000"`, que não é um NCM válido pra
+  munição — a Sefaz pode aceitar o formato mas rejeitar o código em si
+  por não existir na tabela oficial).
+- Lição registrada pra não repetir: ao adicionar/revisar qualquer campo
+  novo em `buildItemsPayload`/`buildEmitente`/`buildDestinatario`, conferir
+  o nome exato da chave contra uma resposta de erro REAL da Focus NFe
+  (ela sempre ecoa o nome do campo que espera no `erros[].campo`) em vez
+  de confiar só na documentação pública.
+
+## 106. Endereço do destinatário nunca chegava na nota — `attributes` do include limitava os campos do cliente (v2.3.125)
+
+### Contexto
+
+Com os fixes das seções 104/105 em produção, o cliente testou a emissão
+pra dois destinatários diferentes — um com cadastro completo (endereço,
+bairro, cidade, UF todos preenchidos, print conferido na tela de
+Clientes) — e a Sefaz continuou rejeitando com "NF-e sem a identificação
+do destinatário" nos dois casos. Como o cadastro estava visivelmente
+completo, a causa não podia ser dado faltando (como presumido nas seções
+anteriores) — tinha que ser código.
+
+### Causa raiz
+
+`SaleService.ts`, `includeOptions`, o `include` de `FinanceCustomer`
+(usado tanto por `SaleService.show` quanto por tudo que depende dele —
+emissão, pré-visualização de DANFe, etc.) tinha uma lista de `attributes`
+explícita:
+
+```ts
+attributes: ["id", "name", "document", "documentType", "email"]
+```
+
+Nenhum campo de endereço (`street`, `number`, `neighborhood`, `city`,
+`state`, `zipCode`) nem `phone` estava nessa lista. Um `attributes`
+explícito no Sequelize é uma lista BRANCA — qualquer coluna fora dela
+simplesmente não é buscada do banco, mesmo que exista e esteja
+preenchida. `buildDestinatario` (`FocusNFeService.ts`) lia
+`customer.street`/`customer.city`/etc. de um objeto que nunca tinha
+esses campos carregados — sempre `undefined`, não importa o cadastro.
+Isso explica por que a causa raiz 3 das seções anteriores (endereço
+"faltando") nunca foi realmente sobre o cadastro do cliente estar
+incompleto — era sempre esse `attributes` cortando o dado antes dele
+chegar no payload.
+
+### Correção
+
+Acrescentados `phone`, `zipCode`, `street`, `number`, `neighborhood`,
+`city`, `state` à lista de `attributes` do include.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/SaleService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir de novo (venda
+  #11, ADEVAL ATANAZIO PEREIRA, que já tem CPF certo e agora deve levar
+  o endereço completo também).
+- Lição pra não repetir: ao adicionar um `attributes` explícito num
+  `include` do Sequelize, é fácil esquecer um campo que só é consumido
+  bem mais tarde na cadeia (aqui, `FocusNFeService.ts`, vários arquivos
+  de distância de `SaleService.ts`) — preferir não restringir
+  `attributes` num include cujo resultado alimenta mais de um consumidor
+  (lista de vendas, detalhe da venda, módulo fiscal), ou, se restringir,
+  grep pelo nome do model/association (`sale.customer`) no resto do
+  backend pra conferir quem mais lê esse objeto antes de cortar campos.
+
+## 107. Grupo do PIS/COFINS faltando no item da nota (v2.3.126)
+
+### Contexto
+
+Com os fixes das seções 104-106 em produção (modalidade_frete, NCM,
+endereço do destinatário), a venda #13 avançou mais um passo na Sefaz
+de verdade — passou da validação de schema e da identificação do
+destinatário, e foi rejeitada só nesse novo ponto:
+
+```json
+{
+  "status": "erro_autorizacao",
+  "status_sefaz": "745",
+  "mensagem_sefaz": "Rejeicao: NF-e sem grupo do PIS ."
+}
+```
+
+### Causa raiz
+
+`buildItemsPayload` nunca enviava nenhum campo de PIS nem COFINS — o
+item só tinha `icms_origem`/`icms_situacao_tributaria`. A Sefaz exige o
+grupo do PIS (e, por decorrência do mesmo motivo, do COFINS também)
+mesmo quando não há valor a destacar — não é um campo opcional que some
+quando zerado.
+
+### Correção
+
+Adicionado ao item, junto do grupo ICMS já existente:
+
+```ts
+pis_situacao_tributaria: "99",
+pis_valor_base_calculo: 0,
+pis_aliquota_porcentual: 0,
+pis_valor: 0,
+cofins_situacao_tributaria: "99",
+cofins_valor_base_calculo: 0,
+cofins_aliquota_porcentual: 0,
+cofins_valor: 0
+```
+
+CST "99" (Outras Operações) é o código correto pro regime Simples
+Nacional — mesmo regime já assumido em `icms_situacao_tributaria: "102"`
+(CSOSN de Simples Nacional) e em `buildEmitente`
+(`regime_tributario_emitente: "1"` quando `config.taxRegime` é
+`simples`/`mei`). Empresas fora do Simples usam CST de PIS/COFINS
+diferente (ex. "01", "02", com alíquota/valor calculados de verdade) —
+não implementado ainda, mesma limitação já registrada pro ICMS (seção
+anterior) por falta de cliente nesse regime testando.
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- Não re-testado end-to-end nesta sessão (sem acesso ao gateway) —
+  **pendente**: cliente fazer o deploy e tentar emitir de novo. Se a
+  Sefaz aceitar PIS mas rejeitar o CFOP/CSOSN do ICMS (ou qualquer outro
+  campo tributário) em seguida, é o mesmo padrão: o item de munição
+  (NCM 93063000) pode ter regra tributária federal específica que o
+  "modo Simples Nacional genérico" hardcoded aqui não cobre — nesse caso
+  vale perguntar ao cliente/contador antes de adivinhar o CST certo.
+- Lição pra não repetir: campos tributários de item de NF-e (ICMS, PIS,
+  COFINS, e potencialmente IPI/ISS conforme o produto) tendem a aparecer
+  um de cada vez nas rejeições da Sefaz, nunca todos juntos na primeira
+  tentativa — cada rodada de teste real tende a revelar o próximo grupo
+  faltando. Vale perguntar ao cliente, antes de continuar adivinhando
+  grupo por grupo, se ele tem acesso a um contador/XML de referência de
+  nota já emitida com sucesso por outro sistema, pra copiar os CSTs
+  certos de uma vez em vez de descobrir por tentativa e erro contra a
+  Sefaz.
+
+## 108. Ícone de olho x recibo na lista de Vendas abriam a mesma tela (v2.3.127)
+
+### Contexto
+
+Na lista de Vendas (venda confirmada), os ícones de olho ("Ver itens e
+notas fiscais") e de recibo ("Emitir nota fiscal") chamavam a mesma
+função (`handleViewDetail`) — abriam o mesmo modal, que já dispara a
+busca do histórico de notas fiscais (`fetchDocuments`) assim que abre.
+Cliente relatou que o olho, pensado só pra "visualizar as funções" da
+venda, caía direto na tela de notas fiscais — incluindo o erro da
+última tentativa de emissão — dando a impressão de que o sistema tinha
+tentado emitir sozinho.
+
+### Correção
+
+`SaleDetailModal` ganhou a prop `focusFiscal` (default `false`) e um
+estado interno `fiscalExpanded`:
+- Com `focusFiscal=false` (ícone de olho), a seção "Notas fiscais"
+  abre recolhida, atrás de um botão "Ver / emitir nota fiscal" — a
+  busca do histórico (`fetchDocuments`) só dispara quando o usuário
+  clica nesse botão (useEffect agora depende de `open && fiscalExpanded`,
+  não só de `open`).
+- Com `focusFiscal=true` (ícone de recibo), a seção já abre expandida,
+  igual ao comportamento de antes.
+
+`SaleList.js` passa `focusFiscal` de acordo com qual ícone foi clicado
+(`handleViewDetail(sale, focusFiscal)`), e repassa pro modal via prop.
+
+### Arquivos alterados
+
+- `frontend/src/components/SaleDetailModal/index.js`
+- `frontend/src/components/SaleList/index.js`
+
+### Testado
+
+- `npx eslint` limpo nos dois arquivos.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção completo) compilou sem erro.
+- Não testado manualmente no navegador nesta sessão (sem ambiente de
+  browser) — **pendente**: cliente conferir no navegador depois do
+  deploy do frontend que o olho abre só os itens (sem a seção de notas
+  fiscais expandida) e que o recibo continua abrindo direto nos botões
+  de emissão.
+
+## 109. Escritório de contabilidade sincronizado com a API de Empresas da Focus (v2.3.128)
+
+### Contexto
+
+Seguindo a rejeição Sefaz 487 (seções 107-108 do histórico de erro,
+"Escritório de Contabilidade não cadastrado na SEFAZ"), o cliente
+cadastrou o CNPJ do contador direto no painel da Focus NFe (aba
+"Contabilidade" da empresa) e pediu um campo equivalente no AtendeFlow,
+pra não precisar voltar lá toda vez que trocar de contador.
+
+Investigação na doc oficial da Focus (`doc.focusnfe.com.br/reference/atualizar_empresa`
+— acesso do servidor bloqueado nesta sessão, conteúdo obtido com a ajuda
+do cliente) confirmou: `cpf_cnpj_contabilidade` é um campo de nível
+EMPRESA na API "Empresas" da Focus (`PUT /v2/empresas/{id}`), não um
+campo do payload de cada nota — por isso nunca apareceu em
+`FocusNFeService.ts`. A doc da própria Focus confirma: *"CPF/CNPJ da
+contabilidade da empresa. Alguns estados exigem esta informação (ex.:
+BA)."*
+
+### Decisão
+
+Em vez de só documentar "troque no painel da Focus manualmente", o
+cliente pediu a integração de verdade: campo no AtendeFlow que, ao
+salvar, chama a API da Focus e atualiza lá também.
+
+**Duas credenciais diferentes, não confundir**:
+- `gatewayTokenSandbox`/`gatewayTokenProduction` (já existentes) — token
+  por EMPRESA, usado só pra emitir documento fiscal
+  (`FocusNFeService.ts`).
+- `focusAccountToken` (novo) — token de CONTA/master da Focus, visto no
+  painel deles em "Minha conta" (não na tela de uma empresa específica).
+  Autentica a API "Empresas" (gerenciar o cadastro da empresa em si).
+
+Também precisa do `focusCompanyId` — o id INTERNO da empresa na Focus
+(não é o CNPJ), visível na URL do painel ao editar a empresa (ex.
+`.../minhas_empresas/empresas/273913`).
+
+### Implementação
+
+- Migration `20261017130000-add-accounting-office-to-fiscal-configs.ts`:
+  3 colunas novas em `FiscalConfigs` — `accountingOfficeDocument`,
+  `focusAccountToken`, `focusCompanyId`.
+- `FocusAccountService.ts` (novo arquivo, separado de
+  `FocusNFeService.ts` de propósito — API diferente, autenticação
+  diferente, host sempre de produção mesmo pra empresa em homologação,
+  conforme a doc: *"esta API opera exclusivamente no ambiente de
+  produção"*): `updateAccountingOffice(config, document)` faz o `PUT`
+  com `try/catch` (padrão obrigatório pra toda chamada HTTP a gateway
+  fiscal, seção 627 referenciada em outras partes deste manual).
+- `FiscalConfigService.update` dispara a sincronização só quando
+  `accountingOfficeDocument` muda de verdade (compara valor anterior vs.
+  novo) — não a cada salvamento da tela inteira. Falha na sincronização
+  NUNCA bloqueia o salvamento da config local (retorna
+  `accountingOfficeSync: {ok, errorMessage}` separado do config em si).
+- `FiscalConfigController.update` repassa esse resultado pro frontend
+  junto do config.
+- `FiscalConfigPanel.js`: 3 campos novos (CNPJ/CPF do escritório, ID da
+  empresa na Focus, token de conta — este em campo `type="password"`,
+  mesmo padrão dos tokens de Homologação/Produção). Toast separado
+  avisando se a sincronização com a Focus falhou (salva local mesmo
+  assim) ou funcionou.
+
+### Arquivos alterados
+
+- `backend/src/database/migrations/20261017130000-add-accounting-office-to-fiscal-configs.ts` (novo)
+- `backend/src/models/FiscalConfig.ts`
+- `backend/src/services/FiscalService/FocusAccountService.ts` (novo)
+- `backend/src/services/FiscalService/FiscalConfigService.ts`
+- `backend/src/controllers/FiscalConfigController.ts`
+- `frontend/src/components/FiscalConfigPanel/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` limpo no `FiscalConfigPanel.js`.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção) compilou sem erro.
+- Não testado end-to-end contra a API de Empresas da Focus nesta sessão
+  (token de conta foi passado pelo cliente no chat, não configurado
+  nesta sessão — nunca gravado em código/commit). **Pendente**: cliente
+  rodar a migration + deploy, preencher os 3 campos novos em
+  Configuração Fiscal (CNPJ do contador, ID da empresa `273913`, token
+  de conta), salvar, e conferir se o toast confirma sincronização com
+  sucesso — depois tentar emitir a venda de novo pra ver se a rejeição
+  487 sumiu de vez.
+- Lição pra não repetir: ao integrar um campo de configuração de
+  gateway fiscal que parece "simples" (um CNPJ a mais), sempre checar
+  primeiro se é um campo do PAYLOAD DA NOTA ou um campo de CADASTRO DA
+  EMPRESA no gateway — são APIs, hosts e credenciais diferentes, e
+  tentar encaixar um campo de cadastro de empresa dentro do payload de
+  emissão (ou vice-versa) não funcionaria de jeito nenhum.
+
+## 110. Botões de emissão escondidos atrás de clique extra na tela de olho (v2.3.129)
+
+### Contexto
+
+Depois do fix da seção 108 (olho x recibo na lista de Vendas), o cliente
+testou e apontou dois problemas no mesmo fluxo: o botão novo
+"Ver / emitir nota fiscal" criava um passo a mais só pra chegar nos
+botões de emissão, e tinha o mesmo texto ("emitir nota") do ícone de
+recibo ao lado — confuso, parecia uma tela duplicada.
+
+### Correção
+
+Reexaminando o pedido original do cliente ("quando clica no olho é pra
+visualizar as funções"): o problema nunca foi os BOTÕES aparecerem
+direto — era o HISTÓRICO de tentativas/erros antigos aparecendo sem
+avisar, dando a impressão de que o sistema tinha tentado emitir
+sozinho. Correção:
+
+- Os botões de emissão (`Emitir NF-e/NFC-e/NFS-e`, `Pré-visualizar
+  DANFe`) agora aparecem direto na seção "Notas fiscais", tanto pelo
+  olho quanto pelo recibo.
+- Só a TABELA de histórico (`documents`, incluindo erros antigos) fica
+  recolhida atrás de um botão "Ver histórico de tentativas" — e só
+  dispara `fetchDocuments` quando expandida (estado renomeado de
+  `fiscalExpanded` pra `historyExpanded`, mais claro sobre o que
+  controla agora).
+- `focusFiscal` (prop vinda de `SaleList.js`) continua controlando se
+  esse histórico já abre expandido (ícone de recibo) ou recolhido
+  (ícone de olho) — só mudou o que fica atrás do toggle.
+
+### Arquivos alterados
+
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx eslint` limpo.
+- `GENERATE_SOURCEMAP=false CI=false npx craco build` (build de
+  produção) compilou sem erro.
+- Não testado manualmente no navegador nesta sessão — **pendente**:
+  cliente conferir que o olho e o recibo mostram os botões de emissão
+  direto, e que o histórico só aparece depois de clicar em "Ver
+  histórico de tentativas".
+- Lição pra não repetir: ao implementar um pedido de UX descrito em
+  texto corrido (sem print/protótipo), confirmar com o cliente depois
+  do primeiro teste real em vez de assumir que a primeira interpretação
+  bateu — aqui levou duas rodadas (v2.3.127 escondeu demais, v2.3.129
+  ajustou pra esconder só o que realmente incomodava).
+
+## 111. Rótulo do campo CNPJ/CPF da contabilidade quebrava a borda (v2.3.130)
+
+Rótulo "CNPJ/CPF do escritório de contabilidade" (campo novo da seção
+109) era longo demais pra largura do campo (`Grid item sm={4}`) e
+quebrava em duas linhas, estourando a borda arredondada do `TextField`
+`variant="outlined"` do MUI — visualmente parecia "descentralizado" em
+comparação aos campos vizinhos ("ID da empresa na Focus", "Token de
+conta"), que têm rótulo mais curto. Encurtado pra "CNPJ/CPF da
+contabilidade" — cabe numa linha só. `npx eslint` e build de produção
+limpos. Arquivo: `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 112. Botões de PDF/XML da nota autorizada + fix de URL relativa (v2.3.131)
+
+### Marco
+
+Depois da cadeia de correções das seções 104-109 (modalidade_frete, NCM,
+endereço do destinatário, PIS/COFINS, escritório de contabilidade), o
+cliente testou a venda #16 (2 itens) e **as duas notas NF-e saíram
+"Autorizada"** — primeira emissão real, de ponta a ponta, confirmada em
+produção/homologação. Pedido natural seguinte: baixar/imprimir o PDF
+(DANFe) e o XML da nota autorizada.
+
+### Causa raiz descoberta ao implementar
+
+`pdfUrl`/`xmlUrl` (gravados a partir de `data.caminho_danfe`/
+`data.caminho_xml_nota_fiscal` da resposta da Focus, ver
+`FocusNFeService.parseDocumentResponse`) são **caminho relativo**
+(ex.: `/v2/nfe/.../danfe.pdf`), não URL completa — confirmado batendo
+contra as notas reais da venda #16. Se o botão novo só abrisse
+`doc.pdfUrl` direto, o navegador tentaria abrir relativo ao domínio do
+**frontend** (`atendeflow.confiancatechnologies.com/v2/nfe/...`), não
+da Focus — 404.
+
+### Decisão de onde resolver a URL
+
+Duas opções: resolver no momento de SALVAR (dentro de
+`FocusNFeService.ts`) ou no momento de SERVIR pro frontend (dentro de
+`FiscalDocumentService.list`/`show`). Escolhido o segundo, de propósito:
+resolver só ao salvar não ajudaria as notas da venda #16, já emitidas
+ANTES dessa correção existir — precisaria de uma migration/backfill pra
+corrigir o que já está no banco. Resolvendo ao SERVIR, usando o
+`environment` ("sandbox"/"production") que já é gravado em todo
+`FiscalDocument` desde a v2.3.125, as notas antigas são corrigidas de
+graça, sem tocar no banco — só o próximo `GET` já devolve a URL certa.
+
+### Implementação
+
+- `BASE_URL_SANDBOX`/`BASE_URL_PRODUCTION` exportados de
+  `FocusNFeService.ts` (eram só consts internas).
+- `FiscalDocumentService.resolveDocumentUrls(document)`: prefixa
+  `pdfUrl`/`xmlUrl` com o host certo conforme `document.environment`,
+  só se o valor já não for uma URL completa (idempotente — seguro
+  chamar em cima de um valor já resolvido). Aplicado em `list` e `show`.
+- `SaleDetailModal.js`: dois ícones novos na coluna "Ação" de nota
+  `authorized` — `PictureAsPdfIcon` ("Ver / imprimir DANFe (PDF)",
+  abre `doc.pdfUrl` em nova aba — o navegador mostra o PDF com o botão
+  de imprimir nativo dele, não precisou de lógica de impressão própria)
+  e `GetAppIcon` ("Baixar XML", abre `doc.xmlUrl`). Só aparecem se o
+  campo correspondente não estiver vazio (`doc.pdfUrl && (...)`).
+
+### Arquivos alterados
+
+- `backend/src/services/FiscalService/FocusNFeService.ts` (exports)
+- `backend/src/services/FiscalService/FiscalDocumentService.ts`
+- `frontend/src/components/SaleDetailModal/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` e build de produção (`craco build`) limpos no frontend.
+- Não testado contra o PDF/XML reais da Focus nesta sessão (sem acesso
+  ao navegador) — **pendente**: cliente conferir que os botões abrem o
+  PDF/XML de verdade (não 404) nas notas já autorizadas da venda #16,
+  depois do deploy de backend E frontend (os dois mudaram dessa vez).
+
+## 113. Lista de Vendas sem paginação na tela (v2.3.132)
+
+Mesmo bug já corrigido antes no `FinanceRecordList` genérico (seção 90,
+v2.3.108), agora encontrado em `SaleList.js`: `SaleService.list` já
+pagina no backend (`limit=20`, devolve `count`/`hasMore`) desde que o
+módulo fiscal existe, mas a tela de Vendas nunca mandava `pageNumber`
+nem mostrava nenhum controle de página — sempre buscava só a página 1.
+Passou despercebido até o cliente importar o histórico de vendas
+antigas (`fiscal.sales.importSpreadsheet`, já existente desde a
+v2.3.116) e ultrapassar 20 vendas de verdade.
+
+Correção: `pageNumber`/`count` como estado, `fetchSales` manda
+`pageNumber` pro backend, `TablePagination` do MUI no rodapé da
+tabela — mesmo padrão exato já usado em `FinanceRecordList.js`
+(`PAGE_SIZE = 20`, `page={pageNumber - 1}`,
+`onPageChange={(e, newPage) => setPageNumber(newPage + 1)}`). Sem
+busca/filtro nessa tela (diferente do Financeiro), não precisou do
+efeito de "resetar pra página 1 ao buscar".
+
+**Arquivo alterado**: `frontend/src/components/SaleList/index.js`.
+`npx eslint` e build de produção limpos. Lição pra não repetir: ao
+criar uma lista nova em cima de um recurso que já suporta paginação no
+backend, sempre conferir se a tela realmente manda `pageNumber` e
+mostra algum controle — já é a segunda vez que esse exato padrão de bug
+aparece no projeto.
+
+## 114. Filtro por tipo na lista de Produtos — armas x munição x geral (v2.3.133)
+
+### Contexto
+
+Cliente ia importar uma planilha de produtos de armas separada e
+perguntou como deixar "segmentado pra não misturar os produtos" com o
+que já estava cadastrado (munição, produtos gerais).
+
+### O que já existia vs. o que faltava
+
+O **dado** já vem segmentado desde sempre: `FinanceProduct.type`
+("product"/"service"/"weapon"/"ammunition"), e o importador
+(`FinanceImportService.parseGunStoreReport`, Fase 6) já detecta e
+preenche esse campo automaticamente a partir da categoria do relatório
+da loja de armas — nenhuma importação nova "mistura" o dado em si.
+
+O que faltava era só a **visualização**: `FinanceProductService.list`
+nunca aceitava filtrar por `type`, e a tela de Produtos
+(`Financeiro/index.js`) nunca passava `filters` pro `FinanceRecordList`
+genérico (diferente de Contas a Pagar/Receber, que já tinham filtro de
+status desde a Fase 2) — todos os tipos sempre apareciam juntos na
+mesma lista, só distinguíveis pela coluna "Tipo".
+
+### Correção
+
+- `FinanceProductService.list` ganhou o parâmetro `type` (filtra
+  `whereCondition.type` quando informado).
+- `FinanceProductController.index` repassa `req.query.type`.
+- `financeConfig.js`: `financeProductFilters` novo (select "Tipo":
+  Todos/Produto/Serviço/Arma/Munição-Insumo, reaproveitando
+  `PRODUCT_TYPE_OPTIONS` que já existia pro formulário de cadastro).
+- `Financeiro/index.js`: `filters={financeProductFilters}` na
+  instância do `FinanceRecordList` de Produtos — mesmo mecanismo
+  genérico já usado em Contas a Pagar/Receber, nenhuma mudança no
+  componente genérico em si.
+
+### Arquivos alterados
+
+- `backend/src/services/FinanceService/FinanceProductService.ts`
+- `backend/src/controllers/FinanceProductController.ts`
+- `frontend/src/pages/Financeiro/financeConfig.js`
+- `frontend/src/pages/Financeiro/index.js`
+
+### Testado
+
+- `npx tsc --noEmit` limpo no backend.
+- `npx eslint` e build de produção limpos no frontend.
+- Não testado manualmente no navegador nesta sessão — **pendente**:
+  cliente conferir, depois do deploy, que o filtro "Tipo" aparece na
+  tela de Produtos e separa corretamente armas/munição/produtos ao
+  escolher cada opção.
+
+## 115. Filtro de Produtos separa Armas nacionais/importadas (v2.3.134)
+
+Pedido de ajuste imediato depois da seção 114: cliente quer "Armas
+nacionais" e "Armas importadas" como opções separadas no filtro, em vez
+de um "Arma" único. Não existe (nem deveria existir) um `type` próprio
+pra isso — já existe exatamente esse dado no campo `origin`
+("Procedência": `national`/`imported`, Fase 6) junto de `type="weapon"`.
+
+Em vez de criar um segundo select (Tipo + Procedência) só pra esse
+cruzamento, o filtro único de "Tipo" aceita um valor composto
+`"weapon:national"`/`"weapon:imported"` (dois pontos como separador),
+resolvido em `FinanceProductService.list`: se o valor contém `:`, quebra
+em `[type, origin]` e filtra os dois campos juntos; senão, filtra só
+`type` como antes. Nenhuma mudança no componente genérico
+`FinanceRecordList` nem no formulário de cadastro — só a lista de opções
+do filtro e o parsing no backend.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc --noEmit`,
+`npx eslint` e build de produção limpos.
+
+**Pendente** (ainda não implementado, aguardando o cliente fechar a
+lista completa de categorias antes de mexer de novo — pedido espalhado
+em várias mensagens seguidas, ver lição da seção 90 sobre não
+implementar no meio): adicionar "Acessórios" e "Caça & Pesca" como
+`type` novos (`accessory`, `hunting_fishing` ou nome parecido) no
+`PRODUCT_TYPE_OPTIONS` do formulário de cadastro e no filtro.
+
+## 116. Tipos de produto novos: Acessório e Caça & Pesca (v2.3.135)
+
+Fecha a lista de categorias pedida nas seções 114/115: cliente confirmou
+("por enquanto só isso") que não precisa de mais nenhuma. Dois `type`
+novos, flat (sem cruzamento com `origin` como "Armas nacionais/
+importadas" — não foi pedido pra esses):
+
+- `accessory` → "Acessório"
+- `hunting_fishing` → "Caça & Pesca"
+
+Adicionados em `PRODUCT_TYPE_OPTIONS` (formulário de cadastro, campo
+"Tipo") e nas opções do filtro `financeProductFilters` da lista de
+Produtos, na ordem pedida (Produto, Armas nacionais, Armas importadas,
+Munições/Insumos, Acessórios, Caça & Pesca, Serviço por último).
+
+Nenhuma mudança de backend necessária — `FinanceProduct.type` é coluna
+de texto livre, sem whitelist/enum no banco nem validação Yup
+restringindo valores, então um `type` novo só precisa existir nas
+opções do frontend pra funcionar (cadastro, filtro, e qualquer
+`visibleWhen`/`requiredWhen` que algum dia precise checar esse tipo
+específico).
+
+**Arquivo**: `frontend/src/pages/Financeiro/financeConfig.js`. `npx
+eslint` e build de produção limpos.
+
+## 117. Navegação de Produtos movida pro menu lateral (v2.3.136)
+
+O filtro "Tipo" da lista de Produtos (select adicionado nas seções
+114-116) não abria em produção pro cliente ("cliquei não abre") mesmo
+depois de confirmado, via `curl` direto no bundle publicado
+(`main.<hash>.js`), que o servidor/Cloudflare serviam o código certo —
+inclusive com as strings das opções novas presentes no arquivo. Ou
+seja: não era cache de CDN nem deploy desatualizado; o problema estava
+em algum lugar entre o bundle correto e o `<Select>` do MUI realmente
+abrir na tela do cliente (hipótese não totalmente isolada: possível
+conflito entre `@material-ui/core` v4 e `@mui/material` v5 coexistindo
+no projeto, mas não investigado a fundo).
+
+Em vez de insistir num componente que já se provou pouco confiável
+nesse ambiente, a navegação por categoria foi movida pro menu lateral
+principal (`frontend/src/layout/MainListItems.js`), reaproveitando o
+padrão que já existe aí para "Campanhas" (`openCampaignSubmenu` +
+`Collapse` + `List` de sub-itens):
+
+- **Financeiro** virou um item expansível (clique abre/fecha, não
+  navega) com sub-itens: Painel Financeiro, Contas a Pagar, Contas a
+  Receber, Vendas, Clientes, **Produtos**, Fornecedores, Configuração
+  Fiscal.
+- **Produtos**, dentro do submenu, expande de novo (segundo nível)
+  mostrando: Todos os produtos, Armas nacionais, Armas importadas,
+  Munições/Insumos, Acessórios, Caça & Pesca, Serviços — os mesmos
+  valores de `type`/`type:origin` já usados pelo filtro antigo
+  (`weapon:national`, `weapon:imported`, `ammunition`, `accessory`,
+  `hunting_fishing`, `service`).
+- Com o menu lateral recolhido (modo ícone), "Produtos" vira um link
+  direto (sem segundo nível, que não cabe nesse modo) — só mostra a
+  lista completa, sem filtro de categoria.
+
+**Como a navegação chega até a tela certa**: cada sub-item linka pra
+`/financeiro?tab=<aba>` (produtos: `&type=<valor>` também). A página
+inteira do Financeiro (`frontend/src/pages/Financeiro/index.js`) é uma
+SPA sem rota por aba — a navegação sempre foi controlada só por estado
+React (`financeTab`), nunca pela URL. Um `useEffect` novo lê
+`location.search` (via `useLocation()`) e chama `setFinanceTab(tab)`
+quando o parâmetro `tab` está presente, então um link do menu lateral
+realmente troca de aba mesmo a página já estando montada. O parâmetro
+`type` é lido à parte e passado como `initialFilterValues={{ type }}`
+pro `FinanceRecordList` da aba Produtos — com uma pegadinha: o `key`
+desse componente, que antes era só `financeTab` (fixo, "products"),
+virou `` `products-${productTypeParam}` ``, porque sem isso trocar de
+categoria (ex.: Armas nacionais → Munições/Insumos) não remontava o
+componente, e um prop `initial*` só é lido na primeira renderização —
+ficaria preso na primeira categoria clicada.
+
+`FinanceRecordList` (`frontend/src/components/FinanceRecordList/index.js`)
+ganhou o prop `initialFilterValues` (default `{}`), usado só pra
+inicializar o `useState` de `filterValues` — mesma lógica de sempre
+dali em diante (busca, paginação, `resource.list({...filterValues})`).
+
+O dropdown "Tipo" acima da tabela **não foi removido** — continua lá,
+como caminho alternativo, caso o bug de abertura seja identificado e
+corrigido depois. As duas formas de filtrar levam ao mesmo lugar
+(mesmo `type`/`type:origin`).
+
+**Arquivos**: `frontend/src/layout/MainListItems.js` (submenu +
+ícones novos: `Receipt`, `MonetizationOn`, `ShoppingCart`, `Store`,
+`LocalShipping`, `Gavel`, `Flag`, `Public`, `Build`, `Nature`, todos de
+`@material-ui/icons`; `ListItemLink` ganhou um segundo critério de
+`isActive` pra reconhecer link com query string, ex.
+`/financeiro?tab=products`), `frontend/src/pages/Financeiro/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`. `npx eslint` e
+build de produção limpos (sem erros; só os warnings pré-existentes do
+arquivo, não relacionados a essa mudança).
+
+## 118. Emojis nos itens do submenu Financeiro (v2.3.137)
+
+Pedido estético simples, só mexe em texto de `primary` dos
+`ListItemLink`/`Typography` criados na seção 117 — cada item do
+submenu lateral ganhou um emoji antes do nome (📊 Painel Financeiro,
+💸 Contas a Pagar, 💰 Contas a Receber, 🛒 Vendas, 👥 Clientes, 📦
+Produtos — inclusive o cabeçalho do segundo nível —, 🔫 Armas
+nacionais, 🌎 Armas importadas, 🧰 Munições/Insumos, 🎒 Acessórios,
+🎣 Caça & Pesca, 🔧 Serviços, 🚚 Fornecedores, 🧾 Configuração Fiscal).
+O cabeçalho "Financeiro" (nível mais alto, que já tem ícone colorido
+do `LocalAtmIcon`) não ganhou emoji — vem de uma chave de i18n
+(`mainDrawer.listItems.financeiro`) reusada em mais de um lugar,
+então prefixar ali mudaria texto fora do escopo pedido.
+
+**Arquivo**: `frontend/src/layout/MainListItems.js`. `npx eslint` e
+build de produção limpos.
+
+## 119. Painel Financeiro sem navegação duplicada (v2.3.138)
+
+Depois da navegação migrar pro menu lateral (seção 117), a tela do
+Financeiro ficou com DUAS formas de trocar de aba: o menu lateral novo
+e a lista vertical de abas (`<Tabs orientation="vertical">`) que
+sempre existiu dentro da própria página, à esquerda do conteúdo.
+Cliente confirmou que o menu lateral já funciona e pediu pra tirar essa
+segunda lista, que ficou redundante.
+
+Removido o bloco `<Tabs>`/`<Tab>` inteiro de
+`frontend/src/pages/Financeiro/index.js` (junto com os imports
+`Tabs`/`Tab`, agora sem uso, e os estilos `layoutRow`/`sideTabs`/
+`sideTab`) — a página passou a renderizar só `{renderPanel()}` direto,
+ocupando a largura inteira. A troca de aba continua 100% funcional
+pelo `financeTab`/`setFinanceTab` de sempre, só que agora controlada
+só pelo menu lateral (via `?tab=...` na URL, seção 117) — nenhuma
+lógica de navegação mudou, só a remoção da lista duplicada.
+
+**Arquivo**: `frontend/src/pages/Financeiro/index.js`. `npx eslint` e
+build de produção limpos.
+
+## 120. Importação de vendas com opção de dar baixa no estoque (v2.3.139)
+
+Cliente emitiu duas notas (492, 493) direto no painel da Focus NFe
+(fora do AtendeFlow, antes de trocar o próximo número pra 494) e quis
+registrá-las em Vendas a partir da mesma planilha "Consulta de Notas
+Fiscais - Analítico" que o `SaleImportService` (seção... v2.3.116) já
+sabe ler — mas, diferente de toda importação histórica anterior, essas
+duas são recentes o bastante pra precisar baixar estoque de verdade
+(a venda aconteceu, o estoque físico já saiu, só não tinha sido
+refletido em lugar nenhum do sistema ainda).
+
+`importSales` ganhou um terceiro parâmetro opcional,
+`options: SaleImportOptions` (`{ deductStock?: boolean }`, default
+`{}` → `false`) — o comportamento de sempre (nunca mexer em estoque)
+continua sendo o padrão pra qualquer chamada que não passe essa opção
+explicitamente. Quando `true`, pra cada item de cada nota que **achar**
+o produto por SKU, desconta a quantidade vendida de
+`FinanceProduct.stockQuantity` (`product.decrement(...)`, atômico) e
+soma em `summary.stockDeducted`; quando não acha o produto pelo SKU, a
+venda e o item são registrados normalmente (como sempre foi), mas
+**sem** baixar estoque nenhum — e entra um aviso em `summary.errors`
+avisando que esse item específico ficou sem baixa, pra não passar
+batido.
+
+A idempotência que já existia (checagem de `FiscalDocument` com
+`externalRef = legado-nf-<número>` antes de criar) também protege a
+baixa de estoque: reimportar a mesma planilha (por engano, ou pra
+conferir) pula a nota inteira antes de chegar no código de baixa —
+nunca desconta duas vezes.
+
+**Frontend**: `SaleList/index.js` ganhou uma caixinha "Dar baixa no
+estoque" ao lado do botão "Importar planilha", desmarcada por padrão e
+**sempre resetada pra desmarcada** depois de cada importação (mesmo
+que a importação falhe) — precisa ser marcada de novo a cada vez, de
+propósito, pra uma eventual importação em massa futura nunca sair
+baixando estoque sem o usuário decidir isso consciente, clique a
+clique. `useFiscal.sales.importSpreadsheet(file, deductStock)` manda
+esse flag como campo `deductStock` (string `"true"`/`"false"`) no
+mesmo `FormData` do upload; `SaleImportController` lê
+`req.body.deductStock` e repassa pro service.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleImportService.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 121. Filtro de período em Vendas; remoção da opção de baixa no estoque (v2.3.140)
+
+Dois ajustes no mesmo commit, pedidos em sequência pelo cliente logo
+depois da seção 120:
+
+**Remoção da caixinha "Dar baixa no estoque"** — usada uma única vez
+(notas 492/493) e o cliente pediu de volta pra tirar, não queria isso
+como opção permanente na tela (risco de alguém marcar sem querer numa
+importação de histórico futura e descontar estoque que não devia).
+Revertido 100% pro estado de antes da seção 120:
+`SaleImportService.importSales` sem `options`/`SaleImportOptions`,
+sem `stockDeducted` no `SaleImportSummary`, sem `product.decrement(...)`;
+`SaleImportController` sem ler `req.body.deductStock`;
+`useFiscal.sales.importSpreadsheet` sem o parâmetro; `SaleList.js` sem
+a checkbox. As duas notas específicas (492/493) já tinham sido
+ajustadas manualmente no cadastro dos produtos antes dessa reversão
+(instrução dada ao cliente na seção anterior) — não houve perda de
+dado, só a remoção do recurso em si.
+
+**Filtro de período em Vendas** — pedido: "ver vendas do dia, da
+semana, do mês ou por período de data". Select "Período" novo ao lado
+do campo de busca (`PERIOD_OPTIONS`: Todo o período/Hoje/Esta
+semana/Este mês/Personalizado), com dois campos de data (De/Até) que
+só aparecem quando "Personalizado" é escolhido. `resolvePeriodRange`
+(função pura, local ao componente) converte o preset escolhido em
+`startDate`/`endDate` (`"YYYY-MM-DD"`) usando `moment().startOf/endOf
+("week"|"month")` — "Personalizado" usa as datas digitadas direto, sem
+conversão.
+
+Backend: `SaleService.list` ganhou `startDate`/`endDate` opcionais,
+filtrando por `Sale.saleDate` (coluna `DATEONLY`) com `Op.gte`/`Op.lte`
+independentes (cada um funciona sozinho, não precisa dos dois juntos).
+`SaleController.index` só repassa os dois novos query params.
+
+Troca de período sempre volta pra página 1 (mesmo padrão já usado em
+toda lista paginada do projeto — senão a busca nova pode abrir numa
+página sem resultado).
+
+**Arquivos**: `backend/src/services/FiscalService/SaleImportService.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 122. Permissão "Importar planilha" por usuário (v2.3.141)
+
+Pedido: usuário comum ("user") não deve ter a opção de importar
+planilha em NENHUM serviço do sistema, por padrão — isso precisa ser
+liberado nas permissões do cadastro do usuário, não ficar sempre
+disponível. Antes dessa versão, os 4 botões "Importar planilha"
+(Clientes, Fornecedores, Produtos — todos em
+`frontend/src/pages/Financeiro/financeConfig.js` via
+`FinanceRecordList.js` — e Vendas, `SaleList.js`) apareciam pra
+qualquer usuário com acesso ao módulo (Financeiro/Fiscal), sem
+distinção de perfil.
+
+O projeto já tinha um padrão pronto pra esse tipo de permissão
+granular — a seção "Permissões" do `UserModal.js` (Permitir grupos,
+Ações nas conexões, Ver dashboard, Ver painel em tempo real), cada uma
+um toggle próprio no cadastro do usuário, Admin sempre com tudo
+liberado por padrão/implícito. Replicado o mesmo padrão pra
+`allowImport` (string `"enabled"`/`"disabled"`, cai no `else` genérico
+de `isPermissionEnabled`/`togglePermission` — nenhuma mudança
+necessária nessas duas funções, só registrar o campo novo em
+`permissionContent` e adicionar o `Grid`/`renderPermissionButtonField`
+depois de "Ver painel em tempo real").
+
+**Toda a cadeia de campos que precisou ser tocada** (lição de seções
+anteriores: esse tipo de campo de permissão passa por VÁRIOS pontos
+até virar algo utilizável no frontend — fácil esquecer um):
+
+1. `backend/src/models/User.ts` — coluna nova `allowImport` (`@Default("disabled")`).
+2. Migration `20261017220000-add-allowimport-to-users.ts`.
+3. `ShowUserService.ts` — **crítico**: sem adicionar `"allowImport"` na
+   whitelist de `attributes`, o campo nunca chega no frontend, nem no
+   formulário de edição do usuário nem (mais importante) no
+   `AuthContext.user` da sessão atual — `RefreshTokenService.ts` usa
+   exatamente esse service pra reconstruir o usuário a cada renovação
+   de token, é por aí que o valor chega na sessão já logada, não só no
+   login.
+4. `CreateUserService.ts`/`UpdateUserService.ts` — aceitar, persistir e
+   devolver o campo (mesmo padrão de `allowRealTime`/`allowConnections`:
+   `if (userData.allowImport) { ... }`, string sempre truthy tanto pra
+   `"enabled"` quanto `"disabled"`).
+5. `SerializeUser.ts` — incluído na resposta do login
+   (`AuthUserService`/`CreateUserService`).
+6. `isAuth.ts` — **o outro ponto crítico**: o middleware de autenticação
+   NÃO repassa o usuário inteiro pro `req.user` das rotas, monta um
+   `_baseUser` com uma whitelist própria e BEM menor (hoje:
+   `id/profile/companyId/super/canViewAllContacts/canDeleteTickets/
+   allowConnections/financialAccess`) — a maioria dos campos de
+   permissão (`allowRealTime`, `showDashboard`, `allowGroup` etc.)
+   **nunca chegava em `req.user`**, ou seja, só eram aplicados no
+   FRONTEND, sem checagem nenhuma no backend. `allowImport` foi
+   adicionado nessa whitelist de propósito, porque esse aqui PRECISA
+   ser verificável no backend (ver abaixo).
+
+**Frontend**: `UserModal.js` ganhou o toggle "Importar planilha" (ver
+acima). `FinanceRecordList.js` e `SaleList.js` leem
+`user.profile === "admin" || user.super || user.allowImport ===
+"enabled"` (`canImport`) e só renderizam o botão (+ o `<input
+type="file">` escondido) quando isso é verdadeiro — o botão "Baixar
+modelo" (planilha em branco, sem dado nenhum da empresa) não entra
+nessa regra, continua liberado pra todo mundo.
+
+**Backend — a parte que realmente importa pra segurança**: esconder o
+botão sozinho não impede ninguém de montar a requisição `POST
+/finance/.../import` ou `POST /sales/import` direto (DevTools, Postman
+etc.). `FinanceImportController.ts` e `SaleImportController.ts`
+ganharam `ensureImportPermission(req)` (função local, mesmo padrão já
+usado pro `ensureAccess` de cada controller — duplicada entre os dois
+arquivos de propósito, seguindo o estilo já existente em vez de criar
+um util compartilhado novo): Admin/Master (`profile === "admin"` ou
+`super`) sempre passa; usuário comum precisa de
+`req.user.allowImport === "enabled"`, senão `403
+ERR_NO_IMPORT_PERMISSION`. Os endpoints de template em branco
+(`productTemplate`/`customerTemplate`) não entram nessa checagem.
+
+Erro novo traduzido em `frontend/src/translate/languages/pt.js`
+(`ERR_NO_IMPORT_PERMISSION`) — só em português por ora, mesmo padrão
+de outros códigos de erro recentes que não têm tradução nos outros 4
+idiomas ainda.
+
+**Arquivos**: `backend/src/models/User.ts`,
+`backend/src/database/migrations/20261017220000-add-allowimport-to-users.ts`,
+`backend/src/services/UserServices/ShowUserService.ts`,
+`backend/src/services/UserServices/CreateUserService.ts`,
+`backend/src/services/UserServices/UpdateUserService.ts`,
+`backend/src/helpers/SerializeUser.ts`,
+`backend/src/middleware/isAuth.ts`,
+`backend/src/controllers/FinanceImportController.ts`,
+`backend/src/controllers/SaleImportController.ts`,
+`frontend/src/components/UserModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/translate/languages/pt.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 123. Seleção em massa pra excluir (admin); filtro de Produtos mais limpo por categoria (v2.3.142)
+
+Pedido do cliente, em cima do fim da fase de teste: "selecionar tudo
+por página pra deletar", admin-only (sem exceção configurável por
+usuário — diferente de `allowImport` da seção 122), pra limpar o
+módulo Financeiro inteiro (Clientes, Fornecedores, Produtos, Vendas,
+Contas a Pagar/Receber) e reimportar tudo do zero, agora em modo
+produção, começando a numeração de nota fiscal em 494. Configuração
+Fiscal (tokens, CNPJ da contabilidade, numeração) não é afetada — fica
+de fora de propósito, só os cadastros/transações é que somem.
+
+**Decisão de design**: em vez de um endpoint de exclusão em massa novo
+(que precisaria reimplementar toda regra de negócio de cada exclusão
+individual), a seleção em massa REAPROVEITA o mesmo `resource.remove`/
+`fiscal.sales.remove` que o botão de excluir individual já chama —
+só repete a chamada pra cada id selecionado, sequencialmente (não
+`Promise.all`, pra não sobrecarregar o servidor numa seleção grande),
+juntando sucesso/erro de cada um num resumo (toast). Isso significa
+que toda regra de segurança que já existia continua valendo
+automaticamente — em especial, **venda com nota fiscal de Produção
+continua impossível de excluir** (`SaleService.remove`, guarda
+antiga, seção de paginação de Vendas) — apagar uma nota já autorizada
+pela Sefaz do banco local não cancela o documento fiscal de verdade,
+só faz o sistema "esquecer" dele, então essa trava continua de
+propósito. `SaleList.js` já reflete isso na seleção: a checkbox de uma
+venda não-excluível (`isDeletable`, mesma condição que já decidia se o
+ícone de lixeira individual aparecia) vem desabilitada, pra não deixar
+marcar algo que o servidor vai recusar de qualquer jeito.
+
+**Como usar pra zerar o módulo inteiro**: como a seleção é só "da
+página" (20 registros por vez, não "selecionar tudo que bate o
+filtro"), uma limpeza completa de uma lista com mais de 20 registros
+precisa repetir marcar-tudo + excluir a cada página. Ordem recomendada
+pra evitar erro de FK (registro pai referenciado por um filho que
+ainda existe): Vendas primeiro (isso já leva junto os itens da venda,
+documento fiscal e a conta a receber gerada por ela, via
+`SaleService.remove`), depois Contas a Pagar/Receber restantes
+(nenhuma dependência), por último Clientes/Fornecedores/Produtos.
+
+**Frontend** (`FinanceRecordList.js`/`SaleList.js`, mesmo padrão nos
+dois): `isAdmin = user?.profile === "admin" || !!user?.super` controla
+a coluna de checkbox inteira (nem aparece pra quem não é admin,
+diferente de só desabilitar o botão) + um estado `selectedIds`, limpo
+a cada novo fetch (trocar de página/filtro/busca some com a seleção
+antiga, de propósito — evita excluir por engano algo que não está mais
+visível). Um segundo `ConfirmationModal` (`bulkConfirmOpen`), separado
+do modal de exclusão individual que já existia, confirma antes de
+rodar.
+
+**Filtro de Produtos por categoria** — ajuste pequeno e relacionado
+(mesma leva de pedidos): depois da navegação por categoria ter migrado
+pro menu lateral (seção 117), o dropdown "Tipo" que ainda ficava acima
+da tabela de Produtos virava redundante/confuso quando a tela já tinha
+sido aberta através de um link de categoria específica (ex.: "Armas
+nacionais") — oferecia trocar pra outra categoria ali dentro de um
+painel que já é daquela categoria. `Financeiro/index.js` agora só
+passa `financeProductFilters` pro `FinanceRecordList` quando
+`productTypeParam` (o `type` da URL) está vazio — ou seja, só quando a
+tela abriu via "Todos os produtos" (sem categoria definida); chegando
+por qualquer categoria específica, `filters={[]}`, o seletor nem
+renderiza.
+
+**Arquivos**: `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/pages/Financeiro/index.js`. `npx eslint` e build de
+produção limpos (nenhuma mudança de backend nessa versão — reaproveita
+100% os endpoints de exclusão já existentes).
+
+## 124. Exclusão em massa também libera vendas com nota de Produção, admin-only (v2.3.143)
+
+Pedido direto do cliente, em seguida da seção 123: as vendas 492/493
+(lançadas direto no painel da Focus, importadas pro AtendeFlow) têm
+nota fiscal de Produção de verdade — a trava de `SaleService.remove`
+(seção de paginação de Vendas) recusa excluir qualquer venda nessa
+situação, de propósito, desde sempre. Perguntado explicitamente antes
+de mexer nisso: cliente confirmou que quer poder excluir mesmo assim,
+porque o XML/PDF autorizado pela Sefaz **não fica guardado no nosso
+servidor** — só uma URL apontando pro servidor da própria Focus
+(`FiscalDocumentService.resolveDocumentUrls`, seção 112) — então
+apagar o registro local não desfaz nem afeta o documento fiscal de
+verdade, só faz o AtendeFlow "esquecer" dele. O XML que vai pro
+contador gerar o imposto continua intacto onde sempre esteve.
+
+**Não foi removida a trava padrão** — só adicionado um `force`
+opcional que a ignora, e só quando:
+
+1. Quem está pedindo é Admin/Master — checado no **controller**
+   (`SaleController.remove`), antes de chegar no service, lendo
+   `req.user.profile`/`req.user.super` (os mesmos campos já
+   disponíveis em `req.user` desde a seção 122). Um usuário comum
+   mandando `?force=true` manualmente na requisição tem o parâmetro
+   simplesmente ignorado — a trava continua valendo pra ele, sem
+   exceção.
+2. E, no frontend, só quando o checkbox "Também excluir vendas com
+   nota de Produção" é marcado na confirmação da exclusão em massa —
+   aparece só quando a seleção atual inclui pelo menos uma venda nessa
+   situação (`hasProductionInSelection`), com um aviso em vermelho
+   explicando o que significa marcar.
+
+`SaleService.remove(id, companyId, force = false)` — `force` bypassa
+as duas checagens de nota de Produção (a que já tem documento de
+Produção, e a que está sem documento nenhum mas a empresa já está com
+Produção ativa). Sem `force` (todo o resto do sistema, incluindo o
+botão de excluir individual que sempre existiu), comportamento 100%
+igual a antes.
+
+A checkbox do item na tabela de Vendas não fica mais desabilitada pra
+venda com nota de Produção (antes da seção 123 nem aparecia opção de
+seleção nenhuma) — qualquer linha pode ser marcada, só mostra uma
+dica (tooltip) explicando que precisa do checkbox extra pra ser
+excluída de verdade; se for selecionada sem marcar o `force`, o
+backend recusa normalmente e ela entra no resumo de falhas do lote,
+igual qualquer outro erro — sem comportamento especial de silêncio.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`. `npx tsc --noEmit`, `npx
+eslint` e build de produção limpos.
+
+## 125. Ícone de excluir individual removido da coluna Ação em Vendas (v2.3.144)
+
+Pedido pontual do cliente, depois de ver a seleção em massa
+funcionando (seção 123/124): "pode tirar o ícone do delete embaixo de
+ação" — o ícone de lixeira por linha (aparecia em rascunho, e em
+venda confirmada/cancelada de teste) ficou redundante, já que marcar
+só aquela linha na seleção em massa faz a mesma coisa.
+
+Removido o `IconButton`/`Tooltip` de excluir dos três blocos de
+`status` (`draft`/`confirmed`/`cancelled`) na coluna "Ação", junto com
+o código que só servia pra esse fluxo e ficou sem uso: `requestDelete`,
+o branch `confirmAction === "delete"` em `handleConfirmAction`, e a
+entrada `delete` em `confirmModalProps`. O modal de confirmação
+genérico (`confirmAction`) continua usado por "confirmar"/"cancelar"
+venda, só a opção de excluir saiu dele.
+
+**Arquivo**: `frontend/src/components/SaleList/index.js`. `npx eslint`
+e build de produção limpos.
+
+## 126. Baixar PDF/XML em massa (v2.3.145)
+
+Pedido: "filtro pra baixar as notas fiscais iguais os outros filtros
+já feitos — escolhe PDF ou XML, seleciona uma ou várias, no mesmo
+padrão que já faz" (reaproveitando a seleção em massa da seção
+123/124) — "separado ou por período" (nota a nota, ou usando o filtro
+"Período" já existente + "selecionar tudo da página" pra pegar um lote
+inteiro de uma vez). Perguntado e confirmado: cada arquivo baixa numa
+aba separada (sem juntar tudo num .zip).
+
+**Diferente da exclusão em massa, esse recurso é liberado pra
+qualquer usuário** (não é admin-only) — baixar um PDF/XML já
+autorizado pela Sefaz não tem o mesmo risco de apagar dado. Por isso a
+coluna de checkbox (cabeçalho "selecionar tudo"/linha a linha) deixou
+de ser condicionada a `isAdmin` — agora sempre aparece; só o botão
+"Excluir selecionadas" continua atrás do `isAdmin`. A dica (tooltip) na
+checkbox sobre "tem nota de Produção" também passou a só aparecer pra
+quem é admin (só ele vê o botão de excluir, não faz sentido mostrar
+esse aviso pra quem só vai baixar arquivo).
+
+**Achado importante durante a implementação**: o `pdfUrl`/`xmlUrl` de
+cada `FiscalDocument` **não vêm na listagem de Vendas** —
+`SaleService.ts`, `includeOptions`, restringe o `FiscalDocument`
+incluído a `["id", "type", "status", "environment"]` de propósito
+(lista enxuta). Em vez de alargar essa whitelist (arriscaria deixar a
+listagem de Vendas mais pesada sem necessidade, numa tela que já é
+paginada e consultada com frequência), o download em massa busca o
+histórico de documentos de cada venda SELECIONADA na hora
+(`fiscal.fiscalDocuments.list(saleId)`, o mesmo endpoint `GET
+/sales/:id/fiscal-documents` que a tela "Ver histórico de tentativas"
+do `SaleDetailModal` já usa) — esse endpoint já devolve `pdfUrl`/
+`xmlUrl` resolvidos pro host certo da Focus
+(`FiscalDocumentService.resolveDocumentUrls`, seção 112). Zero mudança
+de backend nessa versão — só reaproveitamento do que já existia.
+
+Pra cada venda selecionada: busca os documentos, acha o primeiro com
+`status === "authorized"` que tenha o campo do formato escolhido
+preenchido, e `window.open(url, "_blank")`. Venda sem nota autorizada
+no formato escolhido (ex.: ainda em rascunho, ou só tem nota de
+homologação sem XML) é ignorada, contada à parte e avisada por toast —
+não trava o lote inteiro por causa de uma venda sem documento.
+
+**Arquivo**: `frontend/src/components/SaleList/index.js`. `npx eslint`
+e build de produção limpos (nenhuma mudança de backend).
+
+## 127. Ícone de excluir individual removido de Clientes/Fornecedores/Produtos/Contas (v2.3.146)
+
+Mesmo pedido da seção 125, agora pro resto do Financeiro: "de todos"
+(confirmado pelo cliente) — `FinanceRecordList.js` é o componente
+compartilhado por Clientes, Fornecedores, Produtos, Contas a Pagar e
+Contas a Receber (`frontend/src/pages/Financeiro/index.js` monta cada
+aba passando `resource`/`columns`/`fields` diferentes pro mesmo
+componente), então um ajuste só nele já vale pras 5 listas de uma vez.
+
+Removido o `IconButton` de excluir da coluna "Ação" (ficava ao lado do
+de editar), e o código que só servia esse fluxo: `handleRequestDelete`,
+`handleConfirmDelete`, os estados `confirmOpen`/`deleteTarget`, e o
+`ConfirmationModal` de exclusão individual (o de exclusão em massa,
+`bulkConfirmOpen`, continua intacto). Editar (`handleEdit`) não mudou
+— só a lixeira saiu.
+
+**Arquivo**: `frontend/src/components/FinanceRecordList/index.js`.
+`npx eslint` e build de produção limpos (nenhuma mudança de backend).
+
+## 128. Imprimir / Exportar PDF e Excel — Clientes, Fornecedores, Produtos, Contas a Pagar e Contas a Receber (v2.3.147)
+
+Retomada do pedido antigo de relatórios (ainda em aberto desde o
+início da sessão), agora concretizado pra essas 5 listas: "quando
+filtrar ou selecionar, ter a opção de imprimir ou gerar em PDF ou
+Excel... o usuário que tenha permissão possa imprimir direto na
+impressora instalada na máquina ou gerar PDF/Excel."
+
+**Reaproveitado 100% o padrão que já existia** no Painel Financeiro
+(`FinancePainel.js`, pedido/implementação anterior) em vez de inventar
+um mecanismo novo:
+
+- **PDF/impressora**: `window.print()` + CSS `@media print` escondendo
+  tudo da tela (`body * { visibility: hidden }`) exceto uma área
+  dedicada (`#finance-record-list-print-area`), montada SÓ na hora de
+  imprimir com uma tabela HTML simples (cabeçalho = `columns` já
+  existente do componente, linhas = os dados no escopo escolhido). O
+  navegador decide se manda pra uma impressora instalada de verdade ou
+  "Salva como PDF" — nenhum PDF é gerado no servidor, igual o Painel já
+  fazia.
+- **Excel**: `XLSX.utils.json_to_sheet` + `XLSX.writeFile`, 100%
+  client-side (biblioteca `xlsx` já era dependência do frontend, usada
+  também em `FinancePainel.js`/`Reports.js`) — usa o valor CRU de cada
+  coluna (`record[col.field]`), não `col.render()` (que pode devolver
+  um componente React, tipo um Chip de status — não dá pra jogar isso
+  numa célula de planilha).
+
+**Escopo "filtrar ou selecionar"**: com alguma linha marcada na seleção
+em massa (seção 123), imprime/exporta só essas; sem nada marcado,
+`getExportRows()` busca TODAS as páginas que batem no filtro/busca
+atual — a tela só tem 20 registros carregados por vez
+(`TablePagination`), então pra realmente pegar "tudo que bate o
+filtro" (não só a página visível) o componente pagina sozinho por trás
+dos panos (`resource.list({..., pageNumber: N})` em loop até
+`hasMore` ser `false`), concatenando os resultados antes de montar a
+tabela/planilha. Por isso os dois botões ficam `disabled` durante
+`exporting` — pode demorar um pouco mais que o normal se o filtro
+pegar muitas páginas.
+
+**Permissão nova, separada de `allowImport`** (seção 122): o cliente
+descreveu o modelo já existente (Admin libera acesso ao módulo
+Financeiro pro usuário comum; dentro disso, cada função específica tem
+seu próprio toggle) e confirmou que imprimir/exportar merece um toggle
+próprio, não reusar o de importar — faz sentido tecnicamente também,
+já que são ações de natureza oposta (uma só lê o que já está na tela,
+a outra grava dado novo no banco). `allowExport` segue exatamente o
+mesmo padrão de `allowImport` (migration, campo no model, atributo em
+`ShowUserService`, `Create`/`UpdateUserService`, `SerializeUser`) —
+com uma diferença importante: **não precisou de checagem no
+backend/`isAuth.ts`**, porque não existe nenhum endpoint novo pra
+proteger (tudo roda no navegador, em cima de dado que a tela já
+buscou pra exibir) — só controla se os botões aparecem.
+
+**Arquivos**: `backend/src/models/User.ts`,
+`backend/src/database/migrations/20261017230000-add-allowexport-to-users.ts`,
+`backend/src/services/UserServices/ShowUserService.ts`,
+`backend/src/services/UserServices/CreateUserService.ts`,
+`backend/src/services/UserServices/UpdateUserService.ts`,
+`backend/src/helpers/SerializeUser.ts`,
+`frontend/src/components/UserModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js`. `npx tsc
+--noEmit`, `npx eslint` e build de produção limpos.
+
+## 129. Importação de armas não preenchia a procedência, nacional/importada (v2.3.148)
+
+Cliente reportou: importou `armas_atualizadas.xlsx` (relatório de
+produtos de loja de armas, mesmo formato de `parseGunStoreReport` —
+`Cód. Produto`/`Nome Produto`/`Categoria`/... em posição fixa de
+coluna) direto na categoria "Armas nacionais" do menu lateral (seção
+117), e os produtos "não sincronizavam" ali.
+
+Investigando a planilha de verdade enviada: o tipo é detectado
+corretamente pela coluna "Categoria" (CARABINA/ESPINGARDA/PISTOLA/
+REVÓLVER/RIFLE/ARMA → `type: "weapon"`; MUNIÇÃO/ESPOLETA/CARTELA →
+`type: "ammunition"`) — isso sempre funcionou. O problema é que esse
+relatório **não tem nenhuma coluna de procedência/origem**, e
+`parseGunStoreReport` nunca preenchia `FinanceProduct.origin` — então
+o produto virava "arma" certinho, mas o filtro "Armas nacionais"
+(`type="weapon"` + `origin="national"`, seção 115) nunca batia porque
+faltava a segunda metade da condição. Não dava pra simplesmente supor
+"tudo nacional" — a planilha real mistura marca nacional (Taurus, CBC)
+com importada (ex. duas pistolas Glock no mesmo arquivo).
+
+**Fix**: deduzir `origin` a partir da MARCA já extraída do nome do
+produto (`extractBrandFromName`, usa a mesma lista `KNOWN_BRANDS` que
+já existia) — `originFromBrand()` novo, com duas listas fixas
+(`NATIONAL_BRANDS`/`IMPORTED_BRANDS`, as mesmas marcas de
+`KNOWN_BRANDS` já reclassificadas, nenhum fabricante novo adicionado):
+Taurus/CBC/Imbel/Imbramun/Rossi/Braztech/Boito → `"national"`;
+Glock/Beretta/Sig Sauer/Sig/Colt/Smith & Wesson/Walther/Mossberg/
+Winchester/Remington/Savage/Ruger/Heckler & Koch/FN/CZ → `"imported"`.
+Só aplicado quando `type === "weapon"` (munição não tem esse filtro na
+UI). Produto cujo nome não cita marca nenhuma reconhecida (ex. SKU
+"TAU00228" mas nome só "PISTOLA GX4; CAL. .38TPC...", sem a palavra
+"TAURUS" escrita) continua sem `origin` — mesma limitação que já
+existia pra detecção de marca (comentário original: "NÃO tenta
+reconhecer por código de modelo... produto cuja descrição não cita a
+marca fica em branco pra preencher manual"), não é algo novo que essa
+correção piorou ou tentou resolver.
+
+**Limitação conhecida (pré-existente, não introduzida aqui)**: a
+detecção de marca é por substring simples no nome
+(`upper.includes(brand)`) — um nome que contenha a sigla "CZ" por
+outro motivo (não a marca checa CZ) pode casar por engano. Risco baixo
+e já existia antes desta correção (só ganhou mais uma consequência:
+agora também define origem, não só a marca mostrada).
+
+Reimportar a mesma planilha corrige os produtos já criados/importados
+antes dessa versão — `upsertProductRecord` localiza por SKU e
+atualiza (`FinanceProductService.update`), não duplica.
+
+**Arquivo**: `backend/src/services/FinanceService/FinanceImportService.ts`.
+`npx tsc --noEmit` limpo (sem mudança de frontend).
+
+## 130. Importação de armas em massa não exige mais número de série (v2.3.149)
+
+Cliente reimportou a planilha depois da seção 129 e "Armas nacionais"
+continuava vazio — a correção da procedência era real, mas nem chegava
+a ser aplicada, porque a causa de fato era outra, mais funda:
+`FinanceProductService`'s `productSchema` (Yup) exige `serialNumber`
+pra qualquer produto `type === "weapon"` (`SERIAL_NUMBER_REQUIRED_TYPES`)
+— regra confirmada com o cliente desde a implantação original do
+cadastro de armas (seção 80, "número de série único por empresa",
+seguindo o Estatuto do Desarmamento/decretos de controle). A planilha
+de estoque do sistema anterior é um **catálogo por modelo** (uma
+linha por SKU/produto, com `Qtde.` em estoque) — não tem, e
+estruturalmente não poderia ter, uma coluna de número de série por
+unidade individual. Toda linha de arma dessa planilha específica
+sempre falhou essa validação, silenciosamente (virava `summary.invalid`,
+sem nunca ser criada) — nunca teve relação com a correção da seção
+129, que só mexia num campo (`origin`) de produtos que, na prática,
+nunca chegavam a existir.
+
+Perguntado ao cliente como resolver (afeta exigência legal, não dava
+pra decidir sozinho): confirmou que quer importar mesmo sem número de
+série, completando manualmente depois unidade por unidade — mas que o
+campo continua **obrigatório** em qualquer outro caminho (muito
+importante pra ele).
+
+**Fix, escopado só pro relatório de estoque legado** (não afrouxa a
+regra em geral): `productSchema.serialNumber` passou a considerar um
+contexto novo do Yup, `$skipSerialRequired` (`.when(["type",
+"$skipSerialRequired"], ...)`) — só `true` quando
+`FinanceProductService.create`/`update` são chamados com
+`{ skipSerialRequired: true }`, um terceiro parâmetro opcional novo
+(default `{}`/`false` em todo o resto do sistema). `FinanceImportService
+.upsertProductRecord` ganhou um parâmetro `skipSerialRequired` que só
+`importProducts` passa como `true` — e só quando `parseGunStoreReport`
+reconheceu o arquivo como o relatório de estoque legado
+(`!!gunStoreRecords`). A planilha-modelo oficial (`PRODUCT_MAPPINGS`,
+que tem coluna própria de número de série via alias) e o cadastro
+manual pela tela (`FinanceProductController` chama `create`/`update`
+sem esse parâmetro, cai no default `false`) continuam exigindo o
+campo exatamente como antes — nada mudou nesses dois caminhos.
+
+Validado com um teste isolado do Yup (5 cenários: arma sem contexto
+rejeita; arma com `skipSerialRequired: true` sem número passa; arma
+sem nenhum contexto — simulando o cadastro manual — rejeita; munição
+nunca exige; arma com `skipSerialRequired: true` E número preenchido
+continua passando, confirma que não ignora um valor real quando ele
+existe) antes de subir — `node -e` direto com o pacote `yup` já
+instalado, sem precisar rodar o servidor inteiro.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
+`backend/src/services/FinanceService/FinanceImportService.ts`. `npx
+tsc --noEmit` limpo (sem mudança de frontend).
+
+## 131. Taurus também pelo prefixo do SKU; erros de linha visíveis na importação (v2.3.150)
+
+Depois da seção 130, cliente reimportou a mesma planilha e reportou
+"só importou 11 e a planilha tem mais de 20" (e, numa segunda
+reimportação, "não duplicou mas ficou 1x11 de 11"). Investigado
+simulando `parseGunStoreReport` isoladamente contra o arquivo real: a
+planilha tem 51 linhas válidas (15 munição + 36 arma, 0 SKU
+duplicado), e TODAS as 36 armas já estavam sendo criadas desde a
+seção 130 — não era bug de importação. O filtro "Armas nacionais"
+exige `type=weapon AND origin=national`, e `origin` só é preenchido
+quando `extractBrandFromName` reconhece uma marca no NOME do produto
+(ex. "TAURUS", "CBC") — por desenho (seção 129), não tenta reconhecer
+por código de modelo no nome (ex. "G2C" = Taurus, decisão combinada
+com o cliente, fora de escopo). Resultado: as 11 armas com "CBC"/
+"TAURUS" escrito no nome apareciam em "Armas nacionais"; as outras 25
+(ex. "PISTOLA G2C...", "PISTOLA GX4...") foram importadas normalmente,
+só que sem procedência — ficam visíveis em "Todos os produtos", não
+nos filtros por procedência.
+
+Perguntado ao cliente (AskUserQuestion, já que mexe em como o sistema
+classifica marca/procedência — mesmo cuidado de antes): confirmou que
+o prefixo "TAU" do próprio código/SKU do produto (ex. "TAU00228") é
+usado por uma distribuidora que revende produtos da Taurus pra loja —
+sinal confiável de procedência nacional, mesmo quando o nome não cita
+"TAURUS" escrito. Sobre outras marcas sem nome reconhecido na planilha
+(CBC já é detectado por nome; Pavie/Sambura não estavam na lista):
+cliente confirmou que o SKU "é universal, pode deixar" — ou seja, só o
+prefixo "TAU" tem esse significado de distribuidora; pra qualquer outra
+marca não detectada automaticamente, o cadastro fica sem procedência e
+é corrigido manualmente depois, pela tela de editar (fluxo que já
+existia) — não pediu detecção automática de Pavie/Sambura.
+
+**Fix 1 — `backend/src/services/FinanceService/FinanceImportService.ts`**:
+novo `BRAND_SKU_PREFIXES` (hoje só `{ prefix: "TAU", brand: "TAURUS" }`)
+e `brandFromSku(sku)`, que casa o prefixo (case-insensitive) no início
+do SKU. Em `parseGunStoreReport`, pra linhas `type === "weapon"`: se
+`extractBrandFromName(name)` não achou nada, cai pro `brandFromSku(sku)`
+como sinal extra — só então passa por `originFromBrand` normalmente
+(mesma função da seção 129, sem mudança). Não mexe em munição nem em
+produto comum, e não muda o reconhecimento por nome já existente (nome
+continua tendo prioridade sobre o SKU).
+
+**Fix 2 — `frontend/src/components/FinanceRecordList/index.js`**: o
+backend já coletava `summary.errors` (motivo de cada linha
+inválida/ignorada) desde a Fase 6 original, mas a tela só mostrava os
+totais (criados/atualizados/inválidos) — `SaleList.js` já exibia esses
+erros na importação de Vendas, só `FinanceRecordList.js` não.
+`handleImportFile` agora também mostra até 5 desses avisos via toast,
+igual ao padrão do SaleList — ajuda a diagnosticar linha por linha da
+próxima vez, sem precisar simular a planilha à parte.
+
+Reimportar a mesma planilha (`armas_atualizadas.xlsx`) atualiza por
+SKU os produtos já existentes, preenchendo marca/procedência nos que
+tinham código "TAU..." sem o nome "TAURUS".
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceImportService.ts`
+(`npx tsc --noEmit` limpo), `frontend/src/components/FinanceRecordList/index.js`
+(lint e build limpos).
+
+## 132. Imprimir/gerar PDF de um registro no formulário de editar (v2.3.151)
+
+Pedido do cliente: além de imprimir/exportar a LISTA (filtrada ou
+selecionada, seção 128), também poder imprimir/gerar PDF de UM
+registro só, direto na tela de editar — "edita um cliente e tenha
+opção de imprimir ou gerar pdf, a mesma coisa para fornecedor e
+produto".
+
+**Implementação**: `FinanceRecordModal.js` (modal de editar/criar
+compartilhado por Clientes, Fornecedores, Produtos, Contas a Pagar e
+Contas a Receber — por isso o botão aparece nos 5, não só nos 3
+citados) ganhou um botão "Imprimir / PDF" no rodapé do formulário,
+reaproveitando a mesma técnica já usada na lista (`window.print()` +
+`@media print`, sem gerar PDF no servidor) — mesma permissão
+**"Imprimir / Exportar listas"** da v2.3.147 (`canExport`, repassada
+pelo `FinanceRecordList.js` pai; Admin/Master sempre libera). Só
+aparece editando um registro já salvo (`record?.id`); num cadastro
+novo ainda não tem nada no banco pra imprimir.
+
+A área de impressão é montada a partir de um snapshot dos valores
+ATUAIS do formulário no momento do clique (`values` do Formik, não
+precisa resalvar antes) — mesmo padrão de `printRows` em
+`FinanceRecordList.js`: `setTimeout` de 150ms antes do
+`window.print()` pra dar tempo do React desenhar a tabela escondida.
+Fica fora do `<Dialog>` (irmão dele no JSX, não filho) de propósito —
+a regra CSS `@media print` escondendo `body *` e só liberando o id
+`#finance-record-modal-print-area` funciona pela especificidade do
+seletor (ID bate qualquer combinação `body *`), mas manter fora do
+Dialog evita depender de como o MUI porta o conteúdo do modal pro
+`document.body`.
+
+Cada campo do formulário vira uma linha "Rótulo: valor" na impressão;
+campos tipo `select`/`asyncSelect` mostram o rótulo da opção (ou o
+nome do registro associado), não o valor cru salvo no banco; campo
+`switch` mostra "Sim"/"Não"; `sectionTitle` e campos escondidos por
+`visibleWhen` não entram.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/FinanceRecordList/index.js` (só repassa
+`canExport` pro modal). Lint e build (`craco build`) limpos.
+
+## 133. Taurus também pelo código do modelo — fecha a lacuna da planilha real (v2.3.152)
+
+Depois da v2.3.150 (prefixo "TAU" do SKU), cliente reimportou e reportou
+"aumentou de 11 para 13 itens e são 25" — ou seja, o prefixo do SKU só
+fechou 2 dos ~14 que faltavam. Investigado rodando a mesma lógica do
+sistema (nome + prefixo do SKU) contra a planilha real
+(`armas_atualizadas.xlsx`, 36 linhas de arma):
+
+- 13 com procedência (nome "TAURUS"/"CBC", ou SKU "TAU...")
+- 3 com procedência (marca importada reconhecida no nome)
+- **20 sem procedência nenhuma** — todas Taurus pelo nome, mas só com
+  código de modelo (G2C, G3, G3C, GX2, GX4SC, TH380/TH380C, TX22, RT66/
+  RT66C, RT889, 59S/PT59S), sem a palavra "TAURUS" e com SKU numérico
+  próprio da planilha legada (ex. "10034336", "75008418") — não bate
+  com o prefixo "TAU".
+
+Isso esbarra direto na decisão original do módulo (seção/comentário em
+`extractBrandFromName`): "NÃO tenta reconhecer por código de modelo —
+fora do escopo combinado com o cliente". Perguntado de novo
+(AskUserQuestion, pelo mesmo motivo de cautela das seções 130/131 —
+mexe em como o sistema classifica procedência): cliente confirmou que
+quer reverter isso **só pra essa lista fechada de 10 códigos**,
+realmente vistos na planilha dele ("Sim, reconhecer esses modelos
+Taurus"), e depois, perguntado se seguia pra frente mesmo com o que
+sobrasse sem bater: "adiciona tudo, o que não der eu preencho manual,
+vou fazer uma revisão".
+
+**Fix — `backend/src/services/FinanceService/FinanceImportService.ts`**:
+novo `WEAPON_MODEL_CODES` (`["G2C", "G3C", "G3", "GX2", "GX4SC", "TH380",
+"TX22", "RT66", "RT889", "59S"]`, substring simples no nome, mesmo
+estilo de `extractBrandFromName`) e `brandFromModelCode(name)`. Em
+`parseGunStoreReport`, pra linhas `type === "weapon"`: a cadeia de
+sinais agora é nome → prefixo do SKU → código do modelo (só tenta o
+próximo se o anterior não achou nada) — `brand = extractBrandFromName(name)
+|| (type === "weapon" && (brandFromSku(sku) || brandFromModelCode(name)))`.
+Simulado de novo contra a planilha real depois do fix: **33 nacional + 3
+importada = todas as 36 armas com procedência**, nenhuma mais em branco.
+
+⚠️ **Risco documentado, não resolvido**: o código "G3" sozinho colide
+com o fuzil G3 da Heckler & Koch (arma importada, uso militar/
+paramilitar) — um produto chamado "FUZIL G3" entraria errado como
+Taurus/nacional. Aceito aqui porque o catálogo desse cliente é loja de
+tiro esportivo civil (pistolas/revólveres/carabinas Taurus e CBC,
+munição e acessórios), sem fuzil de uso militar no estoque. Se isso
+mudar no futuro (cliente passar a vender fuzil importado, G3 da HK
+incluso), essa lista precisa ser revisada — não é um padrão genérico de
+reconhecimento, é uma lista fechada pra essa planilha/cliente específico.
+
+Reimportar a mesma planilha atualiza por SKU os produtos existentes.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceImportService.ts`.
+`npx tsc --noEmit` limpo. Validado simulando a lógica contra a planilha
+real (`armas_atualizadas.xlsx`) com um script Python isolado, antes de
+subir — mesma prática já usada nas seções 129/130/131, pra confirmar
+contra dado real em vez de só confiar no código.
+
+## 134. Cobrança Pix/boleto via Mercado Pago em Contas a Receber — Fase 1 (v2.3.153)
+
+Pedido do cliente: receber pagamento (Pix/boleto) direto no AtendeFlow.
+Antes de implementar, uma rodada de confusão real precisa ficar
+registrada, porque quase virou um problema de verdade: o cliente colou
+nesta conversa um texto gerado por OUTRA IA, formatado como "contexto de
+sistema atual do projeto" (arquitetura Python/`asyncpg` inexistente,
+tabela `leads_atendeflow` inexistente, gateway "BunkerPay" e nó
+"DFlow"/`node-faturamento-deflow"). Investigado antes de tocar em
+qualquer código: `bunkerpay.io` não resolve nem no DNS (`ENOTFOUND`),
+nenhum resultado de busca pra confirmar a empresa — sinal de conteúdo
+fabricado, não de integração real. O cliente confirmou depois que era
+mesmo um prompt que ele tinha feito com outra IA sem acesso ao
+repositório de verdade (ela alucinou os detalhes). Nada desse texto foi
+usado — serve de lição registrada: **nunca tratar uma descrição de
+"estado atual do projeto" colada no chat como verdade sem conferir
+contra o repositório real**, especialmente quando envolve credencial/
+gateway de pagamento.
+
+Depois de recomeçar do zero com o cliente, confirmado: **Mercado Pago**
+(gateway real, documentação pública, conta já existente do cliente) pra
+gerar cobrança **Pix e boleto** em **Contas a Receber**, com confirmação
+automática via webhook. Asaas (outro gateway real que o cliente também
+já tem) fica pra uma Fase 2, mesma estrutura — implementar os dois ao
+mesmo tempo arriscava os dois com bug junto; melhor validar um
+end-to-end primeiro.
+
+⚠️ **Mesma ressalva já registrada pra Focus NFe** (seção 6.2): este
+adapter foi implementado a partir da documentação pública do Mercado
+Pago (Checkout API — `POST /v1/payments`, `payment_method_id: "pix"`/
+`"bolbradesco"`), mas **nunca testado ponta a ponta contra uma chave de
+teste real** — este ambiente de desenvolvimento não tem saída de rede
+pra `api.mercadopago.com` (proxy do sandbox bloqueia, confirmado via
+`curl`/`WebFetch`, `getaddrinfo ENOTFOUND`/403). Antes de confiar em
+produção: gerar uma cobrança de teste de verdade com um Access Token
+"TEST-..." e comparar a resposta real com o parsing em
+`parsePaymentResponse` (MercadoPagoGatewayService.ts), ajustando se o
+formato vier diferente do esperado — mesmo processo que FocusNFeService
+já documentou pra quando a Focus NFe foi integrada.
+
+**Modelo novo — `FinancePaymentConfig`** (`backend/src/models/
+FinancePaymentConfig.ts`, migration `20261019060000-create-finance-
+payment-configs.ts`): um registro por empresa, separado de `FiscalConfig`
+de propósito — são credenciais de contratos DIFERENTES (FiscalConfig é
+o gateway de EMISSÃO de nota fiscal, Focus NFe; isso aqui é o gateway de
+COBRANÇA/recebimento). Campos: `mercadoPagoAccessTokenSandbox`/
+`mercadoPagoAccessTokenProduction` (mesmo padrão Homologação/Produção já
+usado em Configuração Fiscal — Produção tem prioridade quando habilitada,
+`FinancePaymentConfigService.isProductionActive`/
+`getActiveMercadoPagoToken`), `mercadoPagoWebhookSecret` (valida a
+assinatura do webhook), `pixExpirationMinutes` (default 60).
+
+**`FinanceReceivable` ganhou campos novos** (migration `20261019060100-
+add-payment-fields-to-finance-receivables.ts`): `paymentProvider`,
+`paymentExternalId`, `paymentStatus` (status cru do gateway, só
+informativo — quem decide se a conta está "recebida" de verdade continua
+sendo o `status` já existente, atualizado pelo webhook), `pixQrCode`/
+`pixQrCodeBase64`, `pixExpiresAt`, `boletoUrl`. Guardam só a ÚLTIMA
+cobrança gerada (gerar de novo sobrescreve, sem histórico de cobranças
+múltiplas por enquanto). **Intocados**: `asaasPaymentId`/
+`splitIvaRetido`/`netReceivedViaAsaas` (já existiam, reservados só pro
+Split Payment do IVA da Reforma 2027 — propósito diferente, confirmado
+nesta mesma investigação que NÃO é a mesma coisa que "gerar cobrança pro
+cliente pagar").
+
+**`MercadoPagoGatewayService.ts`** (adapter): `createPixCharge`/
+`createBoletoCharge` (`POST /v1/payments`, com `X-Idempotency-Key` novo a
+cada chamada — evita cobrança duplicada em caso de retry de rede),
+`getPayment` (`GET /v1/payments/{id}`, usado pelo webhook pra buscar o
+status de VERDADE, nunca confiar no corpo da notificação),
+`verifyWebhookSignature` (HMAC-SHA256 sobre o manifest `id:{dataId};
+request-id:{requestId};ts:{ts};`, formato documentado do Mercado Pago —
+validado com 6 casos de teste isolados via `node -e`, incluindo
+assinatura adulterada e secret errado, antes de subir). E-mail do
+pagador: Mercado Pago exige, cadastro de cliente do Financeiro não
+obriga — usa um e-mail sintético (`cliente{id}@sememail.atendeflow`)
+quando o cliente não tem e-mail cadastrado.
+
+**`FinanceReceivablePaymentService.ts`** (orquestração):
+`generatePixCharge`/`generateBoletoCharge` (valida cliente vinculado e
+valor > 0 antes de chamar o gateway) e `handleMercadoPagoWebhook` — essa
+última NUNCA atualiza o status só com o que veio no corpo da notificação:
+busca o `FinanceReceivable` pelo `paymentExternalId` já gravado (não
+pelo id da notificação sozinho — podia ser de outra cobrança qualquer da
+mesma conta Mercado Pago), rebusca o status real via `getPayment`, e só
+marca `status: "received"` quando o Mercado Pago confirma `"approved"`.
+
+**Webhook** (`PaymentWebhookController.mercadoPago`,
+`/webhook/mercadopago/:companyId` — uma URL por empresa, mesmo padrão já
+usado por `MetaWebhookController`): responde 200 rápido e processa
+depois (evita o Mercado Pago reenviar a notificação por timeout), valida
+a assinatura antes de processar qualquer coisa, loga e para
+silenciosamente se a assinatura não bater ou a empresa não tiver gateway
+configurado.
+
+**Frontend**: nova tela **Configuração de Pagamento**
+(`FinancePaymentConfigPanel`, link no menu lateral Financeiro, mesmo
+padrão get/upsert da Configuração Fiscal) com os campos de credencial,
+a URL do webhook já montada (só copiar pro painel do Mercado Pago) e o
+campo de assinatura secreta. Editando uma Conta a Receber
+(`FinanceRecordModal`, prop nova `enablePayments` — só repassada pela
+aba de Contas a Receber em `Financeiro/index.js`, os outros cadastros
+não ganham esse botão): botões "Gerar Pix"/"Gerar boleto" no rodapé do
+formulário, mostrando o QR Code (imagem base64) + código copia-e-cola
+com botão de copiar, ou o link do boleto — usa um snapshot do registro
+atualizado (`paymentResult`) que sobrescreve o que já veio salvo, sem
+precisar fechar/reabrir o modal pra ver o resultado novo.
+
+**Validação feita antes de subir**: `npx tsc --noEmit` limpo; as duas
+migrations testadas de verdade contra um Postgres local descartável
+(`CREATE TABLE`/`ALTER TABLE ADD COLUMN IF NOT EXISTS`, schema conferido
+com `\d`); `verifyWebhookSignature` testado isoladamente (6 casos via
+`node -e`, incluindo assinatura válida, dataId adulterado, secret
+errado, header ausente/malformado e o caso sem secret configurado —
+todos passaram); lint e `craco build` do frontend limpos.
+
+**Arquivos**: `backend/src/database/migrations/20261019060000-create-
+finance-payment-configs.ts`, `20261019060100-add-payment-fields-to-
+finance-receivables.ts`, `backend/src/models/FinancePaymentConfig.ts`,
+`backend/src/models/FinanceReceivable.ts`, `backend/src/database/
+index.ts`, `backend/src/services/FinanceService/
+FinancePaymentConfigService.ts`, `MercadoPagoGatewayService.ts`,
+`FinanceReceivablePaymentService.ts`, `backend/src/controllers/
+FinancePaymentConfigController.ts`, `FinanceReceivableController.ts`,
+`PaymentWebhookController.ts`, `backend/src/routes/financeRoutes.ts`,
+`webHookRoutes.ts`, `frontend/src/components/FinancePaymentConfigPanel/
+index.js` (novo), `FinanceRecordModal/index.js`, `FinanceRecordList/
+index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/index.js`, `frontend/src/layout/
+MainListItems.js`, `frontend/src/translate/languages/pt.js`.
+
+## 135. Asaas (Fase 2) + permissão de plano pro módulo de Pagamento (v2.3.154)
+
+Dois pedidos do cliente na sequência, logo depois da Fase 1 (Mercado
+Pago, seção 134) subir:
+
+**1) Asaas como segundo gateway** — ele confirmou que já tem conta tanto
+no Mercado Pago quanto no Asaas, e quer os dois disponíveis. Implementado
+com a mesma estrutura da Fase 1, reaproveitando os campos genéricos já
+criados em `FinanceReceivable` (`paymentProvider`, `paymentExternalId`,
+`pixQrCode`/`pixQrCodeBase64`, `boletoUrl`, `paymentStatus` — nenhum
+campo novo precisou ser criado nessa tabela). `FinancePaymentConfig`
+ganhou um campo `provider` (`"mercadopago"`/`"asaas"`, mesmo padrão de
+`FiscalConfig.gatewayProvider`) que decide qual gateway gera a PRÓXIMA
+cobrança — trocar não afeta cobranças já geradas (cada uma guarda o
+provider usado na hora, tanto pra exibir o resultado quanto pro webhook
+de cada gateway só processar o que é dele).
+
+Diferença importante do Asaas em relação ao Mercado Pago: ele exige um
+**cadastro de cliente no próprio sistema deles** antes de gerar qualquer
+cobrança (não dá pra mandar os dados do pagador direto no payload do
+pagamento, como no Mercado Pago). `AsaasGatewayService.ensureAsaasCustomer`
+busca por CPF/CNPJ antes de criar, pra não duplicar cliente no Asaas a
+cada cobrança gerada pro mesmo `FinanceCustomer` local. O QR Code do Pix
+também vem de uma chamada separada (`GET /payments/{id}/pixQrCode`), não
+na criação do pagamento. Webhook do Asaas não usa HMAC como o Mercado
+Pago — valida por um token fixo (`asaasWebhookToken`) reenviado no header
+`asaas-access-token`, configurado igual nos dois lados (painel deles +
+Configuração de Pagamento aqui); mesmo princípio de segurança do Mercado
+Pago continua valendo: `handleAsaasWebhook` NUNCA confia no
+`payment.status` do corpo da notificação, sempre rebusca na API deles
+antes de marcar como recebido.
+
+⚠️ Mesma ressalva da Fase 1: implementado a partir da documentação
+pública do Asaas, nunca testado ponta a ponta contra uma chave de teste
+real (mesma limitação de rede deste ambiente de desenvolvimento).
+
+**2) Permissão de plano pro módulo de Pagamento** — cliente explicou o
+modelo de negócio completo: o sistema básico é só multiatendimento por
+WhatsApp (Baileys); todo o resto (Assistente IA, módulo API, Financeiro
+básico, Financeiro com cobrança/split de pagamento, RH, Flowbuilder,
+Chat Interno, Campanhas, módulo Fiscal...) é add-on que o Master libera
+por contrato, conforme o cliente paga por mais. A maioria desses módulos
+já seguia esse padrão (`Plan.useFinancial`, `useFiscal`, `useHR`,
+`useOpenAi`, `useCampaigns`, `useInternalChat` — Master habilita por
+plano, confirmado nesta mesma investigação que já estavam cobertos); só
+faltava o módulo de Pagamento que acabou de ser construído (Fases 1/2
+acima) ainda não ter o próprio flag — ficaria liberado pra qualquer
+empresa com Financeiro ativo, sem o Master poder vender separado.
+
+**Fix, mesmo padrão exato de `useFiscal`/`EnsureFiscalAccess`**:
+`Plan.usePayment` (migration `20261019080000-add-usepayment-flag-to-
+plans.ts`, default `false`) + `EnsurePaymentAccess.ts` (SEMPRE exige
+`useFinancial` também ativo, já que a cobrança nasce de uma Conta a
+Receber) + `FinancePaymentAccessController`/rota `GET /finance/payment-
+access` (mesmo formato `{ planHasModule, hasAccess }` que o Financeiro/
+Fiscal já usam) + gate aplicado em `FinancePaymentConfigController`
+(trocado de `EnsureFinancialAccess` pra `EnsurePaymentAccess`) e nas duas
+ações novas de `FinanceReceivableController` (`generatePix`/
+`generateBoleto`, que agora checam os dois: acesso ao Financeiro E ao
+Pagamento). Frontend: `Financeiro/index.js` busca `paymentAccess` junto
+com `fiscalAccess` (mesmo efeito, mesma hora), deriva `showPaymentTab`, e
+usa isso pra (a) mostrar uma tela de "não disponível" na aba Configuração
+de Pagamento, igual já acontecia com Fiscal, e (b) só passar
+`enablePayments` pro `FinanceRecordList` de Contas a Receber quando
+`showPaymentTab` for verdadeiro (escondendo os botões "Gerar Pix"/"Gerar
+boleto" de quem não tem o add-on). `PlansManager.js` (tela do Master pra
+editar planos) ganhou o toggle "Pagamento — Pix/boleto (add-on)" nas duas
+listas que já existiam (resumo em chips + formulário), mesmo padrão
+declarativo dos outros add-ons — sem precisar duplicar JSX.
+
+**Pendente, fora do escopo desse pedido**: o cliente também pediu pra
+conferir Flowbuilder, Chat Interno, Campanha e módulo Fiscal — Chat
+Interno/Campanha/Fiscal já tinham permissão de plano (confirmado acima);
+só o **Flowbuilder não tem trava nenhuma hoje** (menu aparece pra
+qualquer empresa). Cliente pediu explicitamente pra não mexer em nada
+que seja "obrigatório" pro sistema rodar (ex.: se uma automação de fluxo
+já configurada depender do motor de execução do Flowbuilder rodando por
+baixo, gatear o módulo não pode quebrar isso) — investigação de como o
+Flowbuilder se encaixa no fluxo de mensagem (execução de fluxo já ativo
+vs. só a tela de criar/editar) em andamento antes de implementar, pra
+não arriscar derrubar automação de um cliente já em produção.
+
+**Arquivos**: `backend/src/database/migrations/20261019070000-add-asaas-
+fields-to-finance-payment-configs.ts`, `20261019080000-add-usepayment-
+flag-to-plans.ts`, `backend/src/models/FinancePaymentConfig.ts`,
+`Plan.ts`, `backend/src/services/FinanceService/AsaasGatewayService.ts`
+(novo), `FinancePaymentConfigService.ts`, `FinanceReceivablePaymentService.ts`,
+`EnsurePaymentAccess.ts` (novo), `backend/src/controllers/
+FinancePaymentAccessController.ts` (novo), `FinancePaymentConfigController.ts`,
+`FinanceReceivableController.ts`, `PaymentWebhookController.ts`,
+`backend/src/routes/financeRoutes.ts`, `webHookRoutes.ts`,
+`backend/src/services/PlanService/CreatePlanService.ts`,
+`UpdatePlanService.ts`, `frontend/src/components/FinancePaymentConfigPanel/
+index.js`, `PlansManager/index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/index.js`, `frontend/src/translate/
+languages/pt.js`. `npx tsc --noEmit` limpo; as duas migrations novas
+testadas contra um Postgres local descartável; lint e `craco build` do
+frontend limpos.
+
+## 136. Configuração de Pagamento: Mercado Pago e Asaas lado a lado (v2.3.155)
+
+Ajuste de layout pedido pelo cliente depois de ver a tela no ar: "deixa
+os dois painéis um do lado do outro e centraliza as palavras nos campos
+para não ficar descentralizadas". Antes, Mercado Pago e Asaas ficavam
+cada um ocupando a largura toda da tela, um embaixo do outro (cada
+seção com seus próprios cartões Homologação/Produção lado a lado dentro
+dela) — virava uma tela bem comprida de rolar.
+
+**Fix**: `FinancePaymentConfigPanel.js` reestruturado em duas colunas
+(`Grid item md={6}` cada) — Mercado Pago à esquerda, Asaas à direita,
+cada coluna com os próprios cartões Homologação/Produção empilhados
+dentro dela (`maxWidth` do painel aumentado de 900 pra 1200px, senão as
+duas colunas ficavam espremidas). Texto digitado nos campos de
+credencial e nas URLs de webhook (somente leitura) agora centralizado
+(`inputProps: { style: { textAlign: "center" } }`, via um objeto
+`centeredFieldProps` reaproveitado em cada campo pra não repetir) — só o
+VALOR digitado, os rótulos (`label`) continuam no lugar padrão do
+Material-UI (flutuando saindo da borda), que é como o próprio componente
+espera.
+
+**Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
+Lint e `craco build` limpos.
+
+Segunda rodada do mesmo pedido (v2.3.156): o parágrafo de introdução no
+topo da tela ainda citava "Credenciais do Mercado Pago e do Asaas..."
+junto — cliente pediu pra separar também esse texto, não só o layout
+visual dos cartões. Cada coluna ganhou a própria frase curta de contexto
+("Credenciais do Mercado Pago — gera Pix/boleto por esse gateway" / "...
+do Asaas..."), e o texto do topo ficou só com a explicação geral que
+aplica à tela inteira (Pagamento é contrato separado da Configuração
+Fiscal). Cliente também avisou a intenção de escala pra quando entrar um
+terceiro/quarto gateway: "dá pra ficar 4 painéis em uma tela" — registrado
+na skill `atendeflow-dev` como padrão a seguir sem perguntar de novo
+(ajustar a largura da coluna só quando o próximo gateway entrar, não
+adiantar breakpoint fixo agora com só 2 provedores).
+
+Terceira rodada do mesmo pedido (v2.3.157): "coloque a logomarca de cada
+um no painel". O cliente colou as duas imagens (logo oficial do Asaas e
+do Mercado Pago) direto na conversa — mas este ambiente de
+desenvolvimento **não tem como acessar esses arquivos**: tentei localizar
+em todo o sistema de arquivos (`/root/.claude/uploads/...`, diretório de
+scratchpad de imagens, busca por arquivo modificado nas últimas 2 horas
+em qualquer lugar do disco) e nenhum dos dois apareceu — imagem colada
+direto na mensagem fica só como conteúdo multimodal da conversa, não vira
+arquivo em disco que o código consiga ler/copiar (diferente de upload de
+planilha/PDF via Lista de Arquivos do AtendeFlow, que grava de verdade em
+`/root/.claude/uploads/...` e já foi usado várias vezes nesta sessão).
+Sem rede liberada pros domínios oficiais (mercadopago.com.br, asaas.com)
+pra baixar os logos direto de lá também (mesma restrição já documentada
+nas seções anteriores).
+
+**Solução aplicada**: em vez do logo oficial (ícone + tipografia exatos),
+um selo (`Box` com `className` dinâmico, `brandBadgeMercadoPago`/
+`brandBadgeAsaas`) com o nome do gateway nas cores reais da marca — vistas
+diretamente nas imagens que o cliente mandou (confirmado visualmente,
+mesmo sem conseguir salvar o arquivo): Mercado Pago usa azul claro
+`#009ee3` + azul petróleo escuro `#2d3277` pro texto "mercado"/"pago" (o
+mesmo efeito bicolor do logo real, sem o ícone do aperto de mãos — esse
+não foi reproduzido à mão por risco de sair impreciso); Asaas usa fundo
+azul vívido `#0b2eff` sólido com o texto "ASAAS" em branco. Substitui o
+título simples em texto (`Typography variant="h6"`) que existia antes —
+`gatewayTitle` (classe CSS) virou código morto e foi removido.
+
+Fica pendente, caso o cliente consiga mandar os arquivos de verdade por
+upload (não colado direto na conversa) num momento futuro: trocar o selo
+de texto pelos `<img>` com os logos oficiais.
+
+**Arquivos**: `frontend/src/components/FinancePaymentConfigPanel/index.js`.
+Lint e `craco build` limpos.
+
+## 137. Mercado Pago e Asaas 100% independentes — sem seletor único de "gateway ativo" (v2.3.158)
+
+Continuação direta da seção 136: depois de separar layout e texto de
+cada painel, o cliente reparou que o campo que ainda faltava separar era
+o mais importante — "Ativo" e "Produção" continuavam sendo um campo só
+(`provider`/`productionEnabled`) valendo pros dois gateways, então os
+painéis pareciam separados visualmente mas por baixo ainda eram uma
+coisa só com um seletor "qual dos dois está ligado agora". O pedido
+evoluiu em várias mensagens curtas e às vezes contraditórias à primeira
+leitura — registrado aqui pra não se perder, já que isso é raciocínio
+que vale reaproveitar se um terceiro gateway entrar:
+
+1. Primeira tentativa (errada): interpretei "essa campo gateway ativo
+   deixa um para cada" como "cada painel vira um botão de rádio
+   mutuamente exclusivo" (marcar um desmarca o outro, só mudando onde o
+   controle mora visualmente). O cliente corrigiu na mensagem seguinte:
+   **"não deixa um so, deixa a opcao de colocar os dois colocando um
+   para cada... não precisa essa caixa"** — ou seja, nada de
+   exclusividade, cada painel com o próprio liga/desliga independente, e
+   a "caixa" de escolher-um deixa de existir.
+2. Perguntei (`AskUserQuestion`) se os dois ficariam configurados e
+   disponíveis ao mesmo tempo, com a escolha de qual usar acontecendo na
+   hora de gerar a cobrança — confirmado: **"no painel mercado pago
+   coloca um botaão ativa desativa o mesmo para o asaas, fica mais facil
+   para trabalhar o oprador desativa e ativa quando quiser e o painel
+   fica exclusivo para cada banco"**, reforçado depois com "essa opcao
+   de escolher não vai existir pois vai ser exclusiva para cada painel".
+3. Com o `provider`/liga-desliga já corrigido, o cliente reparou que o
+   campo "Expiração do Pix" (que já tinha o próprio rótulo dizendo "só
+   Mercado Pago") continuava solto no topo da tela, fora de qualquer
+   painel — **"por isso que vc não separou as duas caixas... tem que
+   duplicar para cada painel"** (nesse caso "duplicar" quer dizer mover
+   pra dentro do painel que o usa, não copiar o campo pros dois — só o
+   Mercado Pago precisa dele).
+4. Por fim, **"e separa eles como um todo"** — o botão "Produção", que
+   também era um campo só compartilhado pelos dois painéis, teve que
+   virar dois campos independentes também, fechando a separação completa
+   (os dois painéis não compartilham mais nenhum campo, só o
+   título/texto geral da página).
+
+**Fix — modelo/banco**: `FinancePaymentConfig` ganhou
+`mercadoPagoEnabled`/`asaasEnabled` (migration `20261019100000-add-per-
+gateway-enabled-to-finance-payment-configs.ts`) e
+`mercadoPagoProductionEnabled`/`asaasProductionEnabled` (migration
+`20261019110000-add-per-gateway-production-to-finance-payment-
+configs.ts`), ambas com `UPDATE` de backfill a partir das colunas
+antigas (`provider`/`productionEnabled`, que ficam na tabela sem uso
+novo — mesmo padrão de coluna descontinuada já usado no projeto, ex.
+`FiscalConfig.gatewayToken`). Testadas contra um Postgres local
+descartável antes de subir — e essa validação pegou um bug real: o
+backfill de `asaasEnabled` usava `provider = 'asaas'`, que em SQL
+avalia pra `NULL` (não `false`) quando `provider` já estiver `NULL` em
+alguma linha, violando a constraint `NOT NULL` da coluna nova. Corrigido
+pra `COALESCE(provider, '') = 'asaas'` antes de subir.
+
+**Fix — como o backend decide qual gateway usar**: `resolveProvider()`,
+dentro de `FinanceReceivablePaymentService.ts`, substitui o antigo
+`if (config.provider === "asaas")`. Regra: se o frontend mandou um
+`requestedProvider` explícito (usuário escolheu no seletor), usa esse,
+desde que esse gateway esteja ligado (senão `ERR_FINANCE_PAYMENT_
+GATEWAY_NOT_CONFIGURED`); sem escolha explícita, resolve sozinho só
+quando exatamente UM gateway está ligado; com os dois ligados e sem
+escolha, lança o erro novo `ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED` (o
+backend se recusa a adivinhar entre dois gateways ativos). `isProduction
+Active` de `FinancePaymentConfigService.ts` virou duas funções
+(`isMercadoPagoProductionActive`/`isAsaasProductionActive`), e
+`MercadoPagoGatewayService.buildClient`/`AsaasGatewayService.buildClient`
+passaram a chamar a função do próprio gateway em vez da única
+compartilhada.
+
+**Fix — frontend**: `FinancePaymentConfigPanel.js` — removido o
+`<Select>` compartilhado de `provider` e o parágrafo de texto que
+explicava a exclusividade (não existe mais); cada painel ganhou o
+próprio `Switch` "Ativo" (`mercadoPagoEnabled`/`asaasEnabled`) e o
+próprio `Switch` "Produção" (`mercadoPagoProductionEnabled`/
+`asaasProductionEnabled`); o campo "Expiração do Pix" saiu do topo
+compartilhado e foi pra dentro do painel do Mercado Pago, no próprio
+cartão de Homologação/Produção. `FinanceRecordModal.js` (botões "Gerar
+Pix"/"Gerar boleto" em Contas a Receber) passou a buscar
+`finance.paymentConfig.show()` quando abre com `enablePayments`, pra
+saber se os dois gateways estão ligados; se sim, mostra um `<TextField
+select>` "Gateway" (Mercado Pago/Asaas) ao lado dos botões antes de
+gerar a cobrança — com só um ligado, manda sem perguntar e o backend
+resolve sozinho. `useFinance.receivables.generatePix/generateBoleto`
+agora aceitam um segundo parâmetro `provider`, enviado no corpo do
+POST. Nova entrada em `pt.js` pro erro
+`ERR_FINANCE_PAYMENT_PROVIDER_REQUIRED`.
+
+**Arquivos**: `backend/src/models/FinancePaymentConfig.ts`,
+`backend/src/database/migrations/20261019100000-...ts`,
+`20261019110000-...ts`, `backend/src/services/FinanceService/
+FinancePaymentConfigService.ts`, `FinanceReceivablePaymentService.ts`,
+`MercadoPagoGatewayService.ts`, `AsaasGatewayService.ts`,
+`backend/src/controllers/FinanceReceivableController.ts`,
+`frontend/src/components/FinancePaymentConfigPanel/index.js`,
+`FinanceRecordModal/index.js`, `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/translate/languages/pt.js`. `npx tsc --noEmit` (backend)
+limpo; as duas migrations testadas contra um Postgres local descartável
+(pegou e corrigiu o bug do backfill do `asaasEnabled` descrito acima);
+lint e `craco build` do frontend limpos.
+
+## 138. Despachante Bélico — modelagem do banco (Fase 1, v2.3.159)
+
+Cliente pediu um módulo novo pra gerir processo de CAC/Sigma (Exército) e
+Posse/Porte/Sinarm (Polícia Federal) — hoje controlado manualmente numa
+base do Notion ("muito falho", nas palavras dele). Colou um prompt
+genérico (escrito com outra IA) sugerindo Prisma, Python/Playwright e
+microsserviços separados — stack diferente de tudo que já existe no
+AtendeFlow (Sequelize/TypeScript/React, multiempresa, Baileys). Antes de
+desenhar qualquer tabela, segui a regra do `CLAUDE.md` (pedido ambíguo →
+perguntar antes de codar) e investiguei a base real do cliente no Notion
+(conector Notion desta sessão, bases "PROCESSOS" e "AGENDA AVALIAÇÕES
+PSICO - TIRO") antes de perguntar, pra fazer perguntas informadas em vez
+de genéricas.
+
+**O que a investigação no Notion mudou do pedido original**:
+- `Tipo de processo` lá é **multi-seleção**, com quase 20 valores (CR,
+  PDC, CRAF, GT, RENOVAÇÃO DO CR, RENOVAÇÃO DE CRAF, TRANSFERENCIA,
+  MUDANÇA END, REENVIO DE CR, REVALIDAÇÃO DE AUTORIZAÇÃO, PF - POSSE...)
+  — ou seja, um mesmo cliente passa por VÁRIOS processos ao longo do
+  tempo (CR novo → Autorização de Compra → GT → anos depois, Renovação),
+  não só "CAC xor Posse/Porte" como o prompt genérico sugeria.
+- `STATUS` lá mistura **etapa da esteira** (`INICIAR`, `Pronto pra
+  envio`, `ENVIADO`, `EM ANÁLISE`, `FINALIZADO`) com **tags que não são
+  etapa** (`URGENTE`, `PROVA DE TIRO`) — parte do "muito falho".
+- Existe uma base de agendamento separada (psico/tiro) **sem vínculo
+  estruturado** com o cliente — casava só por nome digitado.
+- Tem um campo **`SENHA GOV`, com a senha do gov.br do cliente em texto
+  puro** — risco real de LGPD + credencial de portal do governo, usado
+  (presumivelmente) pra consultar/agir em nome do cliente nos portais
+  oficiais.
+
+Perguntei 3 coisas com `AskUserQuestion` antes de desenhar (pedido
+permitia mais de um caminho razoável em cada uma, regra do
+`CLAUDE.md`/skill seção 0):
+1. **Arquitetura** — integrar ao AtendeFlow (recomendado) ou
+   microsserviço(s) separado(s) como o prompt genérico sugeria. Cliente
+   escolheu **integrar ao AtendeFlow**.
+2. **Cliente x Processo** — 1 Cliente → N Processos (histórico completo)
+   ou 1 processo ativo por cliente. Cliente escolheu **1 → N, histórico
+   completo** (bate com o uso real do Notion).
+3. **Senha do gov.br** — parar de guardar, guardar criptografada com log
+   de acesso, ou "não sei". Cliente escolheu **guardar criptografada,
+   com log de acesso**.
+
+**Esta etapa entrega só a Fase 1 do pedido original (modelagem do
+banco)** — rotas HTTP, a tela de esteira (Kanban) e o robô de consulta de
+protocolo (Fases 2/3/4/5 do pedido original) ficam pra próximas etapas,
+depois que o cliente validar esse desenho.
+
+**Modelo de dados** (todos os novos, prefixo `WeaponDispatch`, migrations
+`20261019120000` a `20261019170000`):
+- `Plan.useWeaponDispatch` — add-on separado, mesmo padrão de
+  `useFiscal`/`usePayment`/`useFlowbuilder`.
+- `WeaponDispatchClient` — cliente do despachante (não é o mesmo cadastro
+  de `FinanceCustomer`, que é do módulo Financeiro/venda — este aqui é
+  quem está TRAMITANDO um processo, pode nem ter comprado nada ainda).
+  Vínculo opcional com `Contact` (mesmo padrão de
+  `FinanceCustomer.contactId`). CPF único por empresa, mas só quando
+  preenchido (índice único parcial, mesmo padrão de
+  `FinanceProduct.serialNumber`).
+- `WeaponDispatchProcess` — 1 card da esteira. `type` (o que o cliente
+  pediu — CR, GT, renovação...) é diferente de `track` (“cac” ou
+  “civil” — decide qual conjunto de `stage` é válido) e de `stage` (em
+  que ponto da esteira está agora). Essa separação resolve a mistura
+  etapa-vs-tag que o Notion tinha: `stage` só pode ser um dos valores do
+  catálogo (`WeaponDispatchStageCatalog.ts`), tags como "URGENTE" viram
+  `priority`/`observations`, não um valor de `stage`.
+- `WeaponDispatchStatusHistory` — auditoria de toda troca de `stage`
+  (igual já é feito noutros módulos, ex. padrão de
+  `FiscalDocument.environment`/histórico): `previousStage`, `newStage`,
+  `changedByUserId` (nulo = automação/robô), e já com os campos
+  `notificationSent`/`notificationChannel` prontos pra quando a Fase de
+  notificação (WhatsApp/e-mail) for implementada — sem precisar de
+  migration nova depois.
+- `WeaponDispatchAppointment` — agendamento de psicoteste/laudo de tiro,
+  sempre vinculado a um `WeaponDispatchProcess` de verdade (FK) — corrige
+  a falta de vínculo estruturado que a base solta do Notion tinha.
+- `WeaponDispatchGovPasswordAccessLog` — uma linha por LEITURA da senha
+  decifrada (quem, quando, por quê). Nunca grava a senha aqui (nem
+  cifrada), só o registro do acesso.
+
+**Senha do gov.br — como funciona a criptografia**: AES-256-GCM
+(`backend/src/utils/weaponDispatchCrypto.ts`), chave vinda de
+`WEAPON_DISPATCH_ENCRYPTION_KEY` (variável de ambiente, 32 bytes em
+base64, nunca no código/git — gerar com `openssl rand -base64 32`).
+Formato armazenado: `"<iv>:<authTag>:<ciphertext>"`, tudo em base64.
+`WeaponDispatchClientService.ts` é o ÚNICO ponto de entrada permitido:
+- `setGovPassword` grava sempre cifrado — nunca uma escrita direta no
+  model.
+- `getGovPassword` grava uma linha em
+  `WeaponDispatchGovPasswordAccessLog` ANTES de devolver o valor
+  decifrado, nunca depois — queremos registrar a TENTATIVA de acesso,
+  mesmo que o decrypt falhe por chave trocada/corrompida.
+- Qualquer `list`/`show` genérico de cliente exclui
+  `govBrPasswordEncrypted` dos atributos retornados
+  (`attributes: { exclude: [...] }`) — o campo cifrado nem aparece numa
+  listagem comum, só é lido através do fluxo de auditoria acima.
+
+**Transição de etapa**: `WeaponDispatchProcessService.changeStage` é o
+único jeito permitido de mudar `stage` (o `update` genérico bloqueia
+`type`/`track`/`stage` de propósito) — valida que a nova etapa pertence
+à trilha (`track`) do processo (`isValidStage`, catálogo fixo) antes de
+aplicar, e grava a troca em `WeaponDispatchStatusHistory` na mesma
+chamada. `changedByUserId` nulo identifica uma troca automática (robô de
+consulta de protocolo, ainda não implementado).
+
+**Bug pego pelo smoke test, não só pelo `tsc`**: os dois models de
+auditoria (`WeaponDispatchStatusHistory`,
+`WeaponDispatchGovPasswordAccessLog`) foram desenhados sem `updatedAt`
+(são tabelas de log, imutáveis por natureza) — mas o `@Table` do
+sequelize-typescript assume `timestamps: true` (cria+atualiza) por
+padrão mesmo sem o decorator `@UpdatedAt` declarado no model, e tentava
+inserir na coluna `updatedAt` que a migration não tinha criado
+(`column "updatedAt" of relation ... does not exist`). `tsc --noEmit`
+não pega esse tipo de erro (é um erro de runtime do Sequelize, não de
+tipo) — só apareceu rodando um teste de ponta a ponta de verdade contra
+Postgres. Fix: em vez de introduzir uma exceção nova no projeto
+(`@Table({ updatedAt: false })`, sem nenhum precedente no código já
+existente), segui o padrão já estabelecido — toda tabela tem
+`createdAt`+`updatedAt` — e adicionei a coluna que faltava nos dois
+models/migrations.
+
+**Validação**: `npx tsc --noEmit` limpo; as 6 migrations novas
+(`20261019120000` a `20261019170000`) testadas rodando a cadeia REAL
+completa de todas as migrations do projeto (não só as novas) contra um
+Postgres local descartável, via `sequelize-cli db:migrate` de verdade
+(não só SQL copiado à mão) — útil justamente porque pegou o bug do
+`updatedAt` acima; um script de ponta a ponta (criar cliente, salvar/ler
+senha com criptografia, criar processo, mover de etapa, confirmar
+rejeição de etapa inválida pra trilha errada, confirmar linhas de
+histórico/auditoria gravadas) confirmou o fluxo completo antes de
+remover o banco descartável.
+
+**Arquivos**: `backend/src/models/Plan.ts`,
+`WeaponDispatchClient.ts` (novo), `WeaponDispatchProcess.ts` (novo),
+`WeaponDispatchStatusHistory.ts` (novo), `WeaponDispatchAppointment.ts`
+(novo), `WeaponDispatchGovPasswordAccessLog.ts` (novo),
+`backend/src/database/migrations/20261019120000-...ts` a
+`20261019170000-...ts` (6 novas), `backend/src/database/index.ts`,
+`backend/src/utils/weaponDispatchCrypto.ts` (novo),
+`backend/src/services/WeaponDispatchService/WeaponDispatchStageCatalog.ts`,
+`WeaponDispatchClientService.ts`, `WeaponDispatchProcessService.ts`,
+`WeaponDispatchAppointmentService.ts` (todos novos),
+`backend/src/services/PlanService/CreatePlanService.ts`,
+`UpdatePlanService.ts`.
+
+**Pendente pra próximas etapas** (fora do escopo desta entrega):
+controllers/rotas HTTP; tela de esteira estilo Kanban no frontend
+(incluindo o toggle do add-on em `PlansManager.js`/sidebar, mesmo padrão
+dos outros módulos); robô de consulta de protocolo (Fase de automação —
+precisa decidir ainda COMO ele autentica no portal oficial usando a
+senha do cliente, dado que isso envolve logar num serviço do governo em
+nome de outra pessoa — prática normal de despachante com autorização do
+cliente, mas o desenho técnico exato ainda não foi discutido); disparo
+de notificação WhatsApp/e-mail na troca de etapa (os campos já existem
+em `WeaponDispatchStatusHistory`, só a lógica de envio que falta).
+
+## 139. Cobrança já paga na criação não confirmava sozinha + WhatsApp no Cliente (v2.3.160)
+
+Cliente testou gerar Pix de verdade pelo Asaas (sandbox) pra validar a Fase
+1/2 (seções 134/135) — o QR Code saiu certo, mas o `Status` da Conta a
+Receber continuou "Pendente" mesmo o painel mostrando
+`Status no gateway: RECEIVED`. Investigando: o sandbox do Asaas liquidou a
+cobrança de teste na hora da criação (comportamento real observado, não
+documentado explicitamente pela Asaas) — `applyChargeResult`
+(`FinanceReceivablePaymentService.ts`) grava o `paymentStatus` vindo da
+resposta de criação, mas só `handleMercadoPagoWebhook`/`handleAsaasWebhook`
+tinham a lógica de "se status é pago, marca `status: received`". Pra uma
+cobrança real (paga depois, por um cliente de verdade), isso nunca seria um
+problema — mas qualquer gateway que confirme na própria criação (sandbox de
+teste, ou futuramente um Pix que liquida instantâneo) ficava preso em
+"Pendente" pra sempre, porque nenhum webhook novo chegaria pra corrigir o
+que já tinha acontecido na criação.
+
+**Fix**: extraído `isProviderPaidStatus(provider, status)` — único critério
+de "isso é um status pago?" por gateway (Mercado Pago: `"approved"`; Asaas:
+`AsaasGatewayService.isPaidStatus`), reaproveitado nos TRÊS pontos que
+precisam dessa decisão (criação da cobrança E os dois webhooks), em vez de
+cada um ter a própria cópia da regra (como estava antes, com risco de
+divergir com o tempo).
+
+Na mesma rodada, cliente pediu (junto com uma ideia maior de campanha de
+cobrança pra clube de tiro — membro "Filiado Inadimplente" recebe lembrete
+de renovação em massa por WhatsApp, fica registrado como ideia de roadmap,
+não implementado ainda) um campo de **WhatsApp separado do Telefone** no
+cadastro de Cliente — o Telefone já existia, mas não necessariamente é o
+número usado pra campanha/notificação automática. `FinanceCustomer` ganhou
+`whatsapp` (migration `20261019180000-add-whatsapp-to-finance-customers.ts`,
+mesmo padrão `ADD COLUMN IF NOT EXISTS`), exposto em
+`financeCustomerFields`/`financeCustomerColumns`.
+
+Também esclarecido pro cliente (sem mudança de código, já existia):
+"Filiação" é um Serviço, não um Produto — `PRODUCT_TYPE_OPTIONS` já tem a
+opção `service`, e o menu lateral já tem o atalho "🔧 Serviços"
+(`Financeiro → Produtos → Serviços`, filtro `type=service`), no mesmo
+padrão das outras categorias (Armas/Munições/Acessórios/Caça & Pesca).
+
+**Pendente** (fora do escopo desta entrega, ideia só registrada): campanha
+de cobrança recorrente — visão tipo Kanban "Filiados Inadimplentes" que
+puxa WhatsApp/e-mail de todos de uma vez e dispara uma mensagem padrão
+(ex. "renovação de filiação", mesmo valor pra todos). Depende de um motor
+de recorrência que ainda não existe no Financeiro (contas a receber hoje
+são sempre lançadas uma a uma) — avaliar junto com o que já existe em
+Campanhas (`CampaignShipping`/disparo em massa) antes de desenhar algo
+novo, pra não duplicar a lógica de fila/disparo que já existe.
+
+**Arquivos**: `backend/src/services/FinanceService/
+FinanceReceivablePaymentService.ts`, `backend/src/models/FinanceCustomer.ts`,
+`backend/src/services/FinanceService/FinanceCustomerService.ts`,
+`backend/src/database/migrations/20261019180000-add-whatsapp-to-finance-
+customers.ts`, `frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc
+--noEmit` limpo; a migration nova testada contra um Postgres local
+descartável (cadeia completa); lint e `craco build` do frontend limpos.
+
+## 140. Catálogo oficial de serviços do Despachante Bélico + trilha Militar/Policial + painel de Serviço mais limpo (v2.3.161)
+
+Cliente mandou o catálogo oficial completo de serviços cobráveis por um
+analista de processo dentro do clube de tiro — bem mais detalhado e
+correto que o que eu tinha colocado em `WeaponDispatchStageCatalog.ts`
+(seção 138), que foi um chute baseado só no pedido original genérico.
+Cobre três públicos: CAC (Exército/SisGCorp), Posse/Porte (Polícia
+Federal/Sinarm) e — categoria nova que o catálogo do sistema ainda não
+tinha — Policial Militar/Militar das Forças Armadas (gerencia arma via
+SIGMA/SisGCorp, mesmo sistema do CAC, mas é cliente institucional, não
+atirador esportivo).
+
+**Perguntei antes de mexer** (duas decisões que só o cliente podia tomar):
+1. Policial/Militar vira trilha própria (3ª esteira) ou entra dentro da
+   trilha CAC já existente? Cliente escolheu **trilha própria**.
+2. Os ~37 serviços da lista vão ser cadastrados já como item cobrável em
+   Financeiro → Produtos (Tipo = Serviço), ou isso é só pro catálogo
+   interno do Despachante Bélico por enquanto? Cliente escolheu **cadastrar
+   já, com preço R$ 0** pra ele preencher depois.
+
+**Fix — `WeaponDispatchStageCatalog.ts` reescrito**:
+`WeaponDispatchTrack` ganhou o terceiro valor `"military"`, com a própria
+lista de etapas (`MILITARY_STAGES` — igual ao CAC, mas SEM "Agendamentos
+pendentes (Psico/Tiro)", porque processo institucional não tem o
+checklist de atirador esportivo de filiação a clube/laudo). Os três
+`crIssued`/`approved` das trilhas foram unificados pro mesmo nome de
+chave (`approved`) nas três trilhas — só o `label` muda por trilha —
+porque não havia motivo pra manter nomes de chave diferentes pra
+conceito idêntico ("foi aprovado"). `WEAPON_DISPATCH_PROCESS_TYPES`
+reescrito do zero com os 37 tipos reais, cada `key` com prefixo da
+trilha (`CAC_`/`CIVIL_`/`MIL_`) porque vários nomes se repetem entre
+trilhas (ex. "Renovação de CRAF" existe nas três) e colidiriam sem o
+prefixo.
+
+**Fix — painel de Serviço "tem que ser diferente do de Produto"**:
+pedido seguinte do cliente, ao ver que cadastrar um serviço (ex.
+"Filiação", ou qualquer um dos 37 novos) ainda mostrava campo de arma
+(calibre, SIGMA...) — na real, esses JÁ eram escondidos via `visibleWhen`
+pra Tipo = Serviço (`isWeapon`/`isAmmunition`/`isWeaponOrAmmunition`),
+mas faltavam dois campos que só fazem sentido pra mercadoria física:
+"NCM" (classificação fiscal de BEM, não existe NCM de serviço — isso é
+NBS, fora de escopo aqui) e "Controlar estoque" (serviço não tem unidade
+física guardada). Perguntei o escopo exato antes de mexer (`AskUserQuestion`):
+cliente confirmou que quer só o formulário/lista mais limpos — continua
+sendo o mesmo cadastro de Produto (Tipo=Serviço), NÃO uma entidade nova
+no banco — então o fix foi só mais um `visibleWhen: isNotService` nesses
+dois campos, mesmo padrão já usado nos campos de arma.
+
+**Planilha de importação**: gerada com os 37 serviços (Nome prefixado
+por categoria — "CAC - ...", "Civil - ...", "Militar - ..." — pra não
+colidir nome repetido entre trilhas, igual aos `key` do catálogo),
+`Tipo = Serviço`, `Preço Venda = 0`. Testada contra o parser real de
+importação (`FinanceImportService.ts`, mesma normalização de cabeçalho)
+antes de entregar — todas as 37 linhas reconhecidas certo. Entregue
+direto pro cliente (não fica commitada no repo — é dado de um cliente
+específico, não parte do código genérico do produto), pra importar via
+Financeiro → Produtos → Importar planilha.
+
+**Arquivos**: `backend/src/services/WeaponDispatchService/
+WeaponDispatchStageCatalog.ts`, `WeaponDispatchProcessService.ts`
+(comentário só),
+`frontend/src/pages/Financeiro/financeConfig.js`. `npx tsc --noEmit`
+limpo; catálogo novo testado de ponta a ponta num smoke test contra
+Postgres descartável (processo CAC e processo Militar criados, troca de
+etapa validada contra a trilha certa); lint e `craco build` do frontend
+limpos.
+
+## 141. Despachante Bélico — rotas HTTP e permissão por plano (Fase 2A, v2.3.162)
+
+Usuário confirmou ("vamos") seguir pra próxima etapa depois da modelagem
+do banco (seção 138) e do catálogo oficial (seção 140): destravar o
+módulo com rotas HTTP de verdade e permissão por plano, mesmo padrão já
+usado em RH/Painel Vigia (`EnsureHRAccess`/`EnsureSupervisorPanelAccess`)
+— **independente do Financeiro** (não exige `Plan.useFinancial` ativo,
+diferente de Fiscal/Pagamento, que dependem do Financeiro por usar os
+cadastros de cliente/produto dele).
+
+**Permissão**: `User.weaponDispatchAccess` (migration
+`20261019190000-add-weapondispatchaccess-to-users.ts`) + `EnsureWeapon
+DispatchAccess.ts` — Master tem acesso total; dentro de uma empresa com
+o add-on (`Plan.useWeaponDispatch`) ativo, Admin sempre tem acesso, um
+usuário comum só se o Admin liberou. `WeaponDispatchAccessController`
+expõe `GET /weapon-dispatch/access` (`{planHasModule, hasAccess}`, mesmo
+formato de Financeiro/Fiscal/Pagamento/RH) — é esse endpoint que o
+frontend vai usar pra decidir se mostra o módulo (tela ainda não
+construída, ver "Pendente" abaixo).
+
+**Rotas** (`weaponDispatchRoutes.ts`, todas atrás de `isAuth` + o
+`ensureAccess` de cada controller):
+- `/weapon-dispatch/catalog` — devolve o catálogo fixo (trilhas/etapas/
+  tipos de processo, `WeaponDispatchStageCatalog.ts`) pro frontend montar
+  selects e colunas da esteira sem duplicar essa lista em JS.
+- `/weapon-dispatch/clients` (CRUD) — `PUT .../gov-password` grava a
+  senha do gov.br sempre cifrada; `POST .../gov-password/reveal` lê o
+  valor decifrado, SEMPRE com `reason` no corpo (vira linha de auditoria
+  antes de devolver o valor — ver `WeaponDispatchClientService.
+  getGovPassword`, seção 138).
+- `/weapon-dispatch/processes` (CRUD) + `PUT .../stage` (único jeito de
+  mover o card na esteira — `update` genérico bloqueia `stage` de
+  propósito, ver seção 138).
+- `/weapon-dispatch/processes/:processId/appointments` (GET) +
+  `/weapon-dispatch/appointments` (POST/PUT/DELETE).
+
+**`ShowPlanCompanyService.ts` — gotcha já documentado (seção anterior,
+`useFlowbuilder`) evitado de propósito**: esse service tem um `attributes`
+whitelist explícito no include do `Plan` — qualquer flag novo usado pro
+menu lateral (`MainListItems.js`, padrão `planConfigs.plan.useX`) precisa
+estar nessa lista, senão lê sempre `undefined`/`false` mesmo com o valor
+certo no banco. `useWeaponDispatch` já foi adicionado agora, antes de
+precisar dele de verdade.
+
+**Pendente pra próxima etapa (Fase 2B)**: a TELA em si — esteira estilo
+Kanban, formulário de Cliente/Processo/Agendamento. Por isso o menu
+lateral (`MainListItems.js`) e o toggle de `PlansManager.js` (já
+adicionado ao catálogo de features, mas sem link nenhum pra clicar ainda)
+não têm uma página de verdade pra apontar — decisão deliberada de NÃO
+adicionar um item de menu que levaria a uma tela inexistente (link morto)
+só pra "aparecer" mais cedo.
+
+**Validação**: `npx tsc --noEmit` limpo; migration nova testada contra a
+cadeia completa de migrations num Postgres local descartável; smoke test
+de ponta a ponta do `EnsureWeaponDispatchAccess` (5 cenários: plano sem
+o add-on, plano com o add-on + admin, usuário comum sem liberação,
+usuário comum com liberação, Master acessando empresa sem o add-on — os
+5 bateram certo); lint e `craco build` do frontend limpos
+(`PlansManager.js`).
+
+**Arquivos**: `backend/src/models/User.ts`, `backend/src/database/
+migrations/20261019190000-add-weapondispatchaccess-to-users.ts`,
+`backend/src/services/WeaponDispatchService/EnsureWeaponDispatchAccess.ts`
+(novo), `backend/src/controllers/WeaponDispatchAccessController.ts`,
+`WeaponDispatchClientController.ts`, `WeaponDispatchProcessController.ts`,
+`WeaponDispatchAppointmentController.ts` (todos novos),
+`backend/src/routes/weaponDispatchRoutes.ts` (novo), `routes/index.ts`,
+`backend/src/services/CompanyService/ShowPlanCompanyService.ts`,
+`frontend/src/components/PlansManager/index.js`.
+
+## 142. Cadastro de Produto por categoria + distinção Produto/Serviço na Venda (v2.3.163)
+
+Duas observações do cliente testando o módulo de Produtos/Serviços na
+prática, na mesma sessão de testes do Despachante Bélico (ele avisou
+explicitamente: "estou sendo bem minucioso porque esses sistemas vão
+pra outros clientes e não posso me dar o luxo de ficar fazendo suporte
+por coisas simples o dia todo" — padrão de rigor a manter pra qualquer
+ajuste de UI deste módulo daqui pra frente, não só esta entrega).
+
+**1) Typo**: o seletor de Tipo mostrava "Acessório" (singular), enquanto
+o menu lateral já dizia "Acessórios" (plural) — corrigido pra bater.
+
+**2) "Novo(a) Produto" não aproveitava o contexto da categoria**: abrir
+o cadastro a partir de um link específico do menu (ex. "Armas
+nacionais") sempre abria com Tipo="Produto" por padrão, obrigando
+reescolher "Arma" toda vez — repetitivo pra quem está cadastrando vários
+itens da mesma categoria em sequência. `getProductFieldsForCategory`
+(novo, `financeConfig.js`) mapeia o `productTypeParam` da URL (mesmo
+parâmetro que já filtra a lista) pro `defaultValue` certo do campo
+`type` — e também de `origin` ("Procedência"), pro caso específico de
+"Armas nacionais"/"Armas importadas" (`weapon:national`/
+`weapon:imported`, que já cruzava `type`+`origin` antes). O campo
+continua sendo um `<select>` completo com todas as opções — nenhuma
+removida — porque o cliente avisou explicitamente que às vezes vai
+cadastrar a munição de uma arma logo em seguida sem fechar o modal, só
+trocando o Tipo ali mesmo; a troca salva no Tipo escolhido na hora de
+salvar, não no Tipo da categoria onde o modal foi aberto.
+
+**Investigação à parte, motivada pelo relato do cliente** ("troquei o
+Tipo pra Serviço e os campos de arma continuaram aparecendo"): antes de
+mexer em qualquer coisa, escrevi um teste automatizado (React Testing
+Library, descartável — não ficou no repositório) que monta
+`FinanceRecordModal` de verdade, abre com Tipo="Arma", simula o clique
+pra trocar o `<select>` pra "Serviço" e confere se o campo só-de-arma
+(`caliber`) sai do DOM. **O mecanismo já funciona certo** — a primeira
+tentativa do teste deu falso-negativo por um detalhe do próprio teste
+(`getByText` bateu em DUAS ocorrências do mesmo texto de label, porque o
+MUI outlined duplica o texto — uma vez no `<label>` visível, outra
+escondida dentro do `<legend>` da moldura notched — não é bug do
+formulário); trocando a consulta pra `document.querySelector('input
+[name="caliber"]')`, o teste passou limpo. Conclusão: o relato do
+cliente batia com o comportamento da versão JÁ IMPLANTADA (sem o
+default por categoria desta entrega), não com um bug de reatividade do
+`visibleWhen` — o próprio ajuste acima (1) já resolve o cenário descrito
+por completo.
+
+**3) "Nova venda" misturava tudo**: o campo "Produto/serviço" buscava em
+cima de TODOS os tipos (arma, munição, serviço...) sem nenhuma distinção
+visual — ficou mais confuso depois que o catálogo de Serviços do
+Despachante Bélico cresceu pra 37 itens (seção 140) dividindo espaço com
+arma/munição na mesma busca. `FinanceAsyncAutocomplete` ganhou suporte a
+`renderOption` (prop nova, opcional, repassada direto pro `Autocomplete`
+do MUI — não quebra nenhum uso existente que não passa essa prop) — a
+LISTA de resultados agora mostra "Nome — Tipo" (`PRODUCT_TYPE_LABELS`,
+agora exportado de `financeConfig.js`), enquanto o campo já preenchido
+continua compacto, só com o nome (`getOptionLabel` não mudou).
+
+**Validação**: `npx eslint` limpo nos quatro arquivos tocados; `craco
+build` de produção limpo; teste automatizado confirmando a reatividade
+do `visibleWhen` (descartado depois, não é parte da suíte permanente).
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`
+(`getProductFieldsForCategory` novo, `PRODUCT_TYPE_LABELS` exportado,
+typo do Acessórios), `frontend/src/pages/Financeiro/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/FinanceAsyncAutocomplete/index.js`.
+
+**Atualização (v2.3.164)**: mostrar o Tipo no texto do resultado não foi
+suficiente — cliente queria RESTRINGIR a busca de verdade, não só
+identificar visualmente o que já aparecia misturado. Adicionado um
+seletor de Tipo por linha de item (`PRODUCT_TYPE_FILTER_OPTIONS`,
+"Todos os tipos" + `PRODUCT_TYPE_OPTIONS`, agora também exportado) —
+estado local por índice da linha (`itemTypeFilters`, não entra no
+payload da venda, é só filtro de busca), repassado como `type` pro
+`finance.products.list()` (o backend, `FinanceProductService.list`, já
+aceitava esse filtro desde a v2.3.133/134, não precisou de nada novo no
+backend). O `FinanceAsyncAutocomplete` da linha remonta
+(`key={`product-${index}-${tipo}`}`) toda vez que o Tipo muda, pra
+descartar os resultados antigos e buscar de novo do zero com o filtro
+certo, em vez de esperar o próximo caractere digitado.
+
+**Pendente, fora do escopo**: NCM/CFOP continuam aparecendo iguais pra
+todo item da venda, independente do Tipo escolhido — diferente do
+cadastro de Produto (seção 142 acima), que já esconde NCM pra Serviço.
+Não mexi nisso aqui de propósito: CFOP de operação de serviço tem código
+próprio (faixa 5933/5949 etc.), diferente do de mercadoria — decidir
+isso errado quebraria dado fiscal de verdade, então fica como pergunta
+em aberto pro cliente confirmar antes de qualquer mudança nesses dois
+campos especificamente.
+
+## 143. Despachante Bélico — ficha de cliente e tela de lista (Fase 2B, v2.3.165)
+
+Primeira tela de verdade do módulo Despachante Bélico — até aqui (seções
+138-141) só existia backend (modelo, catálogo de 37 serviços, rotas
+HTTP, permissão por plano). O cliente mandou um modelo de formulário com
+campos específicos e, numa pergunta de desambiguação (`AskUserQuestion`),
+confirmou que "Tipo de serviço" deveria puxar direto do cadastro real de
+Financeiro → Produtos → Serviços (com valor e forma de pagamento já
+vindo preenchidos), em vez de usar só o catálogo fixo de 37 tipos
+(seção 140) ou manter uma lista duplicada.
+
+**Modelo de dados — campos novos**:
+- `WeaponDispatchClient`: `phone` (telefone, separado de `whatsapp` de
+  propósito — cliente pode ter número fixo diferente do WhatsApp),
+  `rg`, `profession`, `address` (texto livre, um campo só — diferente do
+  `FinanceCustomer`, que estrutura em rua/número/bairro/cidade/UF;
+  decisão deliberada porque o modelo que o cliente mandou tinha
+  "Endereço completo" como campo único), `photoUrl`.
+- `WeaponDispatchProcess`: `value` (snapshot do preço do Produto no
+  momento da escolha — editar o preço do Produto depois não muda
+  processos já criados, mesmo padrão de `SaleItem` com Produto, seção
+  11), `paymentMethod` ("pix"/"card"/"boleto"/"cash" — registro
+  informativo, não dispara cobrança de verdade; isso já existe em Contas
+  a Receber via Configuração de Pagamento, seção 134), `productId` (FK
+  opcional pra `FinanceProduct`, só pra rastrear de qual Produto o
+  processo nasceu — quem decide a trilha/esteira é o `type`, que grava o
+  NOME do produto no momento, não o id).
+- Três migrations novas (`20261019200000-...`, `20261019210000-...`,
+  `20261019220000-...`), todas com `ADD COLUMN IF NOT EXISTS` — testadas
+  (up e down) contra um Postgres local rodando a cadeia completa de
+  migrations antes de subir.
+
+**`getTrackForProcessType` (`WeaponDispatchStageCatalog.ts`) passou a
+aceitar dois formatos de `type`**: a chave fixa do catálogo (ex.
+`"CAC_CR_CONCESSAO"`, usada por quem cria um processo direto da lista
+fixa) OU o nome de um Produto de verdade, reconhecido pelo prefixo
+"CAC -"/"Civil -"/"Militar -" (mesma convenção da planilha de 37
+serviços gerada na seção 140) — assim um processo criado a partir da
+ficha nova (que grava o nome do Produto escolhido, não uma chave fixa)
+ainda cai na trilha certa.
+
+**Frontend — telas novas**:
+- `useWeaponDispatch` (hook, mesmo padrão de `useFinance`/`useHR`):
+  `getAccess`, `catalog`, `clients.*` (CRUD + `uploadPhoto`/
+  `setGovPassword`/`getGovPassword`), `processes.*` (CRUD +
+  `changeStage`).
+- `pages/WeaponDispatch/index.js`: lista de clientes (busca por nome/
+  CPF/WhatsApp, coluna de foto, coluna "OS" = `id` com zero à esquerda)
+  com o mesmo bloqueio de acesso já usado em RH (`planHasModule`/
+  `hasAccess` — tela de "módulo não disponível" quando falta um dos
+  dois).
+- `components/WeaponDispatchClientModal/index.js`: a ficha em si.
+  Campos pedidos pelo cliente, verbatim: número da OS (só exibição —
+  `id` do cliente com zero à esquerda, NÃO é uma coluna nova no banco),
+  foto (upload, caixa com `Avatar` clicável no topo), nome completo,
+  endereço completo, CPF, identidade, profissão, número de contato,
+  número de WhatsApp, "Tipo de serviços" repetível (`FieldArray`, mesmo
+  padrão dos itens de `SaleModal`) com botão "Adicionar serviço",
+  observação, "Imprimir ou gerar PDF".
+  - Cada linha de serviço usa `FinanceAsyncAutocomplete` buscando em
+    `finance.products.list({ searchParam, type: "service" })` — ao
+    escolher, `value` (preço) e o nome vêm preenchidos automaticamente
+    (`handleServiceProductChange`); ainda dá pra cadastrar um serviço
+    novo que não existe ainda, pela tela normal de Produtos (fora desta
+    ficha) e escolher ele aqui depois.
+  - Um select de "Forma de pagamento" (Pix/Cartão/Boleto/Espécie) por
+    linha de serviço — pedido explícito do cliente na resposta à
+    pergunta de desambiguação.
+  - Editando um cliente que já tem processos, eles aparecem numa lista
+    separada ("Serviços já solicitados", somente leitura, com a etapa
+    atual) ANTES do `FieldArray` de serviços novos — o `FieldArray`
+    sempre representa pedidos NOVOS a criar neste salvamento, nunca edita
+    um processo já existente (mudar tipo/valor de um processo já em
+    andamento na esteira é um caso que ainda não foi pedido; se
+    acontecer, criar um processo novo é o caminho, igual já documentado
+    em `WeaponDispatchProcessService.update`).
+  - Salvar faz, em sequência: cria/atualiza o `WeaponDispatchClient` com
+    os campos pessoais → se uma foto nova foi escolhida, faz o upload
+    (`uploadPhoto`, precisa do `id` do cliente já existir) → cria um
+    `WeaponDispatchProcess` pra cada linha de serviço com um Produto
+    selecionado.
+  - "Imprimir / PDF" não exige que o cliente já esteja salvo (diferente
+    do `FinanceRecordModal`, que só libera depois de salvo) — monta a
+    área de impressão escondida a partir dos valores atuais do
+    formulário (mesma técnica `window.print()` + `@media print`, com um
+    id de área próprio pra não colidir com a impressão de outro modal
+    aberto ao mesmo tempo).
+- Rota `/weapon-dispatch` registrada em `routes/index.js`; item de menu
+  novo em `MainListItems.js` (ícone `SecurityIcon`, sempre visível pra
+  quem tem `dashboard:view`, mesmo padrão do item "RH" — a página em si
+  mostra o bloqueio de acesso quando falta plano/liberação, o menu não
+  esconde o item condicionalmente). Chave de tradução
+  `mainDrawer.listItems.weaponDispatch` adicionada nos quatro idiomas
+  (pt/en/es/esES).
+
+**Fora do escopo desta entrega** (não pedido ainda): a esteira/Kanban
+visual com as colunas de etapa, robô de consulta de protocolo,
+notificação por WhatsApp/e-mail na mudança de etapa.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as três migrations
+novas testadas (up e down) contra Postgres local rodando a cadeia
+completa; `npx eslint` nos arquivos novos/tocados do frontend (sem erro
+novo — os erros de `import/first` em `routes/index.js` já existiam antes
+desta entrega, não são deste commit); `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/WeaponDispatchClient.ts`,
+`backend/src/models/WeaponDispatchProcess.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchClientService.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchProcessService.ts`,
+`backend/src/services/WeaponDispatchService/WeaponDispatchStageCatalog.ts`,
+`backend/src/controllers/WeaponDispatchClientController.ts`,
+`backend/src/routes/weaponDispatchRoutes.ts`,
+`backend/src/config/weaponDispatchPhotoUpload.ts` (novo),
+`backend/src/database/migrations/20261019200000-*.ts`,
+`20261019210000-*.ts`, `20261019220000-*.ts` (novos),
+`frontend/src/hooks/useWeaponDispatch/index.js` (novo),
+`frontend/src/pages/WeaponDispatch/index.js` (novo),
+`frontend/src/components/WeaponDispatchClientModal/index.js` (novo),
+`frontend/src/routes/index.js`, `frontend/src/layout/MainListItems.js`,
+`frontend/src/translate/languages/{pt,en,es,esES}.js`.
+
+## 144. Campos fiscais da Venda — indicadores NF-e/NFC-e pedidos pelo contador (v2.3.166)
+
+Pedido do cliente, citando explicitamente o contador: uma lista de campos
+que faltavam na Venda "pra não ter problema com o fisco". Antes de
+implementar, usei `AskUserQuestion` pra resolver 4 pontos genuinamente
+ambíguos do pedido original (CLAUDE.md deste repositório pede isso quando
+há mais de um caminho razoável) — respostas do cliente:
+
+1. **Escopo**: os valores deviam ir DE VERDADE no XML mandado pra Focus
+   NFe/Sefaz, não só ficar guardado na venda — cliente escolheu o caminho
+   de maior risco/impacto explicitamente.
+2. SIGMA/SINARM, lote de munição, ID de embalagem: por ITEM da venda
+   (resolvido sem perguntar — único jeito que faz sentido quando uma
+   venda tem mais de uma arma/munição).
+3. "Status NF" amarelo: status NOVO (`pending_correction`), marcado
+   manualmente — não uma cor nova pro "processando" que já existia.
+4. "Destinatário: Tipo — Cliente ou Fornecedor": resolvido por padrão
+   (não travou no fluxo de pergunta) como classificação informativa — a
+   venda continua sempre pegando o destinatário do cadastro de Clientes
+   (`Sale.customerId`/`FinanceCustomer`), nunca de Fornecedor de verdade.
+   Sinalizado explicitamente ao cliente; se a intenção era outra (um
+   Fornecedor real poder ser destinatário), é um pedido à parte.
+
+**Campos novos em `Sale.ts`** (nível da venda inteira, não por item):
+`operationType` (idDest: internal/interstate/foreign → "1"/"2"/"3"),
+`operationNature` (natureza_operacao, texto livre — antes vinha sempre
+fixo "Venda"/"Venda ao consumidor" hardcoded no `FocusNFeService.ts`),
+`consumerPresence` (indPres — "0","1","2","3","5","9", os códigos exatos
+que o cliente passou, batem com a tabela oficial da Sefaz),
+`intermediaryType` (indIntermed: none/own_site/marketplace),
+`finalConsumerType` (indFinal: normal/final), `recipientType`
+(classificação Cliente/Fornecedor, ver ponto 4 acima),
+`ieIndicator` (indIEDest: contributor/exempt/non_contributor),
+`paymentMethod` (forma de pagamento/tPag — ver tabela abaixo).
+
+**Campos novos em `SaleItem.ts`** (só relevantes quando o item é Arma ou
+Munição — `product.type`): `sigmaSinarm`, `ammoLot` ("Lote munição"),
+`packageId` ("ID embalagem") — todos texto livre (alfanumérico),
+nenhum formato fixo documentado pelo cliente. Como não existe campo
+próprio pra isso no schema padrão da NF-e, vão como texto dentro de
+`informacoes_adicionais_produto` (infAdProd) no payload da Focus NFe —
+prática comum pra dado regulatório sem campo dedicado no XML.
+
+**Tabela de forma de pagamento** (`PAYMENT_METHOD_CODES`,
+`FocusNFeService.ts`) — o cliente passou a lista exata do contador, com
+duas entradas que colidem no mesmo código oficial da Sefaz:
+
+| Opção (como o cliente passou) | Código Sefaz (tPag) |
+|---|---|
+| À vista | 01 |
+| Dinheiro | 01 (mesmo código de "À vista") |
+| Cartão de Crédito | 03 |
+| Cartão de Débito | 04 |
+| PIX | 17 |
+| Sem pagamento | 90 |
+| Importado do XML | 99 (Outros — não corresponde a nenhum código oficial conhecido; sinalizado como incerto, ver aviso abaixo) |
+
+**⚠️ Nível de confiança, explícito pro cliente repassar ao contador antes
+de ir pra Produção**: os CÓDIGOS oficiais da Sefaz usados acima (indPres,
+indFinal, indIEDest, idDest, tPag) têm confiança alta — conferidos contra
+o schema público da NF-e/NFC-e. O que **não** tem o mesmo nível de
+confiança é (a) o NOME exato de cada chave que a Focus NFe espera no
+JSON — mesma ressalva que já existia pra todo o resto do adapter desde a
+Fase 3 (nunca testado contra uma conta de Homologação de verdade,
+`FocusNFeService.ts`, topo do arquivo) — e (b) especificamente o mapeamento
+de "Importado do XML", que não corresponde a nenhum código Sefaz conhecido.
+Testar emitindo uma nota de teste em Homologação com cada combinação de
+campo antes de confiar nisso em Produção.
+
+**"Status NF" — terceiro estado visual**: `FiscalDocument.status` ganhou
+um valor novo, `"pending_correction"` (nenhuma migração precisou —
+coluna já era string livre, sem CHECK constraint de banco). Novo endpoint
+`POST /fiscal-documents/:id/toggle-pending-correction`
+(`FiscalDocumentService.togglePendingCorrection`) alterna entre
+`"error"` ⇄ `"pending_correction"` — só permitido nesses dois estados,
+nunca a partir de "processando"/"autorizada"/"cancelada". É uma anotação
+manual (o usuário marca "já vi esse erro, vou corrigir a venda antes de
+reenviar"), não afeta nem é afetada pela comunicação real com o gateway
+— reemitir sempre cria um `FiscalDocument` NOVO (mesmo padrão já
+documentado antes), nunca reaproveita o registro marcado.
+`SaleDetailModal.js`: chip amarelo "Precisa corrigir" + botão de
+bandeira pra marcar/desmarcar num documento com erro; "Processando"
+mudou de amarelo pra azul (`#3b82f6`) pra não ficar ambíguo com o
+amarelo novo, que agora tem um significado específico.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as duas migrations
+novas (`20261019230000-...`, `20261019240000-...`) testadas (up e down)
+contra Postgres local rodando a cadeia completa; `npx eslint` limpo nos
+arquivos tocados do frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/Sale.ts`, `backend/src/models/
+SaleItem.ts`, `backend/src/models/FiscalDocument.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/controllers/FiscalDocumentController.ts`,
+`backend/src/routes/fiscalRoutes.ts`,
+`backend/src/database/migrations/20261019230000-*.ts`,
+`20261019240000-*.ts` (novos), `frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js` (novas constantes
+`SALE_*_OPTIONS`), `frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`.
+
+## 145. Dados Fiscais do Produto + foto + auto-preenchimento da Venda (v2.3.167)
+
+Continuação direta da seção 144 — o cliente mandou um print de tela de um
+sistema de referência (aba "2 - Dados Fiscais" do cadastro de Produto) e
+pediu o mesmo conjunto de campos aqui. Antes de implementar, pedi (e
+recebi) **documentos fiscais reais do cliente** pra validar os valores —
+não dava pra confiar em nenhuma tabela genérica de alíquota/código
+tributário sem risco real de rejeição de nota ou recolhimento errado de
+imposto.
+
+**Documentos reais analisados** (4 notas + 2 Guias de Tráfego do
+Exército, todas do cliente de verdade):
+1. NF-e 491 — venda de uma pistola a um CONSUMIDOR FINAL (CPF), emitida
+   pelo próprio cliente.
+2. NF-e (XML completo) — compra de munição/espingarda da CBC Brasil
+   (fornecedor, SP → BA).
+3. NF-e 0001390013 (PDF) — outra compra da CBC (munição/espoleta/arma).
+4. NF-e 6.007 — compra de munição/espoleta/6 armas da Pavei Brasil
+   (fornecedor, SP → BA), com detalhamento por item mais completo (Origem
+   variando por produto, ICMS% por linha).
+5. NF-e 000.002.823 (INBRAMUN, fabricante de pólvora/espoleta, PR → BA) —
+   mostrou IPI alto (25% espoleta, 16,25% pólvora), mas o cliente pediu
+   explicitamente pra DEIXAR DE FORA (IPI e PIS/COFINS "zerados" — regime
+   Simples Nacional do cliente não destaca esses impostos nota a nota).
+
+**Achados confirmados contra as notas (usados como default/validação)**:
+- CSOSN **102** (Tributada pelo Simples Nacional sem permissão de
+  crédito) na venda real a consumidor final (CPF) — bate com
+  `csosnNaoContribuinte` default.
+- CFOP **5102** nessa mesma venda (interna, dentro da BA).
+- Nas 3 compras de fornecedor: CFOP **6101** (fabricante vendendo
+  produção própria, Inbramun) ou **6102** (distribuidor revendendo, CBC/
+  Pavei) — confirma que CFOP interno/fora-UF precisa ser dois campos
+  diferentes por produto (`cfopPrincipal`/`cfopOutState`), não um só.
+  ICMS **7%** nas 4 compras, sem exceção — alíquota oficial do Senado
+  (Resolução 22/89) pra operação Sul/Sudeste → Nordeste.
+- **Nenhuma das 4 notas teve FCP ou ICMS-ST destacado** — um prompt
+  anterior (não deste agente, colado pelo cliente) afirmava "20,5% ICMS +
+  2% FCP = 22,5%" pra armas/munições na Bahia; as notas reais contradizem
+  isso. `usesFcp`/`icmsStRate`/`icmsStMva` ficam implementados (campo
+  existe, select completo), mas **não têm nenhum valor confirmado contra
+  nota real** — ver aviso de confiança abaixo.
+- **Origem** varia de verdade por produto: "0" (nacional) na maioria,
+  "5" (nacional, conteúdo de importação ≤40%) na espoleta da nota da
+  Pavei — confirma que não dá pra fixar um valor só pro cadastro inteiro.
+- Grupo de arma da NF-e confirmado via XML de verdade: `<arma>` (singular,
+  um por item), campos `tpArma`/`nSerie`/`nCano`/`descr` — já usado desde
+  a v2.3.166 como texto em `informacoes_adicionais_produto` (a Focus NFe
+  pode ter um campo estruturado próprio pra isso; não confirmado, ver
+  aviso). Munição e insumo (pólvora/espoleta) nas notas reais NÃO tiveram
+  grupo de rastreabilidade (`rastro`) — contradiz outro ponto do mesmo
+  prompt anterior ("rastro obrigatório pra munição").
+
+**Campos novos em `FinanceProduct.ts`** (19 campos, nomes e opções
+exatamente como o cliente ditou): `icmsExempt`, `icmsSubstitution`,
+`icmsOrigin` (tabela 0-8 completa), `csosnContribuinte`/
+`csosnNaoContribuinte` (tabela CSOSN completa — 101/102/103/201/202/203/
+300/400/500/900), `icmsBcModality` (0-3), `icmsStBcModality` (0-6),
+`icmsRate`, `icmsEcf` (texto livre, formato não documentado pelo
+cliente, sem uso no payload), `icmsDesoneration`, `icmsStRate`,
+`icmsStMva`, `taxableUnit`, `cfopPrincipal` (default "5102"),
+`cfopOutState` (default "6102"), `taxArticle`, `fiscalBenefitCode`,
+`usesFcp`, `conditionalDiscountNfe`. Mais `photoUrl` (foto do produto,
+ver abaixo). Migration `20261019250000-*.ts` (19 campos fiscais) +
+`20261019260000-*.ts` (foto), testadas (up/down) contra Postgres local.
+
+**Wiring no `FocusNFeService.ts` (`buildItemIcms`, novo)**: por item da
+venda, lê `item.product.*` (precisou expandir o `attributes` do include
+de Produto em `SaleService.ts`, que antes só trazia
+id/name/sku/controlStock/stockQuantity) e monta `icms_origem`/
+`icms_situacao_tributaria` — o CSOSN usado é `csosnContribuinte` ou
+`csosnNaoContribuinte` dependendo de `Sale.ieIndicator` (campo da seção
+144) ser "contributor" ou não, mesma lógica do sistema de referência do
+cliente. `icms_percentual`/`icms_modalidade_base_calculo` só entram
+quando o produto não está isento e tem uma alíquota > 0 configurada; os
+campos de ICMS-ST só entram quando `icmsSubstitution` está marcado E tem
+`icmsStRate`/`icmsStMva` > 0 — **esse caminho nunca foi validado contra
+nenhuma nota real** (nenhuma das 4 teve ICMS-ST), só contra o schema
+público da NF-e, mesmo nível de confiança do resto do adapter desde a
+Fase 3.
+
+**Foto do Produto**: mesmo padrão já usado no Despachante Bélico
+(`WeaponDispatchClient.photoUrl`/`uploadPhoto`) — endpoint dedicado
+`POST /finance/products/:id/photo` (multer, só imagem, 5MB), guardado em
+`public/company{id}/finance-product-photos/`. No frontend, isso exigiu
+estender o `FinanceRecordModal.js` GENÉRICO (reusado por clientes/
+fornecedores/produtos/contas) com um novo tipo de campo declarativo,
+`"photo"` — igual aos outros tipos (`sectionTitle`, `switch`,
+`asyncSelect`...), mas fora do Formik de propósito (é um arquivo enviado
+numa chamada separada, não um campo do JSON do registro). O modal
+precisou aprender a capturar o `id` do registro recém-criado (antes o
+retorno de `onSave` era ignorado) pra poder fazer o upload logo em
+seguida, no mesmo clique de "Salvar". Dois novos props opcionais,
+`enablePhotoUpload`/`onUploadPhoto`, ligados só na aba Produtos
+(`Financeiro/index.js`) — nenhum outro cadastro (cliente/fornecedor/
+contas) foi afetado.
+
+**Auto-preenchimento na Venda** (pedido do cliente: "digita o nome do
+cliente e preenche automaticamente os campos relacionados"): escolher o
+Cliente em "Nova venda" agora pré-preenche `ieIndicator`/
+`finalConsumerType` com base no `documentType` do cadastro — CPF vira
+"Não Contribuinte"/"Final" (pessoa física não é contribuinte do ICMS,
+regra geral sem exceção prática), CNPJ vira "Contribuinte"/"Normal".
+Continuam campos de select completos, editáveis (ex.: produtor rural
+pessoa física com IE, ou CNPJ isento). Escolher um Produto também passa
+a pré-preencher o CFOP do item com `product.cfopPrincipal` ou
+`product.cfopOutState`, conforme o "Tipo de operação" já escolhido na
+venda (seção 144) — também editável por item, sem travar.
+
+**Fora de escopo, por pedido explícito do cliente**: IPI e PIS/COFINS
+("ipi zerado", "cofins tmb" — regime Simples Nacional do cliente não
+destaca nenhum dos dois nota a nota, apesar de aparecerem significativos
+nas notas de COMPRA de fabricante/distribuidor). "Destinatário: Tipo —
+Cliente ou Fornecedor" continua sendo só uma classificação informativa
+(`Sale.recipientType`, seção 144) — a venda não passou a aceitar um
+Fornecedor de verdade como destinatário.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 3 migrations novas
+testadas (up e down) contra Postgres local rodando a cadeia completa;
+`npx eslint` limpo nos arquivos tocados do frontend; `craco build` de
+produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/controllers/FinanceProductController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`backend/src/config/financeProductPhotoUpload.ts` (novo),
+`backend/src/database/migrations/20261019250000-*.ts`,
+`20261019260000-*.ts` (novos), `frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/FinanceRecordModal/index.js` (tipo de campo
+`"photo"` novo), `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/pages/Financeiro/index.js`.
+
+## 146. Fornecedor/Produção + Dados Gerais do Produto, Finalidade da Emissão e Transporte da Venda (v2.3.168)
+
+Continuação das seções 144/145 — depois de "Dados Fiscais", o cliente
+pediu as outras abas do mesmo sistema de referência: "3 - Fornecedor/
+Produção" e "1 - Dados Gerais" (do cadastro de Produto), mais
+"Finalidade da Emissão" e "Dados de Transporte" (da tela de emissão de
+NF-e, que aqui vive na Venda). Pedido explícito: "tem que implementar
+tudo" — depois, já com essas duas prontas, o cliente pediu pra ir "uma
+aba de cada" dali em diante (registrado aqui porque muda como as
+próximas entregas deste módulo vão ser feitas).
+
+**Produto — "3 - Fornecedor/Produção"**: `mainSupplierId` (FK pra
+`FinanceSupplier`, não um campo de texto solto — o cadastro de
+Fornecedor já existia, não fazia sentido duplicar) + `productionLeadTime`/
+`designCode`/`productionScale`/`manufacturerCnpj` (texto livre, sem
+formato documentado pelo cliente).
+
+**Produto — "1 - Dados Gerais" complementar**: `barcodeGtin`/
+`supplierCode`/`originalCode`/`similarProductCode` (4 códigos diferentes
+do produto, SKU/"Código Interno" já existia e não foi duplicado),
+`colorSizeFlavor`, `weight`, `category`/`subcategory`, `packaging`,
+`productFamily`, `storageLocation`, `priceTable2` a `priceTable5`
+(`price` já existente = Tabela 1), `reservedStock`/`idealStock`/
+`stockByLot` (estoque mínimo já existia como `minStockQuantity`),
+`lotControl`/`isComposite`/`isRawMaterial`/`isEquipment`/`soldByWeight`
+(switches), `commissionRate`/`maxDiscountMargin`/`loyaltyPoints`/
+`redemptionPoints`.
+
+**`FinanceRecordModal.js` ganhou `field.embeddedKey`** (opcional): o
+campo `asyncSelect` já resolvia a associação pré-carregada do registro
+pelo singular automático do `optionsResource` (`"suppliers"` →
+`record.supplier`) — mas `mainSupplierId` usa a associação
+`mainSupplier` (nome mais claro no model, já que existem outros
+possíveis vínculos de fornecedor no futuro), então o singular automático
+não batia. `embeddedKey: "mainSupplier"` resolve isso sem quebrar nenhum
+outro campo `asyncSelect` já existente (todos continuam sem passar essa
+prop, usando o comportamento de sempre). `FinanceProductService.list`/
+`show` passaram a incluir a associação `mainSupplier` (antes não incluíam
+nenhuma), senão o campo nunca apareceria pré-preenchido ao editar.
+
+**Venda — "Finalidade da Emissão"**: campo novo `Sale.issuancePurpose`
+("normal" default, igual já era hardcoded "1" antes). As 6 opções do
+sistema de referência viraram select, mas só 4 têm código oficial de
+`finNFe` conhecido (Normal/Complementar/Ajuste/Devolução = 1/2/3/4) — "NF
+Crédito" e "NF Débito" não correspondem a nenhum valor documentado desse
+campo na NF-e; ambos mapeiam pra "1" (Normal) até confirmar com o
+contador o que o cliente realmente precisa nesses dois casos
+(`ISSUANCE_PURPOSE_CODES`, `FocusNFeService.ts`).
+
+**Venda — "Dados de Transporte"**: ~21 campos novos (`Sale.ts`) cobrindo
+Volumes (quantidade/espécie/marca/número/peso bruto/peso líquido),
+Transportadora (nome/endereço/cidade/UF/CNPJ/IE), Veículo (placa/UF),
+Embarque (local/UF) e Local de Entrega (quando diferente do endereço do
+destinatário — grupo `entrega` da NF-e). `freightResponsibility`
+("Frete por Conta") substitui o `modalidade_frete: "9"` que era
+hardcoded desde a Fase 3 — "9" continua o default (sem frete), mas agora
+é editável. `buildTransporte` (novo, `FocusNFeService.ts`) só manda cada
+sub-grupo (`volumes`/transportadora/`entrega`) quando tem dado de
+verdade preenchido — a maioria das vendas de balcão não usa nada disso e
+continua mandando exatamente o mesmo payload de antes.
+
+**⚠️ Nível de confiança**: os códigos oficiais usados (`finNFe`,
+`modFrete`) têm confiança alta (schema público da NF-e). Os NOMES dos
+campos no JSON da Focus NFe pro grupo de transporte (`volumes`,
+`nome_transportador`, `entrega.*` etc.) seguem a mesma convenção
+snake_case do resto do adapter, mas **não foram confirmados contra
+nenhuma nota real** — nenhuma das notas analisadas nas seções 144/145
+tinha transportadora preenchida (todas eram vendas de balcão/compra
+direta). Testar em Homologação antes de uma venda real que precise
+desses campos.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as duas migrations
+novas (`20261019270000-*.ts`, `20261019280000-*.ts`) testadas (up e
+down) contra Postgres local rodando a cadeia completa; `npx eslint`
+limpo nos arquivos tocados do frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts`,
+`backend/src/models/Sale.ts`,
+`backend/src/services/FinanceService/FinanceProductService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/database/migrations/20261019270000-*.ts`,
+`20261019280000-*.ts` (novos),
+`frontend/src/components/FinanceRecordModal/index.js`
+(`field.embeddedKey`), `frontend/src/components/SaleModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 147. Autopreenchimento de endereço por CEP (ViaCEP, v2.3.169)
+
+Pedido do cliente: em qualquer cadastro que tenha CEP, digitar o número
+já preenche Rua/Bairro/Cidade/Estado sozinho. Implementado com a ViaCEP
+(`https://viacep.com.br/ws/{cep}/json/`) — serviço público, gratuito,
+sem necessidade de chave/cadastro, já bem estabelecido pra esse uso em
+sistemas brasileiros. Função única e reaproveitada,
+`fetchAddressByCep(cep)` (`frontend/src/utils/cep.js`): valida que o CEP
+tem 8 dígitos, busca, e devolve `null` em qualquer falha (CEP não
+encontrado, API fora do ar, erro de rede) — nunca trava o formulário;
+quem usa o sistema sempre pode digitar o endereço manualmente como já
+fazia antes.
+
+Precisou de três integrações separadas, uma por tela (não existe um
+único formulário de endereço no sistema):
+
+1. **`FinanceRecordModal.js`** (modal genérico — Cliente e Fornecedor
+   usam o mesmo `ADDRESS_FIELDS` em `financeConfig.js`): o campo de
+   texto padrão ganhou um `onBlur` especial só quando `field.name ===
+   "zipCode"`, que chama `handleBlur` do Formik (pra não perder o
+   `touched` que já existia) e depois `handleCepBlur` — essa só
+   preenche `street`/`neighborhood`/`city`/`state` se esses nomes
+   realmente existirem na lista `fields` do formulário atual
+   (`fields.some(...)`), pra não quebrar nenhum cadastro futuro que
+   tenha CEP sem os outros campos de endereço.
+2. **`SaleModal.js`** (`deliveryZipCode`, seção "Local de entrega" da
+   Venda, v2.3.168): mesma lógica, função própria
+   (`handleDeliveryCepBlur`) porque esse formulário não usa o
+   `FinanceRecordModal` genérico.
+3. **`FiscalConfigPanel.js`** (`emitterZipCode`, endereço do emitente —
+   obrigatório pra NF-e): mesma lógica, função própria
+   (`handleEmitterCepBlur`), mesmo motivo do item 2.
+
+Não mexi no cadastro do Despachante Bélico (`WeaponDispatchClientModal`)
+— o campo "Endereço completo" lá é texto livre único (pedido explícito
+do cliente, ver seção 143), não tem CEP/rua/cidade separados pra
+preencher.
+
+**Validação**: `npx eslint` limpo nos 4 arquivos tocados; `craco build`
+de produção limpo. Sem mudança nenhuma no backend (nenhum campo novo,
+nenhuma migration) — é só autopreenchimento de campos que já existiam.
+
+**Arquivos**: `frontend/src/utils/cep.js` (novo),
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 148. Removido o aviso de "Nova versão disponível" (v2.3.170)
+
+Reclamação do cliente com print de tela: o toast "Nova versão disponível
+/ Atualize para ver as últimas novidades" (`frontend/src/serviceWorker.js`)
+tinha um botão "Atualizar agora" que chamava `window.location.reload()`
+— um reload de página inteira, que sempre derruba o SPA de volta pra
+rota inicial (dashboard), não pra onde o operador estava (ex.: um
+atendimento específico aberto). "Atrapalha o operador pq volta pra tela
+inicial e a pessoa tem que voltar pra tela onde estava trabalhando".
+
+**Causa raiz**: `public/service-worker.js` usa `self.skipWaiting()` (no
+`install`) + `self.clients.claim()` (no `activate`) — combinação padrão
+de PWA que faz o novo Service Worker assumir o controle de TODAS as
+abas abertas imediatamente após um deploy, sem esperar elas fecharem.
+Isso dispara o evento `controllerchange` em toda aba aberta na hora,
+mesmo no meio de um atendimento — e era esse evento que acionava o
+toast.
+
+**Fix**: removida a função `notifyUpdateAvailable()` e o listener de
+`controllerchange` inteiro de `serviceWorker.js` — não sobrou nenhum
+código morto. `public/service-worker.js` continua exatamente igual
+(skipWaiting/clients.claim() não mudaram, intencionalmente): o Service
+Worker novo continua assumindo controle em segundo plano normalmente,
+só que agora SEM avisar nem oferecer reload — a aba aberta continua
+rodando o bundle JS que já tinha carregado em memória (reload só muda o
+que o SERVICE WORKER serve pras PRÓXIMAS requisições, não o código já
+executando), e só passa a usar a versão nova organicamente na próxima
+vez que a pessoa recarregar por conta própria (login do dia seguinte, F5
+manual) — nunca interrompendo um atendimento em andamento.
+
+**Validação**: `npx eslint` limpo; `craco build` de produção limpo (bundle
+559 bytes menor, só removeu código). Nenhuma mudança no backend.
+
+**Arquivos**: `frontend/src/serviceWorker.js`.
+
+## 149. Endereço completo do destinatário na Venda (v2.3.171)
+
+Pedido do cliente: "coloque no campo vendas o endereço completo conforme
+o cadastro do cliente, quando colocar o nome dele preenche
+automaticamente todos os campos de endereço que são exigidos na nota
+fiscal" — posicionado explicitamente "abaixo do nome" (do campo
+Cliente), antes da lista de Itens.
+
+**Por que um campo novo na Venda, e não só ler `sale.customer.*`
+direto**: antes desta entrega, `FocusNFeService.buildDestinatario` já
+lia o endereço direto do cadastro do Cliente no momento de EMITIR a
+nota — funcionava, mas (a) não aparecia na tela de venda pra conferir/
+ajustar antes de emitir, e (b) se o cadastro do Cliente mudasse depois,
+uma nota já emitida tecnicamente "mudaria" o que seria reconstruído
+numa reemissão. Resolvido com o mesmo padrão de snapshot já usado em
+`SaleItem.sku`/`ncm`/`cfop` (ver seção 11) e, mais recente, no "Local de
+entrega" (seção 146): `Sale.ts` ganhou `recipientZipCode`/
+`recipientStreet`/`recipientNumber`/`recipientComplement`/
+`recipientNeighborhood`/`recipientCity`/`recipientState`, pré-
+preenchidos ao escolher o Cliente (`handleCustomerChange`,
+`SaleModal.js`) mas sempre editáveis depois.
+
+**`handleCustomerChange`** (já existia desde a seção 144/v2.3.167, pré-
+preenchia Indicador IE/Tipo Consumidor) ganhou mais 7 linhas —
+copia `customer.zipCode/street/number/complement/neighborhood/city/
+state` pros campos `recipient*` da venda. CEP também tem autopreenchimento
+próprio (`handleRecipientCepBlur`, mesma função `fetchAddressByCep` já
+usada em Cliente/Fornecedor/Config. Fiscal/Local de entrega — ver seção
+147) — útil quando o endereço do Cliente está desatualizado ou
+incompleto no cadastro e precisa ser corrigido na hora da venda.
+
+**`FocusNFeService.buildDestinatario`** passou a priorizar
+`sale.recipient*` sobre `sale.customer.*` — cada campo individualmente
+(não é tudo-ou-nada), então uma venda antiga (antes desta entrega, sem
+nenhum `recipient*` preenchido) continua funcionando exatamente como
+antes, lendo tudo do cadastro do Cliente. De quebra, corrigido um campo
+que faltava por completo: `complemento_destinatario` nunca tinha sido
+mandado pro payload (nem o `attributes` do include de `customer` em
+`SaleService.ts` trazia a coluna `complement` do Cliente) — não chegava
+a dar erro de schema (campo opcional), mas um complemento de endereço
+registrado no Cliente nunca ia pra nota.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; a migration nova
+(`20261020090000-*.ts`) testada (up e down) contra Postgres local
+rodando a cadeia completa; `npx eslint` limpo no frontend; `craco build`
+de produção limpo.
+
+**Arquivos**: `backend/src/models/Sale.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/database/migrations/20261020090000-*.ts` (novo),
+`frontend/src/components/SaleModal/index.js`.
+
+## 150. Digitar SKU ou nome do item já preenche os campos (v2.3.172)
+
+Pedido do cliente: "quando coloca o sku ou o nome do produto preenche
+todos os campos relativos". O autocomplete "Produto/serviço" já fazia
+isso ao ESCOLHER um resultado da busca (`handleProductChange`, existe
+desde a Fase 3) — o que faltava era o mesmo efeito ao digitar direto nos
+campos "Código (SKU)"/"Descrição" de um item, que até aqui eram só texto
+livre solto (snapshot editável, sem nenhuma busca).
+
+**`handleSkuOrNameBlur`** (novo, `SaleModal.js`): no `onBlur` dos campos
+SKU e Descrição de cada item, busca produtos com esse texto
+(`finance.products.list({ searchParam })`) e procura um resultado cujo
+`sku` OU `name` bata EXATO (sem diferenciar maiúsc./minúsc.) com o que
+foi digitado. Se achar, chama o mesmo `handleProductChange` que o
+autocomplete já usava — preenche Descrição/NCM/Unidade/Valor/CFOP (e,
+quando o item for Arma/Munição, os campos de SIGMA/SINARM continuam
+visíveis, sem mudança aí). Só dispara quando o item **ainda não tem**
+`productId` vinculado — editar o SKU/descrição de um item que já tem
+produto escolhido não aciona busca nenhuma (evita trocar o vínculo sem
+querer só por editar o texto). Texto parcial ou que não bate com nada
+continua um item avulso normal, exatamente como já era.
+
+**Validação**: `npx eslint` limpo; `craco build` de produção limpo.
+Nenhuma mudança no backend (nenhum campo novo, nenhuma migration) — só
+reaproveita o endpoint de busca de produtos que já existia.
+
+**Arquivos**: `frontend/src/components/SaleModal/index.js`.
+
+## 151. Envio de nota por e-mail via Resend + botão de baixar sempre disponível (v2.3.173)
+
+Pedido do cliente, deixado pendente desde a seção 148 ("próximo da
+fila"): "colocar um botão que sempre baixe a nota fiscal, mesmo depois
+de enviada para o cliente, e colocar um campo para enviar por email,
+podemos configurar o resend, quando gerar a nota fiscal tem a opção de
+mandar por email". Antes de implementar, perguntei duas coisas (ver
+`AskUserQuestion`): se já tinha conta/API key da Resend (tinha) e o que
+exatamente faltava no botão de baixar, já que PDF/XML já existiam na
+tela de detalhe — resposta: "deixar mais visível/fácil de achar".
+
+**Envio por e-mail via Resend** — alternativa ao envio já existente
+(`FocusNFeService.sendByEmail`, que pede pra própria Focus NFe mandar, e
+nunca foi validado contra conta de Homologação real desde a Fase 3).
+`FiscalConfig.ts` ganhou `resendEnabled`/`resendApiKey`/
+`resendFromEmail`/`resendFromName` — a API key fica em texto puro
+(mesmo padrão já usado pra `gatewayTokenSandbox`/`gatewayTokenProduction`,
+chave de integração de API, não dado pessoal — diferente do caso da
+senha do gov.br do Despachante Bélico, que é cifrada). Novo
+`ResendEmailService.ts`: baixa o PDF já resolvido (`document.pdfUrl`),
+base64-encoda, e faz `POST https://api.resend.com/emails` com o PDF
+anexado. `FiscalDocumentService.sendByEmail` agora decide: se
+`config.resendEnabled`, usa a Resend; senão, cai no relay antigo da
+Focus NFe (comportamento inalterado pra quem não configurar nada).
+
+**"Quando gerar a nota fiscal tem a opção de mandar por email"** —
+`SaleDetailModal.handleEmit`: quando o `emit` já volta com
+`status === "authorized"` (alguns gateways/documentos autorizam na
+hora, sem precisar de "Atualizar status" depois), o diálogo de enviar
+por e-mail já abre em seguida, em vez de precisar achar o ícone na
+lista depois. Quando a nota fica "processando" (caminho assíncrono mais
+comum), nada muda — o ícone de e-mail já aparece na lista assim que a
+nota autorizar, igual antes.
+
+**Botão de baixar sempre disponível** — `SaleList.js` ganhou
+`handleDownloadRow` (reaproveitando a mesma lógica já usada no download
+em massa, `handleBulkDownload`: a lista de Vendas não traz `pdfUrl` —
+lista enxuta de propósito — então busca o histórico de documentos na
+hora e abre a nota autorizada mais recente numa aba nova). Ícone
+"Baixar nota (PDF)" novo, visível em vendas Confirmadas E Canceladas
+(antes a lista de Canceladas só tinha "Ver itens") sempre que a venda
+já tem pelo menos um documento `authorized` — não precisa mais entrar
+no detalhe da venda pra isso.
+
+**⚠️ Nível de confiança**: o payload/endpoint da Resend segue a
+documentação pública oficial, mas nunca foi testado contra uma conta ou
+chave de API real nesta sessão (sem acesso a uma aqui) — testar um
+envio de verdade (com uma nota já autorizada) antes de confiar isso em
+produção.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; a migration nova
+(`20261020100000-*.ts`) testada (up e down) contra Postgres local
+rodando a cadeia completa; `npx eslint` limpo nos arquivos tocados do
+frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts`,
+`backend/src/services/FiscalService/ResendEmailService.ts` (novo),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/database/migrations/20261020100000-*.ts` (novo),
+`frontend/src/components/FiscalConfigPanel/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`.
+
+## 152. Resend: chave protegida, domínio verificado e envio de teste (v2.3.174)
+
+Continuação direta da seção 151. O cliente perguntou se dava pra
+configurar a Resend "com o gmail padrão" — expliquei antes de mexer em
+qualquer coisa que isso não funciona: nenhum serviço de e-mail
+transacional (Resend, SendGrid, Mailgun, SES) deixa usar um endereço
+@gmail.com como remetente, porque exige verificar um domínio por DNS, e
+ninguém verifica um domínio que não é seu (o Google é dono do
+gmail.com). Forçar isso também provavelmente cairia em spam/seria
+bloqueado pelas proteções anti-falsificação (DMARC) que os provedores
+grandes já usam. Apresentei 3 caminhos (verificar domínio próprio,
+trocar pra SMTP do Gmail de verdade — implementação diferente, fora de
+escopo aqui —, ou manter o relay da Focus NFe) — cliente respondeu "vou
+usar o domínio nosso" e mandou um print de referência de outro sistema
+mostrando como queria a tela: chave mascarada com indicador de "já
+cadastrada", instruções numeradas, e um bloco de envio de teste.
+
+**Chave nunca mais volta em texto puro**: `FiscalConfigService.maskConfig`
+(novo) — usado só pelo `FiscalConfigController.ts` (não pelo resto do
+backend, que continua lendo `resendApiKey` de verdade via
+`FiscalConfigService.show()`/`update()` normalmente) — troca
+`resendApiKey` por `""` na resposta e adiciona `resendApiKeyConfigured`
+(booleano). O formulário (`FiscalConfigPanel.js`) mostra
+"✓ Chave cadastrada. Deixe vazio para manter." quando
+`resendApiKeyConfigured` é true, com um ícone de olho (mostrar/esconder
+o que for digitado). **Salvar sem mexer na chave não apaga a que já
+existia**: `FiscalConfigService.update` agora remove `resendApiKey` do
+payload antes de `config.update()` quando ele chega vazio — mesmo
+padrão de "campo sensível, só sobrescreve se vier preenchido de
+verdade" que não existia antes pra nenhum outro campo (`gatewayToken*`
+continuam sendo mandados/salvos cheios, sem mudança — só a chave da
+Resend ganhou esse tratamento, por ser a única pedida explicitamente).
+
+**"Enviar para um destinatário"** (teste, novo): `ResendEmailService.ts`
+ganhou `sendTestEmail` (refatorado junto com `sendDocumentEmail` pra
+compartilhar a chamada HTTP de baixo nível, `postToResend`) — manda um
+e-mail simples (sem anexo, sem precisar de nenhuma nota fiscal) pro
+endereço informado. Novo endpoint `POST /fiscal/config/resend-test`
+(`FiscalConfigService.testResendEmail`) — usa a chave **já salva no
+banco**, nunca a que estiver só digitada e ainda não salva no formulário
+(evita testar uma chave que nunca foi persistida). Só aparece na tela
+quando `resendEnabled` E `resendApiKeyConfigured` — depois de salvar a
+configuração pelo menos uma vez.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (nenhuma migration
+nova — só lógica, nenhuma coluna nova desde a seção 151); `npx eslint`
+limpo no frontend; `craco build` de produção limpo.
+
+**⚠️ Nível de confiança**: igual já registrado na seção 151 — o payload
+da Resend segue a documentação pública, mas o envio de teste em si
+(incluindo este novo `sendTestEmail`) nunca foi disparado contra uma
+conta/chave real nesta sessão.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts` (sem mudança nesta
+seção — campos já existiam desde a 151),
+`backend/src/services/FiscalService/FiscalConfigService.ts`
+(`maskConfig`, `testResendEmail`, "deixa vazio" em `update`),
+`backend/src/services/FiscalService/ResendEmailService.ts`
+(`sendTestEmail`, `postToResend`),
+`backend/src/controllers/FiscalConfigController.ts`,
+`backend/src/routes/fiscalRoutes.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 153. Cadastro de Serviço — catálogo independente de Produtos (v2.3.175)
+
+O cliente pediu originalmente "serviços como parte de um módulo igual
+foi o Despachante Bélico" — entendi isso como módulo independente com
+controle de plano próprio (`Plan.useServices`), e cheguei a perguntar
+antes de codar qualquer coisa. Antes de uma resposta limpa chegar, o
+cliente reverteu o pedido: **"não coloca o módulo serviços como módulo
+separado, módulo serviço vamos deixar para cadastro de serviços com
+valores e descrição ai quando o despachante bélico necessitar cadastrar
+o serviço do cliente e for escolher serviços aí já tem esse módulo de
+referência pra buscar as informações"** — ou seja: não é um add-on
+pago/gated, é um catálogo simples e sempre disponível, que serve de
+fonte pro "Tipo de serviço" da ficha do Despachante Bélico (em vez do
+cadastro de Produtos do Financeiro, que — explicou o cliente — "ainda
+está com cara de cadastro de produto").
+
+Campos pedidos, só estes (explicitamente **sem** nada fiscal/tributário
+e **sem** SKU, diferente de FinanceProduct): código, nome, valor,
+condições de pagamento, descrição, foto.
+
+**Por que não substitui FinanceProduct tipo "Serviço"**: quem emite nota
+fiscal de serviço de verdade (ISS/CFOP de serviço) continua precisando
+do cadastro de Produtos (único com os campos fiscais). O novo módulo
+"Serviços" é só um catálogo de referência simples — os dois convivem,
+sem migração de um pro outro além da cópia inicial abaixo.
+
+**Backend** — `Service.ts` (modelo novo, tabela `Services`, sem
+`Plan`/`EnsureAccess` nenhum — mesmo padrão sem-gate de Tags/Filas,
+só `isAuth` nas rotas): `code`, `name` (obrigatório), `value`,
+`paymentTerms`, `description` (TEXT), `photoUrl`, `active`,
+`companyId`. `ServiceService.ts` — CRUD simples (list/show/create/
+update/remove), mesmo formato de `FinanceSupplierService`.
+`ServiceController.ts` + `serviceRoutes.ts` (`/services`,
+`/services/:id`, `/services/:id/photo`) — **nenhum** `ensureAccess`,
+de propósito. `servicePhotoUpload.ts` — multer, mesmo padrão de
+`financeProductPhotoUpload.ts` (pasta
+`public/company{id}/service-photos/`).
+
+**Migração automática dos 37 serviços existentes**: perguntei ao
+cliente se os registros já cadastrados como Produto (tipo "Serviço")
+deviam ser copiados automaticamente pro catálogo novo, ou se ele
+preferia recadastrar do zero — respondeu "Migrar automaticamente
+(recomendado)". Migration
+`20261020120000-migrate-finance-product-services-to-services.ts` faz
+um `INSERT ... SELECT` de todo `FinanceProducts` com
+`type = 'service'` pra dentro de `Services`, com `NOT EXISTS` por
+`(companyId, name)` pra ser idempotente (não duplica se rodar de novo).
+`down` é um no-op deliberado — migration de dado não desfaz sozinha
+(evitaria apagar edição que o usuário fez depois da migração); só a
+migration anterior (`20261020110000-create-services`, que cria a
+tabela) desfaz o recurso inteiro, se precisar.
+
+**Despachante Bélico rewired pro catálogo novo**:
+`WeaponDispatchProcess.ts` ganhou `serviceId` (FK pra `Service`, nova
+migration `20261020130000`) **ao lado** de `productId` (FK pra
+`FinanceProduct`, mantido intacto pra não quebrar processos já
+criados antes dessa mudança — snapshot antigo continua lendo
+`product`/`productId` normalmente). Dali em diante, todo processo
+novo grava `serviceId` em vez de `productId`.
+`WeaponDispatchClientModal.js` — `fetchServiceOptions` agora chama
+`services.list({ searchParam })` (novo hook `useServices`) em vez de
+`finance.products.list({ searchParam, type: "service" })`; a linha de
+serviço da ficha trocou de `productId` pra `serviceId` em todo lugar
+(estado do Formik, autocomplete, impressão). O prop `finance` do
+modal virou `services` — `WeaponDispatchProcessController`/
+`pages/WeaponDispatch/index.js` repassam o hook novo.
+
+**Frontend do catálogo**: `useServices/index.js` (hook,
+list/save/update/remove/uploadPhoto — mesmo formato de
+`finance.products`), `pages/Services/servicesConfig.js`
+(`serviceColumns`/`serviceFields`, reaproveitando o campo `"photo"` já
+existente em `FinanceRecordModal`), `pages/Services/index.js`
+(reaproveita `FinanceRecordList` genérico, igual Clientes/
+Fornecedores/Produtos). Rota `/services` e item de menu "Serviços"
+(`RoomServiceIcon`) **sempre visíveis** — mesmo gate (`dashboard:view`)
+de Despachante Bélico/RH, não ligado a nenhum `Plan`/`financeAccess`.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 3 migrations
+novas (`create-services`, `migrate-finance-product-services-to-
+services`, `add-service-id-to-weapon-dispatch-processes`) testadas
+contra banco Postgres local do zero — cadeia completa, undo/redo das
+3 — sem erro; `npx eslint` limpo nos arquivos tocados (os erros
+`import/first` que aparecem em `routes/index.js` já existiam antes
+desta mudança, confirmado comparando com o estado anterior via
+`git stash`); `craco build` de produção limpo.
+
+**⚠️ Nível de confiança**: a cópia automática dos 37 serviços só foi
+testada estruturalmente (a migration roda sem erro de SQL contra um
+banco de teste vazio) — nunca rodou contra o banco real de produção
+com os dados de verdade do cliente, então o `INSERT ... SELECT` precisa
+ser conferido depois do deploy (`Financeiro → Produtos → Serviço`
+antes vs. `Serviços` depois, mesma contagem).
+
+**Arquivos**: `backend/src/models/Service.ts` (novo),
+`backend/src/models/WeaponDispatchProcess.ts` (+ `serviceId`),
+`backend/src/database/migrations/20261020110000-create-services.ts`
+(novo), `20261020120000-migrate-finance-product-services-to-
+services.ts` (novo), `20261020130000-add-service-id-to-weapon-
+dispatch-processes.ts` (novo),
+`backend/src/services/ServiceService/ServiceService.ts` (novo),
+`backend/src/services/WeaponDispatchService/
+WeaponDispatchProcessService.ts` (+ `serviceId`, include `Service`),
+`backend/src/controllers/ServiceController.ts` (novo),
+`backend/src/config/servicePhotoUpload.ts` (novo),
+`backend/src/routes/serviceRoutes.ts` (novo),
+`backend/src/routes/index.ts` (registra `serviceRoutes`),
+`frontend/src/hooks/useServices/index.js` (novo),
+`frontend/src/pages/Services/index.js` (novo),
+`frontend/src/pages/Services/servicesConfig.js` (novo),
+`frontend/src/components/WeaponDispatchClientModal/index.js`
+(`serviceId` em vez de `productId`, prop `services` em vez de
+`finance`), `frontend/src/pages/WeaponDispatch/index.js` (hook
+`useServices` em vez de `useFinance`), `frontend/src/routes/index.js`
+(rota `/services`), `frontend/src/layout/MainListItems.js` (item de
+menu "Serviços"), `frontend/src/translate/languages/{pt,en,es,
+esES}.js` (chave `mainDrawer.listItems.services`).
+
+## 154. Corrige backend em crash loop + Serviço preenche Contas a Receber (v2.3.176)
+
+**Bug em produção, causado por mim na seção 153**: logo depois do
+deploy do v2.3.175, o cliente avisou que o AtendeFlow parou de abrir
+("erro para entrar"). Diagnóstico junto com o cliente:
+`docker compose ps` mostrou o container do backend em
+`Restarting (1)` (crash loop) — `docker compose logs backend` revelou
+`Error: Service has not been defined`, disparado pelo
+sequelize-typescript ao tentar montar as associações (`addModels` /
+`associateModels`). Causa: criei o model `Service.ts` na seção 153 e
+dei `@BelongsTo(() => Service)`/`@ForeignKey(() => Service)` em
+`WeaponDispatchProcess.ts`, mas esqueci de incluir `Service` na lista
+de models que `backend/src/database/index.ts` passa pro
+`sequelize.addModels([...])` — todo model TEM que estar nessa lista,
+senão qualquer outro model que referencia ele via decorator quebra a
+inicialização inteira do Sequelize (não é um erro silencioso, derruba
+o processo Node — por isso o container ficava reiniciando sem parar).
+As migrations já tinham rodado certinho antes do crash (log confirmou
+"database schema was already up to date"), então a correção foi só de
+código — `import Service from "../models/Service"` +
+adicionar `Service` no array de models, sem mexer no banco.
+
+**Lição pra não repetir**: toda vez que um model novo entra, conferir
+na hora se ele foi incluído em `database/index.ts` (import + array) —
+o `tsc --noEmit` não pega esse tipo de erro (é um erro de runtime do
+Sequelize, não de tipo), e os testes de migration também não (eles só
+testam o schema do banco, não a inicialização do `Sequelize` com
+`sequelize-typescript`). Precisaria ter subido o backend localmente
+(`npm run dev:server` ou equivalente) antes de dar como validado — não
+fiz isso nesta sessão, só rodei `tsc`/migration/build, que não cobrem
+esse caminho.
+
+**Serviço preenche Contas a Receber**: o cliente perguntou se, na hora
+de cobrar no Financeiro, o cadastro de Serviços (seção 153) também
+preencheria valor/descrição automaticamente — perguntei se era em
+Contas a Receber (cobrança simples, sem nota fiscal) ou em Vendas (que
+gera NF-e de verdade, e cujos itens precisam de SKU/NCM/CFOP que o
+Serviço não tem de propósito). Cliente confirmou o caso de uso
+("preencher o nome do serviço já preenche os campos automaticamente
+com valores e descrição"), que bate exatamente com Contas a Receber —
+hoje só tem "Descrição" (texto livre) e "Valor" (número), sem nenhum
+vínculo com cadastro nenhum. Implementei só ali; Vendas fica de fora
+por enquanto (precisaria de uma decisão separada sobre os campos
+fiscais do item).
+
+Novo tipo de campo `serviceSelect` em `FinanceRecordModal.js` — busca
+no cadastro de Serviço (prop `services`, novo, igual ao padrão de
+`finance`/`field.optionsResource` que o `asyncSelect` já usava), mas
+diferente do `asyncSelect`, **não é ele mesmo uma coluna do
+registro**: ao escolher um serviço, só preenche os campos mapeados em
+`field.fillFields` (`{ description: "name", value: "value" }` em
+Contas a Receber) via `setFieldValue` — o vínculo em si não fica
+salvo, é só um atalho de preenchimento (mesma filosofia do
+autopreenchimento de SKU/nome em Venda, seção 150). Por isso o campo
+fica de fora de `buildInitialValues`/do payload enviado pro backend
+(mesmo tratamento que já existia pra `"photo"`/`"sectionTitle"`) e
+também fora da área de impressão. Estado local
+(`servicePickerValue`) só pra manter o nome escolhido visível na
+caixa depois de selecionar — resetado junto com o resto do formulário
+quando o modal abre/fecha.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; `npx eslint`
+limpo nos arquivos tocados; `craco build` de produção limpo. Sem
+migration nova nesta seção (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/database/index.ts` (registra `Service`),
+`frontend/src/components/FinanceRecordModal/index.js` (tipo
+`serviceSelect`, prop `services`, `servicePickerValue`),
+`frontend/src/components/FinanceRecordList/index.js` (repassa prop
+`services`), `frontend/src/pages/Financeiro/index.js` (hook
+`useServices`, repassa `services` pra Contas a Receber),
+`frontend/src/pages/Financeiro/financeConfig.js`
+(`financeReceivableFields` ganha o campo `_servicePicker`).
+
+## 155. Busca de cliente existente no Despachante Bélico + renomeia Serviços (v2.3.177)
+
+Pedido do cliente, numa mensagem longa explicando o fluxo completo:
+hoje existem 3 cadastros de pessoa isolados — **Contatos**
+(Atendimento, "a entrada do sistema"), **Clientes** (Financeiro,
+quem compra arma/munição/produto) e **Cliente do Despachante Bélico**
+(quem está tramitando documentação de CR/Posse) — sem nenhuma relação
+entre eles, risco de cadastrar a mesma pessoa 3 vezes. Pedido
+concreto: ao abrir "Novo cliente" no Despachante Bélico, poder buscar
+alguém que já existe em Contatos OU em Clientes do Financeiro e puxar
+os dados, em vez de digitar tudo de novo.
+
+Decisão confirmada com o cliente antes de implementar (duas perguntas,
+as duas com a opção recomendada escolhida): (1) a busca cobre os dois
+cadastros ao mesmo tempo, não só um; (2) os campos vêm preenchidos mas
+continuam editáveis (igual "foto do momento" — copia os dados pra
+ficha, não trava edição nem sincroniza se o cadastro original mudar
+depois).
+
+**Backend** — `WeaponDispatchClientService.lookupPerson` (novo):
+busca em paralelo em `Contact` (nome/número/documento, excluindo
+grupos de WhatsApp) e `FinanceCustomer` (nome/documento/telefone/
+whatsapp), ambos escopados por `companyId`, e devolve uma lista
+combinada com um campo `source` ("contact"/"customer") pra o frontend
+saber de onde veio cada resultado. Só leitura — não grava vínculo
+nenhum sozinho. Novo endpoint `GET /weapon-dispatch/clients/lookup`
+(**precisa vir ANTES** de `GET /weapon-dispatch/clients/:id` nas
+rotas, senão "lookup" seria lido como um `:id` — mesmo cuidado já
+documentado em `contactRoutes.ts`).
+
+**`contactId` já existia no model, nunca tinha UI**: o model
+`WeaponDispatchClient.ts` já tinha a coluna `contactId` (FK pra
+`Contact`) desde antes desta sessão, com um comentário dizendo que
+era pra um vínculo opcional — mas nenhuma tela usava isso. Agora,
+quando o resultado escolhido vem de um Contato, `contactId` é
+preenchido com o id dele; quando vem de um Cliente Financeiro,
+`contactId` é preenchido com o vínculo que ELE já tinha salvo (se
+tiver — `FinanceCustomer.contactId`). Nenhuma migration nova (coluna
+já existia).
+
+**Frontend**: novo campo de busca (`FinanceAsyncAutocomplete`, mesmo
+componente já usado em Serviço/Fornecedor/Cliente) no topo da ficha,
+acima de "Nome completo" — rótulo mostra "(Contato)" ou "(Cliente
+Financeiro)" pra deixar claro a origem. Ao escolher, preenche nome/
+CPF/telefone/whatsapp/endereço/`contactId` via `setFieldValue` — os
+campos continuam editáveis normalmente depois.
+
+**Renomeado "Serviços" → "Serviços Adms."**: o cliente avisou que vai
+criar um módulo NOVO e DIFERENTE, "Serviço Armaria" (gestão de
+serviço técnico em armas — ver próxima seção, ainda em design, não
+implementado nesta seção), e pediu pra renomear o catálogo simples já
+existente (seção 153) pra abrir espaço de nome. Só o rótulo do menu
+mudou (`mainDrawer.listItems.services`, 4 idiomas) — nenhum campo,
+rota ou model mudou.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; **backend
+realmente iniciado localmente** (`node dist/server.js` contra um
+banco de teste, não só `tsc`/migration) — depois do susto da seção
+154 (um erro de inicialização do Sequelize que só aparece em runtime,
+não em tempo de compilação nem em teste de migration), passei a
+sempre confirmar isso quando a mudança mexe em relação entre models;
+subiu limpo, só os avisos esperados de Redis não estar rodando no
+ambiente de teste. `npx eslint` limpo nos arquivos tocados; `craco
+build` de produção limpo. Sem migration nova (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/services/WeaponDispatchService/
+WeaponDispatchClientService.ts` (`lookupPerson`),
+`backend/src/controllers/WeaponDispatchClientController.ts`
+(`lookup`), `backend/src/routes/weaponDispatchRoutes.ts` (rota
+`/weapon-dispatch/clients/lookup`),
+`frontend/src/hooks/useWeaponDispatch/index.js`
+(`clients.lookup`), `frontend/src/components/
+WeaponDispatchClientModal/index.js` (campo de busca,
+`handlePersonLookupChange`, `contactId` no payload),
+`frontend/src/translate/languages/{pt,en,es,esES}.js` (renomeia
+`mainDrawer.listItems.services`).
+
+## 156. Novo módulo Serviço Armaria (v2.3.178)
+
+Pedido do cliente: hoje o cadastro de Produto (Financeiro) tem o tipo
+"Serviço" sem nenhuma especialização pra manutenção de arma de verdade.
+O cliente pediu um módulo PRÓPRIO — "Serviço Armaria" — pra registrar o
+recebimento de uma arma específica pra conserto/manutenção, com campos
+de arma, descrição do serviço, fotos antes/depois, e um relatório
+final "conforme as normas da Polícia Federal". Confirmado explicitamente
+como add-on **separado** do Despachante Bélico: "esse novo módulo
+Serviço Armaria vai ser liberado ou não pelo master vai depender da
+contratação dos serviços de cada cliente" — ou seja, mesmo padrão de
+plano/add-on do Despachante Bélico/Financeiro/Fiscal, mas com seu
+PRÓPRIO flag (`Plan.useWeaponArmory`), não reaproveitando o do
+Despachante Bélico — uma empresa pode ter um sem o outro.
+
+**Antes de desenhar os campos, pedi um documento real** (mesma
+disciplina já aplicada antes pro módulo fiscal, seção dos CSOSN/CFOP) —
+o cliente confirmou que ia mandar e enviou um modelo real de
+referência: "TERMO DE CAUTELA, RECEBIMENTO E DEPÓSITO DE ARMA DE FOGO
+(PARA MANUTENÇÃO)", no padrão Polícia Federal/SAT. Todos os campos do
+model `WeaponArmoryService.ts` são mapeados 1:1 nas 5 seções desse
+documento real:
+1. Qualificação do proprietário/detentor (nome, CPF, RG, profissão,
+   endereço, telefone, e-mail).
+2. Especificação técnica do armamento (espécie, marca, modelo,
+   calibre, nº de série, capacidade, acabamento, país de fabricação,
+   acessórios deixados — carregadores/maleta/coldre/outros).
+3. Controle documental mandatório (CRAF/registro SIGMA-SINARM +
+   vencimento; Guia de Tráfego + vencimento + órgão expedidor
+   PF/Sinarm ou EB/Sigma; Autorização Porte ou Posse + número +
+   vencimento).
+4. Objeto da manutenção e estado de conservação (serviço solicitado,
+   defeito relatado, estado de conservação visual na entrada, serviço
+   realizado — preenchido na conclusão —, status do processo).
+5. Fotos antes/depois (arrays JSON em TEXT, `photosBefore`/
+   `photosAfter` — diferente do padrão de foto única já usado em
+   Produto/Cliente/Serviço, porque aqui são várias por estágio).
+
+A declaração de responsabilidade (depósito temporário, condição de
+retirada, validade da Guia de Tráfego no momento da retirada) e o
+Termo de Restituição (preenchido só no ato da devolução) do documento
+real viraram texto fixo no print, não campos — são cláusulas padrão,
+não dados que variam por registro.
+
+**Busca de cliente existente reaproveitada, mas com gate próprio**:
+o mesmo picker "Já é cliente? Buscar em Contatos/Financeiro" do
+Despachante Bélico (seção 155) foi reaproveitado aqui — mas
+`WeaponArmoryServiceController.lookup` chama
+`WeaponDispatchClientService.lookupPerson` diretamente (a função em si
+só lê `Contact`/`FinanceCustomer`, não depende de nada específico do
+Despachante Bélico) só DEPOIS do `ensureAccess` **do Serviço Armaria**,
+não do Despachante Bélico — importante porque os dois add-ons são
+contratados de forma independente (uma empresa pode ter só um dos
+dois, e nesse caso não pode cair no gate errado).
+
+**Logomarca da empresa — nova, por pedido explícito**: o cliente pediu
+"quando sair a impressão coloca com a logomarca da Confederação
+Baiana de Tiro Defensivo e Olímpico" — como o AtendeFlow é vendido
+pra várias empresas-cliente diferentes, isso NUNCA pode ir fixo no
+código (quebraria pra qualquer outro cliente). Confirmado depois:
+"quando for para outra empresa do mesmo ramo a pessoa que opera
+coloca a logomarca da empresa dela". Implementado como
+`Company.logoUrl` (novo, genérico — não amarrado ao Fiscal nem a
+nenhum add-on, porque Serviço Armaria pode existir numa empresa sem
+Financeiro/Fiscal contratado) + endpoint de upload
+`POST /companies/:id/logo` (`CompanyController.uploadLogo`, Admin da
+própria empresa ou Master) + um botão "Anexar logomarca" na própria
+tela do módulo (Admin only) — fica salva uma vez, usada em todo
+Termo de Cautela impresso dali em diante.
+
+**Fotos antes/depois — padrão novo**: diferente de todo upload de foto
+já existente no sistema (sempre um `photoUrl` único por registro),
+aqui são VÁRIAS fotos por estágio. `weaponArmoryPhotoUpload.ts` usa
+`multer.array("photos", 10)` em vez de `.single(...)`;
+`WeaponArmoryServiceService.addPhotos`/`removePhoto` leem/escrevem um
+array JSON-stringificado na coluna (`photosBefore`/`photosAfter`,
+TEXT) — sem tabela própria pra fotos, pra não complicar o modelo por
+enquanto (decisão de manter simples; se precisar de metadado por foto
+no futuro — quem tirou, quando —, aí sim vira tabela).
+
+**Pendente, avisado pelo próprio cliente**: "depois vou passar as
+vistas explodidas de cada arma pra catalogar cada peça com numeração
+exata, Taurus, CBC, Glock, CZ" — catálogo de peças por
+modelo/fabricante, ainda não implementado, fica pra quando o material
+de referência chegar (mesma disciplina: não desenhar campo sem
+documento real).
+
+**Validação**: `npx tsc --noEmit` limpo no backend; as 4 migrations
+novas (`useWeaponArmory` em Plans, `weaponArmoryAccess` em Users,
+`logoUrl` em Companies, `create-weapon-armory-services`) testadas
+contra banco Postgres local do zero — cadeia completa, undo/redo das
+4, sem erro; **backend iniciado de verdade** (`node dist/server.js`,
+não só `tsc`/migration) pra confirmar que o novo model
+`WeaponArmoryService` foi registrado certinho em `database/index.ts`
+— depois do susto da seção 154, isso virou checagem obrigatória
+sempre que um model novo entra; subiu limpo. `npx eslint` limpo nos
+arquivos tocados (os erros de `import/first` em `routes/index.js` já
+existiam antes, confirmado contando: 50 depois vs. 49 antes, só a
+linha que eu adicionei); `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/{Plan,User,Company,
+WeaponArmoryService}.ts`,
+`backend/src/database/migrations/20261020{140000,150000,160000,
+170000}-*.ts` (novas), `backend/src/database/index.ts` (registra
+`WeaponArmoryService`), `backend/src/services/WeaponArmoryService/
+{EnsureWeaponArmoryAccess,WeaponArmoryServiceService}.ts` (novos),
+`backend/src/controllers/{WeaponArmoryAccessController,
+WeaponArmoryServiceController,CompanyController}.ts`,
+`backend/src/config/{weaponArmoryPhotoUpload,companyLogoUpload}.ts`
+(novos), `backend/src/routes/{weaponArmoryRoutes,companyRoutes,
+index}.ts`, `frontend/src/hooks/{useWeaponArmory,useCompanies}/
+index.js`, `frontend/src/pages/WeaponArmory/index.js` (novo),
+`frontend/src/components/WeaponArmoryServiceModal/index.js` (novo),
+`frontend/src/components/PlansManager/index.js` (toggle
+`useWeaponArmory`), `frontend/src/routes/index.js` (rota
+`/weapon-armory`), `frontend/src/layout/MainListItems.js` (item de
+menu "Serviço Armaria"), `frontend/src/translate/languages/{pt,en,es,
+esES}.js` (chave `mainDrawer.listItems.weaponArmory`).
+
+## 157. Importação de Serviços via planilha + excluir individual (v2.3.179)
+
+O cliente avisou "os serviços não foram montados" — investigando junto
+com ele (ia checar o banco de produção pra ver se a migração automática
+dos 37 serviços da seção 153 realmente copiou os dados, ⚠️ nunca
+confirmado contra dados reais), ele mudou de abordagem e pediu direto:
+"coloque os serviços em uma planilha com todos os campos que solicitei
+pra adicionar — valor do serviço, descrição do serviço, formas de
+pagamento — no painel já tem pra inserir o serviço, e coloque editar e
+excluir serviço". Ou seja: em vez de depurar a migração automática,
+decidiu recadastrar via planilha (caminho manual, mais confiável) —
+então o pedido virou dar ao cadastro de Serviço a mesma ferramenta de
+importação que Produtos/Clientes já têm.
+
+**Importação de Serviço — nova, self-contained**:
+`ServiceImportService.ts` (novo) reaproveita a MESMA técnica de leitura
+de planilha já usada em `FinanceImportService.ts` (detecção de coluna
+por nome de cabeçalho normalizado, sem tela de mapeamento manual) mas
+**não** importa nada de lá — é um arquivo próprio, bem mais simples (só
+5 campos: código, nome, valor, condições de pagamento, descrição, sem
+nada fiscal), consistente com a decisão da seção 153 de o módulo
+Serviço ser independente do Financeiro. Duplicata por nome (mesmo
+`companyId`) atualiza o registro já existente, mesma lógica de dedupe
+já usada em Produtos/Clientes. `GET /services/import-template` baixa o
+modelo `.xlsx`; `POST /services/import` processa o arquivo enviado —
+os dois precisam vir ANTES de `GET /services/:id`/rotas com `:id` nas
+rotas (mesmo cuidado já documentado em outros lugares). Permissão
+checada no backend (`ensureImportPermission`, mesma regra de
+Produtos/Clientes: Admin/Master sempre pode, usuário comum só se
+`allowImport === "enabled"` no cadastro dele) mesmo o módulo Serviço
+não tendo nenhum outro controle de acesso — import em massa é
+sensível o bastante pra manter essa checagem.
+
+**Excluir individual — ganho em TODOS os cadastros da lista genérica**:
+`FinanceRecordList.js` só tinha exclusão em massa (marcar checkbox(es)
++ botão "Excluir selecionados", admin-only) — nenhum botão de excluir
+por linha. Adicionado um ícone de excluir ao lado do de editar em cada
+linha (mesmo gate `isAdmin` da exclusão em massa, que continua
+existindo do jeito que estava — as duas convivem), com confirmação
+(`ConfirmationModal`) mostrando `record.name || record.description ||
+"este registro"` no título (cobre os formatos diferentes de cada
+cadastro: Cliente/Fornecedor/Produto/Serviço usam `name`, Conta a
+Pagar/Receber usa `description`). Como é no componente genérico, o
+ganho vale pra Clientes, Fornecedores, Produtos, Serviços e Contas a
+Pagar/Receber de uma vez só, não só Serviço.
+
+**Pendente, não resolvido nesta seção**: a causa raiz de por que os 37
+serviços migrados automaticamente (seção 153) não apareceram em
+produção continua desconhecida — o cliente optou por recadastrar via
+planilha em vez de continuar a investigação. Se o mesmo sintoma
+aparecer de novo (outra empresa-cliente, outra migração de dado
+parecida), vale revisitar.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (sem migration
+nova — nenhuma coluna/tabela nova nesta seção); `npx eslint` limpo nos
+arquivos tocados; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceImportService.ts` (novo), `backend/src/controllers/
+ServiceController.ts` (`importTemplate`, `importServices`),
+`backend/src/routes/serviceRoutes.ts` (rotas de import),
+`frontend/src/hooks/useServices/index.js` (`importSpreadsheet`,
+`downloadTemplate`), `frontend/src/pages/Services/index.js`
+(`allowImport`/`allowTemplateDownload`),
+`frontend/src/components/FinanceRecordList/index.js` (botão de
+excluir individual, `deleteTarget`/`handleDelete`).
+
+## 158. Importação de Serviços aceita a planilha real do cliente (v2.3.180)
+
+Continuação direta da seção 157. O cliente mandou a planilha real que
+ele já tinha com os 37 serviços do Despachante Bélico — e ela também
+respondeu a pergunta em aberto desde a seção 153 (de onde vieram
+aqueles 37 serviços originalmente). Cabeçalhos reais: "Nome", "Tipo",
+"SKU", "Valor do Serviço", "Forma de Pagamento", "Descrição do
+Serviço" (37 linhas de dados, uma por serviço CAC/Civil/Militar).
+
+**Causa raiz do problema que o cliente relatou** ("o mesmo está no
+mesmo formato pra cadastro de armas"): não era o formulário de
+cadastro (`serviceFields`, seção 153) — esse já tinha só os campos
+certos. Era a IMPORTAÇÃO (seção 157, recém-criada): o casamento de
+coluna é por nome EXATO normalizado, não por substring, e
+`SERVICE_MAPPINGS` só reconhecia `"descricao"` — não `"descricaodoservico"`
+("Descrição do Serviço" normaliza pra `descricaodoservico`, um alias
+diferente). Resultado: ao importar a planilha real, a coluna de
+descrição ficava sempre vazia (só 3 das 5 colunas úteis batiam —
+Nome, Valor do Serviço, Forma de Pagamento). Corrigido adicionando
+`"descricaodoservico"`/`"descricaoservico"` aos aliases de
+`description`.
+
+**"SKU" passou a ser aproveitado**: a coluna "SKU" da planilha real
+(valores "001" a "037") antes não tinha alias nenhum — qualquer coluna
+sem alias correspondente é simplesmente ignorada na importação (não dá
+erro, só não preenche nada). Como `Service` TEM um campo `code` (só não
+se chama SKU), adicionado `"sku"` como alias de `code` — a numeração
+original não se perde mais.
+
+**Modelo baixável atualizado pra bater 1:1**: `SERVICE_TEMPLATE_HEADERS`
+trocado de `["Código", "Nome do Serviço", "Valor", "Condições de
+Pagamento", "Descrição"]` pros nomes reais ("Código", "Nome", "Valor do
+Serviço", "Forma de Pagamento", "Descrição do Serviço") — assim quem
+baixa o modelo e quem já tem a planilha pronta usam exatamente os
+mesmos cabeçalhos, sem precisar reformatar nada nos dois sentidos.
+
+**Validação**: `npx tsc --noEmit` limpo no backend. Sem migration nova
+(só ajuste de string/alias, nenhuma coluna nova).
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceImportService.ts` (aliases de `description`/`code`, cabeçalhos
+do modelo baixável).
+
+## 159. Lista de Serviços ordenada por código (v2.3.181)
+
+Pedido direto do cliente: "deixa o código por ordem numérica" — a
+lista de Serviços ordenava por `name` (ASC); trocado pra `code` (ASC,
+com `name` como critério de desempate). Os códigos reais da planilha
+(seção 158) são zero-padded ("001".."037"), então ordenação
+alfabética de texto já resulta em ordem numérica correta — não
+precisou de `CAST` pra inteiro (que quebraria se algum código não for
+só dígitos no futuro).
+
+**Validação**: `npx tsc --noEmit` limpo no backend. Sem migration
+nova.
+
+**Arquivos**: `backend/src/services/ServiceService/
+ServiceService.ts` (`order` de `list`).
+
+## 160. Logomarca persiste ao navegar + impressão em Serviços (v2.3.182)
+
+Cliente relatou 3 pontos numa mensagem só: "em serviços quando for
+imprimir deixa a logomarca no arquivo, em armaria quando anexa a
+logomarca não fica, depois que sai da tela e retorna pra Serviço
+Armaria a logo sai, e quando gerar o relatório é pra deixar tanto a
+logomarca quanto as fotos de antes e depois pra imprimir ou gerar
+PDF".
+
+**Causa raiz do bug da logo sumindo (o mais importante)**: a tela de
+Serviço Armaria (`pages/WeaponArmory/index.js`) guardava a logo
+recém-upada só num `useState` LOCAL da própria página
+(`const [logoUrl, setLogoUrl] = useState(...)`), inicializado a
+partir de `user?.company?.logoUrl` do `AuthContext` **só na primeira
+montagem**. O upload (`CompanyController.uploadLogo`, seção 156) salva
+certinho no banco — mas o `AuthContext` nunca ficava sabendo do valor
+novo, porque não existia nenhum jeito de atualizar o `user` já logado
+sem passar por login de novo. Resultado: enquanto a pessoa ficava na
+mesma tela, a logo aparecia (estado local atualizado otimisticamente
+no próprio `handleLogoChange`) — mas ao navegar pra outra tela e
+voltar, o componente remontava e reinicializava o `useState` a partir
+do `AuthContext` desatualizado, perdendo a logo.
+
+**Correção — `updateUser` novo no `AuthContext`**:
+`hooks/useAuth.js/index.js` ganhou `updateUser(partial)` (merge raso
+em cima do `user` atual via `setUser`), exportado e exposto no
+`AuthContext.Provider`. `WeaponArmory/index.js` não guarda mais a logo
+em estado próprio — lê direto `user?.company?.logoUrl` (fonte única
+de verdade) e, depois de um upload bem-sucedido, chama
+`updateUser({ company: { ...user.company, logoUrl: newLogoUrl } })`
+pra sincronizar a sessão de verdade. Esse padrão (`updateUser`) fica
+disponível pra qualquer tela futura que precise atualizar um campo da
+empresa/usuário sem forçar logout/login.
+
+**Impressão em Serviços ganhou a logo**: nem `FinanceRecordList.js`
+(impressão da lista inteira — usada em Clientes/Fornecedores/Produtos/
+Serviços/Contas) nem `FinanceRecordModal.js` (impressão de UM registro
+aberto no formulário) tinham logo no cabeçalho da área impressa — só o
+Termo de Cautela do Serviço Armaria (seção 156) tinha. Adicionado
+`<img src={user.company.logoUrl}>` antes do `<h2>{title}</h2>` nos
+dois, lendo `user` do `AuthContext` (já importado/usado em
+`FinanceRecordList.js`; `FinanceRecordModal.js` não tinha esse import,
+adicionado agora). Como são componentes genéricos, o ganho vale pra
+Clientes/Fornecedores/Produtos/Serviços/Contas de uma vez, não só
+Serviços.
+
+**Fotos antes/depois no relatório — já estava certo**: o Termo de
+Cautela (`WeaponArmoryServiceModal.js`, seção 156) já incluía
+`photosBefore`/`photosAfter` na área de impressão desde que foi
+criado — o sintoma relatado ("a foto não aparece") era na prática o
+mesmo bug da logo (o componente recebe `companyLogoUrl` via prop vinda
+da página, que estava desatualizada pela mesma causa raiz acima) —
+corrigindo a raiz na página, a logo chega certa no modal também. Não
+precisou mexer no `WeaponArmoryServiceModal.js` em si.
+
+**Validação**: `npx eslint` limpo nos arquivos tocados; `craco build`
+de produção limpo. Mudança 100% frontend, sem migration/mudança de
+backend.
+
+**Arquivos**: `frontend/src/hooks/useAuth.js/index.js`
+(`updateUser`), `frontend/src/context/Auth/AuthContext.js` (expõe
+`updateUser`), `frontend/src/pages/WeaponArmory/index.js`
+(`logoUrl` vira leitura direta de `user.company`, `handleLogoChange`
+chama `updateUser`), `frontend/src/components/FinanceRecordList/
+index.js` (logo na impressão da lista),
+`frontend/src/components/FinanceRecordModal/index.js` (logo na
+impressão de um registro, novo import de `AuthContext`).
+
+## 161. Revisão antes de enviar nota + data/hora de saída + tributos (v2.3.183)
+
+Mensagem longa do cliente comparando o AtendeFlow com o sistema antigo,
+em cima do painel da Focus NFe (print do "Próximo número" = 500 em
+Produção) e de uma nota real emitida no sistema antigo (nota 499, PDF
+do DANFE) que ele mandou como referência — mesma disciplina já usada
+nas seções de ICMS/CSOSN: nunca implementar campo fiscal especulativo,
+sempre pedir documento real primeiro. Vários pontos nessa única
+mensagem, tratados um a um abaixo.
+
+**1. Numeração "próxima nota = 1" em vez de 500 — não era bug do
+AtendeFlow**: investigado e confirmado — o AtendeFlow nunca manda
+`numero_nfe`/`serie` no payload (nenhuma referência a isso em
+`FocusNFeService.ts`); quem atribui o número é a própria Focus NFe,
+usando o contador configurado no painel dela (exatamente o
+"Próximo número" que aparece no print do cliente). O "nota 498 saiu
+como nota 1" foi um problema de configuração do lado da Focus NFe, já
+corrigido pelo próprio cliente no painel deles. Nada pra ajustar no
+código.
+
+**2. Data/hora de saída em branco**: confirmado — `FocusNFeService.ts`
+só mandava `data_emissao`, nunca `data_entrada_saida` (dhSaiEnt, campo
+B10 do leiaute da NF-e) — por isso saía em branco no DANFE (visível na
+nota 499 real: "DATA DA SAÍDA"/"HORA DA SAÍDA" preenchidos no sistema
+antigo). Corrigido em `buildNfePayload`: usa o MESMO instante ISO de
+`data_emissao` (nunca pode ser anterior à emissão — Sefaz rejeita com
+o código 506 se for). Só entra na NF-e — a NFC-e REJEITA esse campo
+(código 705 se enviado), por isso `buildNfcePayload`/`buildNfsePayload`
+não o ganharam. ⚠️ Nome do campo (`data_entrada_saida`) confirmado via
+busca contra exemplo público da documentação da Focus NFe (payload de
+exemplo em JavaScript), nunca testado contra conta/chave real nesta
+sessão.
+
+**3. Nome da empresa no cabeçalho da nota**: o cliente pediu pra
+aparecer exatamente "FEDERAÇÃO BAIANA DE TIRO DEFENSIVO & OLIMPICO" —
+confirmado contra a nota 499 real que o nome completo correto, COM
+"LTDA", é "FEDERACAO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA".
+`FocusNFeService.buildEmitente` usa `company.name` direto — **não é
+bug de código, é dado de cadastro**: o campo "Nome" da empresa em
+Configurações precisa estar escrito exatamente assim. Nenhuma mudança
+de código feita aqui — só orientação pro cliente corrigir o cadastro.
+
+**4. Valor ICMS Desonerado**: `FinanceProduct` já tinha um campo
+`icmsDesoneration` desde a seção 60-ish (v2.3.167), mas como
+PERCENTUAL ("ICMS Desoner. (%)") e nunca ligado ao payload da Focus
+NFe — a Sefaz não tem conceito de "desoneração em %", é um VALOR fixo
+abatido (vICMSDeson). Reaproveitado o mesmo campo (sem migration —
+coluna já existia) como "Valor ICMS Desonerado (R$)", posicionado
+depois do bloco de ICMS-ST (pedido do cliente: "depois de valor do
+ICMS ST"), e ligado em `FocusNFeService.buildItemIcms` →
+`icms_valor_desonerado`. ⚠️ A Sefaz também pode exigir o "motivo da
+desoneração" (motDesICMS) junto — campo que não foi implementado por
+falta de nota real confirmando qual motivo o cliente usa; se uma
+emissão com esse valor preenchido for rejeitada (código 934 ou
+parecido), é isso que está faltando — avisado no código e aqui.
+
+**5. "V.Aprox.Tributos" (Lei da Transparência, Lei 12.741/2012)**:
+visível na nota 499 real como texto no rodapé de Dados Adicionais —
+"DOC. EMITIDO POR ME/EPP OPTANTE PELO SIMPLES NACIONAL NAO GERA
+DIREITO A CREDITO FISCAL DE ISS E IPI." + "Total de Tributos Federais,
+Estaduais e Municipais: R$ 166,21 (40,05%) Fonte: IBPT A906AF".
+Perguntei se a Focus NFe calcula isso automaticamente (pra não
+implementar um cálculo de imposto errado) — não encontrei confirmação
+nenhuma via busca, e o cliente pediu pra implementar do nosso lado
+mesmo assim. Decisão: **não é um campo estruturado da NF-e** (o
+oficial, `vTotTrib`, exige soma item-a-item validada pela Sefaz,
+rejeição 685 se não bater — não implementado) — vai como TEXTO no
+rodapé, igual ao sistema antigo. Dois campos novos em `FinanceProduct`
+(`ibptRate` "Alíquota aprox. tributos (%)", `ibptSource` "Fonte
+IBPT") — preenchimento 100% manual, a tabela oficial do IBPT muda a
+cada 6 meses por NCM e este sistema não calcula nem valida contra
+ela, só usa o número que o usuário informar. `buildAdditionalInfo`
+(novo em `FocusNFeService.ts`) soma `item.totalPrice × (ibptRate/100)`
+de todos os itens, calcula o percentual sobre `sale.totalValue`, e usa
+a "Fonte" do primeiro item que tiver uma preenchida (simplificação —
+nota real só tinha 1 item, não há um jeito "certo" de combinar fontes
+IBPT diferentes de vários itens num texto só). Vai no campo
+`informacoes_adicionais_contribuinte` (nome confirmado contra exemplo
+de código Python da própria Focus NFe — campo de NOTA, diferente de
+`informacoes_adicionais_produto`, que é por ITEM). Primeira linha (o
+aviso de Simples Nacional) só aparece quando `config.taxRegime` for
+"simples"/"mei", mesmo regime já assumido em `buildEmitente`.
+
+**6. "Olhinho" antes de enviar**: investigando, descobri que **já
+existia** um botão "Pré-visualizar DANFe" (`VisibilityIcon`,
+`handlePreview`/`fiscal.fiscalDocuments.previewDanfe`) que gera o PDF
+completo via `/v2/nfe/danfe` (endpoint de rascunho da Focus NFe, não
+consome numeração/chave real) — só que ele era um botão SEPARADO,
+opcional, ao lado dos de "Emitir" — nada impedia clicar direto em
+"Emitir" sem nunca passar pela prévia. Confirmado com o cliente (pediu
+a opção mais simples: um resumo de texto, não o PDF completo) —
+implementado: clicar em "Emitir X" agora abre um Dialog de confirmação
+(destinatário, itens com SIGMA/lote/ID, valor total) ANTES de chamar
+`handleEmit` de verdade; só com "Confirmar e enviar" é que manda pro
+gateway. O botão "Pré-visualizar DANFe" (PDF completo) continua
+existindo à parte, sem mudança, pra quem quiser ver o documento
+inteiro antes.
+
+**7. Bug real achado nesse processo — bloqueio de exclusão errado**:
+o cliente relatou "o sistema gera uma nota sem valor fiscal mas
+aparece uma mensagem que não vai poder excluir como se já tivesse
+gerado a chave de acesso". Confirmado: `FiscalDocumentService.remove`
+bloqueava exclusão de QUALQUER documento com `environment ===
+"production"`, mesmo um que **falhou** (`status === "error"`, nunca
+teve chave de acesso de verdade) — tratava tentativa fracassada igual
+nota real autorizada. Corrigido: só bloqueia quando
+`status` for "authorized"/"processing"/"cancelled" (que têm ou podem
+vir a ter existência legal real) — "error"/"pending_correction" (nunca
+tiveram chave de acesso) podem ser excluídos mesmo em Produção. Botão
+de excluir no frontend (que antes só aparecia pra documentos de
+Homologação) ajustado pra mesma regra.
+
+**8. SIGMA/lote/ID "têm que aparecer na nota"**: já apareciam (feature
+da seção fiscal anterior, `buildItemAdditionalInfo`,
+`informacoes_adicionais_produto` por item) — confirmado comparando com
+a nota 499 real, que mostra exatamente esses três dados no rodapé
+("LOTE: L-0042 HML59 / ID: 1085109373" / "SIGMA: 2654125"). Só os
+RÓTULOS foram ajustados pra bater com esse formato real ("LOTE: X / ID:
+Y / SIGMA: Z" em vez de "SIGMA/SINARM: X | Lote de munição: Y | ID de
+embalagem: Z") — a informação em si já estava correta, só precisava o
+usuário ter preenchido os três campos no item da venda.
+
+**9. "Baixar nota já enviada, caso precise reencaminhar"**: já existia
+— quando um documento está "Autorizada", o detalhe da venda mostra
+ícones de PDF (`doc.pdfUrl`), XML (`doc.xmlUrl`) e "Enviar por e-mail"
+de novo; a lista de Vendas também tem um botão "Baixar nota (PDF)"
+direto (seção 150-ish). Nada pra implementar aqui.
+
+**10. Relatório de "suporte" sobre `erro_validacao_schema`**: o
+cliente colou um relatório (3 causas: `modalidade_frete` nunca
+enviado, `codigo_ncm` sem validação de 8 dígitos, endereço do
+destinatário incompleto) pedindo conferência contra o estado atual.
+Confirmado: os dois primeiros já estavam corrigidos no código
+(`modalidade_frete: sale.freightResponsibility || "9"`,
+`normalizeNcm` validando 8 dígitos com placeholder) — bate exatamente
+com o relatado como já resolvido na v2.3.123 (antes desta sessão). O
+terceiro (endereço do destinatário) é cadastro, não bug, como o
+próprio relatório já apontava. Nada pra corrigir.
+
+**Validação**: `npx tsc --noEmit` limpo no backend; migration nova
+(`20261021100000-add-ibpt-fields-to-finance-products`) testada contra
+banco Postgres local do zero — cadeia completa, undo/redo — sem erro;
+`npx eslint` limpo no frontend; `craco build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FinanceProduct.ts` (`ibptRate`,
+`ibptSource`), `backend/src/database/migrations/
+20261021100000-add-ibpt-fields-to-finance-products.ts` (novo),
+`backend/src/services/FiscalService/FocusNFeService.ts`
+(`data_entrada_saida` em `buildNfePayload`, `icms_valor_desonerado` em
+`buildItemIcms`, `buildAdditionalInfo` novo, rótulos de
+`buildItemAdditionalInfo` ajustados),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`remove` só bloqueia por `status`, não só `environment`),
+`frontend/src/pages/Financeiro/financeConfig.js` (`icmsDesoneration`
+reposicionado/relabelado, `ibptRate`/`ibptSource` novos),
+`frontend/src/components/SaleDetailModal/index.js` (Dialog de
+confirmação antes de emitir, `pendingEmitType`/`handleConfirmEmit`,
+botão de excluir ajustado pra nova regra).
+
+## 162/163. Desativa pré-visualização insegura + botão de cancelar nota + rodapé interno (v2.3.185)
+
+Três entregas numa sequência de mensagens corridas, documentadas juntas
+porque uma seção anterior numerada "162" (rodapé com dados da empresa)
+foi implementada, revertida a pedido do próprio cliente (9 arquivos
+específicos, listados por ele), e depois pedida de volta — fica
+registrado aqui o ciclo completo, sem reescrever a seção já apagada.
+
+**Rodapé com dados da empresa — implementado, revertido, reimplementado
+idêntico**: pedido original ("coloca no rodapé o endereço da Federação
+Baiana"), eu tentei primeiro (erradamente) colocar dados da PRÓPRIA
+Focus NFe nesses relatórios — corrigido pelo cliente ("não coloca nada
+da Focus, é interno da empresa") — revertido os 3 arquivos de volta
+(`git diff` vazio confirmado) antes de implementar certo: rodapé com
+nome/endereço/telefone/e-mail da EMPRESA (fonte: Configuração Fiscal,
+mesmo endereço já usado no Painel Financeiro — `buildEmitterAddressLine`,
+extraído pra `frontend/src/utils/financeFormat.js`). Campo novo
+`FiscalConfig.emitterEmail`. Depois disso, o cliente pediu pra reverter
+a entrega INTEIRA (9 arquivos específicos, nomeados por ele) — motivo
+não explicado, atendido à risca sem perguntar por quê (pedido
+explícito e preciso o bastante pra não precisar). Pouco depois, pediu
+de volta ("pode fazer") — reimplementado idêntico ao que tinha sido
+revertido, migration com timestamp novo
+(`20261021120000`, a antiga `20261021110000` não existe mais).
+
+**Bug crítico encontrado: "Pré-visualizar DANFe" gerava nota real**: o
+cliente relatou que a nota 498 "foi gerada no modo produção, mesmo
+pré-visualização o sistema autenticou antes como se estivesse
+enviado". Perguntei explicitamente o que foi clicado — confirmado: SÓ
+"Pré-visualizar DANFe" (nunca "Emitir"). Isso prova que
+`FocusNFeService.previewDanfe` (endpoint `POST /v2/nfe/danfe`) não é
+seguro — e esse endpoint nunca tinha sido confirmado contra a
+documentação oficial da Focus NFe, só "reconstruído por conhecimento
+geral" (mesmo aviso ⚠️ já registrado desde que a função foi criada).
+**Desativado imediatamente** em `FiscalDocumentService.previewDanfe`
+(lança `ERR_FISCAL_PREVIEW_DISABLED`, 410) — bloqueado no BACKEND, não
+só escondido na tela, pra não dar pra contornar batendo direto na
+API. O cliente colou a lista oficial de endpoints de NF-e da própria
+documentação da Focus NFe — confirma que "Pré-visualização de DANFe"
+EXISTE como funcionalidade oficial deles, então o problema é só o
+`path`/formato usado aqui estar errado, não a premissa. Fica pendente
+religar depois que o cliente confirmar o endpoint exato (ele vai
+copiar da documentação). Até lá, resta usar o modo Homologação pra
+testar (o próprio cliente já tinha ligado isso como contorno) ou
+seguir sem pré-visualização — pedido direto não cria mais nota real
+sem passar pela confirmação da seção 161.
+
+**Levantamento completo contra a lista oficial de endpoints de NF-e da
+Focus NFe** (colada pelo cliente): implementados — Emitir, Consultar,
+Cancelar, Emitir Carta de Correção, Enviar NFe por Email, Inutilizar
+Numeração, Consultar Inutilizações. Com problema (desativado) —
+Pré-visualização de DANFe. Nunca implementados, confirmado com o
+cliente que NENHUM é necessário pro negócio dele (clube de
+tiro/armaria): Registrar/Cancelar Insucesso na Entrega, Registrar Ator
+Interessado, Importar NFe, DANFe Etiqueta HTML/PDF, Conciliação
+Financeira (ECONF, 3 endpoints), Emitir/Cancelar Evento genérico,
+Solicitar reenvio de notificação.
+
+**Botão de cancelar nota — faltava desde sempre**: o cliente perguntou
+"como faço pra cancelar a nota 498" — investigando, `FiscalDocumentService.
+cancel` já existia completo no backend (status precisa ser
+"authorized", justificativa mín. 15 caracteres), mas **nenhum botão na
+tela nunca chamava essa função** — nem em `SaleDetailModal.js`, nem em
+lugar nenhum do frontend (`grep` confirmou zero resultados). Adicionado
+ícone "Cancelar nota" (`BlockIcon`) ao lado de PDF/XML/E-mail/Carta de
+Correção numa nota autorizada, com diálogo de justificativa (mesmo
+padrão da Carta de Correção) e aviso sobre o prazo curto que a Sefaz
+dá pra cancelamento.
+
+**Fluxo desejado pelo cliente, anotado pra próxima vez**: "primeiro
+cadastro do cliente dos tributos valores depois manda enviar
+localmente, aí tem a opção de visualizar e editar só depois disso que
+manda enviar definitivo" — um fluxo de 3 etapas (cadastro → rascunho
+local com edição → envio definitivo) mais robusto que o resumo
+somente-leitura da seção 161. Não implementado ainda (a prioridade foi
+a correção de segurança); fica registrado como próximo passo quando o
+cliente confirmar que é isso que quer.
+
+**Validação**: `npx tsc --noEmit` limpo no backend (dist limpo e
+reconstruído do zero antes de testar, pra não pegar artefato de build
+antigo); migration nova (`20261021120000-add-emitter-email-to-fiscal-
+configs`) testada contra banco Postgres local do zero — cadeia
+completa, undo/redo — sem erro; `npx eslint` limpo no frontend; `craco
+build` de produção limpo.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts` (`emitterEmail`),
+`backend/src/database/migrations/
+20261021120000-add-emitter-email-to-fiscal-configs.ts` (novo),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`previewDanfe` desativado), `frontend/src/components/
+FiscalConfigPanel/index.js` (campo "E-mail de contato"),
+`frontend/src/utils/financeFormat.js` (`buildEmitterAddressLine`),
+`frontend/src/components/{FinanceRecordList,FinanceRecordModal,
+WeaponArmoryServiceModal}/index.js` (rodapé via
+`useFiscal().config.show()`), `frontend/src/components/
+SaleDetailModal/index.js` (`BlockIcon`, `cancelDialogDoc`/
+`handleCancelDocument`, diálogo de cancelamento).
+
+## 164. `db:migrate` manual depois do deploy é redundante — causa "ERROR: Validation error" inofensivo
+
+### Contexto
+
+Depois de aplicar a v2.3.185 em produção, o cliente rodou a sequência de
+deploy de sempre (`git pull` → `build --no-cache` → `up -d
+--force-recreate backend frontend`) e, em seguida, um passo manual extra
+que eu vinha recomendando — `docker compose ... exec backend npx
+sequelize db:migrate` — pra garantir que a migration nova
+(`20261021120000-add-emitter-email-to-fiscal-configs`) tivesse rodado.
+Esse passo manual retornou:
+
+```
+Sequelize CLI [Node: 20.20.2, CLI: 5.5.1, ORM: 5.22.5]
+Loaded configuration file "dist/config/database.js".
+== 20261021120000-add-emitter-email-to-fiscal-configs: migrating =======
+ERROR: Validation error
+```
+
+Sem mais detalhe nenhum na saída (nem stack trace, nem nome de campo).
+
+### Causa raiz
+
+`backend/Dockerfile` já roda `npx sequelize-cli db:migrate` sozinho
+toda vez que o container sobe, antes de `node dist/server.js` (ver
+seção 32). O `up -d --force-recreate backend` reinicia o container, e
+isso sozinho já aplica qualquer migration pendente. O passo manual
+rodado logo depois é redundante — e, pior, pode **correr** contra esse
+auto-migrate do próprio boot: os dois tentam inserir o mesmo nome de
+migration na tabela `SequelizeMeta`, a segunda tentativa bate numa
+restrição de chave única, e o Sequelize relata isso de forma genérica
+como `"Validation error"` (é um `SequelizeUniqueConstraintError`, que
+herda de `ValidationError` e usa essa mensagem padrão quando não tem
+detalhe mais específico pra mostrar). Não é corrupção de dado nem
+schema quebrado — é só duas tentativas de registrar a mesma linha.
+
+Confirmado nesse caso específico via `npx sequelize-cli db:migrate:status`
+(comando só-leitura): a migration já aparecia `up`, e não havia nenhuma
+`down` pendente — ou seja, a coluna `emitterEmail` já tinha sido criada
+normalmente pelo auto-migrate do boot, e o erro do passo manual não
+indicava nada quebrado.
+
+Esse mesmo tipo de corrida (passo manual de migrate batendo contra um
+`docker compose up --force-recreate` ainda em andamento) já tinha
+causado um problema parecido, mas mais sério, na seção 82 — lá a
+migration antiga não era idempotente e travava de verdade. As migrations
+deste projeto já seguem o padrão `IF NOT EXISTS` desde aquela correção
+(inclusive a `20261021120000` usada aqui), então a versão idempotente do
+problema é só esse aviso confuso — não trava nada.
+
+### O que foi feito
+
+- Nenhuma mudança de código — é um ajuste de **procedimento**: parar de
+  recomendar o passo manual `exec backend npx sequelize db:migrate`
+  depois do `up -d --force-recreate`, já que ele não adiciona nada (o
+  Dockerfile já migra sozinho) e só cria esse risco de corrida
+  cosmética. A sequência de deploy documentada na skill
+  `atendeflow-dev` (seção "Deploy") já estava correta — nunca incluiu
+  esse passo manual; era algo que eu vinha adicionando por conta
+  própria nas respostas do chat.
+- **Lição pro futuro**: se algum dia for preciso confirmar que uma
+  migration nova rodou depois de um deploy, usar
+  `db:migrate:status` (só leitura, nunca corre com o auto-migrate) em
+  vez de rodar `db:migrate` de novo manualmente.
+
+## 165. "Pré-visualizar DANFe" religado em Homologação (v2.3.186)
+
+### Contexto
+
+Continuação da seção 162/163 (desativação de emergência do botão
+"Pré-visualizar DANFe" depois que ele gerou uma nota real autorizada —
+nota 498 — mesmo sem clicar em "Emitir"). O cliente mandou a
+documentação oficial da Focus NFe pra esse endpoint
+(`POST https://api.focusnfe.com.br/v2/nfe/danfe`): exemplo de `curl` com
+os headers `accept: application/pdf` / `content-type: application/json`,
+e o schema de `Body Params` (`natureza_operacao` string obrigatório,
+`data_emissao` date-time obrigatório, `data_entrada_saida` date-time
+opcional, `tipo_documento` **integer enum** obrigatório (0/1),
+`local_destino` integer enum opcional, `finalidade_emissao` integer enum
+obrigatório).
+
+### Investigação
+
+Comparando o payload que o código já montava (`buildNfePayload`,
+reaproveitado de `emit`) contra essa documentação:
+
+- `natureza_operacao`, `data_emissao`, `data_entrada_saida` e
+  `finalidade_emissao` já estavam todos presentes e corretos.
+- `tipo_documento` estava presente, mas como **string** (`"1"`) em vez
+  de **number** (`1`) — não batia com o tipo documentado.
+- O header `Accept: application/pdf` do exemplo oficial **não** era
+  enviado — `buildClient` só define `Content-Type: application/json`
+  globalmente, e a chamada de `previewDanfe` só adicionava
+  `responseType: "arraybuffer"`, sem header de `Accept`.
+- `local_destino` realmente não era enviado, mas é opcional (sem a
+  marcação vermelha de "required" na documentação) — não é a causa.
+
+Ou seja: a URL estava certa, e o payload já tinha (quase) tudo que a
+documentação pede. **Nenhuma das duas diferenças encontradas explica,
+sozinha, como um endpoint que a própria Focus NFe documenta como "não
+possui valor fiscal" resultou numa autenticação real na Sefaz.** Não dá
+pra confirmar com leitura estática de código que corrigir esses dois
+pontos resolve o problema de verdade — só testando contra a Sefaz de
+novo (mesmo que em Homologação, sem risco).
+
+### O que foi feito
+
+- `FocusNFeService.previewDanfe`: adicionado `headers: { Accept:
+  "application/pdf" }` só nesta chamada (não no `buildClient`
+  compartilhado, que outros endpoints usam esperando JSON); `tipo_documento`
+  convertido pra `Number` só pro payload desta chamada — **sem** mexer em
+  `buildNfePayload` (compartilhada com `emit`, que já funciona em
+  Produção como string; mudar o tipo ali seria arriscar algo que já
+  funciona, sem necessidade).
+- `FiscalDocumentService.previewDanfe`: reescrita pra religar a função
+  **só quando a empresa está em Homologação**
+  (`FiscalConfigService.isProductionActive(config) === false`) — resolve
+  venda, empresa e gateway igual a `emit`, mas sem exigir
+  `sale.status === "confirmed"` (continua podendo pré-visualizar uma
+  venda em rascunho, que é o propósito do botão). **Em Produção continua
+  lançando `ERR_FISCAL_PREVIEW_DISABLED` (410)**, exatamente como na
+  v2.3.185 — bloqueado no backend, não dá pra contornar batendo direto
+  na API.
+- Perguntado ao cliente como preferia seguir (religar só em Homologação
+  / manter desativado nos dois ambientes / religar direto em Produção
+  também) antes de mexer em qualquer coisa, dado o histórico real de
+  dano (nota 498) — confirmou religar só em Homologação.
+
+### Próximo passo
+
+Quando o cliente testar em Homologação e confirmar que o PDF sai
+corretamente SEM gerar nenhum registro/chave na Focus NFe (nem em
+Homologação), religar também em Produção. Se continuar gerando algo
+mesmo em Homologação, o problema não é o header/tipo — é o endpoint em
+si se comportando diferente do documentado (possivelmente ligado ao
+toggle "Utiliza envio síncrono" da conta, nunca confirmado) e precisa
+ser escalado pro suporte da Focus NFe antes de religar em Produção.
+
+### Testado
+
+`npx tsc --noEmit` e `npm run build` limpos no backend. Não testado
+contra uma conta de Homologação de verdade nesta sessão — mesma
+ressalva de sempre pros 5 endpoints "reconstruídos por conhecimento
+geral" (ver aviso no topo de `FocusNFeService.ts`).
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`
+(`previewDanfe`: header `Accept`, `tipo_documento` numérico),
+`backend/src/services/FiscalService/FiscalDocumentService.ts`
+(`previewDanfe`: religado condicional a Homologação).
+
+## 166. Olhinho pra ver a venda antes de confirmar (v2.3.187)
+
+### Contexto
+
+Na lista de Vendas (`SaleList.js`), uma venda em "Rascunho" só tinha dois
+ícones em Ações: Editar (lápis) e Confirmar venda (check) — sem jeito de
+ver os itens/valores sem entrar no formulário de edição. O cliente pediu
+o "olhinho" ali, antes do botão de confirmar — confirmar uma venda gera a
+conta a receber e trava os itens (`ConfirmationModal` já avisa "não é
+possível desfazer"), então olhar antes faz sentido pro mesmo motivo já
+validado nas sessões anteriores (revisão antes de qualquer ação
+irreversível).
+
+### O que foi feito
+
+- `SaleList.js`: adicionado `IconButton`/`VisibilityIcon` ("Pré-visualizar
+  itens e valores") no bloco de ações de `sale.status === "draft"`, entre
+  Editar e Confirmar — chama `handleViewDetail(sale, false)`, a MESMA
+  função já usada pro olhinho das vendas confirmadas/canceladas. Nenhum
+  componente novo: abre o `SaleDetailModal` já existente, que pra uma
+  venda ainda não confirmada mostra os itens/total e a mensagem "Só é
+  possível emitir nota fiscal de uma venda confirmada" em vez dos botões
+  de emitir/pré-visualizar DANFe (`SaleDetailModal.js`, linha ~358) — não
+  expõe emissão nem pré-visualização fiscal antes da hora, só os
+  dados da venda em si.
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend nem migration nova.
+
+**Arquivos**: `frontend/src/components/SaleList/index.js`.
+
+## 167. Editar venda confirmada pra corrigir erro antes de emitir (v2.3.188)
+
+### Contexto
+
+Continuação direta da seção 166. O cliente descreveu o fluxo que queria:
+"a pessoa erra, depois visualiza, depois edita, corrige, depois envia —
+aí gera lá o código de envio pra Sefaz retornando como feita e depois
+gera a nota em PDF e XML". Até aqui, confirmar uma venda (`SaleService.
+confirm`) travava os itens pra sempre (`update` só funcionava em
+"draft") — achar um erro na pré-visualização de uma venda já confirmada
+não tinha conserto sem cancelar e refazer a venda inteira.
+
+Perguntado ao cliente antes de mexer (duas rodadas de pergunta, dado que
+isso mexe em estoque e em conta a receber — dinheiro de verdade):
+1. Se a venda já confirmada deve poder ser editada mesmo assim →
+   confirmado que sim ("destravar venda confirmada pra corrigir").
+2. Se deve continuar editável mesmo com a conta a receber já tendo
+   cobrança gerada/paga num gateway → **não**, bloquear nesse caso
+   (recomendado por mim, confirmado pelo cliente) — evita desencontrar
+   o valor cobrado do cliente do novo valor da venda.
+
+### O que foi feito
+
+- **`SaleService.ts`** — nova `assertSaleEditable(sale)`, chamada no
+  início de `update`: bloqueia (`ERR_SALE_NOT_EDITABLE`) venda
+  cancelada; pra venda confirmada, bloqueia (`ERR_SALE_HAS_FISCAL_
+  DOCUMENT`) se já tiver `FiscalDocument` com status `authorized`/
+  `processing`, e bloqueia (`ERR_SALE_RECEIVABLE_HAS_PAYMENT`) se a
+  `FinanceReceivable` ligada já tiver `status === "received"` ou
+  `paymentExternalId` preenchido (cobrança gerada no Mercado Pago, ver
+  `FinanceReceivablePaymentService.ts`). Passando dessas checagens,
+  `update` agora: devolve o estoque da composição ANTIGA (só se a venda
+  já estava confirmada), troca os itens, confere disponibilidade e
+  desconta a composição NOVA, e atualiza o `value` da conta a receber
+  pro novo total — tudo sem transação explícita (mesmo padrão já usado
+  em `confirm`/`cancel` deste arquivo, que também não usam transação pra
+  essas mutações de estoque/financeiro).
+- **`SaleDetailModal.js`** — novo prop `onEdit`; botão "Editar" nas
+  ações do modal (visível pra qualquer venda não cancelada — o bloqueio
+  de verdade é no backend, aparece como toast de erro se não puder).
+- **`SaleList.js`** — `handleEdit` agora também fecha o modal de
+  detalhe antes de abrir o de edição (evita os dois abertos ao mesmo
+  tempo); `onEdit={handleEdit}` passado pro `SaleDetailModal`; ícone de
+  editar adicionado direto na linha de uma venda confirmada na lista
+  (escondido só quando já tem nota autorizada/em processamento, mesma
+  checagem feita no backend, usando os dados que a listagem já traz).
+- **`translate/languages/pt.js`** — `ERR_SALE_NOT_EDITABLE` reescrito
+  pra refletir que agora é só sobre venda cancelada; duas chaves novas
+  (`ERR_SALE_HAS_FISCAL_DOCUMENT`, `ERR_SALE_RECEIVABLE_HAS_PAYMENT`).
+  Só em `pt.js` — mesmo padrão já usado pras chaves `ERR_SALE_*`
+  anteriores (não duplicadas nos outros 4 idiomas, caem no
+  `fallbackLng: "pt"`).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; `GENERATE_
+SOURCEMAP=false CI=false npx craco build` limpo no frontend. Não testado
+contra um banco real com venda confirmada + conta a receber paga nesta
+sessão — a lógica de bloqueio foi conferida só por leitura de código.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`frontend/src/components/{SaleDetailModal,SaleList}/index.js`,
+`frontend/src/translate/languages/pt.js`.
+
+## 168. Devolução/reembolso: cancelar nota cancela a venda (v2.3.189)
+
+### Contexto
+
+Pedido do cliente: "o que tem que implantar é devolução/reembolso —
+cancelar, no caso o cliente queira desistir da compra, tem até 24h pra
+cancelar que a Sefaz permite, com descrição de justificativa, envia e
+recebe a nota cancelada." O "Cancelar nota" em si já existia (v2.3.185)
+— o que faltava era ele resolver o resto da venda por baixo (estoque,
+conta a receber), não só o documento fiscal.
+
+Perguntado antes de mexer (duas rodadas, dinheiro de verdade envolvido):
+1. Cancelar a nota deve cancelar a venda e devolver o estoque
+   automaticamente? → **Sim**, confirmado.
+2. Se já tinha sido pago, o sistema deve reembolsar de verdade via API
+   (Asaas/Mercado Pago)? → Aqui achei um problema real: **nenhum dos
+   dois gateways tem função de reembolso implementada hoje** (só
+   `createPixCharge`/`createBoletoCharge`/`getPayment` — nunca um
+   `refund`). Implementar isso "por conhecimento geral", sem a
+   documentação oficial do endpoint, seria o mesmo tipo de risco que
+   causou o problema da nota 498 (ver seção 162/163) — só que movendo
+   dinheiro de verdade em vez de autenticar uma nota. Perguntei se o
+   cliente preferia mandar a doc oficial antes, aceitar o risco, ou só
+   avisar sem chamar API nenhuma por enquanto.
+   Resposta do cliente: implementar agora **só a parte sem API**
+   (cancela venda/estoque/conta a receber, com aviso manual de
+   reembolso), e mais pra frente mandar a documentação oficial do Asaas
+   pra automatizar o reembolso via Pix de verdade. Cartão de crédito
+   fica sempre manual ("solicitar à operadora") — nem o Asaas/Mercado
+   Pago collection flow deste sistema cobra cartão hoje (só Pix/boleto),
+   então um reembolso de cartão nunca seria algo que o AtendeFlow
+   poderia disparar sozinho de qualquer forma.
+
+### O que foi feito
+
+- **`SaleService.cancel`** — além de devolver estoque (já existia),
+  agora também cancela a `FinanceReceivable` ligada (se existir e ainda
+  não estiver cancelada): muda `status` pra `"cancelled"` (valor novo,
+  ver abaixo) e acrescenta uma nota em `notes` explicando o que fazer —
+  texto diferente se a cobrança nunca chegou a ser paga, se foi paga via
+  Pix (reembolso manual pelo painel do gateway, automação futura), ou
+  se foi paga por outro meio (cartão: "solicitar estorno à operadora").
+  Essa função já era chamada pelo "Cancelar venda" direto da tela de
+  Vendas — ganhou o comportamento novo de graça, sem precisar duplicar
+  lógica.
+- **`FiscalDocumentService.cancel`** — depois de cancelar com sucesso na
+  Sefaz, chama `SaleService.cancel(document.saleId, companyId)` — one
+  cancelamento de nota agora sempre cancela a venda por baixo, não deixa
+  uma venda "confirmada" com nota cancelada por trás.
+- **`FinanceReceivable.status`** ganha um terceiro valor possível,
+  `"cancelled"` (antes só "pending"/"received", ver comentário no
+  model) — sem migration (coluna já era string livre, sem enum/check no
+  banco). Adicionado em `RECEIVABLE_STATUS_OPTIONS`
+  (`financeConfig.js`) e no chip de status da lista de Contas a Receber
+  (cinza, mesma cor já usada pra "cancelado" em Vendas/Documentos
+  Fiscais). Conferido que os relatórios (`FinanceReportService.ts`) já
+  filtram por `status: "pending"`/`status: "received"` explicitamente
+  em todo lugar — o valor novo cai fora dos totais de "a receber"/
+  "recebido" automaticamente, sem precisar mudar nada lá.
+- **`SaleDetailModal.js`** — aviso adicional no diálogo de "Cancelar
+  nota" explicando que isso também cancela a venda/estoque/conta a
+  receber, e que o reembolso (quando já pago) ainda é manual.
+
+### Não implementado (de propósito, aguardando documentação)
+
+Reembolso automático via API do Asaas pra cobrança paga em Pix — fica
+pro cliente mandar a documentação oficial do endpoint de estorno, mesmo
+padrão já usado com a Focus NFe (nunca implementar endpoint que move
+dinheiro de verdade só "por conhecimento geral").
+
+### Nuance registrada (não é bug, é escolha deliberada)
+
+Uma conta a receber que já estava `"received"` e é cancelada SAI dos
+totais de `receivedThisMonth`/fluxo de caixa daquele mês quando o
+reembolso ainda não foi feito de verdade — o dinheiro continua tendo
+entrado no caixa até o reembolso acontecer, mas o relatório já trata
+como se não tivesse mais valor. Aceitável pelo volume baixo de
+cancelamento esperado; revisar se algum dia isso distorcer relatório de
+forma perceptível.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; `GENERATE_
+SOURCEMAP=false CI=false npx craco build` limpo no frontend. Não
+testado contra um banco real com venda paga cancelada nesta sessão.
+
+**Arquivos**: `backend/src/services/FiscalService/{SaleService,
+FiscalDocumentService}.ts`, `frontend/src/pages/Financeiro/
+financeConfig.js`, `frontend/src/components/SaleDetailModal/index.js`.
+
+## 169. Auditoria de envio/reenvio de nota por e-mail (v2.3.190)
+
+### Contexto
+
+O cliente pediu — num briefing técnico detalhado, nos moldes de um
+requisito formal de engenheiro sênior — pra cobrir: validações prévias,
+fluxo de execução, modelo de dados/log de auditoria, e tratamento de
+erro/fila assíncrona, pro botão "reenvio de notificação de NFe". O nome
+batia com o endpoint da Focus NFe `POST /v2/nfe/{ref}/hook` (reenvio de
+WEBHOOK pros gatilhos cadastrados — recurso técnico de integração, sem
+uso aqui), mas o conteúdo do briefing (recuperar XML/PDF, mandar por
+SMTP, validar e-mail do destinatário) descreve exatamente o "Enviar nota
+fiscal por e-mail" que **já existe** (`FiscalDocumentService.
+sendByEmail`, v2.3.173+). Em vez de construir um recurso duplicado, essa
+entrega reforça o que já existe com exatamente os 4 pontos pedidos no
+briefing — sem inventar um botão novo com o mesmo efeito.
+
+### O que foi feito, ponto a ponto do briefing
+
+1. **Validações prévias** — já existia `document.status === "authorized"`
+   e "pelo menos um e-mail"; adicionado validação de FORMATO de e-mail
+   (regex simples, só barra erro de digitação óbvio, não valida
+   domínio/MX de verdade) antes de gastar uma tentativa de envio.
+2. **Fluxo de execução** — sem mudança de arquitetura: continua síncrono
+   (clique → `POST /fiscal-documents/:id/send-email` → Resend ou relay
+   da Focus NFe → resposta). **Decisão deliberada de NÃO criar fila
+   assíncrona (Bull/Redis)** — esse projeto não tem nenhuma infra de job
+   queue hoje (conferido por grep), e o volume é baixo (um clique manual
+   por nota, não um disparo em massa) — adicionar isso agora seria
+   infraestrutura nova só pra esse caso, sem necessidade real.
+3. **Modelo de dados/log** — novo model `FiscalDocumentEmailLog`
+   (migration `20261022090000-create-fiscal-document-email-logs`): uma
+   linha por TENTATIVA (não só a última), com `emails`, `success`,
+   `errorMessage`, `fiscalDocumentId`, `requestedByUserId` (de
+   `req.user.id`, nullable pra não travar se um dia existir envio sem
+   usuário por trás) e `companyId`. Mesmo padrão de auditoria já usado
+   em `WeaponDispatchGovPasswordAccessLog` (seção equivalente do
+   Despachante Bélico). Novo endpoint `GET /fiscal-documents/:id/
+   email-logs` e ícone "Histórico de envios" (`HistoryIcon`) ao lado do
+   ícone de e-mail, que abre um diálogo listando data/hora, quem pediu,
+   destinatário(s) e resultado (chip verde "Enviado"/vermelho "Falhou",
+   com a mensagem de erro no tooltip).
+4. **Tratamento de erro** — inalterado (já devolvia `{ok, errorMessage}`
+   tratado via toast) — a novidade é que agora toda tentativa, sucesso
+   OU falha, fica registrada pra auditoria, não só visível na hora via
+   toast e depois esquecida.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; migration nova
+testada contra Postgres local do zero (cadeia completa + undo/redo);
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+
+**Arquivos**: `backend/src/models/FiscalDocumentEmailLog.ts` (novo),
+`backend/src/database/migrations/
+20261022090000-create-fiscal-document-email-logs.ts` (novo),
+`backend/src/database/index.ts`, `backend/src/services/FiscalService/
+FiscalDocumentService.ts`, `backend/src/controllers/
+FiscalDocumentController.ts`, `backend/src/routes/fiscalRoutes.ts`,
+`frontend/src/hooks/useFiscal/index.js`, `frontend/src/components/
+SaleDetailModal/index.js`, `frontend/src/translate/languages/pt.js`.
+
+## 170. Busca ao vivo por código (SKU) ou nome na Venda (v2.3.191)
+
+### Contexto
+
+Pedido do cliente: "no código SKU, digitar o código e já aparece o
+produto, seleciona e ele também preenche todos os campos" — depois
+confirmou "pelo nome, pelo SKU" quando perguntei (ou melhor, já tinha
+mandado antes de eu terminar de investigar).
+
+Investigando, essa busca-e-preenche já existia desde a v2.3.172
+(`handleSkuOrNameBlur`, campos "Código (SKU)" e "Descrição" do item da
+venda) — mas só disparava no `onBlur` (campo perder o foco) e só
+aceitava correspondência EXATA (sem diferenciar maiúsc./minúsc.) — nada
+acontecia visualmente enquanto a pessoa digitava, e bastava um espaço a
+mais ou faltando no código pra não encontrar nada, sem nenhum aviso.
+Separado disso, o campo "Produto/serviço" (de cima, `FinanceAsyncAutocomplete`)
+já busca por nome OU SKU com dropdown ao vivo — mas é um campo diferente
+do "Código (SKU)" que o cliente queria usar diretamente.
+
+### O que foi feito
+
+- `SaleModal.js`: `handleSkuOrNameBlur` virou `handleSkuOrNameLookup` —
+  mesma lógica de correspondência exata, mas agora também aceita
+  correspondência ÚNICA parcial (se a busca por SKU/nome digitado
+  devolver só UM produto, mesmo sem bater exato, seleciona esse); se
+  devolver mais de um, não adivinha — mostra um toast avisando pra usar
+  o campo "Produto/serviço" de cima. Nova função `scheduleSkuOrNameLookup`
+  debounça (~450ms depois da última tecla) uma busca "silenciosa" (sem
+  toast de sucesso, só preenche os campos) chamada a cada `onChange` dos
+  campos "Código (SKU)" e "Descrição"; o `onBlur` de cada um continua
+  chamando a versão não-silenciosa (toast de sucesso, ou aviso de
+  ambiguidade) como confirmação final. Timer de debounce guardado num
+  `useRef` por índice de linha (`skuLookupTimers`), sobrevive a
+  re-render do Formik a cada tecla.
+- Guarda de sempre mantida: só dispara quando o item ainda não tem
+  `productId` vinculado (nunca sobrescreve uma escolha já feita, seja
+  pelo campo de cima ou por essa própria busca).
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend (a busca por SKU/nome já existia em
+`FinanceProductService.list`).
+
+**Arquivos**: `frontend/src/components/SaleModal/index.js`.
+
+## 171. Nenhum painel fecha sozinho (v2.3.192)
+
+### Contexto
+
+Pedido do cliente: "coloque uma função pra quando abrir um painel, de
+qualquer função do AtendeFlow, só sair quando apertar o botão cancelar
+ou salvar — muitas vezes o operador está digitando e vai pra outro
+aplicativo buscar informação, quando volta a tela fecha, tendo que
+digitar tudo de novo." Comportamento padrão do MUI `Dialog`: clicar no
+fundo escurecido (backdrop) ou apertar Esc fecha o modal chamando
+`onClose` — o retrabalho citado é exatamente alguém clicando de volta
+na aba do navegador e o clique "sobrando" no backdrop em vez de cair
+dentro da caixa.
+
+### O que foi feito
+
+Em vez de editar cada modal da base (são dezenas, em todo módulo —
+Vendas, Contatos, Usuários, Financeiro, Fiscal, Armaria, Despachante
+etc.), um único ajuste no `createTheme` central (`App.js`), nos
+`props` default de `MuiDialog`: `disableBackdropClick: true` e
+`disableEscapeKeyDown: true`. Como todo `<Dialog>` da base usa o tema
+global (`ThemeProvider`), isso cobre literalmente "qualquer função do
+AtendeFlow" de uma vez, sem precisar tocar modal por modal nem arriscar
+esquecer algum. Os botões explícitos de cada modal ("Cancelar",
+"Fechar", "Salvar") continuam funcionando normal — eles chamam
+`onClose`/`onSave` diretamente no `onClick`, não dependem do
+comportamento automático de clique-fora/Esc que foi desligado.
+
+`disableBackdropClick`/`disableEscapeKeyDown` são props do MUI v4 (esse
+projeto usa `@material-ui/core 4.12.3`) — aparecem como *deprecated* na
+documentação (sugerindo usar o `reason` do `onClose`), mas continuam
+funcionando normalmente na versão instalada; confirmado lendo o código
+fonte do componente em `node_modules`.
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não testado clicando de verdade fora de um modal nesta sessão (ambiente
+sem navegador interativo) — a mudança é padrão/documentada do MUI, risco
+baixo, mas vale o cliente confirmar visualmente depois do deploy.
+
+**Arquivos**: `frontend/src/App.js`.
+
+## 172. Razão social dedicada na nota + tributos automáticos (v2.3.193)
+
+### Contexto
+
+O cliente pediu MAIS DE 10 VEZES pra trocar o nome que sai no DANFE
+("CT Confiança/Cactus clube de tiro" → "FEDERACAO BAIANA DE TIRO
+DEFENSIVO & OLIMPICO LTDA") e nunca resolvia de verdade. Investigando
+juntos: confirmou que já tinha editado o "Nome da empresa" na tela
+Empresas do AtendeFlow e mesmo assim saía errado; conferiu o cadastro
+da empresa no painel da própria Focus NFe (Razão Social lá já estava
+CERTA, "FEDERACAO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA"). Então o
+nome errado não vinha nem do nosso lado (comprovado) nem do cadastro da
+Focus (também comprovado) — restava só uma explicação: `buildEmitente`
+sempre leu `nome_emitente` direto de `company.name`, que é o nome
+OPERACIONAL usado no resto do sistema (login, cabeçalho) — trocar esse
+campo pra razão social legal bagunçaria a identificação da empresa em
+todo o resto do AtendeFlow, então na prática nunca ficava trocado de
+vez (ou alguém trocava de volta sem perceber o efeito colateral).
+
+Na mesma leva, o cliente perguntou de novo sobre o campo "V. Aprox.
+Tributos" do DANFE (ver seção anterior, pendência "aguardando suporte
+da Focus") e trouxe a resposta oficial do suporte: o parâmetro
+`discrimina_impostos`, ligado na conta da empresa (API Empresas), faz a
+própria Focus calcular e preencher esse campo sozinha — sem precisar
+mandar nada a mais em cada nota.
+
+### O que foi feito
+
+- **`FiscalConfig.emitterLegalName`** (migration
+  `20261022130000-add-emitter-legal-name-to-fiscal-configs`) — campo
+  dedicado, mesmo padrão já usado pra `emitterPhone`/`emitterEmail`
+  (separados de `Company.phone`/`Company.email` de propósito). Vazio
+  por padrão — não quebra nenhuma empresa que já emitia certo.
+- **`FocusNFeService.buildEmitente`**: `nome_emitente: config.
+  emitterLegalName || company.name` — usa a razão social dedicada
+  quando preenchida, cai pro nome da empresa quando vazio.
+- **`FiscalConfig.discriminaImpostos`** (migration
+  `20261022140000-add-discrimina-impostos-to-fiscal-configs`) — boolean,
+  default `false`.
+- **`FocusAccountService.updateDiscriminaImpostos`** — novo, mesmo
+  mecanismo de `updateAccountingOffice` (API "Empresas" da Focus, `PUT
+  /v2/empresas/{id}`, autenticada com `focusAccountToken`): manda
+  `{ discrimina_impostos: true/false }`.
+  **`FiscalConfigService.update`** sincroniza automaticamente sempre
+  que o campo muda (mesmo padrão de `accountingOfficeDocument`) — erro
+  de sincronização não impede salvar a config local, só avisa.
+- **`FiscalConfigPanel.js`**: campo de texto "Razão social (só na nota
+  fiscal)" logo no topo do bloco do emitente; switch "Detalhar tributos
+  no DANFe automaticamente" ao lado dos campos de token de
+  conta/ID da empresa na Focus (mesma seção — os dois usam a API
+  Empresas).
+
+### Pendência encontrada durante o teste
+
+O cliente tentou sincronizar e recebeu da Focus: `{"codigo":
+"permissao_negada", "mensagem": "Access token inválido (host:
+api.focusnfe.com.br)"}`. Isso é a Focus recusando o TOKEN usado — a API
+"Empresas" exige o token de CONTA/master (painel da Focus → "Minha
+conta"), diferente dos tokens de Homologação/Produção usados pra emitir
+nota. Orientado a conferir/preencher os campos "Token de conta (master)
+da Focus" e "ID da empresa na Focus" em Configuração Fiscal (campos já
+existentes desde a v2.3.128, usados também pelo escritório de
+contabilidade) antes de tentar de novo.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend; as duas
+migrations novas testadas contra Postgres local do zero (cadeia
+completa + undo/redo de cada uma); `GENERATE_SOURCEMAP=false CI=false
+npx craco build` limpo no frontend. Não testado contra conta real da
+Focus nesta sessão (token de conta do cliente deu erro, ver acima) —
+cliente orientado a reconferir as credenciais antes do próximo teste.
+
+**Arquivos**: `backend/src/models/FiscalConfig.ts`,
+`backend/src/database/migrations/
+{20261022130000-add-emitter-legal-name-to-fiscal-configs,
+20261022140000-add-discrimina-impostos-to-fiscal-configs}.ts`,
+`backend/src/services/FiscalService/{FocusNFeService,
+FocusAccountService,FiscalConfigService}.ts`,
+`backend/src/controllers/FiscalConfigController.ts`,
+`frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 173. Código (SKU) com dropdown de busca ao vivo (v2.3.194)
+
+### Contexto
+
+Continuação direta da seção 170 (v2.3.191): o cliente pediu de novo,
+mais explícito — "tem que habilitar no campo a opção de filtrar quando
+o operador digitar no campo o código SKU, preencher todos os campos
+automaticamente como hoje é feito no campo produtos/serviços". Ou seja,
+não bastava buscar em segundo plano e preencher sozinho (o que a
+v2.3.191 já fazia) — queria o MESMO dropdown visível, com lista
+filtrada, que o campo "Produto/serviço" já tinha.
+
+### O que foi feito
+
+- **`FinanceAsyncAutocomplete.js`** (componente compartilhado, usado
+  também pelos seletores de Cliente/Fornecedor/Produto em outras telas)
+  ganhou um prop novo, opcional, `freeSolo` (default `false` — não muda
+  nada pra quem já usa o componente sem passar esse prop). Quando
+  `true`: repassa `freeSolo`/`autoSelect` pro `Autocomplete` do MUI por
+  baixo (`autoSelect` faz o texto digitado virar a opção selecionada
+  sozinho se bater exato, ao perder o foco, sem precisar clicar na
+  lista); `value` passa a aceitar STRING além de objeto; um `useEffect`
+  novo mantém o texto digitado em sincronia quando `value` muda de fora
+  — só ativa quando `freeSolo` E `value` é string, então não afeta
+  nenhum dos outros usos do componente (lá `value` sempre é objeto ou
+  `null`).
+- **`SaleModal.js`**: campo "Código (SKU)" trocou de `TextField` simples
+  pra `FinanceAsyncAutocomplete freeSolo`, com a mesma busca por SKU/nome
+  já usada no "Produto/serviço" (`fetchProductOptions`). Selecionar da
+  lista chama `handleProductChange` (preenche tudo); digitar texto livre
+  sem selecionar continua funcionando igual antes (item avulso). O campo
+  "Descrição" continua com a busca em segundo plano da v2.3.191 (não
+  virou dropdown — o pedido foi especificamente sobre o SKU).
+
+### Testado
+
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de mudança no backend.
+
+**Arquivos**: `frontend/src/components/FinanceAsyncAutocomplete/index.js`,
+`frontend/src/components/SaleModal/index.js`.
+
+## 174. Revisão do módulo Assistente IA — API Key sem máscara (v2.3.195)
+
+### Contexto
+
+Pedido do cliente: "em atende flow assistente de IA, identificação e
+api key é para deixar os campos abertos para adicionar o nome e a
+chave api, aproveita e dá uma revisada nesse módulo". Investigando
+`PromptModal.js` (modal de criar/editar Assistente IA): os campos
+"Nome" e "API Key" **já estavam completamente abertos/editáveis no
+código**, sem nenhum `disabled` — pedi print pra reproduzir o problema
+relatado, mas não veio confirmação; a conversa seguiu pra revisão geral
+sem fechar esse ponto específico (fica como possível pendência se o
+cliente voltar a reportar).
+
+Na revisão geral, encontrados 2 problemas reais:
+1. **API Key em texto puro** (corrigido aqui).
+2. Validação de "Voz obrigatória" no backend checando um modelo que não
+   existe mais (`"gpt-3.5-turbo-1106"` em vez de `"gpt-4.1-mini"`) —
+   cliente respondeu explicitamente "não quero" corrigir isso por
+   enquanto. **Não mexido** — fica registrado pra não redescobrir:
+   `CreatePromptService.ts`/`UpdatePromptService.ts`, campo `voice`,
+   `when("model", { is: val => val === "gpt-3.5-turbo-1106" ...})` —
+   deveria ser `"gpt-4.1-mini"` (único modelo com voz hoje, ver
+   `AI_PROVIDER_MODELS` em `backend/src/helpers/aiProviders.ts`), mas o
+   cliente pediu pra deixar como está.
+
+### O que foi feito (API Key)
+
+- **`PromptController.ts`** — nova `maskPrompt(prompt)`: mesmo padrão
+  de `FiscalConfigService.maskConfig` (Resend) — `apiKey: ""` +
+  `apiKeyConfigured: !!prompt.apiKey`. Aplicado nos 4 pontos que
+  devolviam o model inteiro: `index` (lista, `.map(maskPrompt)`),
+  `store` (criar), `show`, `update` — **e também no evento de socket**
+  (`io.of(...).emit("company-X-prompt", { prompt: maskPrompt(...) })`),
+  que antes vazava a chave de API em texto puro pra TODOS os usuários
+  conectados da empresa a cada criação/edição de QUALQUER Assistente
+  IA, não só pra quem estava editando — esse era o vazamento mais
+  amplo dos dois. Mascarado só no CONTROLLER (nível HTTP) — o model e
+  os services continuam com o valor real, usado de verdade por
+  `OpenAiService.ts` pra chamar a IA.
+- **`update`** (controller) — `if (!promptData.apiKey) delete
+  promptData.apiKey;` antes de chamar `UpdatePromptService` — mesmo
+  "deixe vazio pra manter" já usado no Resend; campo vazio no
+  formulário (porque nunca mais volta preenchido) não apaga a chave
+  salva.
+- **`PromptModal.js`** — novo campo de controle `apiKeyConfigured` no
+  estado/Formik (populado direto do `data.apiKeyConfigured` que vem do
+  backend já mascarado); Yup: `apiKey` só obrigatório quando
+  `apiKeyConfigured` for `false` (criar novo, ou editar um que nunca
+  teve chave — não deveria acontecer, mas não quebra se acontecer);
+  `TextField` ganha `helperText` avisando "Já tem uma chave salva —
+  deixe em branco pra mantê-la, ou digite uma nova pra trocar." quando
+  `apiKeyConfigured`; `apiKeyConfigured` removido do payload antes de
+  enviar pro backend (campo só de controle de UI, não existe no model).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos no backend;
+`GENERATE_SOURCEMAP=false CI=false npx craco build` limpo no frontend.
+Não precisou de migration (nenhuma coluna nova).
+
+**Arquivos**: `backend/src/controllers/PromptController.ts`,
+`frontend/src/components/PromptModal/index.js`.
+
+## 175. API Key do Assistente IA cifrada no banco (v2.3.196)
+
+### Contexto
+
+Continuação da seção 174 — o cliente mandou um app próprio dele
+(`AtendeFlow-Multiclientes`, Python/SQLite, usado como referência de
+design pra uma reforma maior do módulo Assistente IA, não uma versão
+mais nova do mesmo AtendeFlow) que já cifra a API key de cada provedor
+no banco (Fernet) e só revela sob demanda. Pedido explícito do cliente:
+"cifrar a apikey" — primeira fase confirmada do plano de reforma, feita
+"tudo de uma vez" junto com a seção 176 (FlowBuilder) depois de eu
+avisar do escopo real e o risco de mexer na IA ativa em produção.
+
+### Descoberta importante durante a investigação
+
+A API key não vive só na tabela `Prompts` — o **FlowBuilder** guarda
+uma CÓPIA própria da configuração inteira do Assistente IA (incluindo a
+API key) dentro do JSON de cada fluxo salvo, quando um nó de IA é usado
+(`IOpenAi`/`typebotIntegration`, lido em 8 arquivos diferentes). Cifrar
+só a tabela resolve o banco "principal", mas não fecha cópias dentro de
+fluxos já salvos — isso é tratado separadamente na seção 176.
+
+### O que foi feito
+
+- **`backend/src/utils/promptApiKeyCrypto.ts`** (novo) — AES-256-GCM,
+  mesmo algoritmo/formato (`"<iv>:<authTag>:<ciphertext>"`, tudo base64)
+  já usado em `weaponDispatchCrypto.ts` (senha do gov.br), mas arquivo e
+  variável de ambiente SEPARADOS de propósito (`PROMPT_API_KEY_
+  ENCRYPTION_KEY`, não reaproveita `WEAPON_DISPATCH_ENCRYPTION_KEY`) —
+  segredos de categorias diferentes, um vazamento de um não deveria
+  comprometer o outro. **Diferença deliberada** do padrão do
+  weaponDispatchCrypto: lá, sem a variável de ambiente configurada, a
+  função recusa funcionar (throw) — aqui, sem a variável, `encryptApiKey`
+  devolve o texto como veio (não cifra, só avisa uma vez no log) e
+  `decryptApiKey` também devolve como está. Decisão: isso é um
+  Assistente IA ATIVO em produção pra um cliente de verdade — prioridade
+  é nunca quebrar o atendimento por IA só porque a variável de ambiente
+  ainda não foi configurada no servidor depois do deploy. `isEncryptedApiKey`
+  reconhece o formato cifrado (IV de 12 bytes + authTag de 16 bytes,
+  decodificados do base64) pra nunca cifrar duas vezes nem tentar
+  decifrar um valor que já está em texto puro.
+- **`Prompt.ts`** — hooks `@BeforeCreate`/`@BeforeUpdate` (cifra antes
+  de gravar) e `@AfterFind` (decifra ao carregar) — mesmo padrão de hook
+  já usado em `User.ts` (`hashPassword`). `@AfterFind` escolhido em vez
+  de decifrar manualmente em cada lugar que usa `Prompt.apiKey` (são
+  pelo menos 6 arquivos fora do FlowBuilder: `OpenAiService.ts`,
+  `OpenAIProviderService.ts`, `GeminiProviderService.ts`,
+  `wbotMessageListener.ts`, `HandleWuzapiWebhook.ts`,
+  `ReceivedWhatsApp.ts`, `ActionsWebhookService.ts`) — com o hook,
+  NENHUM desses arquivos precisou mudar uma linha sequer: todos
+  continuam recebendo `prompt.apiKey` já em texto puro, exatamente como
+  sempre. **Testado e confirmado** (não só por leitura de código) que
+  `@AfterFind` decifra corretamente tanto em `Prompt.findByPk`/
+  `findAll` direto quanto carregado via `include` de outro model — era o
+  maior risco dessa abordagem (nenhum outro model deste projeto usava
+  `@AfterFind` antes), confirmado com um script Node rodado contra
+  Postgres local antes de confiar na abordagem.
+- **Migration de DADOS** `20261023100000-encrypt-existing-prompt-api-keys`
+  — cifra toda `Prompts.apiKey` que ainda estiver em texto puro no banco,
+  reaproveitando `encryptApiKey`/`isEncryptedApiKey` (import direto do
+  util compilado — primeira migration deste projeto a importar código
+  da aplicação em vez de só SQL puro; idempotente, testado rodando a
+  função `up` duas vezes seguidas e confirmando que a segunda não muda
+  nada).
+- **`.env.coolify.example`** — nova variável `PROMPT_API_KEY_ENCRYPTION_KEY`
+  documentada (gerar com `openssl rand -base64 32`), com o aviso de que
+  é opcional (sem ela, funciona igual antes, só não cifra).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Testado de ponta a ponta
+contra Postgres local (não só migration, também o comportamento real do
+model): inserção manual de uma linha com API key em texto puro →
+migration cifra → `findByPk` e `findAll` com `include` decifram
+corretamente → criar um Prompt novo grava cifrado no banco e recarrega
+decifrado → atualizar um campo qualquer (sem mexer na API key) não
+corrompe o valor cifrado existente → rodar a migration duas vezes não
+cifra de novo (idempotente) → sem a variável de ambiente configurada,
+nada quebra (fica em texto puro, só avisa no log).
+
+**Arquivos**: `backend/src/utils/promptApiKeyCrypto.ts` (novo),
+`backend/src/models/Prompt.ts`, `backend/src/database/migrations/
+20261023100000-encrypt-existing-prompt-api-keys.ts` (novo),
+`.env.coolify.example`.
+
+## 176. API Key cifrada também nos fluxos do FlowBuilder (v2.3.197)
+
+### Contexto
+
+Fecha o vazamento mapeado na seção 175: a cópia da API key que o
+FlowBuilder guarda dentro de cada fluxo salvo (`node.data.
+typebotIntegration.apiKey`, num nó tipo "openai"). Investigação mais a
+fundo mostrou que o alcance real era menor do que os 8 arquivos que
+batiam com `typebotIntegration`/`IOpenAi` na busca inicial — a maioria
+só lê outros campos (`answerKey`, tipo do nó). Só DOIS arquivos de
+verdade LEEM a API key desse JSON pra chamar a IA:
+`wbotMessageListener.ts` (linha ~5901) e `ActionsWebhookService.ts`
+(linha ~467) — os outros caminhos de IA (conexão direta via
+`whatsapp.promptId`, `ShowPromptService`) já usam a tabela `Prompts`
+normal, coberta pelos hooks da seção 175.
+
+### O que foi feito
+
+- **`backend/src/helpers/flowBuilderApiKeyCrypto.ts`** (novo) —
+  `encryptFlowNodesApiKeys`/`decryptFlowNodesApiKeys`: percorre o array
+  de nós de um fluxo, aplica `encryptApiKey`/`decryptApiKey` (mesmas
+  funções de `promptApiKeyCrypto.ts`, seção 175) só no `apiKey` de nós
+  que tiverem `data.typebotIntegration.apiKey` — qualquer outro nó
+  passa intocado.
+- **Gravação** (`FlowUpdateDataService.ts`, onde o editor salva o
+  fluxo inteiro) — `nodes: encryptFlowNodesApiKeys(bodyData.nodes)`
+  antes do `FlowBuilderModel.update(...)`. Esse `update` é uma chamada
+  ESTÁTICA/em massa (`FlowBuilderModel.update({...}, {where})`), não um
+  `instance.save()` — hooks de model (`@BeforeSave` etc.) NÃO disparam
+  nesse caso (Sequelize só dispara hook por instância com
+  `individualHooks: true`, que esse código não usa), por isso a cifra
+  tem que ser explícita aqui, diferente da tabela `Prompts` (que usa
+  hook porque lá tudo passa por `instance.update()`/`.create()`).
+- **Leitura pro editor** (`GetFlowBuilderService.ts` e
+  `FlowsGetDataService.ts` — arquivos praticamente duplicados, mesma
+  lógica, mantidos os dois por via das dúvidas de qual rota usa qual) —
+  decifra os nós antes de devolver, pra tela do editor mostrar a chave
+  de verdade, não o texto cifrado.
+- **Leitura em tempo de execução** (`wbotMessageListener.ts` e
+  `ActionsWebhookService.ts`) — `apiKey: decryptApiKey(apiKey)` no
+  ponto exato onde cada um monta o `openAiSettings` a partir do nó
+  selecionado do fluxo.
+- **`DuplicateFlowBuilderService.ts`** — não precisou mudar: copia
+  `flow.flow` bruto de um fluxo pro outro (nunca passa pelo
+  Get/decifra), então duplicar um fluxo já cifrado continua cifrado
+  corretamente, sem decifrar/recifrar à toa.
+- **Migration de DADOS**
+  `20261023110000-encrypt-existing-flowbuilder-api-keys` — cifra a API
+  key de todo nó "openai" já salvo em qualquer fluxo existente. Só
+  grava de novo as linhas onde alguma API key realmente mudou (evita
+  `UPDATE` em fluxo sem nó de IA). Idempotente pelo mesmo mecanismo da
+  migration irmã da seção 175.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Testado de ponta a ponta
+contra Postgres local: fluxo inserido manualmente com API key em texto
+puro num nó "openai" → migration cifra → `GetFlowBuilderService`
+devolve decifrado (simula abrir no editor) → resalvar esse mesmo fluxo
+decifrado via `FlowUpdateDataService` (simula o editor salvando de
+novo) cifra corretamente de novo → recarregar depois do resave ainda
+decifra certo — prova que o ciclo abrir→editar→salvar→abrir de novo é
+estável, sem degradar nem corromper a chave a cada volta.
+
+**Arquivos**: `backend/src/helpers/flowBuilderApiKeyCrypto.ts` (novo),
+`backend/src/database/migrations/
+20261023110000-encrypt-existing-flowbuilder-api-keys.ts` (novo),
+`backend/src/services/FlowBuilderService/{FlowUpdateDataService,
+GetFlowBuilderService,FlowsGetDataService}.ts`,
+`backend/src/services/WbotServices/wbotMessageListener.ts`,
+`backend/src/services/WebhookService/ActionsWebhookService.ts`.
+
+## 177. Mensagens Rápidas espelhadas em Arquivos da IA (v2.3.198)
+
+### Contexto
+
+Pedido do cliente: puxar pra tela "Arquivos da IA" (catálogo de
+texto/imagem/vídeo que a IA pode enviar durante o atendimento, módulo
+`PromptFiles`) tudo o que já existe em "Mensagens Rápidas" — texto,
+arquivo e vídeo — pra não ter que recadastrar manualmente o que já
+existe lá. Antes de mexer, quatro decisões reais precisaram ser
+tomadas com o cliente (contexto ambíguo, ver CLAUDE.md):
+
+1. **Mensagem rápida só de texto** (sem anexo) — "Arquivos da IA"
+   hoje exige um arquivo físico em todo item (`path`/`mediaType` NOT
+   NULL). Decisão: criar um item "de texto" nesse catálogo (sem
+   arquivo físico nenhum, guarda o texto direto), não só pular essas
+   mensagens.
+2. **Campo "Quando a IA deve enviar"** não existe em Mensagens
+   Rápidas. Decisão: gerar um texto inicial a partir do atalho
+   (shortcode) na criação, editável depois (nunca sobrescrito numa
+   sincronização seguinte).
+3. **Frequência**: importação única vs. sincronização contínua.
+   Decisão: contínua — toda criação/edição de uma mensagem rápida
+   "geral" atualiza o espelho correspondente automaticamente.
+4. **Escopo**: mensagens rápidas podem ser gerais da empresa ou
+   pessoais de cada atendente (campo `geral`). Decisão: só as gerais
+   entram no catálogo da IA (que é único por empresa) — as pessoais
+   ficariam vazando pra IA responder com algo que só fazia sentido pra
+   um atendente específico.
+
+### O que foi feito
+
+- **`backend/src/helpers/quickMessagePromptFileSync.ts`** (novo,
+  função pura, sem banco/disco) — `inferMimeTypeFromFilename` (mapa de
+  extensão → mimetype, porque `QuickMessage` não guarda o mimetype
+  original, só o nome do arquivo), `buildSyncedName`/
+  `buildSyncedDescription` (geram nome e a descrição inicial a partir
+  do `shortcode`), e a constante `TEXT_MEDIA_TYPE = "text"` — marca
+  especial de `mediaType` pra item sem arquivo físico.
+- **Migration de schema**
+  `20261023140000-add-quick-message-sync-to-prompt-files` — torna
+  `PromptFiles.path` opcional (item de texto não tem arquivo), e
+  adiciona `textContent` (o texto em si) e `sourceQuickMessageId` (FK
+  pra `QuickMessages`, `onDelete: SET NULL`) — essa coluna é o que
+  torna a sincronização idempotente (sempre atualiza o mesmo item em
+  vez de duplicar) e marca o que é espelho automático x cadastro
+  manual.
+- **`backend/src/models/PromptFiles.ts`** — `path` deixou de ser
+  `@AllowNull(false)`; novos campos `textContent` e
+  `sourceQuickMessageId`/`sourceQuickMessage` (`@BelongsTo` pra
+  `QuickMessage`).
+- **`backend/src/services/PromptFilesServices/
+  SyncFromQuickMessageService.ts`** (novo) — o coração da feature.
+  Recebe a instância de `QuickMessage` já criada/atualizada e:
+  - Se `geral=false` ou não tem nem texto nem mídia → remove o espelho
+    (registro + arquivo físico) se existir.
+  - Se tem mídia (`quickMessage.getDataValue("mediaPath")` — **tem que
+    ser `getDataValue`, não `quickMessage.mediaPath` direto**, porque
+    esse campo é um *getter* no model que já devolve a URL pública
+    completa, não o nome do arquivo no disco; usar o getter por engano
+    aqui quebraria o `fs.copyFileSync` silenciosamente) → copia o
+    arquivo físico de `public/company{id}/quickMessage/` pra
+    `public/company{id}/promptFiles/` (pastas diferentes — PromptFiles
+    nunca referencia o arquivo original, sempre uma cópia de verdade,
+    senão apagar a mensagem rápida original apagaria o anexo que a IA
+    usa), nomeando como `qm{id}_{nomeOriginal}` pra nunca colidir com
+    upload manual. Troca de mídia (anexo novo asimilar outro) apaga o
+    arquivo espelhado anterior antes de copiar o novo, pra não
+    acumular lixo em disco.
+  - Se é só texto → grava/atualiza `textContent`, `path: null`,
+    `mediaType: "text"`.
+  - **Nunca sobrescreve `description`** num item que já existe — só
+    define na criação. Esse campo é o "quando enviar", que o cliente
+    pediu pra ficar editável sem se perder numa sincronização futura.
+- **Disparo da sincronização** — chamado (com try/catch, nunca
+  derruba a operação principal se falhar) em todo ponto que
+  cria/edita uma `QuickMessage` ou mexe no anexo dela:
+  `QuickMessageService/{CreateService,UpdateService}.ts` (depois do
+  `create`/`update`), `QuickMessageController.{mediaUpload,
+  deleteMedia}` (upload/remoção de anexo são endpoints separados de
+  create/update nesse módulo). Em `QuickMessageService/
+  DeleteService.ts`, antes de `record.destroy()`: seta
+  `record.geral = false` só em memória (nunca salva isso no banco) e
+  chama o sync, reaproveitando a mesma lógica de remoção do espelho em
+  vez de duplicar o código de limpeza.
+- **`backend/src/services/PromptFilesServices/DeleteService.ts`** —
+  ajustado pra não quebrar apagando manualmente (pela tela) um item de
+  texto puro, que não tem `path` nenhum pra resolver no disco.
+- **`backend/src/services/IntegrationsServices/OpenAiService.ts`** —
+  o trecho que processa a ação `send_file` da IA (~linha 1115) agora
+  checa `promptFile.mediaType === "text"` primeiro: nesse caso manda o
+  `textContent` como mensagem de texto comum (`wbot.sendMessage` +
+  `verifyMessage`, mesmo padrão já usado no resto do arquivo), sem
+  tentar montar um arquivo de mídia que não existe.
+- **Migração de DADOS**
+  `20261023150000-backfill-prompt-files-from-quick-messages` — traz
+  de uma vez, no deploy, todas as mensagens rápidas "geral" que já
+  existiam antes dessa versão (texto e mídia, com a mesma cópia física
+  de arquivo). Só usa o helper puro (sem `require` de model/Sequelize,
+  mesmo motivo das migrations da seção 175/176) + SQL direto via
+  `queryInterface.sequelize.query`. Idempotente — pula qualquer
+  `QuickMessage.id` que já tenha um `PromptFiles.sourceQuickMessageId`
+  correspondente.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Contra Postgres local
+(scratch), testado de ponta a ponta com dados reais:
+- Cadeia completa de migrations aplicada sem erro; `db:migrate:undo`
+  até antes da seção 176 e `db:migrate` de novo, estado final
+  consistente.
+- Backfill: 1 mensagem rápida só texto + 1 com imagem + 1 pessoal
+  (`geral=false`) → só as 2 gerais viraram item no catálogo, a pessoal
+  ficou de fora; arquivo físico da imagem copiado corretamente pra
+  `promptFiles/`, mimetype inferido certo (`image/png`). Rodado uma
+  segunda vez sem apagar nada → zero duplicata (idempotente).
+- `SyncFromQuickMessageService` chamado diretamente via script Node
+  contra o banco: editar o texto de uma mensagem rápida atualiza
+  `textContent` mas preserva uma `description` editada manualmente;
+  desmarcar `geral` remove o espelho; marcar `geral` de novo recria
+  com o conteúdo atual; trocar o anexo por outro arquivo apaga o
+  espelho físico antigo e copia o novo; apagar a mensagem rápida
+  (`DeleteService`) remove o espelho (registro + arquivo) antes de
+  apagar a mensagem rápida em si.
+
+~~### Limitação conhecida
+
+A tela "Arquivos da IA" (`PromptFilesTab.js`) hoje só tem
+cadastrar/excluir, sem editar — então "editável depois" (decisão 2
+acima) só é possível direto no banco por enquanto, não pela interface.
+Não implementado nessa versão por não ter sido pedido; sinalizado pro
+cliente.~~ — **corrigido na v2.3.199**, ver seção 178.
+
+**Arquivos**: `backend/src/helpers/quickMessagePromptFileSync.ts`
+(novo), `backend/src/services/PromptFilesServices/
+SyncFromQuickMessageService.ts` (novo),
+`backend/src/database/migrations/
+{20261023140000-add-quick-message-sync-to-prompt-files,
+20261023150000-backfill-prompt-files-from-quick-messages}.ts` (novos),
+`backend/src/models/PromptFiles.ts`,
+`backend/src/services/PromptFilesServices/DeleteService.ts`,
+`backend/src/services/QuickMessageService/{CreateService,
+UpdateService,DeleteService}.ts`,
+`backend/src/controllers/QuickMessageController.ts`,
+`backend/src/services/IntegrationsServices/OpenAiService.ts`.
+
+## 178. Editar item em Arquivos da IA (v2.3.199)
+
+### Contexto
+
+Logo depois de entregar a seção 177, o cliente pediu pra fechar o CRUD
+completo da tela "Arquivos da IA" (que só tinha Adicionar/Excluir) e também
+deixou registrado como padrão permanente do projeto: toda lista/catálogo
+novo nasce com Adicionar + Editar + Excluir desde a primeira versão (ver
+`atendeflow-dev` seção 13).
+
+### O que foi feito
+
+- **`backend/src/services/PromptFilesServices/UpdateService.ts`** (novo) —
+  mesma validação Yup do `CreateService`. Sempre atualiza `name`/
+  `description`. Se vier `newPath` (arquivo novo) ou `newTextContent`
+  (string, mesmo vazia) no payload, troca o conteúdo: apaga o arquivo físico
+  anterior se havia um, grava o novo (arquivo ou texto), e **zera
+  `sourceQuickMessageId`** se o item tinha um — desvincula da Mensagem
+  Rápida de origem, pra não correr risco de uma sincronização futura
+  sobrescrever a edição manual (ver seção 177/`atendeflow-dev` seção 14).
+  Editar só nome/descrição NÃO desvincula nada.
+- **`backend/src/services/PromptFilesServices/SyncFromQuickMessageService.ts`**
+  — ajustado pra também nunca sobrescrever `name` num item já existente
+  (antes só `description` era protegido; agora que dá pra editar os dois
+  pela tela, os dois ficam do mesmo jeito protegidos contra sincronização).
+- **`PromptFilesController.ts`/`promptFilesRoutes.ts`** — rota nova
+  `PUT /prompt-files/:promptFileId`, multer com arquivo OPCIONAL (diferente
+  do `POST`, que exige arquivo). Corpo aceita `name`, `description`, e
+  opcionalmente `file` (multipart) ou `textContent` (string) — se vier
+  arquivo, ele tem prioridade sobre `textContent`.
+- **`PromptFilesTab.js`** — formulário do topo (já usado pra Adicionar)
+  virou dual-mode: clicar no ícone de editar de um item preenche o form com
+  os dados dele (`editingFile` no state) e troca "Adicionar" por
+  "Salvar"/"Cancelar". Item de texto (`mediaType === "text"`) mostra um
+  campo de texto editável além do seletor de arquivo (trocar por um arquivo
+  também é permitido, substitui o texto). Item que veio de sincronização
+  (`sourceQuickMessageId` setado) ganha uma legenda "Sincronizado de
+  Mensagens Rápidas" na lista, só informativo.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos, `npx eslint` +
+`npx craco build` (frontend) limpos. Testado contra Postgres local via
+script Node direto no `UpdateService`: editar só nome/descrição mantém
+`sourceQuickMessageId` (e uma sincronização seguinte da mensagem rápida
+original não reverte a edição); editar o texto desvincula
+(`sourceQuickMessageId` vira `null`), e a mensagem rápida original passa a
+criar uma linha NOVA na próxima sincronização (esperado); item cadastrado
+manual (sem `sourceQuickMessageId`) edita normalmente sem nenhum efeito
+colateral.
+
+**Arquivos**: `backend/src/services/PromptFilesServices/UpdateService.ts`
+(novo), `backend/src/services/PromptFilesServices/
+SyncFromQuickMessageService.ts`, `backend/src/controllers/
+PromptFilesController.ts`, `backend/src/routes/promptFilesRoutes.ts`,
+`frontend/src/components/PromptModal/PromptFilesTab.js`.
+
+## 179. Modal de conexões por empresa (admin) ficava sem jeito de fechar (v2.3.200)
+
+### Contexto
+
+Achado pelo próprio cliente navegando: na tela "Conexões" do Super Admin
+(`AllConnections`), clicar numa empresa abre um modal (`CompanyWhatsapps`
+— `WhatsAppModalCompany`) listando as conexões dela — esse modal **nunca
+teve um botão de fechar próprio**, só contava com clique fora/Esc (padrão
+do MUI). A seção 171 (v2.3.192, "Nenhum painel fecha sozinho") desligou
+esses dois gatilhos pra TODO modal do sistema, contando que cada um já
+tinha botão próprio de Cancelar/Fechar/Salvar — o que era verdade pra
+praticamente todos, exceto esse (e o preview "Lista de Botões" do
+Flowbuilder, achado na mesma varredura). Resultado: esse modal específico
+ficou **permanentemente preso aberto** desde a v2.3.192, só dava pra sair
+dando F5 na página.
+
+### O que foi feito
+
+- **`CompanyWhatsapps/index.js`** (`WhatsAppModalCompany`) — X no título
+  (`IconButton` com `Close`, chamando o `handleClose` que já existia) +
+  botão "Fechar" no rodapé (`DialogActions`, que esse modal nem tinha).
+- **`ListPreview/index.js`** (preview de "Lista de Botões" do Flowbuilder)
+  — mesmo problema, mesmo fix: X no título chamando `fecharModal` (função
+  que já existia, só nunca tinha sido ligada a nada visível).
+- **Varredura rápida** por outros candidatos (`grep` por `DialogTitle` sem
+  `DialogActions` no mesmo arquivo): `components/Dialog/index.js`
+  (wrapper genérico reaproveitado por vários lugares — depende do que
+  cada consumidor passa em `children`), `MomentsUser/index.js` e
+  `TicketListItemCustom/index.js` também apareceram na varredura, mas não
+  confirmados como realmente sem saída (podem ter o botão de fechar
+  dentro do `children`/de um subcomponente não capturado pelo grep) — não
+  investigados a fundo nesta versão, por não serem o bloqueio relatado
+  pelo cliente. **Pendência**: auditar esses três (e reaproveitar o
+  mesmo `grep` acima) numa varredura dedicada, não só quando um usuário
+  tromba com mais um caso preso.
+
+### Testado
+
+`npx eslint` limpo nos dois arquivos (só warnings pré-existentes, não
+relacionados). `GENERATE_SOURCEMAP=false CI=false npx craco build`
+limpo. Não testado clicando de verdade no X (ambiente sem navegador
+interativo nesta sessão) — mesma ressalva já registrada na seção 171.
+
+**Arquivos**: `frontend/src/components/CompanyWhatsapps/index.js`,
+`frontend/src/components/ListPreview/index.js`.
+
+## 180. Assistente IA da conexão não entregava resposta a contato via @lid (v2.3.201)
+
+### Contexto
+
+Depois da seção 177-179 (sincronização de Mensagens Rápidas), diagnóstico
+em produção de "configurei a IA e não respondeu". Investigação longa
+(várias rodadas de log) eliminou em ordem: criptografia da API key (OK,
+v2.3.196/197), vínculo do Prompt na conexão (faltava — campo "Assistente
+de IA" fica na aba **Integrações**, não "Geral", e só aparece se o plano
+da empresa tiver "Atendimento IA" habilitado em Configurações → Planos),
+e um ticket antigo preso em status `nps` (aguardando avaliação) sendo
+reaproveitado pelo `FindOrCreateTicketService` via `lid`/`jid` — nenhum
+desses era a causa final. A prova decisiva: o painel da OpenAI mostrou
+`$0,04` gastos e "Último uso" preenchido — ou seja, a chamada à API
+estava acontecendo e sendo cobrada, mas a resposta nunca chegava no
+WhatsApp do cliente.
+
+Causa raiz: o contato chegou via `@lid` (identidade alternativa que o
+WhatsApp introduziu como camada de privacidade — resolvida no log pra
+`remoteJidAlt`, o número real). `wbotMessageListener.ts` já tem uma
+função `resolveRemoteJid(msg, ticket)` que resolve isso (prioriza
+`remoteJidAlt`, depois `senderPn`), mas ela só era aplicada em pontos
+específicos — gravação da `Message.remoteJid`, resolução de contato, e
+o fluxo do Typebot (`typebotListener`, que já reconstrói `msg` com o
+`remoteJid` corrigido antes de chamar). **Os dois caminhos de IA direto
+na conexão nunca aplicavam essa correção** — passavam o `msg` bruto pra
+`handleOpenAi`, que manda a resposta via `wbot.sendMessage(msg.key.
+remoteJid!, ...)`. Resultado: `wbot.sendMessage` tentava entregar pro
+`@lid` bruto, que não é um destino entregável — chamada à OpenAI
+acontece (cobra), resposta não vai a lugar nenhum, nenhum erro no log
+(o `sendMessage` não lança, só não entrega).
+
+### O que foi feito
+
+Nos dois pontos de `wbotMessageListener.ts` que chamam `handleOpenAi`
+sem passar por `typebotListener` — nó "openai" do Flowbuilder sem fila
+(~linha 5878, `isOpenai && !isNil(flow) && !ticket.queueId`) e "openai
+na conexão" (~linha 5940, `!ticket.queue && ... && whatsapp.promptId`)
+— o `msg` passado agora é reconstruído com o `remoteJid` corrigido,
+mesmo padrão já usado pelo `typebotListener`:
+```ts
+{ ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } }
+```
+Como é só o objeto `msg` que muda (mesma referência usada daí pra
+frente dentro de `handleOpenAi`/`OpenAiService.ts`), nenhuma outra
+função precisou mudar — `wbot.sendMessage` dentro do `OpenAiService.ts`
+passa a usar o `remoteJid` já corrigido automaticamente.
+
+**Pendência (não corrigida nesta versão, caminho separado)**:
+`ActionsWebhookService.ts` (nó de IA dentro de fluxo do Flowbuilder
+disparado por *webhook* externo, não o nó direto no fluxo) tem a MESMA
+chamada a `handleOpenAi(openAiSettings, msg, ...)` sem essa correção —
+mesmo bug latente, não corrigido por não ser o caminho que esse cliente
+usa (ele usa Prompt direto na conexão). Se algum cliente reportar o
+mesmo sintoma (IA cobra mas não entrega) usando automação via webhook,
+aplicar a mesma correção lá.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Não testado contra uma
+sessão real do WhatsApp nesta sessão (sem ambiente de Baileys
+interativo) — a correção segue exatamente o padrão já usado e testado
+em produção pelo `typebotListener`, risco baixo, mas vale o cliente
+confirmar com um teste real depois do deploy (inclusive comparando o
+"Último uso"/gasto da chave da OpenAI de antes/depois, já que esse foi
+o sinal que provou a chamada estava saindo).
+
+**Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`.
+
+## 181. Testar agente + Números sem IA (v2.3.202)
+
+### Contexto
+
+Fases 2 e 3 do plano original de redesign do Assistente IA (confirmado
+pelo cliente ainda no início desse trabalho, junto com a criptografia da
+API key e a sincronização de Mensagens Rápidas — ver seção 177). Ficaram
+pendentes enquanto o bug de produção (seções 177-180) era investigado.
+
+### Fase 2 — Testar agente
+
+`OpenAiService.handleOpenAi` (2181 linhas) é fortemente acoplado a
+`Ticket`/`Contact`/`wbot`/`Message` — tem efeito colateral real (manda
+mensagem de verdade, atualiza ticket, transfere fila) e exige resposta
+em JSON estruturado (`{"action":...,"messages":[...]}`) pensado pro
+pipeline de divisão de mensagens do WhatsApp. Não dava pra reaproveitar
+direto pra um teste "de mentirinha".
+
+Achado melhor ponto de partida: `ImproveTicketReplyService.ts` (já
+existia, usado pra "melhorar" o texto de uma resposta do atendente) —
+mesmo formato de problema (chamar IA, texto livre, sem ticket/wbot),
+já com timeout, retry do Gemini e tratamento de erro por provedor
+prontos. `TestPromptService.ts` (novo) segue exatamente esse molde:
+
+- Busca o `Prompt` (hook `@AfterFind` já decifra a `apiKey`).
+- Monta um system prompt simples a partir de `prompt.prompt` (pede
+  resposta em texto natural, SEM o protocolo JSON de ação — não faz
+  sentido pro teste, que não despacha nada).
+- Branch por provedor: `gemini` usa `GoogleGenerativeAI` com
+  `startChat({history})` (histórico real multi-turno); os três
+  compatíveis com OpenAI (`openai`/`deepseek`/`groq`) usam o SDK
+  `openai` com `getOpenAICompatibleBaseURL(provider)` (mesmo helper já
+  usado em `ImproveTicketReplyService.ts`/`OpenAiService.ts`) +
+  `extractOpenAICompatibleText` (já exportado de
+  `OpenAIProviderService.ts`).
+- Stateless: frontend manda o histórico inteiro (`history`, até 20
+  mensagens) a cada chamada — sem sessão no backend, sem tabela nova.
+- `PromptController.test` / rota `POST /prompt/:promptId/test`.
+- `TestPromptModal.js` (novo) — chat simples (bolhas usuário/assistente),
+  aberto por um ícone novo na lista de Assistentes de IA, aviso explícito
+  de que é simulação (não reproduz divisão de mensagem/envio de arquivo
+  do catálogo do pipeline real).
+
+### Fase 3 — Números sem IA
+
+- **`PromptBlockedNumber`** (model + migration novos, tabela
+  `PromptBlockedNumbers`) — `companyId`, `number` (só dígitos, mesma
+  normalização `.replace(/\D/g, "")` já usada em outros pontos do
+  sistema pra número de WhatsApp — ver `CheckGroupAdmin.ts`/
+  `SendMessage.ts`), `label` opcional. Índice único `(companyId,
+  number)`.
+- **`IsNumberBlockedService.ts`** — normaliza o número recebido (aceita
+  com `@s.whatsapp.net`, formatação com parênteses/traço etc.) antes de
+  comparar, pra bater com qualquer formato que `contact.number` venha.
+- **Gatilho** — `wbotMessageListener.ts` calcula
+  `numberBlockedForAI` UMA VEZ (evita duas queries) logo antes dos dois
+  pontos que chamam `handleOpenAi` diretamente (nó do Flowbuilder sem
+  fila e "IA na conexão", os mesmos dois corrigidos na seção 180 pro
+  bug do `@lid`) e adiciona `&& !numberBlockedForAI` nas duas
+  condições. **Não** bloqueia o fluxo de continuação de sessão do
+  Typebot (`ticket.typebotSessionId`) — isso é outro recurso
+  (Flowbuilder visual), fora do escopo de "IA automática" que o cliente
+  pediu pra poder desligar por número.
+- CRUD simples (`PromptBlockedNumberServices/{List,Create,Delete}Service.ts`
+  + controller/rotas) + aba nova "Números sem IA" na tela Assistente IA
+  (`BlockedNumbersTab.js`, mesmo padrão visual de `PromptFilesTab.js`).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos; `npx eslint` +
+`npx craco build` (frontend) limpos. `TestPromptService` testado contra
+Postgres local: empresa errada (404), mensagem vazia (400), Prompt sem
+`apiKey` (400), Prompt inexistente (404), e uma chamada de verdade à
+OpenAI com chave inválida (confirma o path de rede completo e o erro
+502 normalizado — só não deu pra testar uma chamada com chave válida
+nesta sessão, sem credencial de teste). Blocklist testado via script
+direto: normalização bate pra número puro, com `@s.whatsapp.net` e
+formatado com parênteses/traço; duplicata rejeitada; depois de apagar,
+`IsNumberBlockedService` volta a liberar.
+
+**Arquivos**: `backend/src/services/PromptServices/TestPromptService.ts`
+(novo), `backend/src/controllers/PromptController.ts`,
+`backend/src/routes/promptRouter.ts`,
+`frontend/src/components/PromptModal/TestPromptModal.js` (novo),
+`backend/src/models/PromptBlockedNumber.ts` (novo),
+`backend/src/database/migrations/
+20261023160000-create-prompt-blocked-numbers.ts` (novo),
+`backend/src/services/PromptBlockedNumberServices/` (novo),
+`backend/src/controllers/PromptBlockedNumberController.ts` (novo),
+`backend/src/routes/promptBlockedNumberRoutes.ts` (novo),
+`backend/src/routes/index.ts`, `backend/src/database/index.ts`,
+`backend/src/services/WbotServices/wbotMessageListener.ts`,
+`frontend/src/components/PromptModal/BlockedNumbersTab.js` (novo),
+`frontend/src/pages/Prompts/index.js`.
+
+## 182. IA não voltava a responder cliente que já tinha sido atendido antes + build quebrado da v2.3.202 (v2.3.203)
+
+### Contexto
+
+Depois do deploy da v2.3.201 (IA voltou a responder — confirmado pelo
+cliente com print real da conversa), o cliente descreveu o fluxo de
+negócio completo esperado: atendente humano pega o cliente → IA para
+de responder (já funcionava) → atendente fecha o chamado → **se o
+mesmo cliente mandar mensagem de novo (mesmo dia ou outro dia), a IA
+tem que voltar a responder** (NÃO funcionava, mesma classe de bug da
+seção 180, só que por um caminho diferente).
+
+Causa: `UpdateTicketService.ts` só põe o ticket em status `"closed"`
+de verdade se a avaliação (NPS) estiver desligada ou sem mensagem de
+avaliação configurada. Com NPS ligado (comum), fechar um ticket põe
+status `"nps"` (aguardando nota) — e fica assim **pra sempre** se o
+cliente nunca avaliar (maioria não avalia). `FindOrCreateTicketService`
+reaproveita ticket em status `"nps"` pra qualquer mensagem nova do
+mesmo contato (por `lid`/`jid`/`contactId`) — com a fila e o atendente
+do atendimento ANTERIOR ainda gravados nele. Os dois gatilhos de IA
+exigem ticket sem fila e sem atendente (`!ticket.queue && !ticket.
+userId`) — nunca disparam de novo pro mesmo contato, mesmo dias depois.
+Achado um início de solução pro mesmo problema no canal Wuzapi
+(`HandleNpsReplyService.ts` + checagem de `ticket.status === "nps"` em
+`HandleWuzapiWebhook.ts`), mas mesmo lá o problema não estava
+realmente resolvido (só trata quando é nota válida; se não for nota,
+cai no roteamento normal sem limpar fila/atendente).
+
+**Decisão confirmada com o cliente** (`AskUserQuestion` — pergunta
+explícita por ter mais de um caminho razoável, ver CLAUDE.md): reabrir
+o ticket como atendimento novo de verdade (limpa fila/atendente, status
+volta pra `"pending"`) em vez de só "liberar a IA por baixo dos panos"
+deixando a fila/atendente antigos gravados. Cliente perguntou
+explicitamente se isso apaga o histórico da conversa — **não apaga**:
+é um `UPDATE` no mesmo `Ticket.id`, as `Message` continuam todas
+ligadas a esse mesmo ticket, nada é criado nem deletado.
+
+### O que foi feito
+
+Em `wbotMessageListener.ts`, logo depois do bloco que já tenta
+processar a mensagem como nota de avaliação (`verifyRating`/
+`handleRating`, que dá `return` se for uma nota válida): se a mensagem
+NÃO foi tratada como nota E o ticket continua em status `"nps"`, chama
+`ticket.update({ status: "pending", queueId: null, userId: null })` e
+zera `ticket.queue = null` em memória também (a associação já carregada
+no objeto `ticket` não é limpa sozinha só pelo `.update()` da coluna —
+os gatilhos de IA mais abaixo checam `!ticket.queue`, não só
+`!ticket.queueId`). Escopo só no canal Baileys (`wbotMessageListener.
+ts`), que é o que esse cliente usa — o mesmo problema deve existir em
+`HandleWuzapiWebhook.ts`/`facebookMessageListener.ts` (ambos com o
+próprio par `verifyRating`/`handleRating` ou `HandleNpsReplyService`),
+não corrigido por não ser o canal em uso aqui.
+
+### Build quebrado da v2.3.202 (achado só agora, no deploy)
+
+O deploy da v2.3.202 falhou no build do frontend:
+`Attempted import error: 'SmartToy' is not exported from
+'@material-ui/icons'` — ícone usado em `TestPromptModal.js` que só
+existe no Material-UI v5 (este projeto usa `@material-ui/core
+^4.12.3`/`@material-ui/icons` 4.11.3). Trocado por `AssistantOutlined`
+(já em uso noutra tela do mesmo módulo, confirmado existente na versão
+instalada).
+
+**Lição nova, importante**: o build local que validou a v2.3.202 antes
+do commit (`npx craco build`, rodado em background) voltou "Compiled
+successfully" mesmo com esse import quebrado — só reproduziu o erro de
+verdade depois de `rm -rf build node_modules/.cache` antes de rodar de
+novo. Ou seja, **o cache do webpack/craco pode mascarar um erro de
+import que devia quebrar o build**. Daqui pra frente, qualquer vez que
+o build local "passar" logo depois de adicionar um import novo de
+ícone/pacote de terceiro (justamente o tipo de erro que só o build de
+produção pega, seção 9 da skill `atendeflow-dev`), ou sempre que for
+investigar um build que falhou no cliente mas "passa" localmente,
+limpar `build/` e `node_modules/.cache` antes de confiar no resultado.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos. Reaberto o
+ticket NPS testado via script direto contra Postgres local: ticket
+`status='nps'`, `queueId`/`userId` preenchidos, uma `Message` antiga
+ligada a ele → aplicada a mesma lógica do fix → `status` vira
+`'pending'`, `queueId`/`userId` viram `null`, a `Message` antiga
+continua lá (mesma contagem, mesmo texto) — condição de gatilho da IA
+(`!ticket.queue && !ticket.userId`) passa a ser satisfeita. Build do
+frontend confirmado quebrando com `SmartToy` e depois voltando a
+compilar limpo (`rm -rf build node_modules/.cache` antes de cada
+tentativa, pra não repetir o mesmo erro de confiar em cache).
+
+**Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`,
+`frontend/src/components/PromptModal/TestPromptModal.js`.
