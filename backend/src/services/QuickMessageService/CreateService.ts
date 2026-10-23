@@ -1,6 +1,7 @@
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import QuickMessage from "../../models/QuickMessage";
+import SyncFromQuickMessageService from "../PromptFilesServices/SyncFromQuickMessageService";
 
 interface Data {
   shortcode: string;
@@ -32,6 +33,12 @@ const CreateService = async (data: Data): Promise<QuickMessage> => {
   }
 
   const record = await QuickMessage.create(data);
+
+  try {
+    await SyncFromQuickMessageService(record);
+  } catch (err) {
+    console.error("Falha ao sincronizar mensagem rápida com Arquivos da IA:", err);
+  }
 
   return record;
 };

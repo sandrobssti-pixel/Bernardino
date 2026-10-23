@@ -12429,3 +12429,148 @@ estável, sem degradar nem corromper a chave a cada volta.
 GetFlowBuilderService,FlowsGetDataService}.ts`,
 `backend/src/services/WbotServices/wbotMessageListener.ts`,
 `backend/src/services/WebhookService/ActionsWebhookService.ts`.
+
+## 177. Mensagens Rápidas espelhadas em Arquivos da IA (v2.3.198)
+
+### Contexto
+
+Pedido do cliente: puxar pra tela "Arquivos da IA" (catálogo de
+texto/imagem/vídeo que a IA pode enviar durante o atendimento, módulo
+`PromptFiles`) tudo o que já existe em "Mensagens Rápidas" — texto,
+arquivo e vídeo — pra não ter que recadastrar manualmente o que já
+existe lá. Antes de mexer, quatro decisões reais precisaram ser
+tomadas com o cliente (contexto ambíguo, ver CLAUDE.md):
+
+1. **Mensagem rápida só de texto** (sem anexo) — "Arquivos da IA"
+   hoje exige um arquivo físico em todo item (`path`/`mediaType` NOT
+   NULL). Decisão: criar um item "de texto" nesse catálogo (sem
+   arquivo físico nenhum, guarda o texto direto), não só pular essas
+   mensagens.
+2. **Campo "Quando a IA deve enviar"** não existe em Mensagens
+   Rápidas. Decisão: gerar um texto inicial a partir do atalho
+   (shortcode) na criação, editável depois (nunca sobrescrito numa
+   sincronização seguinte).
+3. **Frequência**: importação única vs. sincronização contínua.
+   Decisão: contínua — toda criação/edição de uma mensagem rápida
+   "geral" atualiza o espelho correspondente automaticamente.
+4. **Escopo**: mensagens rápidas podem ser gerais da empresa ou
+   pessoais de cada atendente (campo `geral`). Decisão: só as gerais
+   entram no catálogo da IA (que é único por empresa) — as pessoais
+   ficariam vazando pra IA responder com algo que só fazia sentido pra
+   um atendente específico.
+
+### O que foi feito
+
+- **`backend/src/helpers/quickMessagePromptFileSync.ts`** (novo,
+  função pura, sem banco/disco) — `inferMimeTypeFromFilename` (mapa de
+  extensão → mimetype, porque `QuickMessage` não guarda o mimetype
+  original, só o nome do arquivo), `buildSyncedName`/
+  `buildSyncedDescription` (geram nome e a descrição inicial a partir
+  do `shortcode`), e a constante `TEXT_MEDIA_TYPE = "text"` — marca
+  especial de `mediaType` pra item sem arquivo físico.
+- **Migration de schema**
+  `20261023140000-add-quick-message-sync-to-prompt-files` — torna
+  `PromptFiles.path` opcional (item de texto não tem arquivo), e
+  adiciona `textContent` (o texto em si) e `sourceQuickMessageId` (FK
+  pra `QuickMessages`, `onDelete: SET NULL`) — essa coluna é o que
+  torna a sincronização idempotente (sempre atualiza o mesmo item em
+  vez de duplicar) e marca o que é espelho automático x cadastro
+  manual.
+- **`backend/src/models/PromptFiles.ts`** — `path` deixou de ser
+  `@AllowNull(false)`; novos campos `textContent` e
+  `sourceQuickMessageId`/`sourceQuickMessage` (`@BelongsTo` pra
+  `QuickMessage`).
+- **`backend/src/services/PromptFilesServices/
+  SyncFromQuickMessageService.ts`** (novo) — o coração da feature.
+  Recebe a instância de `QuickMessage` já criada/atualizada e:
+  - Se `geral=false` ou não tem nem texto nem mídia → remove o espelho
+    (registro + arquivo físico) se existir.
+  - Se tem mídia (`quickMessage.getDataValue("mediaPath")` — **tem que
+    ser `getDataValue`, não `quickMessage.mediaPath` direto**, porque
+    esse campo é um *getter* no model que já devolve a URL pública
+    completa, não o nome do arquivo no disco; usar o getter por engano
+    aqui quebraria o `fs.copyFileSync` silenciosamente) → copia o
+    arquivo físico de `public/company{id}/quickMessage/` pra
+    `public/company{id}/promptFiles/` (pastas diferentes — PromptFiles
+    nunca referencia o arquivo original, sempre uma cópia de verdade,
+    senão apagar a mensagem rápida original apagaria o anexo que a IA
+    usa), nomeando como `qm{id}_{nomeOriginal}` pra nunca colidir com
+    upload manual. Troca de mídia (anexo novo asimilar outro) apaga o
+    arquivo espelhado anterior antes de copiar o novo, pra não
+    acumular lixo em disco.
+  - Se é só texto → grava/atualiza `textContent`, `path: null`,
+    `mediaType: "text"`.
+  - **Nunca sobrescreve `description`** num item que já existe — só
+    define na criação. Esse campo é o "quando enviar", que o cliente
+    pediu pra ficar editável sem se perder numa sincronização futura.
+- **Disparo da sincronização** — chamado (com try/catch, nunca
+  derruba a operação principal se falhar) em todo ponto que
+  cria/edita uma `QuickMessage` ou mexe no anexo dela:
+  `QuickMessageService/{CreateService,UpdateService}.ts` (depois do
+  `create`/`update`), `QuickMessageController.{mediaUpload,
+  deleteMedia}` (upload/remoção de anexo são endpoints separados de
+  create/update nesse módulo). Em `QuickMessageService/
+  DeleteService.ts`, antes de `record.destroy()`: seta
+  `record.geral = false` só em memória (nunca salva isso no banco) e
+  chama o sync, reaproveitando a mesma lógica de remoção do espelho em
+  vez de duplicar o código de limpeza.
+- **`backend/src/services/PromptFilesServices/DeleteService.ts`** —
+  ajustado pra não quebrar apagando manualmente (pela tela) um item de
+  texto puro, que não tem `path` nenhum pra resolver no disco.
+- **`backend/src/services/IntegrationsServices/OpenAiService.ts`** —
+  o trecho que processa a ação `send_file` da IA (~linha 1115) agora
+  checa `promptFile.mediaType === "text"` primeiro: nesse caso manda o
+  `textContent` como mensagem de texto comum (`wbot.sendMessage` +
+  `verifyMessage`, mesmo padrão já usado no resto do arquivo), sem
+  tentar montar um arquivo de mídia que não existe.
+- **Migração de DADOS**
+  `20261023150000-backfill-prompt-files-from-quick-messages` — traz
+  de uma vez, no deploy, todas as mensagens rápidas "geral" que já
+  existiam antes dessa versão (texto e mídia, com a mesma cópia física
+  de arquivo). Só usa o helper puro (sem `require` de model/Sequelize,
+  mesmo motivo das migrations da seção 175/176) + SQL direto via
+  `queryInterface.sequelize.query`. Idempotente — pula qualquer
+  `QuickMessage.id` que já tenha um `PromptFiles.sourceQuickMessageId`
+  correspondente.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Contra Postgres local
+(scratch), testado de ponta a ponta com dados reais:
+- Cadeia completa de migrations aplicada sem erro; `db:migrate:undo`
+  até antes da seção 176 e `db:migrate` de novo, estado final
+  consistente.
+- Backfill: 1 mensagem rápida só texto + 1 com imagem + 1 pessoal
+  (`geral=false`) → só as 2 gerais viraram item no catálogo, a pessoal
+  ficou de fora; arquivo físico da imagem copiado corretamente pra
+  `promptFiles/`, mimetype inferido certo (`image/png`). Rodado uma
+  segunda vez sem apagar nada → zero duplicata (idempotente).
+- `SyncFromQuickMessageService` chamado diretamente via script Node
+  contra o banco: editar o texto de uma mensagem rápida atualiza
+  `textContent` mas preserva uma `description` editada manualmente;
+  desmarcar `geral` remove o espelho; marcar `geral` de novo recria
+  com o conteúdo atual; trocar o anexo por outro arquivo apaga o
+  espelho físico antigo e copia o novo; apagar a mensagem rápida
+  (`DeleteService`) remove o espelho (registro + arquivo) antes de
+  apagar a mensagem rápida em si.
+
+### Limitação conhecida
+
+A tela "Arquivos da IA" (`PromptFilesTab.js`) hoje só tem
+cadastrar/excluir, sem editar — então "editável depois" (decisão 2
+acima) só é possível direto no banco por enquanto, não pela interface.
+Não implementado nessa versão por não ter sido pedido; sinalizado pro
+cliente.
+
+**Arquivos**: `backend/src/helpers/quickMessagePromptFileSync.ts`
+(novo), `backend/src/services/PromptFilesServices/
+SyncFromQuickMessageService.ts` (novo),
+`backend/src/database/migrations/
+{20261023140000-add-quick-message-sync-to-prompt-files,
+20261023150000-backfill-prompt-files-from-quick-messages}.ts` (novos),
+`backend/src/models/PromptFiles.ts`,
+`backend/src/services/PromptFilesServices/DeleteService.ts`,
+`backend/src/services/QuickMessageService/{CreateService,
+UpdateService,DeleteService}.ts`,
+`backend/src/controllers/QuickMessageController.ts`,
+`backend/src/services/IntegrationsServices/OpenAiService.ts`.

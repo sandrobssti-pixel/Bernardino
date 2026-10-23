@@ -16,20 +16,24 @@ const DeleteService = async (
     throw new AppError("ERR_NO_PROMPT_FILE_FOUND", 404);
   }
 
-  const publicFolder = path.resolve(__dirname, "..", "..", "..", "public");
-  const filePath = path.resolve(
-    publicFolder,
-    `company${companyId}`,
-    "promptFiles",
-    promptFile.path
-  );
+  // item de texto puro (espelho de mensagem rápida sem anexo) não tem
+  // arquivo físico — path vem nulo, nada pra apagar em disco.
+  if (promptFile.path) {
+    const publicFolder = path.resolve(__dirname, "..", "..", "..", "public");
+    const filePath = path.resolve(
+      publicFolder,
+      `company${companyId}`,
+      "promptFiles",
+      promptFile.path
+    );
 
-  try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
+    try {
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (err) {
+      console.error("Erro ao remover arquivo físico do PromptFiles:", err);
     }
-  } catch (err) {
-    console.error("Erro ao remover arquivo físico do PromptFiles:", err);
   }
 
   await promptFile.destroy();

@@ -1121,7 +1121,23 @@ const processResponse = async (
         }
       });
 
-      if (promptFile) {
+      if (promptFile && promptFile.mediaType === "text" && promptFile.textContent) {
+        // item "de texto" do catálogo (espelho de mensagem rápida sem
+        // anexo, ver SyncFromQuickMessageService) — não tem arquivo
+        // físico nenhum, manda o texto guardado como mensagem comum.
+        fileCaptionUsed = promptFile.textContent;
+
+        await sleep(randomInt(DEFAULT_AI_DELAY_MIN_SECONDS, DEFAULT_AI_DELAY_MAX_SECONDS) * 1000);
+        const sentTextCatalogMessage = await wbot.sendMessage(msg.key.remoteJid!, {
+          text: promptFile.textContent
+        });
+        try {
+          await verifyMessage(sentTextCatalogMessage!, ticket, contact);
+        } catch (e: any) {
+          console.warn("verifyMessage falhou ao enviar item de texto do catálogo:", e?.message || e);
+        }
+        fileSentSuccessfully = true;
+      } else if (promptFile && promptFile.path) {
         const companyPublicFolder = path.resolve(
           __dirname,
           "..",

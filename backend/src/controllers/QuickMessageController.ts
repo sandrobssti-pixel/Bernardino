@@ -8,6 +8,7 @@ import ShowService from "../services/QuickMessageService/ShowService";
 import UpdateService from "../services/QuickMessageService/UpdateService";
 import DeleteService from "../services/QuickMessageService/DeleteService";
 import FindService from "../services/QuickMessageService/FindService";
+import SyncFromQuickMessageService from "../services/PromptFilesServices/SyncFromQuickMessageService";
 
 import QuickMessage from "../models/QuickMessage";
 import { head } from "lodash";
@@ -175,6 +176,12 @@ export const mediaUpload = async (
       mediaName: file.originalname
     });
 
+    try {
+      await SyncFromQuickMessageService(quickmessage);
+    } catch (err) {
+      console.error("Falha ao sincronizar mensagem rápida com Arquivos da IA:", err);
+    }
+
     return res.send({ mensagem: "Arquivo Anexado" });
     } catch (err: any) {
       throw new AppError(err.message);
@@ -199,6 +206,12 @@ export const deleteMedia = async (
       mediaPath: null,
       mediaName: null
     });
+
+    try {
+      await SyncFromQuickMessageService(quickmessage);
+    } catch (err) {
+      console.error("Falha ao sincronizar mensagem rápida com Arquivos da IA:", err);
+    }
 
     return res.send({ mensagem: "Arquivo Excluído" });
     } catch (err: any) {

@@ -3,7 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.197] — API Key cifrada também nos fluxos do FlowBuilder — 2026-10-23
+## [2.3.198] — Mensagens Rápidas espelhadas em Arquivos da IA — 2026-10-23
+
+### Adicionado
+- Toda Mensagem Rápida marcada como "geral" (empresa toda) agora é
+  espelhada automaticamente em "Arquivos da IA" — texto, imagem ou
+  vídeo — e fica disponível pra IA enviar durante o atendimento, sem
+  precisar cadastrar tudo de novo manualmente. A sincronização é
+  contínua: criar, editar ou trocar o anexo de uma mensagem rápida
+  geral atualiza o espelho correspondente automaticamente; deixar de
+  ser geral, ou apagar a mensagem rápida, remove o espelho. As
+  mensagens rápidas originais continuam intactas e utilizáveis
+  manualmente (é uma cópia, não uma mudança de lugar) — importante pra
+  quem atende continuar podendo usá-las mesmo se o crédito da IA
+  acabar. O campo "Quando a IA deve enviar" de cada item espelhado
+  começa com um texto gerado a partir do atalho da mensagem rápida e
+  nunca é sobrescrito depois — pode editar à vontade sem perder a
+  edição numa sincronização futura. Mensagens rápidas já existentes
+  (anteriores a essa versão) foram trazidas de uma vez no deploy.
 
 ### Adicionado
 - A cópia da API key que o FlowBuilder guarda dentro de cada fluxo (nó
