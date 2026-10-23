@@ -42,7 +42,6 @@ interface ProductData {
   brand?: string;
   model?: string;
   caliber?: string;
-  serialNumber?: string;
   cartridgeCapacity?: number;
   operatingMode?: string;
   barrelCount?: number;
@@ -50,28 +49,26 @@ interface ProductData {
   boreType?: string;
   kineticEnergyJ?: number;
   useClassification?: string;
-  sigmaRegistrationNumber?: string;
   origin?: string;
-  weaponStatus?: string;
   manufacturingLotNumber?: string;
   packageBarcode?: string;
 }
 
-// Tipos de produto que exigem número de série (arma física, único por
-// empresa). Munição/insumo não tem número de série individual.
-const SERIAL_NUMBER_REQUIRED_TYPES = ["weapon"];
+// Número de série, registro SIGMA/SINARM e situação da arma migraram pra
+// FinanceWeaponUnit — o Produto passou a representar o MODELO/SKU, não
+// mais 1 arma física (v2.3.204, ver docs/MANUAL_TECNICO.md seção 183).
+// Qualquer payload antigo que ainda mande esses 3 campos aqui é
+// silenciosamente ignorado (nunca grava nem dá erro) em vez de validado —
+// o cadastro da arma em si acontece em FinanceWeaponUnitService.
+const DEPRECATED_WEAPON_FIELDS = ["serialNumber", "sigmaRegistrationNumber", "weaponStatus"] as const;
+const stripDeprecatedWeaponFields = (data: ProductData): ProductData => {
+  const cleaned = { ...data } as any;
+  DEPRECATED_WEAPON_FIELDS.forEach(field => {
+    delete cleaned[field];
+  });
+  return cleaned;
+};
 
-// `$skipSerialRequired` (contexto do Yup, não campo do produto) — usado só
-// pela importação em massa do relatório de estoque da loja anterior
-// (FinanceImportService.ts, `parseGunStoreReport`), que não tem coluna de
-// número de série nenhuma (é um catálogo por MODELO com quantidade em
-// estoque, não uma lista de unidades individuais serializadas). Sem essa
-// válvula, TODA linha de arma dessa planilha falhava a validação e nunca
-// chegava a ser criada — o cliente confirmou que quer importar mesmo assim
-// e completar o número de série manual depois; o campo continua obrigatório
-// em qualquer outro caminho (cadastro manual pela tela, planilha-modelo
-// oficial que tem coluna própria de número de série). Ver
-// docs/MANUAL_TECNICO.md.
 // Campos numéricos de arma são opcionais no banco (colunas sem NOT NULL,
 // ver migration 20261015120000), mas o formulário manda "" (nunca
 // undefined) quando a pessoa deixa em branco — e "" num INTEGER/FLOAT do
@@ -84,41 +81,11 @@ const emptyStringToNull = (value: any, originalValue: any) =>
 
 const productSchema = Yup.object().shape({
   name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2),
-  serialNumber: Yup.string().when(["type", "$skipSerialRequired"], {
-    is: (type: string, skipSerialRequired: boolean) =>
-      SERIAL_NUMBER_REQUIRED_TYPES.includes(type) && !skipSerialRequired,
-    then: Yup.string()
-      .required("ERR_FINANCE_PRODUCT_SERIAL_REQUIRED")
-      .min(1, "ERR_FINANCE_PRODUCT_SERIAL_REQUIRED"),
-    otherwise: Yup.string().nullable()
-  }),
   cartridgeCapacity: Yup.number().nullable().transform(emptyStringToNull),
   barrelCount: Yup.number().nullable().transform(emptyStringToNull),
   barrelLength: Yup.number().nullable().transform(emptyStringToNull),
   kineticEnergyJ: Yup.number().nullable().transform(emptyStringToNull)
 });
-
-// Índice único parcial (companyId, serialNumber) cobre a corrida entre duas
-// requisições simultâneas; esse checque prévio só existe pra devolver um
-// erro amigável (em vez do SequelizeUniqueConstraintError genérico) no
-// caminho normal (sem corrida).
-const ensureSerialNumberIsUnique = async (
-  serialNumber: string | undefined,
-  companyId: number,
-  ignoreId?: number
-): Promise<void> => {
-  if (!serialNumber) return;
-
-  const where: any = { companyId, serialNumber };
-  if (ignoreId) {
-    where.id = { [Op.ne]: ignoreId };
-  }
-
-  const existing = await FinanceProduct.findOne({ where });
-  if (existing) {
-    throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
-  }
-};
 
 export const list = async ({
   companyId,
@@ -191,59 +158,38 @@ export const show = async (
 
 export const create = async (
   data: ProductData,
-  companyId: number,
-  options: { skipSerialRequired?: boolean } = {}
+  companyId: number
 ): Promise<FinanceProduct> => {
   let validatedData: ProductData;
   try {
-    validatedData = await productSchema.validate(data, {
-      context: { skipSerialRequired: !!options.skipSerialRequired }
-    });
+    validatedData = await productSchema.validate(data);
   } catch (err: any) {
     throw new AppError(err.message);
   }
 
-  await ensureSerialNumberIsUnique(validatedData.serialNumber, companyId);
-
-  try {
-    const record = await FinanceProduct.create({ ...validatedData, companyId } as any);
-    return record;
-  } catch (err: any) {
-    if (err.name === "SequelizeUniqueConstraintError") {
-      throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
-    }
-    throw err;
-  }
+  const record = await FinanceProduct.create({
+    ...stripDeprecatedWeaponFields(validatedData),
+    companyId
+  } as any);
+  return record;
 };
 
 export const update = async (
   id: string | number,
   data: ProductData,
-  companyId: number,
-  options: { skipSerialRequired?: boolean } = {}
+  companyId: number
 ): Promise<FinanceProduct> => {
   const record = await show(id, companyId);
 
   let validatedData: ProductData;
   try {
-    validatedData = await productSchema.validate(data, {
-      context: { skipSerialRequired: !!options.skipSerialRequired }
-    });
+    validatedData = await productSchema.validate(data);
   } catch (err: any) {
     throw new AppError(err.message);
   }
 
-  await ensureSerialNumberIsUnique(validatedData.serialNumber, companyId, record.id);
-
-  try {
-    await record.update(validatedData);
-    return record;
-  } catch (err: any) {
-    if (err.name === "SequelizeUniqueConstraintError") {
-      throw new AppError("ERR_FINANCE_PRODUCT_DUPLICATE_SERIAL");
-    }
-    throw err;
-  }
+  await record.update(stripDeprecatedWeaponFields(validatedData));
+  return record;
 };
 
 export const remove = async (

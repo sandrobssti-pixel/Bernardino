@@ -349,11 +349,37 @@ que eram esquecimento:
     testado com `select`/`switch`/`asyncSelect`.
   - Esse padrão é genérico e reaproveitável por qualquer cadastro futuro do
     módulo (não é algo específico de arma/munição).
-- **Índice único parcial pra campo opcional-mas-único** (ex.:
-  `FinanceProduct.serialNumber`, só obrigatório pra `type = "weapon"`, mas
-  único por empresa quando preenchido): não dá pra usar `unique: true`
-  direto na coluna (bloquearia duas linhas com `serialNumber` vazio/NULL em
-  produtos comuns). Migration usa SQL puro
+- **Modelo de arma/munição (`FinanceProduct` type `"weapon"`/`"ammunition"`)
+  — desde a v2.3.204, Produto é o MODELO/SKU, não mais 1 arma física por
+  linha.** Até a v2.3.203, cada arma física era um `FinanceProduct` inteiro
+  (mesmo SKU repetido entre as armas do mesmo modelo, `serialNumber`/
+  `sigmaRegistrationNumber`/`weaponStatus` gravados direto no produto) —
+  pedido do cliente pra poder cadastrar as N armas de um SKU sem duplicar
+  produto, vender/consultar por nome, SKU OU número de série, e tirar
+  relatório por arma individual. Esses 3 campos migraram pra
+  `FinanceWeaponUnit` (`backend/src/models/FinanceWeaponUnit.ts`,
+  `FinanceWeaponUnitService.ts`), sub-cadastro com 1 linha por número de
+  série, ligado ao Produto por `productId`. As colunas antigas continuam em
+  `FinanceProducts` (não removidas, só não usadas mais pelo app — segurança/
+  auditoria sem precisar restaurar backup). Editar/cadastrar arma na tela:
+  nome/SKU/calibre/etc. no Produto; cada unidade física entra em
+  `WeaponUnitsSection.js` (dentro do `FinanceRecordModal`, pseudo-campo
+  `type: "weaponUnits"`, mesmo mecanismo do `type: "photo"`) — só o número
+  de série é obrigatório ali. Venda (`SaleModal.js`): produto tipo arma
+  mostra um autocomplete de número de série (unidades "em estoque" daquele
+  SKU, `finance.products.weaponUnits.search`); escolher uma liga
+  `SaleItem.weaponUnitId` e autopreenche SIGMA/SINARM. `SaleService.
+  adjustWeaponUnits` (espelha `adjustStock`) marca a unidade "sold" ao
+  confirmar a venda e devolve pra "in_stock" ao cancelar/editar — ver
+  docs/MANUAL_TECNICO.md, seção 183.
+- **Índice único parcial pra campo opcional-mas-único** (técnica geral,
+  exemplo histórico era `FinanceProduct.serialNumber` antes da v2.3.204 —
+  hoje o mesmo padrão se aplica a `FinanceWeaponUnit.serialNumber`, que
+  virou único por empresa direto na coluna porque ali o campo é sempre
+  obrigatório, sem caso de NULL a proteger): quando o campo PODE ficar
+  vazio/NULL em outras linhas (ex.: um campo só obrigatório pra um
+  `type` específico), não dá pra usar `unique: true` direto na coluna
+  (bloquearia duas linhas com o campo vazio/NULL). Migration usa SQL puro
   (`queryInterface.sequelize.query`) em vez do `addIndex` do Sequelize, pra
   controlar a cláusula `WHERE` do índice parcial:
   ```sql

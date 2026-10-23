@@ -13,6 +13,7 @@ import {
 } from "sequelize-typescript";
 import Sale from "./Sale";
 import FinanceProduct from "./FinanceProduct";
+import FinanceWeaponUnit from "./FinanceWeaponUnit";
 
 // Item de uma venda (Fase 3 — ver Sale.ts). Guarda uma cópia de
 // descrição/NCM/CFOP no momento da venda (em vez de só referenciar o
@@ -152,6 +153,16 @@ class SaleItem extends Model<SaleItem> {
 
   @BelongsTo(() => FinanceProduct)
   product: FinanceProduct;
+
+  // Unidade física de arma vendida (v2.3.204, sub-cadastro por número de
+  // série) — null pra item que não é arma. Ver SaleService.ts,
+  // `adjustWeaponUnits`.
+  @ForeignKey(() => FinanceWeaponUnit)
+  @Column
+  weaponUnitId: number;
+
+  @BelongsTo(() => FinanceWeaponUnit)
+  weaponUnit: FinanceWeaponUnit;
 
   @CreatedAt
   createdAt: Date;

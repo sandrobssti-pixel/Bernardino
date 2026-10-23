@@ -167,6 +167,40 @@ const useFinance = () => {
         });
         return data;
       },
+      // Unidades físicas de arma (número de série) — sub-cadastro do
+      // Produto/SKU, v2.3.204. Ver docs/MANUAL_TECNICO.md, seção 183.
+      weaponUnits: {
+        list: async (productId) => {
+          const { data } = await api.get(`/finance/products/${productId}/weapon-units`);
+          return data;
+        },
+        save: async (productId, data) => {
+          const { data: responseData } = await api.post(
+            `/finance/products/${productId}/weapon-units`,
+            data
+          );
+          return responseData;
+        },
+        update: async (productId, id, data) => {
+          const { data: responseData } = await api.put(
+            `/finance/products/${productId}/weapon-units/${id}`,
+            data
+          );
+          return responseData;
+        },
+        remove: async (productId, id) => {
+          const { data } = await api.delete(`/finance/products/${productId}/weapon-units/${id}`);
+          return data;
+        },
+        // Busca por nome do modelo, SKU ou número de série — usada na
+        // Venda pra achar qual arma física está sendo vendida.
+        search: async (searchParam) => {
+          const { data } = await api.get("/finance/weapon-units/search", {
+            params: { searchParam },
+          });
+          return data;
+        },
+      },
     },
     expenses: makeResource("expenses"),
     receivables,

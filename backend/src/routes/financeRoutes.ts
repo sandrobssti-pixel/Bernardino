@@ -8,6 +8,7 @@ import * as FinanceAccessController from "../controllers/FinanceAccessController
 import * as FinanceCustomerController from "../controllers/FinanceCustomerController";
 import * as FinanceSupplierController from "../controllers/FinanceSupplierController";
 import * as FinanceProductController from "../controllers/FinanceProductController";
+import * as FinanceWeaponUnitController from "../controllers/FinanceWeaponUnitController";
 import * as FinanceExpenseController from "../controllers/FinanceExpenseController";
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
@@ -72,6 +73,31 @@ financeRoutes.post(
   isAuth,
   productPhotoUpload.single("photo"),
   FinanceProductController.uploadPhoto
+);
+
+// Unidades físicas de arma (número de série), sub-cadastro do Produto —
+// v2.3.204. Busca (`/finance/weapon-units/search`) precisa vir antes de
+// qualquer rota com :productId, mesmo motivo de "import-template" acima.
+financeRoutes.get("/finance/weapon-units/search", isAuth, FinanceWeaponUnitController.search);
+financeRoutes.get(
+  "/finance/products/:productId/weapon-units",
+  isAuth,
+  FinanceWeaponUnitController.index
+);
+financeRoutes.post(
+  "/finance/products/:productId/weapon-units",
+  isAuth,
+  FinanceWeaponUnitController.store
+);
+financeRoutes.put(
+  "/finance/products/:productId/weapon-units/:id",
+  isAuth,
+  FinanceWeaponUnitController.update
+);
+financeRoutes.delete(
+  "/finance/products/:productId/weapon-units/:id",
+  isAuth,
+  FinanceWeaponUnitController.remove
 );
 
 // Fase 2 — Financeiro operacional (custos, contas a pagar/receber, relatórios)

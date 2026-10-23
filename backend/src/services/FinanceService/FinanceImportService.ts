@@ -4,6 +4,7 @@ import FinanceProduct from "../../models/FinanceProduct";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceSupplier from "../../models/FinanceSupplier";
 import * as FinanceProductService from "./FinanceProductService";
+import * as FinanceWeaponUnitService from "./FinanceWeaponUnitService";
 import * as FinanceCustomerService from "./FinanceCustomerService";
 import * as FinanceSupplierService from "./FinanceSupplierService";
 
@@ -469,19 +470,23 @@ const parseGunStoreReport = (filePath: string): Record<string, any>[] | null => 
   return records;
 };
 
-// `skipSerialRequired` (v2.3.149) — só `true` quando os dados vêm do
-// relatório de estoque da loja anterior (`parseGunStoreReport`), que não
-// tem coluna de número de série (é um catálogo por MODELO com quantidade em
-// estoque, não uma lista de unidades individuais serializadas). Cliente
-// confirmou que quer importar mesmo assim e completar o número de série de
-// cada unidade manualmente depois — o campo continua obrigatório no
-// cadastro manual pela tela e na planilha-modelo oficial (que tem coluna
-// própria pra isso). Ver FinanceProductService.ts/docs/MANUAL_TECNICO.md.
+// Número de série/registro SIGMA/situação migraram do Produto pra
+// FinanceWeaponUnit (v2.3.204, sub-cadastro por arma física — ver
+// docs/MANUAL_TECNICO.md seção 183). A planilha-modelo oficial pode trazer
+// várias linhas com o MESMO SKU (mesmo modelo, armas físicas diferentes) —
+// `upsertProductRecord` já resolvia o Produto por SKU (find-or-create), o
+// que faz todas essas linhas caírem no mesmo Produto; cada linha com
+// número de série agora também cria/garante a unidade correspondente ali,
+// em vez de sobrescrever um único campo do produto a cada linha (como
+// acontecia antes — só o último serial importado daquele SKU sobrevivia).
+// `parseGunStoreReport` (relatório da loja anterior) não tem coluna de
+// série nenhuma — segue sem criar unidade, cliente completa depois pela
+// tela (mesma decisão da v2.3.149, só que agora o complemento é um
+// sub-cadastro em vez de editar o produto).
 const upsertProductRecord = async (
   data: Record<string, any>,
   companyId: number,
-  summary: ImportSummary,
-  skipSerialRequired = false
+  summary: ImportSummary
 ): Promise<void> => {
   if (!data.name) {
     summary.invalid += 1;
@@ -489,17 +494,40 @@ const upsertProductRecord = async (
   }
   summary.total += 1;
 
+  const serialNumber = data.serialNumber ? String(data.serialNumber).trim() : "";
+  const sigmaRegistrationNumber = data.sigmaRegistrationNumber
+    ? String(data.sigmaRegistrationNumber).trim()
+    : "";
+  const weaponStatus = data.weaponStatus ? String(data.weaponStatus).trim() : undefined;
+
   try {
     const sku = data.sku ? String(data.sku).trim() : "";
     const where: any = sku ? { companyId, sku } : { companyId, name: data.name };
     const existing = await FinanceProduct.findOne({ where });
 
+    let product: FinanceProduct;
     if (existing) {
-      await FinanceProductService.update(existing.id, data as any, companyId, { skipSerialRequired });
+      product = await FinanceProductService.update(existing.id, data as any, companyId);
       summary.updated += 1;
     } else {
-      await FinanceProductService.create(data as any, companyId, { skipSerialRequired });
+      product = await FinanceProductService.create(data as any, companyId);
       summary.created += 1;
+    }
+
+    if (serialNumber && product.type === "weapon") {
+      try {
+        await FinanceWeaponUnitService.create(
+          product.id,
+          { serialNumber, sigmaRegistrationNumber, status: weaponStatus },
+          companyId
+        );
+      } catch (unitErr: any) {
+        // Reimportar a mesma planilha (mesmo serial já cadastrado) não é
+        // erro — é o caso normal de rodar a importação de novo.
+        if (unitErr.message !== "ERR_FINANCE_WEAPON_UNIT_DUPLICATE_SERIAL") {
+          throw unitErr;
+        }
+      }
     }
   } catch (err: any) {
     summary.invalid += 1;
@@ -523,7 +551,7 @@ export const importProducts = async (
   );
 
   for (const data of records) {
-    await upsertProductRecord(data, companyId, summary, !!gunStoreRecords);
+    await upsertProductRecord(data, companyId, summary);
   }
 
   console.log(`[FinanceImportService] importProducts: concluído ${JSON.stringify(summary)}`);

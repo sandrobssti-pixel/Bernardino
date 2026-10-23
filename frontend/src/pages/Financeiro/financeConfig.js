@@ -180,7 +180,7 @@ const ORIGIN_OPTIONS = [
   { value: "imported", label: "Importada" },
 ];
 
-const WEAPON_STATUS_OPTIONS = [
+export const WEAPON_STATUS_OPTIONS = [
   { value: "in_stock", label: "Em estoque" },
   { value: "sold", label: "Vendida" },
   { value: "maintenance", label: "Em manutenção" },
@@ -385,7 +385,6 @@ export const financeProductFields = [
   { name: "model", label: "Modelo", gridSize: 6, visibleWhen: isWeapon },
   { name: "weaponType", label: "Tipo da arma", type: "select", options: WEAPON_TYPE_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
   { name: "caliber", label: "Calibre nominal", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
-  { name: "serialNumber", label: "Número de série", gridSize: 6, visibleWhen: isWeapon, requiredWhen: isWeapon },
   { name: "cartridgeCapacity", label: "Capacidade de cartuchos", type: "number", gridSize: 6, visibleWhen: isWeapon },
   { name: "operatingMode", label: "Regime de funcionamento", type: "select", options: OPERATING_MODE_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
   { name: "barrelCount", label: "Quantidade de canos", type: "number", defaultValue: 1, gridSize: 6, visibleWhen: isWeapon },
@@ -394,8 +393,11 @@ export const financeProductFields = [
   { name: "kineticEnergyJ", label: "Energia cinética da munição (Joules)", type: "number", step: "0.1", gridSize: 6, visibleWhen: isWeaponOrAmmunition },
   { name: "useClassification", label: "Classificação de uso", type: "select", options: USE_CLASSIFICATION_OPTIONS, gridSize: 6, visibleWhen: isWeaponOrAmmunition },
   { name: "origin", label: "Procedência", type: "select", options: ORIGIN_OPTIONS, gridSize: 6, visibleWhen: isWeaponOrAmmunition },
-  { name: "sigmaRegistrationNumber", label: "Nº de registro SIGMA/SINARM", gridSize: 6, visibleWhen: isWeapon },
-  { name: "weaponStatus", label: "Situação da arma", type: "select", options: WEAPON_STATUS_OPTIONS, gridSize: 6, visibleWhen: isWeapon },
+  // Número de série, registro SIGMA/SINARM e situação da arma passaram a
+  // ser por unidade física (sub-cadastro, v2.3.204) — pseudo-campo
+  // "weaponUnits" (mesmo mecanismo de "photo"/"sectionTitle", renderizado
+  // à parte em FinanceRecordModal.js via WeaponUnitsSection.js).
+  { name: "weaponUnitsSection", type: "weaponUnits", gridSize: 12, visibleWhen: isWeapon },
   { name: "manufacturingLotNumber", label: "Número do lote de fabricação", gridSize: 6, visibleWhen: isAmmunition },
   { name: "packageBarcode", label: "Código de barras / embalagem", gridSize: 6, visibleWhen: isAmmunition },
 

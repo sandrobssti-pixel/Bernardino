@@ -94,6 +94,12 @@ const emptyItem = {
   sigmaSinarm: "",
   ammoLot: "",
   packageId: "",
+  // Unidade física de arma escolhida (v2.3.204, sub-cadastro por número
+  // de série) — `weaponUnitSerial` é só pra exibir o valor já selecionado
+  // no autocomplete, nunca é lido pelo backend (ver
+  // SaleService.buildItemRows).
+  weaponUnitId: "",
+  weaponUnitSerial: "",
 };
 
 const buildInitialValues = (sale, defaultCfop) => ({
@@ -161,6 +167,8 @@ const buildInitialValues = (sale, defaultCfop) => ({
           sigmaSinarm: item.sigmaSinarm || "",
           ammoLot: item.ammoLot || "",
           packageId: item.packageId || "",
+          weaponUnitId: item.weaponUnitId || "",
+          weaponUnitSerial: item.weaponUnit?.serialNumber || "",
         }))
       : [{ ...emptyItem, cfop: defaultCfop || "5102" }],
 });
@@ -296,6 +304,11 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
 
   const handleProductChange = (index, product, setFieldValue, operationType) => {
     setFieldValue(`items.${index}.productId`, product?.id || "");
+    // Trocar o produto invalida qualquer unidade de arma já escolhida
+    // pra linha anterior (era de outro modelo) — evita mandar uma venda
+    // com `weaponUnitId` de uma arma que não é mais a do item.
+    setFieldValue(`items.${index}.weaponUnitId`, "");
+    setFieldValue(`items.${index}.weaponUnitSerial`, "");
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
       setFieldValue(`items.${index}.sku`, product.sku || "");
@@ -322,6 +335,16 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     const type = itemTypeFilters[index] || undefined;
     const { records } = await finance.products.list({ searchParam, type });
     return records || [];
+  };
+
+  // Unidades físicas de arma (número de série) em estoque pro produto já
+  // escolhido na linha — v2.3.204. O endpoint busca por nome/SKU/série em
+  // qualquer arma da empresa; filtra aqui pro modelo certo (senão a lista
+  // mistura série de outros SKUs).
+  const fetchWeaponUnitOptions = async (productId, searchParam) => {
+    if (!finance) return [];
+    const units = await finance.products.weaponUnits.search(searchParam);
+    return units.filter((u) => !productId || u.productId === productId);
   };
 
   // Digitar o nome direto no campo "Descrição" (sem passar pelo
@@ -620,6 +643,50 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               {money((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0))}
                             </Typography>
                           </Grid>
+
+                          {/* Qual arma física (número de série) está sendo
+                              vendida — v2.3.204, sub-cadastro por unidade.
+                              Só pra tipo Arma (munição não tem unidade
+                              individual). Escolher aqui já preenche
+                              SIGMA/SINARM com o da unidade, mas continua
+                              editável abaixo se precisar corrigir. */}
+                          {selectedProduct?.type === "weapon" && (
+                            <Grid item xs={12} sm={4}>
+                              <FinanceAsyncAutocomplete
+                                key={`weapon-unit-${index}-${selectedProduct.id}`}
+                                label="Número de série (em estoque)"
+                                placeholder="Digite o número de série"
+                                value={
+                                  item.weaponUnitId
+                                    ? { id: item.weaponUnitId, serialNumber: item.weaponUnitSerial || "" }
+                                    : null
+                                }
+                                initialOptions={
+                                  item.weaponUnitId
+                                    ? [{ id: item.weaponUnitId, serialNumber: item.weaponUnitSerial || "" }]
+                                    : []
+                                }
+                                getOptionLabel={(opt) => opt?.serialNumber || ""}
+                                renderOption={(opt) => opt?.serialNumber || ""}
+                                fetchOptions={(searchParam) =>
+                                  fetchWeaponUnitOptions(selectedProduct.id, searchParam)
+                                }
+                                onChange={(e, newValue) => {
+                                  setFieldValue(`items.${index}.weaponUnitId`, newValue?.id || "");
+                                  setFieldValue(
+                                    `items.${index}.weaponUnitSerial`,
+                                    newValue?.serialNumber || ""
+                                  );
+                                  if (newValue?.sigmaRegistrationNumber) {
+                                    setFieldValue(
+                                      `items.${index}.sigmaSinarm`,
+                                      newValue.sigmaRegistrationNumber
+                                    );
+                                  }
+                                }}
+                              />
+                            </Grid>
+                          )}
 
                           {/* SIGMA/SINARM, lote de munição e ID de embalagem
                               (v2.3.166) — só aparecem quando o item é Arma ou

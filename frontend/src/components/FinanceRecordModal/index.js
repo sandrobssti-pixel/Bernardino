@@ -28,6 +28,7 @@ import ImageIcon from "@material-ui/icons/Image";
 
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
+import WeaponUnitsSection from "./WeaponUnitsSection";
 import { fetchAddressByCep } from "../../utils/cep";
 
 const useStyles = makeStyles((theme) => ({
@@ -105,7 +106,13 @@ const useStyles = makeStyles((theme) => ({
 const buildInitialValues = (fields, record) => {
   const values = {};
   fields.forEach((field) => {
-    if (field.type === "sectionTitle" || field.type === "photo" || field.type === "serviceSelect") return;
+    if (
+      field.type === "sectionTitle" ||
+      field.type === "photo" ||
+      field.type === "serviceSelect" ||
+      field.type === "weaponUnits"
+    )
+      return;
     if (field.type === "switch") {
       values[field.name] = record?.[field.name] ?? field.defaultValue ?? false;
     } else {
@@ -471,6 +478,14 @@ const FinanceRecordModal = ({
                             {photoPreview ? "Trocar foto" : "Anexar foto"}
                           </Button>
                         </div>
+                      </Grid>
+                    );
+                  }
+
+                  if (field.type === "weaponUnits") {
+                    return (
+                      <Grid item xs={12} key={field.name}>
+                        <WeaponUnitsSection product={record} finance={finance} />
                       </Grid>
                     );
                   }
