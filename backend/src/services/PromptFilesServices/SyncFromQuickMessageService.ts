@@ -31,8 +31,10 @@ const removeMirrorFile = (companyId: number, fileName: string): void => {
 // sincronia a cada criação/edição de texto ou mídia. Chamado pelos
 // services de QuickMessage e pelos endpoints de upload/remoção de mídia.
 // Idempotente via sourceQuickMessageId: sempre atualiza o mesmo item em
-// vez de duplicar. Nunca sobrescreve "description" depois de criado —
-// esse campo é o "quando a IA deve enviar", editável manualmente.
+// vez de duplicar. Nunca sobrescreve "name"/"description" depois de
+// criado — ambos ficam editáveis manualmente em Arquivos da IA (ver
+// UpdateService.ts) sem risco de uma sincronização futura apagar a
+// edição; só o conteúdo (arquivo/texto) é mantido em sincronia.
 const SyncFromQuickMessageService = async (
   quickMessage: QuickMessage
 ): Promise<void> => {
@@ -90,7 +92,7 @@ const SyncFromQuickMessageService = async (
     const mediaType = inferMimeTypeFromFilename(rawMediaPath);
 
     if (existing) {
-      await existing.update({ name, path: destFileName, mediaType, textContent: null });
+      await existing.update({ path: destFileName, mediaType, textContent: null });
     } else {
       await PromptFiles.create({
         companyId: quickMessage.companyId,
@@ -111,7 +113,6 @@ const SyncFromQuickMessageService = async (
   if (existing) {
     if (existing.path) removeMirrorFile(quickMessage.companyId, existing.path);
     await existing.update({
-      name,
       path: null,
       mediaType: TEXT_MEDIA_TYPE,
       textContent

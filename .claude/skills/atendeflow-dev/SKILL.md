@@ -849,7 +849,81 @@ mesma receita, sem precisar perguntar de novo:
   do manual técnico, onde o cliente escolheu continuar guardando, mas
   com esse padrão).
 
-## 13. "1 Cliente → N Processos/registros ao longo do tempo" — não presumir "1 ativo por vez"
+## 13. Lista/catálogo novo: sempre Adicionar + Editar + Excluir, nunca só Adicionar/Excluir
+
+Pedido explícito do cliente (v2.3.198/199, catálogo "Arquivos da IA"): depois
+de eu entregar uma tela de catálogo só com cadastrar/excluir (sem editar),
+resposta foi "coloque sempre adicionar editar e excluir" — virou padrão
+permanente do projeto, não precisa perguntar de novo da próxima vez que uma
+tela de lista/catálogo nova for criada. Ao desenhar qualquer CRUD simples
+novo (lista com itens que o usuário cadastra), as três ações (criar, editar,
+excluir) nascem juntas desde a primeira versão — nunca entregar só
+criar/excluir "pra simplificar" e deixar editar pra depois.
+
+## 14. Padrão "espelhar/sincronizar de outro cadastro" — reaproveitável
+
+Primeiro caso no projeto: "Arquivos da IA" (`PromptFiles`) espelhando
+Mensagens Rápidas (`QuickMessage`) marcadas como `geral` (v2.3.198/199,
+`docs/MANUAL_TECNICO.md` seção 177) — pedido do cliente foi "puxar tudo de
+Mensagens Rápidas pra essa tela, mantendo as duas sincronizadas, sem mexer
+no cadastro original". Qualquer feature futura no formato "cadastro B
+reflete automaticamente o conteúdo do cadastro A, mas A continua existindo e
+editável por conta própria" (ex.: um catálogo de produto espelhando alguma
+lista existente, uma tela de IA reaproveitando conteúdo de outro módulo)
+segue a mesma receita, sem redescobrir do zero:
+
+- **FK `sourceXId` nullable na tabela espelho**, não um campo booleano
+  "éEspelho" — é o que torna a sincronização idempotente (sempre encontra e
+  atualiza a MESMA linha em vez de duplicar a cada edição do original) e
+  também marca a proveniência (espelho automático x item cadastrado manual
+  direto na tela B, que nunca tem esse FK preenchido).
+- **Campos que o usuário edita na tela B depois de criado (nome, descrição/
+  "quando usar", qualquer metadado visível) NUNCA são sobrescritos numa
+  sincronização seguinte** — só o conteúdo de fato (arquivo, texto, preço,
+  o que for o "dado" em si) fica em sincronia contínua. Sem essa regra,
+  editar a tela B e depois editar o cadastro A original apaga silenciosamente
+  a edição feita em B, sem aviso nenhum — já foi pensado nesse sentido desde
+  a primeira versão aqui, não precisou corrigir depois.
+- **Editar o CONTEÚDO (não só metadado) de um item espelhado, direto na tela
+  B, desvincula esse item da sincronização** (zera o `sourceXId`) — vira um
+  item manual a partir daí. Sem isso, a próxima edição do cadastro A
+  sobrescreveria silenciosamente a troca manual feita em B. Depois de
+  desvinculado, o cadastro A seguinte volta a criar uma linha NOVA em B
+  (comportamento esperado, não um bug) — se precisar os dois ligados nesse
+  cenário, teria que reatribuir o `sourceXId` manualmente, não implementado
+  por padrão.
+- **Disparo da sincronização em TODO ponto que muda o cadastro A** — não só
+  create/update "principal": inclui endpoints separados de anexo/mídia
+  (upload e remoção), se existirem como rotas próprias (foi o caso aqui:
+  `QuickMessageController.mediaUpload`/`deleteMedia` são endpoints distintos
+  de `store`/`update`). Sempre em `try/catch` que nunca derruba a operação
+  principal do cadastro A se a sincronização falhar — só loga.
+- **Remover/apagar o item A, ou ele deixar de atender o critério de
+  inclusão** (aqui: `geral` virar `false`) **remove o espelho em B** (registro
+  + qualquer arquivo físico copiado) — reaproveitar a MESMA função de sync
+  pra isso (setar o critério como "não atende" em memória, sem persistir, e
+  chamar a função normal de sincronização) em vez de duplicar a lógica de
+  limpeza num lugar separado.
+- **Arquivo físico: sempre CÓPIA de verdade (`fs.copyFileSync`), nunca
+  referência pro caminho original** — apagar o cadastro A não pode apagar
+  o arquivo que B ainda está usando. Nome do arquivo copiado prefixado com
+  a origem (ex. `qm{id}_{nomeOriginal}`) pra nunca colidir com upload manual
+  direto em B.
+- **Migração de dados pro backfill (trazer o que já existia antes da
+  feature) usa só funções PURAS via `require()` (sem banco/model) +
+  `queryInterface.sequelize.query` direto** — mesmo padrão já estabelecido
+  pras migrations de criptografia (seção 2/CLAUDE.md raiz); idempotente
+  checando o `sourceXId` já usado antes de inserir de novo, pra poder rodar
+  de novo sem duplicar se precisar.
+- **Getter de model mascarando o valor real** (ex. `QuickMessage.mediaPath`
+  é um *getter* que devolve a URL pública completa, não o nome do arquivo no
+  disco) — ao ler esse campo de dentro de uma função que mexe direto no
+  arquivo físico, usar `instance.getDataValue("campo")`, nunca
+  `instance.campo`, senão a cópia/exclusão do arquivo quebra silenciosamente
+  (não dá erro, só não acha o arquivo no caminho errado). Checar sempre se o
+  campo que vai ser usado em `fs.*` é um getter antes de usar o valor direto.
+
+## 15. "1 Cliente → N Processos/registros ao longo do tempo" — não presumir "1 ativo por vez"
 
 Lição do mesmo módulo (Despachante Bélico): antes de desenhar uma tabela
 pra algo que parece "um registro ativo por cliente" (um processo, uma

@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.199] — Editar item em Arquivos da IA — 2026-10-23
+
+### Adicionado
+- A tela "Arquivos da IA" ganhou "Editar", além de Adicionar/Excluir que já
+  existiam — dá pra corrigir nome, descrição ("quando enviar") e trocar o
+  arquivo (ou o texto, pra item de texto) de qualquer item, sem precisar
+  excluir e recadastrar. Editar o conteúdo (arquivo/texto) de um item que
+  veio de uma Mensagem Rápida desvincula ele da sincronização automática —
+  vira um item independente a partir daí, pra não correr o risco de uma
+  edição futura na mensagem rápida original apagar sua edição manual sem
+  avisar. Editar só nome/descrição não desvincula nada.
+
 ## [2.3.198] — Mensagens Rápidas espelhadas em Arquivos da IA — 2026-10-23
 
 ### Adicionado

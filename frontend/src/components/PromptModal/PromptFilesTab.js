@@ -13,7 +13,14 @@ import {
   TextField,
   Typography
 } from "@material-ui/core";
-import { DeleteOutline, AttachFile, InsertDriveFile } from "@material-ui/icons";
+import {
+  DeleteOutline,
+  AttachFile,
+  InsertDriveFile,
+  EditOutlined,
+  Close,
+  SyncAlt
+} from "@material-ui/icons";
 import api from "../../services/api";
 import toastError from "../../errors/toastError";
 
@@ -60,6 +67,14 @@ const useStyles = makeStyles(theme => {
       fontSize: "0.72rem",
       color: isDark ? "#94a3b8" : "#64748b",
       marginTop: 1
+    },
+    syncedBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4,
+      fontSize: "0.66rem",
+      color: isDark ? "#93c5fd" : "#2563eb",
+      marginTop: 2
     }
   };
 });
@@ -76,6 +91,8 @@ const PromptFilesTab = () => {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
+  const [editingFile, setEditingFile] = useState(null); // item sendo editado, ou null = modo "adicionar"
+  const [textContent, setTextContent] = useState("");
 
   const fetchFiles = useCallback(async () => {
     setLoading(true);
@@ -92,6 +109,22 @@ const PromptFilesTab = () => {
   useEffect(() => {
     fetchFiles();
   }, [fetchFiles]);
+
+  const resetForm = () => {
+    setEditingFile(null);
+    setName("");
+    setDescription("");
+    setSelectedFile(null);
+    setTextContent("");
+  };
+
+  const handleEditClick = file => {
+    setEditingFile(file);
+    setName(file.name || "");
+    setDescription(file.description || "");
+    setSelectedFile(null);
+    setTextContent(file.mediaType === "text" ? file.textContent || "" : "");
+  };
 
   const handleAdd = async () => {
     if (!selectedFile || !name.trim() || !description.trim()) {
@@ -111,9 +144,38 @@ const PromptFilesTab = () => {
         headers: { "Content-Type": "multipart/form-data" }
       });
       toast.success("Arquivo adicionado ao catálogo da IA!");
-      setName("");
-      setDescription("");
-      setSelectedFile(null);
+      resetForm();
+      fetchFiles();
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!name.trim() || !description.trim()) {
+      toast.warn("Preencha nome e descrição.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("typeArch", "promptFiles");
+    formData.append("name", name.trim());
+    formData.append("description", description.trim());
+    if (selectedFile) {
+      formData.append("file", selectedFile);
+    } else if (editingFile.mediaType === "text") {
+      formData.append("textContent", textContent.trim());
+    }
+
+    setUploading(true);
+    try {
+      await api.put(`/prompt-files/${editingFile.id}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
+      toast.success("Arquivo atualizado!");
+      resetForm();
       fetchFiles();
     } catch (err) {
       toastError(err);
@@ -126,6 +188,7 @@ const PromptFilesTab = () => {
     try {
       await api.delete(`/prompt-files/${fileId}`);
       toast.success("Arquivo removido do catálogo da IA!");
+      if (editingFile?.id === fileId) resetForm();
       fetchFiles();
     } catch (err) {
       toastError(err);
@@ -146,6 +209,11 @@ const PromptFilesTab = () => {
       </div>
 
       <div className={classes.uploadBox}>
+        {editingFile && (
+          <Typography variant="caption" color="textSecondary">
+            Editando "{editingFile.name}"
+          </Typography>
+        )}
         <TextField
           label="Nome do arquivo"
           value={name}
@@ -166,6 +234,20 @@ const PromptFilesTab = () => {
           multiline
           minRows={2}
         />
+        {editingFile && editingFile.mediaType === "text" && !selectedFile && (
+          <TextField
+            label="Texto"
+            value={textContent}
+            onChange={e => setTextContent(e.target.value)}
+            variant="outlined"
+            margin="dense"
+            size="small"
+            fullWidth
+            multiline
+            minRows={2}
+            helperText="Ou selecione um arquivo abaixo para trocar este item por um arquivo."
+          />
+        )}
         <div className={classes.fileRow}>
           <Button
             variant="outlined"
@@ -173,7 +255,11 @@ const PromptFilesTab = () => {
             startIcon={<AttachFile />}
             size="small"
           >
-            {selectedFile ? selectedFile.name : "Selecionar arquivo"}
+            {selectedFile
+              ? selectedFile.name
+              : editingFile
+              ? "Trocar arquivo (opcional)"
+              : "Selecionar arquivo"}
             <input
               type="file"
               hidden
@@ -184,11 +270,27 @@ const PromptFilesTab = () => {
             variant="contained"
             color="primary"
             size="small"
-            onClick={handleAdd}
+            onClick={editingFile ? handleSaveEdit : handleAdd}
             disabled={uploading}
           >
-            {uploading ? <CircularProgress size={18} /> : "Adicionar"}
+            {uploading ? (
+              <CircularProgress size={18} />
+            ) : editingFile ? (
+              "Salvar"
+            ) : (
+              "Adicionar"
+            )}
           </Button>
+          {editingFile && (
+            <Button
+              size="small"
+              startIcon={<Close />}
+              onClick={resetForm}
+              disabled={uploading}
+            >
+              Cancelar
+            </Button>
+          )}
         </div>
       </div>
 
@@ -210,11 +312,31 @@ const PromptFilesTab = () => {
               />
               <ListItemText
                 primary={file.name}
-                secondary={file.description}
+                secondary={
+                  <>
+                    {file.description}
+                    {file.sourceQuickMessageId && (
+                      <div className={classes.syncedBadge}>
+                        <SyncAlt style={{ fontSize: 12 }} />
+                        Sincronizado de Mensagens Rápidas
+                      </div>
+                    )}
+                  </>
+                }
                 primaryTypographyProps={{ className: classes.fileName }}
-                secondaryTypographyProps={{ className: classes.fileDescription }}
+                secondaryTypographyProps={{
+                  className: classes.fileDescription,
+                  component: "div"
+                }}
               />
               <ListItemSecondaryAction>
+                <IconButton
+                  edge="end"
+                  size="small"
+                  onClick={() => handleEditClick(file)}
+                >
+                  <EditOutlined fontSize="small" />
+                </IconButton>
                 <IconButton
                   edge="end"
                   size="small"

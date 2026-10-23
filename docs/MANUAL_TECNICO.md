@@ -12554,13 +12554,13 @@ tomadas com o cliente (contexto ambíguo, ver CLAUDE.md):
   (`DeleteService`) remove o espelho (registro + arquivo) antes de
   apagar a mensagem rápida em si.
 
-### Limitação conhecida
+~~### Limitação conhecida
 
 A tela "Arquivos da IA" (`PromptFilesTab.js`) hoje só tem
 cadastrar/excluir, sem editar — então "editável depois" (decisão 2
 acima) só é possível direto no banco por enquanto, não pela interface.
 Não implementado nessa versão por não ter sido pedido; sinalizado pro
-cliente.
+cliente.~~ — **corrigido na v2.3.199**, ver seção 178.
 
 **Arquivos**: `backend/src/helpers/quickMessagePromptFileSync.ts`
 (novo), `backend/src/services/PromptFilesServices/
@@ -12574,3 +12574,60 @@ SyncFromQuickMessageService.ts` (novo),
 UpdateService,DeleteService}.ts`,
 `backend/src/controllers/QuickMessageController.ts`,
 `backend/src/services/IntegrationsServices/OpenAiService.ts`.
+
+## 178. Editar item em Arquivos da IA (v2.3.199)
+
+### Contexto
+
+Logo depois de entregar a seção 177, o cliente pediu pra fechar o CRUD
+completo da tela "Arquivos da IA" (que só tinha Adicionar/Excluir) e também
+deixou registrado como padrão permanente do projeto: toda lista/catálogo
+novo nasce com Adicionar + Editar + Excluir desde a primeira versão (ver
+`atendeflow-dev` seção 13).
+
+### O que foi feito
+
+- **`backend/src/services/PromptFilesServices/UpdateService.ts`** (novo) —
+  mesma validação Yup do `CreateService`. Sempre atualiza `name`/
+  `description`. Se vier `newPath` (arquivo novo) ou `newTextContent`
+  (string, mesmo vazia) no payload, troca o conteúdo: apaga o arquivo físico
+  anterior se havia um, grava o novo (arquivo ou texto), e **zera
+  `sourceQuickMessageId`** se o item tinha um — desvincula da Mensagem
+  Rápida de origem, pra não correr risco de uma sincronização futura
+  sobrescrever a edição manual (ver seção 177/`atendeflow-dev` seção 14).
+  Editar só nome/descrição NÃO desvincula nada.
+- **`backend/src/services/PromptFilesServices/SyncFromQuickMessageService.ts`**
+  — ajustado pra também nunca sobrescrever `name` num item já existente
+  (antes só `description` era protegido; agora que dá pra editar os dois
+  pela tela, os dois ficam do mesmo jeito protegidos contra sincronização).
+- **`PromptFilesController.ts`/`promptFilesRoutes.ts`** — rota nova
+  `PUT /prompt-files/:promptFileId`, multer com arquivo OPCIONAL (diferente
+  do `POST`, que exige arquivo). Corpo aceita `name`, `description`, e
+  opcionalmente `file` (multipart) ou `textContent` (string) — se vier
+  arquivo, ele tem prioridade sobre `textContent`.
+- **`PromptFilesTab.js`** — formulário do topo (já usado pra Adicionar)
+  virou dual-mode: clicar no ícone de editar de um item preenche o form com
+  os dados dele (`editingFile` no state) e troca "Adicionar" por
+  "Salvar"/"Cancelar". Item de texto (`mediaType === "text"`) mostra um
+  campo de texto editável além do seletor de arquivo (trocar por um arquivo
+  também é permitido, substitui o texto). Item que veio de sincronização
+  (`sourceQuickMessageId` setado) ganha uma legenda "Sincronizado de
+  Mensagens Rápidas" na lista, só informativo.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos, `npx eslint` +
+`npx craco build` (frontend) limpos. Testado contra Postgres local via
+script Node direto no `UpdateService`: editar só nome/descrição mantém
+`sourceQuickMessageId` (e uma sincronização seguinte da mensagem rápida
+original não reverte a edição); editar o texto desvincula
+(`sourceQuickMessageId` vira `null`), e a mensagem rápida original passa a
+criar uma linha NOVA na próxima sincronização (esperado); item cadastrado
+manual (sem `sourceQuickMessageId`) edita normalmente sem nenhum efeito
+colateral.
+
+**Arquivos**: `backend/src/services/PromptFilesServices/UpdateService.ts`
+(novo), `backend/src/services/PromptFilesServices/
+SyncFromQuickMessageService.ts`, `backend/src/controllers/
+PromptFilesController.ts`, `backend/src/routes/promptFilesRoutes.ts`,
+`frontend/src/components/PromptModal/PromptFilesTab.js`.
