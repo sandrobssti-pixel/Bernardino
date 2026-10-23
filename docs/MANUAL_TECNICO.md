@@ -12677,3 +12677,72 @@ interativo nesta sessão) — mesma ressalva já registrada na seção 171.
 
 **Arquivos**: `frontend/src/components/CompanyWhatsapps/index.js`,
 `frontend/src/components/ListPreview/index.js`.
+
+## 180. Assistente IA da conexão não entregava resposta a contato via @lid (v2.3.201)
+
+### Contexto
+
+Depois da seção 177-179 (sincronização de Mensagens Rápidas), diagnóstico
+em produção de "configurei a IA e não respondeu". Investigação longa
+(várias rodadas de log) eliminou em ordem: criptografia da API key (OK,
+v2.3.196/197), vínculo do Prompt na conexão (faltava — campo "Assistente
+de IA" fica na aba **Integrações**, não "Geral", e só aparece se o plano
+da empresa tiver "Atendimento IA" habilitado em Configurações → Planos),
+e um ticket antigo preso em status `nps` (aguardando avaliação) sendo
+reaproveitado pelo `FindOrCreateTicketService` via `lid`/`jid` — nenhum
+desses era a causa final. A prova decisiva: o painel da OpenAI mostrou
+`$0,04` gastos e "Último uso" preenchido — ou seja, a chamada à API
+estava acontecendo e sendo cobrada, mas a resposta nunca chegava no
+WhatsApp do cliente.
+
+Causa raiz: o contato chegou via `@lid` (identidade alternativa que o
+WhatsApp introduziu como camada de privacidade — resolvida no log pra
+`remoteJidAlt`, o número real). `wbotMessageListener.ts` já tem uma
+função `resolveRemoteJid(msg, ticket)` que resolve isso (prioriza
+`remoteJidAlt`, depois `senderPn`), mas ela só era aplicada em pontos
+específicos — gravação da `Message.remoteJid`, resolução de contato, e
+o fluxo do Typebot (`typebotListener`, que já reconstrói `msg` com o
+`remoteJid` corrigido antes de chamar). **Os dois caminhos de IA direto
+na conexão nunca aplicavam essa correção** — passavam o `msg` bruto pra
+`handleOpenAi`, que manda a resposta via `wbot.sendMessage(msg.key.
+remoteJid!, ...)`. Resultado: `wbot.sendMessage` tentava entregar pro
+`@lid` bruto, que não é um destino entregável — chamada à OpenAI
+acontece (cobra), resposta não vai a lugar nenhum, nenhum erro no log
+(o `sendMessage` não lança, só não entrega).
+
+### O que foi feito
+
+Nos dois pontos de `wbotMessageListener.ts` que chamam `handleOpenAi`
+sem passar por `typebotListener` — nó "openai" do Flowbuilder sem fila
+(~linha 5878, `isOpenai && !isNil(flow) && !ticket.queueId`) e "openai
+na conexão" (~linha 5940, `!ticket.queue && ... && whatsapp.promptId`)
+— o `msg` passado agora é reconstruído com o `remoteJid` corrigido,
+mesmo padrão já usado pelo `typebotListener`:
+```ts
+{ ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } }
+```
+Como é só o objeto `msg` que muda (mesma referência usada daí pra
+frente dentro de `handleOpenAi`/`OpenAiService.ts`), nenhuma outra
+função precisou mudar — `wbot.sendMessage` dentro do `OpenAiService.ts`
+passa a usar o `remoteJid` já corrigido automaticamente.
+
+**Pendência (não corrigida nesta versão, caminho separado)**:
+`ActionsWebhookService.ts` (nó de IA dentro de fluxo do Flowbuilder
+disparado por *webhook* externo, não o nó direto no fluxo) tem a MESMA
+chamada a `handleOpenAi(openAiSettings, msg, ...)` sem essa correção —
+mesmo bug latente, não corrigido por não ser o caminho que esse cliente
+usa (ele usa Prompt direto na conexão). Se algum cliente reportar o
+mesmo sintoma (IA cobra mas não entrega) usando automação via webhook,
+aplicar a mesma correção lá.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Não testado contra uma
+sessão real do WhatsApp nesta sessão (sem ambiente de Baileys
+interativo) — a correção segue exatamente o padrão já usado e testado
+em produção pelo `typebotListener`, risco baixo, mas vale o cliente
+confirmar com um teste real depois do deploy (inclusive comparando o
+"Último uso"/gasto da chave da OpenAI de antes/depois, já que esse foi
+o sinal que provou a chamada estava saindo).
+
+**Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`.

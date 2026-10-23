@@ -5921,19 +5921,24 @@ const handleMessage = async (
         model
       };
     
+      // v2.3.201 — corrige o remoteJid antes de responder (mesmo padrão já
+      // usado pelo typebotListener): sem isso, uma mensagem recebida via
+      // @lid (identidade alternativa do WhatsApp) faz a IA responder pro
+      // @lid bruto, que o WhatsApp não entrega — a chamada à OpenAI
+      // acontece e é cobrada, mas o cliente nunca recebe nada.
       await handleOpenAi(
         openAiSettings,
-        msg,
+        { ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } },
         wbot,
         ticket,
         contact,
         mediaSent,
         ticketTraking
       );
-    
+
       return;
     }
-    
+
 
 
 
@@ -5946,9 +5951,10 @@ const handleMessage = async (
       !isNil(whatsapp.promptId)
     ) {
       const { prompt } = whatsapp;
+      // v2.3.201 — mesma correção de remoteJid (@lid) do bloco acima.
       await handleOpenAi(
         prompt,
-        msg,
+        { ...msg, key: { ...msg.key, remoteJid: resolveRemoteJid(msg, ticket) } },
         wbot,
         ticket,
         contact,

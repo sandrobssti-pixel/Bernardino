@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.201] — Assistente IA da conexão não entregava resposta a contato via @lid — 2026-10-23
+
+### Corrigido
+- A IA configurada direto na conexão ("Assistente de IA") chamava a OpenAI
+  normalmente (cobrando a chamada) mas a resposta nunca chegava no WhatsApp
+  quando o contato chegava via identidade `@lid` (camada de privacidade
+  nova do WhatsApp) — a resposta era mandada pro `@lid` bruto, que não é
+  entregável, em vez do número real resolvido. O fluxo do Flowbuilder via
+  Typebot já tinha essa correção; agora os dois caminhos de IA direto na
+  conexão (`openai na conexão` e nó "openai" sem fila do Flowbuilder)
+  aplicam a mesma correção antes de responder.
+
 ## [2.3.200] — Modal de conexões por empresa (admin) ficava sem jeito de fechar — 2026-10-23
 
 ### Corrigido
