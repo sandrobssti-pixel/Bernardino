@@ -3,7 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-## [2.3.195] — API Key do Assistente IA deixa de voltar em texto puro — 2026-10-23
+## [2.3.196] — API Key do Assistente IA cifrada no banco — 2026-10-23
+
+### Adicionado
+- A API key de cada Assistente IA (OpenAI/Gemini/DeepSeek/Groq) agora é
+  cifrada no banco de dados (AES-256-GCM), não só escondida do navegador
+  (v2.3.195). Chaves já salvas são cifradas automaticamente no deploy.
+  Requer a variável de ambiente nova `PROMPT_API_KEY_ENCRYPTION_KEY`
+  (gerar com `openssl rand -base64 32`) — sem ela, continua funcionando
+  normalmente, só não cifra (avisa no log).
 
 ### Corrigido
 - A chave de API de cada Assistente IA (OpenAI/Gemini/DeepSeek/Groq)

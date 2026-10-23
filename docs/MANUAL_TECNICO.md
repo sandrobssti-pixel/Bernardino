@@ -12272,3 +12272,88 @@ Não precisou de migration (nenhuma coluna nova).
 
 **Arquivos**: `backend/src/controllers/PromptController.ts`,
 `frontend/src/components/PromptModal/index.js`.
+
+## 175. API Key do Assistente IA cifrada no banco (v2.3.196)
+
+### Contexto
+
+Continuação da seção 174 — o cliente mandou um app próprio dele
+(`AtendeFlow-Multiclientes`, Python/SQLite, usado como referência de
+design pra uma reforma maior do módulo Assistente IA, não uma versão
+mais nova do mesmo AtendeFlow) que já cifra a API key de cada provedor
+no banco (Fernet) e só revela sob demanda. Pedido explícito do cliente:
+"cifrar a apikey" — primeira fase confirmada do plano de reforma, feita
+"tudo de uma vez" junto com a seção 176 (FlowBuilder) depois de eu
+avisar do escopo real e o risco de mexer na IA ativa em produção.
+
+### Descoberta importante durante a investigação
+
+A API key não vive só na tabela `Prompts` — o **FlowBuilder** guarda
+uma CÓPIA própria da configuração inteira do Assistente IA (incluindo a
+API key) dentro do JSON de cada fluxo salvo, quando um nó de IA é usado
+(`IOpenAi`/`typebotIntegration`, lido em 8 arquivos diferentes). Cifrar
+só a tabela resolve o banco "principal", mas não fecha cópias dentro de
+fluxos já salvos — isso é tratado separadamente na seção 176.
+
+### O que foi feito
+
+- **`backend/src/utils/promptApiKeyCrypto.ts`** (novo) — AES-256-GCM,
+  mesmo algoritmo/formato (`"<iv>:<authTag>:<ciphertext>"`, tudo base64)
+  já usado em `weaponDispatchCrypto.ts` (senha do gov.br), mas arquivo e
+  variável de ambiente SEPARADOS de propósito (`PROMPT_API_KEY_
+  ENCRYPTION_KEY`, não reaproveita `WEAPON_DISPATCH_ENCRYPTION_KEY`) —
+  segredos de categorias diferentes, um vazamento de um não deveria
+  comprometer o outro. **Diferença deliberada** do padrão do
+  weaponDispatchCrypto: lá, sem a variável de ambiente configurada, a
+  função recusa funcionar (throw) — aqui, sem a variável, `encryptApiKey`
+  devolve o texto como veio (não cifra, só avisa uma vez no log) e
+  `decryptApiKey` também devolve como está. Decisão: isso é um
+  Assistente IA ATIVO em produção pra um cliente de verdade — prioridade
+  é nunca quebrar o atendimento por IA só porque a variável de ambiente
+  ainda não foi configurada no servidor depois do deploy. `isEncryptedApiKey`
+  reconhece o formato cifrado (IV de 12 bytes + authTag de 16 bytes,
+  decodificados do base64) pra nunca cifrar duas vezes nem tentar
+  decifrar um valor que já está em texto puro.
+- **`Prompt.ts`** — hooks `@BeforeCreate`/`@BeforeUpdate` (cifra antes
+  de gravar) e `@AfterFind` (decifra ao carregar) — mesmo padrão de hook
+  já usado em `User.ts` (`hashPassword`). `@AfterFind` escolhido em vez
+  de decifrar manualmente em cada lugar que usa `Prompt.apiKey` (são
+  pelo menos 6 arquivos fora do FlowBuilder: `OpenAiService.ts`,
+  `OpenAIProviderService.ts`, `GeminiProviderService.ts`,
+  `wbotMessageListener.ts`, `HandleWuzapiWebhook.ts`,
+  `ReceivedWhatsApp.ts`, `ActionsWebhookService.ts`) — com o hook,
+  NENHUM desses arquivos precisou mudar uma linha sequer: todos
+  continuam recebendo `prompt.apiKey` já em texto puro, exatamente como
+  sempre. **Testado e confirmado** (não só por leitura de código) que
+  `@AfterFind` decifra corretamente tanto em `Prompt.findByPk`/
+  `findAll` direto quanto carregado via `include` de outro model — era o
+  maior risco dessa abordagem (nenhum outro model deste projeto usava
+  `@AfterFind` antes), confirmado com um script Node rodado contra
+  Postgres local antes de confiar na abordagem.
+- **Migration de DADOS** `20261023100000-encrypt-existing-prompt-api-keys`
+  — cifra toda `Prompts.apiKey` que ainda estiver em texto puro no banco,
+  reaproveitando `encryptApiKey`/`isEncryptedApiKey` (import direto do
+  util compilado — primeira migration deste projeto a importar código
+  da aplicação em vez de só SQL puro; idempotente, testado rodando a
+  função `up` duas vezes seguidas e confirmando que a segunda não muda
+  nada).
+- **`.env.coolify.example`** — nova variável `PROMPT_API_KEY_ENCRYPTION_KEY`
+  documentada (gerar com `openssl rand -base64 32`), com o aviso de que
+  é opcional (sem ela, funciona igual antes, só não cifra).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Testado de ponta a ponta
+contra Postgres local (não só migration, também o comportamento real do
+model): inserção manual de uma linha com API key em texto puro →
+migration cifra → `findByPk` e `findAll` com `include` decifram
+corretamente → criar um Prompt novo grava cifrado no banco e recarrega
+decifrado → atualizar um campo qualquer (sem mexer na API key) não
+corrompe o valor cifrado existente → rodar a migration duas vezes não
+cifra de novo (idempotente) → sem a variável de ambiente configurada,
+nada quebra (fica em texto puro, só avisa no log).
+
+**Arquivos**: `backend/src/utils/promptApiKeyCrypto.ts` (novo),
+`backend/src/models/Prompt.ts`, `backend/src/database/migrations/
+20261023100000-encrypt-existing-prompt-api-keys.ts` (novo),
+`.env.coolify.example`.
