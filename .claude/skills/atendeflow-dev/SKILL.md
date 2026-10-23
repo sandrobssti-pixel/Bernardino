@@ -287,6 +287,18 @@ Rodar isso (não só lint) antes de toda entrega que toque em import de
 pacote de terceiro no frontend — mais caro que o lint, mas muito mais
 barato que o cliente descobrir no deploy.
 
+**O cache do webpack/craco pode mascarar exatamente esse tipo de erro.**
+Batido na prática (v2.3.202): um `import { SmartToy } from
+"@material-ui/icons"` (ícone que só existe no Material-UI v5; este
+projeto usa v4, `@material-ui/icons` 4.11.3) passou num `npx craco
+build` local — "Compiled successfully" — e só quebrou de verdade no
+deploy do cliente. Rodando `rm -rf build node_modules/.cache` antes de
+buildar de novo, o erro reproduziu na hora. Pra qualquer ícone/nome
+importado de pacote de terceiro novo, ou sempre que for investigar um
+build que falhou no cliente mas "passou" localmente, limpar `build/` e
+`node_modules/.cache` antes de confiar no resultado — não basta rodar
+o `craco build` uma vez e seguir em frente.
+
 ## 10. Commit
 
 Mensagem com o quê + por quê (nunca só "fix bug"), rodapé de atribuição

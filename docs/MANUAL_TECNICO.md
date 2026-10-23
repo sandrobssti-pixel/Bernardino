@@ -12841,3 +12841,94 @@ formatado com parênteses/traço; duplicata rejeitada; depois de apagar,
 `backend/src/services/WbotServices/wbotMessageListener.ts`,
 `frontend/src/components/PromptModal/BlockedNumbersTab.js` (novo),
 `frontend/src/pages/Prompts/index.js`.
+
+## 182. IA não voltava a responder cliente que já tinha sido atendido antes + build quebrado da v2.3.202 (v2.3.203)
+
+### Contexto
+
+Depois do deploy da v2.3.201 (IA voltou a responder — confirmado pelo
+cliente com print real da conversa), o cliente descreveu o fluxo de
+negócio completo esperado: atendente humano pega o cliente → IA para
+de responder (já funcionava) → atendente fecha o chamado → **se o
+mesmo cliente mandar mensagem de novo (mesmo dia ou outro dia), a IA
+tem que voltar a responder** (NÃO funcionava, mesma classe de bug da
+seção 180, só que por um caminho diferente).
+
+Causa: `UpdateTicketService.ts` só põe o ticket em status `"closed"`
+de verdade se a avaliação (NPS) estiver desligada ou sem mensagem de
+avaliação configurada. Com NPS ligado (comum), fechar um ticket põe
+status `"nps"` (aguardando nota) — e fica assim **pra sempre** se o
+cliente nunca avaliar (maioria não avalia). `FindOrCreateTicketService`
+reaproveita ticket em status `"nps"` pra qualquer mensagem nova do
+mesmo contato (por `lid`/`jid`/`contactId`) — com a fila e o atendente
+do atendimento ANTERIOR ainda gravados nele. Os dois gatilhos de IA
+exigem ticket sem fila e sem atendente (`!ticket.queue && !ticket.
+userId`) — nunca disparam de novo pro mesmo contato, mesmo dias depois.
+Achado um início de solução pro mesmo problema no canal Wuzapi
+(`HandleNpsReplyService.ts` + checagem de `ticket.status === "nps"` em
+`HandleWuzapiWebhook.ts`), mas mesmo lá o problema não estava
+realmente resolvido (só trata quando é nota válida; se não for nota,
+cai no roteamento normal sem limpar fila/atendente).
+
+**Decisão confirmada com o cliente** (`AskUserQuestion` — pergunta
+explícita por ter mais de um caminho razoável, ver CLAUDE.md): reabrir
+o ticket como atendimento novo de verdade (limpa fila/atendente, status
+volta pra `"pending"`) em vez de só "liberar a IA por baixo dos panos"
+deixando a fila/atendente antigos gravados. Cliente perguntou
+explicitamente se isso apaga o histórico da conversa — **não apaga**:
+é um `UPDATE` no mesmo `Ticket.id`, as `Message` continuam todas
+ligadas a esse mesmo ticket, nada é criado nem deletado.
+
+### O que foi feito
+
+Em `wbotMessageListener.ts`, logo depois do bloco que já tenta
+processar a mensagem como nota de avaliação (`verifyRating`/
+`handleRating`, que dá `return` se for uma nota válida): se a mensagem
+NÃO foi tratada como nota E o ticket continua em status `"nps"`, chama
+`ticket.update({ status: "pending", queueId: null, userId: null })` e
+zera `ticket.queue = null` em memória também (a associação já carregada
+no objeto `ticket` não é limpa sozinha só pelo `.update()` da coluna —
+os gatilhos de IA mais abaixo checam `!ticket.queue`, não só
+`!ticket.queueId`). Escopo só no canal Baileys (`wbotMessageListener.
+ts`), que é o que esse cliente usa — o mesmo problema deve existir em
+`HandleWuzapiWebhook.ts`/`facebookMessageListener.ts` (ambos com o
+próprio par `verifyRating`/`handleRating` ou `HandleNpsReplyService`),
+não corrigido por não ser o canal em uso aqui.
+
+### Build quebrado da v2.3.202 (achado só agora, no deploy)
+
+O deploy da v2.3.202 falhou no build do frontend:
+`Attempted import error: 'SmartToy' is not exported from
+'@material-ui/icons'` — ícone usado em `TestPromptModal.js` que só
+existe no Material-UI v5 (este projeto usa `@material-ui/core
+^4.12.3`/`@material-ui/icons` 4.11.3). Trocado por `AssistantOutlined`
+(já em uso noutra tela do mesmo módulo, confirmado existente na versão
+instalada).
+
+**Lição nova, importante**: o build local que validou a v2.3.202 antes
+do commit (`npx craco build`, rodado em background) voltou "Compiled
+successfully" mesmo com esse import quebrado — só reproduziu o erro de
+verdade depois de `rm -rf build node_modules/.cache` antes de rodar de
+novo. Ou seja, **o cache do webpack/craco pode mascarar um erro de
+import que devia quebrar o build**. Daqui pra frente, qualquer vez que
+o build local "passar" logo depois de adicionar um import novo de
+ícone/pacote de terceiro (justamente o tipo de erro que só o build de
+produção pega, seção 9 da skill `atendeflow-dev`), ou sempre que for
+investigar um build que falhou no cliente mas "passa" localmente,
+limpar `build/` e `node_modules/.cache` antes de confiar no resultado.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos. Reaberto o
+ticket NPS testado via script direto contra Postgres local: ticket
+`status='nps'`, `queueId`/`userId` preenchidos, uma `Message` antiga
+ligada a ele → aplicada a mesma lógica do fix → `status` vira
+`'pending'`, `queueId`/`userId` viram `null`, a `Message` antiga
+continua lá (mesma contagem, mesmo texto) — condição de gatilho da IA
+(`!ticket.queue && !ticket.userId`) passa a ser satisfeita. Build do
+frontend confirmado quebrando com `SmartToy` e depois voltando a
+compilar limpo (`rm -rf build node_modules/.cache` antes de cada
+tentativa, pra não repetir o mesmo erro de confiar em cache).
+
+**Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`,
+`frontend/src/components/PromptModal/TestPromptModal.js`.

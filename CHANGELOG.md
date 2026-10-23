@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.203] — IA não voltava a responder cliente que já tinha sido atendido antes — 2026-10-23
+
+### Corrigido
+- Quando um ticket é fechado com avaliação (NPS) pendente, ele fica em
+  status "aguardando avaliação" indefinidamente se o cliente nunca
+  avalia (o caso mais comum) — e se esse mesmo cliente mandasse uma
+  mensagem nova depois (no mesmo dia ou outro dia), a IA nunca
+  respondia, porque o ticket reaproveitado ainda tinha a fila e o
+  atendente do atendimento anterior gravados nele. Agora, ao chegar uma
+  mensagem nova que não é uma nota de avaliação, esse ticket é reaberto
+  como atendimento novo de verdade — fila e atendente antigos são
+  limpos, status volta pra "pendente" — sem apagar nada: é o mesmo
+  ticket, mesmo histórico de mensagens, só os campos de atribuição que
+  mudam. A IA volta a fazer o primeiro atendimento normalmente.
+- O build do frontend da v2.3.202 quebrava (`'SmartToy' is not exported
+  from '@material-ui/icons'`) — ícone que só existe no Material-UI v5,
+  este projeto usa v4. Trocado por `AssistantOutlined` (já usado em
+  outra tela deste mesmo módulo).
+
 ## [2.3.202] — Testar agente + Números sem IA — 2026-10-23
 
 ### Adicionado

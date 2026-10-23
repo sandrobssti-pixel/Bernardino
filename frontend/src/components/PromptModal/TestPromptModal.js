@@ -12,7 +12,7 @@ import {
   TextField,
   Typography
 } from "@material-ui/core";
-import { Close, Send, DeleteSweep, SmartToy, Person } from "@material-ui/icons";
+import { Close, Send, DeleteSweep, AssistantOutlined, Person } from "@material-ui/icons";
 import api from "../../services/api";
 import toastError from "../../errors/toastError";
 
@@ -208,7 +208,7 @@ const TestPromptModal = ({ open, onClose, prompt }) => {
                   {m.role === "user" ? (
                     <Person style={{ fontSize: 16 }} />
                   ) : (
-                    <SmartToy style={{ fontSize: 16 }} />
+                    <AssistantOutlined style={{ fontSize: 16 }} />
                   )}
                 </div>
                 <div
@@ -224,7 +224,7 @@ const TestPromptModal = ({ open, onClose, prompt }) => {
           {sending && (
             <div className={classes.row}>
               <div className={`${classes.avatar} ${classes.avatarAssistant}`}>
-                <SmartToy style={{ fontSize: 16 }} />
+                <AssistantOutlined style={{ fontSize: 16 }} />
               </div>
               <div className={`${classes.bubble} ${classes.bubbleAssistant}`}>
                 <CircularProgress size={14} />

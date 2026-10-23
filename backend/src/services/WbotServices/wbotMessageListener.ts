@@ -5566,7 +5566,34 @@ const handleMessage = async (
       Sentry.captureException(e);
       console.log(e);
     }
-    
+
+    // v2.3.203 — cliente respondeu algo que NÃO é nota de avaliação, mas o
+    // ticket continua em "nps" (aguardando avaliação — fica assim pra
+    // sempre se o cliente nunca avalia, o que é o caso mais comum).
+    // Reabre como atendimento novo de verdade: limpa fila/atendente
+    // antigos e volta pro status "pending" — NÃO cria ticket novo nem
+    // apaga histórico (mesmo ticket.id, mesmas mensagens continuam
+    // ligadas a ele). Sem isso, os dois gatilhos de IA logo abaixo nunca
+    // disparam de novo pra esse contato, porque exigem ticket sem
+    // fila/atendente — ele ficaria preso com a fila/atendente do
+    // atendimento anterior, já encerrado.
+    if (!msg.key.fromMe && ticket.status === "nps") {
+      try {
+        await ticket.update({
+          status: "pending",
+          queueId: null,
+          userId: null
+        });
+        // `ticket.queue` é a associação já carregada em memória — o
+        // `.update()` acima só mexe na coluna `queueId`, não limpa esse
+        // objeto sozinho, e os gatilhos de IA checam `!ticket.queue`.
+        ticket.queue = null;
+      } catch (e) {
+        Sentry.captureException(e);
+        console.log(e);
+      }
+    }
+
     // Atualiza o ticket se a ultima mensagem foi enviada por mim, para que possa ser finalizado.
     try {
       await ticket.update({
