@@ -13167,3 +13167,154 @@ etapas, cada uma com autorização própria antes de codar.
 `frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`
 (novo),
 `frontend/src/hooks/useFinance/index.js`.
+
+## 185. Cadastro de Produto (arma/munição) só com dado de produto + erro ao editar que sobrou da seção 183 (v2.3.206)
+
+### Contexto
+
+O cliente (clube de tiro) reclamou que o cadastro de Produto "ficou
+gigante", com "vários campos desnecessários", e que o erro interno ao
+editar e salvar continuava acontecendo — agora no SKU 75008418, depois
+do SKU 10034336 já ter sido corrigido na seção 183. Mensagens-chave do
+cliente, quase verbatim: "esse modulo nao tem nada fiscal ... cadastro
+de produto só entra os dados do produto com o código do produto, foto
+do produto, número de série, lote, número do ID ... e as caracteristicas
+técnicas"; "em vendas tem tudo isso, quando fizemos uma venda puxa os
+dados do cadastro do cliente ... produto e fornecedor, então não precisa
+ter nada de questões fiscais no painel de cadastro de produto, esse é o
+papel de vendas"; "ficou gigante o cadastro de produto, vários campos
+desnecessários e ainda dando erro quando edita e manda atualizar alguma
+informação".
+
+O cliente mandou 2 notas fiscais reais (PDF) como referência — uma de
+munição, uma de arma — pra confirmar contra o sistema de verdade em vez
+de confiar só na descrição dele.
+
+### Verificação contra as notas reais
+
+Checado campo a campo em `FocusNFeService.ts` (o serviço que de fato
+monta o payload da NF-e real, Focus NFe) qual fonte cada dado da nota
+usa:
+
+- **CFOP, Lote, ID, SIGMA/SINARM** — o cliente estava certo: já vêm
+  100% da tela de Venda, por item (`SaleItem.cfop`/`ammoLot`/
+  `packageId`/`sigmaSinarm`, mais `CfopAutocomplete`), sem nenhuma
+  dependência do cadastro de Produto. Isso já era assim antes desta
+  sessão.
+- **ICMS/CSOSN/IBPT (13 campos)** — aqui o cliente estava incorreto:
+  `buildItemIcms()` lê `csosnContribuinte`/`csosnNaoContribuinte`/
+  `icmsOrigin`/`icmsExempt`/`icmsRate`/`icmsBcModality`/
+  `icmsSubstitution`/`icmsStRate`/`icmsStMva`/`icmsStBcModality`/
+  `icmsDesoneration` exclusivamente de `item.product` (o Produto
+  cadastrado, via o `include` do item da venda) — **não existe nenhum
+  campo equivalente na Venda hoje**. `ibptRate`/`ibptSource` (texto do
+  rodapé, Lei da Transparência) também só existem no Produto. Removê-
+  los do cadastro de Produto sem antes criar um equivalente na Venda
+  quebraria a emissão de nota fiscal de verdade.
+
+Com essa distinção confirmada por código (não por suposição), a limpeza
+ficou assim:
+
+**Fica no cadastro de Produto** (type = weapon/ammunition): os 13 campos
+de ICMS/CSOSN/IBPT acima (sem equivalente na Venda), mais tudo que já
+era específico de arma/munição (marca, modelo, calibre, capacidade,
+regime, cano, alma, procedência, classificação de uso, foto, fornecedor
+principal) e o sub-cadastro de unidades por número de série (seção 184).
+
+**Sai da tela pra esse tipo** (continua existindo normalmente pra
+produto/serviço comum — nenhum campo foi apagado do banco, só escondido
+via `visibleWhen` em `financeConfig.js`): Alíquota de imposto (dashboard
+de lucro), a seção inteira "Reforma Tributária (IVA 2027)" (só tem
+efeito depois de ativada em Configuração Fiscal — preenchimento
+preventivo, sem uso num cadastro de arma), a seção inteira "Dados
+Gerais — Complementares" (GTIN, código original/similar, cor/tamanho/
+sabor, peso, categoria/subcategoria, embalagem, família, local de
+armazenagem, tabelas de preço 2 a 5, estoque reservado/ideal/por lote,
+produto composto/matéria-prima/equipamento/venda por KG, comissão,
+margem de desconto, pontos de fidelidade/troca — campos do sistema de
+referência do cliente, nunca usados por arma/munição), e 8 campos de
+"Dados Fiscais" sem leitura nenhuma em `FocusNFeService.ts` (ICMS ECF,
+Un. Medida Trib., CFOP Principal/Fora UF — o CFOP de verdade é o da
+Venda —, Artigo, Cód. Benefício Fiscal, FCP, Desconto Condicional na
+NFe/NFCe). A aba "Fornecedor/Produção" (vincular ao cadastro de
+Fornecedor já existente) **não foi removida** — o cliente pediu
+explicitamente pra manter ("tem que atrelar no cadastro do produto").
+
+Nova função helper em `financeConfig.js`: `isNotServiceAndNotWeaponAmmo`
+(== `isNotService` E não é arma/munição), usada no `visibleWhen` de cada
+campo/seção acima — e `hasStockControlAndNotWeaponAmmo` pros 3 campos de
+estoque (reservado/ideal/por lote) que antes só checavam
+`controlStock`.
+
+### O erro ao editar — causa raiz completa (a seção 183 só cobriu parte)
+
+A correção da seção 183 (v2.3.204) tratava só 4 campos numéricos
+específicos de arma (`cartridgeCapacity`, `barrelCount`,
+`barrelLength`, `kineticEnergyJ`) no `productSchema` do
+`FinanceProductService.ts` — qualquer outro campo numérico do Produto
+que chegasse como `""` continuava indo direto pro Postgres sem
+transformação. O cadastro de Produto tem bem mais colunas realmente
+numéricas (`INTEGER`/`FLOAT`) do que essas 4: `weight`,
+`stockQuantity`, `minStockQuantity`, `reservedStock`, `idealStock`,
+`stockByLot`, `loyaltyPoints`, `redemptionPoints`. Duas pegadinhas
+descobertas testando contra Postgres de verdade (não só lendo o
+código):
+
+1. O campo "Peso" (`weight`) não tinha `defaultValue` nenhum no
+   formulário — ficava `""` sempre que a pessoa não preenchia. E
+   `stripHiddenFieldValues` (`FinanceRecordModal/index.js`) **reseta
+   pro próprio `defaultValue` (`?? ""`) qualquer campo que ficou
+   invisível** antes de mandar pro backend — ou seja, ao esconder
+   "Peso" pra arma/munição nesta mesma sessão, o formulário passou a
+   mandar `weight: ""` em TODO save de arma/munição, mesmo produtos que
+   já tinham um peso salvo. Sem a correção abaixo, essa limpeza de
+   campos teria piorado o erro, não resolvido.
+2. `stockQuantity`/`reservedStock`/`idealStock`/`stockByLot`/
+   `loyaltyPoints`/`redemptionPoints` são colunas `NOT NULL DEFAULT 0`
+   no banco (migrations `20260914140200` e `20261019270000`) —
+   diferente de `weight`/`minStockQuantity`/os 4 campos de arma, que são
+   nullable. Transformar `""` em `null` nessas 6 colunas violaria a
+   constraint `NOT NULL` (erro confirmado rodando contra Postgres antes
+   de ajustar). Corrigido transformando `""` pro próprio default (`0`)
+   nessas, e `null` nas que aceitam.
+
+`productSchema` agora é construído a partir de duas listas (
+`NULLABLE_NUMERIC_FIELDS` e `NOT_NULL_NUMERIC_FIELDS`) cobrindo **todas**
+as colunas numéricas de `FinanceProduct` — não mais uma lista ad-hoc dos
+4 campos do primeiro bug relatado. Os campos "numéricos" do formulário
+que no banco são `VARCHAR` (`price`, `costPrice`, `taxRate`, tabelas de
+preço, todos os campos de ICMS/IBPT/IVA 2027) nunca tiveram esse
+problema — aceitam `""` como texto sem erro.
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo. Testado contra Postgres local de verdade
+(não só lido o código): criar e depois EDITAR um Produto tipo arma
+reproduzindo o cenário relatado (SKU 75008418, vários campos numéricos
+em branco incluindo `weight` escondido) — sem a correção, o `UPDATE`
+batia direto na constraint `NOT NULL` de `reservedStock`; com a
+correção, create e update passam e o produto fica com `weight: null` e
+`stockQuantity: 0`/valor informado, como esperado.
+
+Frontend: `financeConfig.js` parseado via Babel (`react-app` preset) e
+build de produção (`craco build`) completo sem erro, +2.17 kB no bundle
+principal.
+
+Não testado: fluxo completo na UI real (navegador) — sem acesso a
+servidor do cliente nesta sessão.
+
+**Pendente, meio desta mesma entrega** (anunciado ao cliente, ainda não
+implementado): a nota fiscal real de arma traz, em "Informações
+Complementares", a descrição técnica completa (marca, calibre,
+capacidade, sistema, cano, alma) mais o número de série — hoje isso só
+é gerado automaticamente pra munição (Lote/ID/SIGMA); falta o número de
+série como campo da Venda e a extensão do texto de "Informações
+Complementares" pra arma em `FocusNFeService.ts`. Também pedido pelo
+cliente nesta sessão, ainda sem decisão de onde implementar: uma tela
+de listagem/relatório por SKU (nova aba "Armas/Estoque" no Financeiro,
+já confirmada com o cliente) usando o endpoint de busca que já existe
+(`/finance/weapon-units/search`) — campos do cadastro em lote ainda não
+especificados pelo cliente.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

@@ -69,22 +69,57 @@ const stripDeprecatedWeaponFields = (data: ProductData): ProductData => {
   return cleaned;
 };
 
-// Campos numéricos de arma são opcionais no banco (colunas sem NOT NULL,
-// ver migration 20261015120000), mas o formulário manda "" (nunca
-// undefined) quando a pessoa deixa em branco — e "" num INTEGER/FLOAT do
+// Campos numéricos (INTEGER/FLOAT no Postgres) são opcionais, mas o
+// formulário manda "" (nunca undefined) quando a pessoa deixa em branco
+// ou quando `stripHiddenFieldValues` (FinanceRecordModal/index.js) limpa
+// um campo que ficou invisível pro tipo de produto atual (ex.: "Peso"
+// escondido pra arma/munição, v2.3.205) — e "" num INTEGER/FLOAT do
 // Postgres dá erro de sintaxe (22P02), que o usuário via como "erro
-// interno" ao salvar arma (relatado no SKU 10034336). Mesmo padrão de
+// interno" ao salvar (relatado originalmente no SKU 10034336, depois de
+// novo no SKU 75008418 com um campo numérico diferente). Mesmo padrão de
 // transform usado em UpdateUserService/CreateUserService/ContactController
-// pra campo opcional vindo vazio do formulário.
+// pra campo opcional vindo vazio do formulário. Listas = todas as colunas
+// realmente numéricas de FinanceProduct (ver models/FinanceProduct.ts) —
+// os demais campos "numéricos" do formulário (price, costPrice, taxRate,
+// ICMS/IBPT, tabelas de preço...) são VARCHAR no banco e aceitam ""
+// sem problema.
 const emptyStringToNull = (value: any, originalValue: any) =>
   originalValue === "" ? null : value;
 
+// Essas colunas são NOT NULL DEFAULT 0 no banco (migrations
+// 20260914140200 e 20261019270000) — "" não pode virar null aqui
+// (violaria a constraint), tem que cair no próprio default (0).
+const emptyStringToZero = (value: any, originalValue: any) =>
+  originalValue === "" ? 0 : value;
+
+const NULLABLE_NUMERIC_FIELDS = [
+  "weight",
+  "minStockQuantity",
+  "cartridgeCapacity",
+  "barrelCount",
+  "barrelLength",
+  "kineticEnergyJ"
+] as const;
+
+const NOT_NULL_NUMERIC_FIELDS = [
+  "stockQuantity",
+  "reservedStock",
+  "idealStock",
+  "stockByLot",
+  "loyaltyPoints",
+  "redemptionPoints"
+] as const;
+
 const productSchema = Yup.object().shape({
   name: Yup.string().required("ERR_FINANCE_PRODUCT_INVALID_NAME").min(2),
-  cartridgeCapacity: Yup.number().nullable().transform(emptyStringToNull),
-  barrelCount: Yup.number().nullable().transform(emptyStringToNull),
-  barrelLength: Yup.number().nullable().transform(emptyStringToNull),
-  kineticEnergyJ: Yup.number().nullable().transform(emptyStringToNull)
+  ...NULLABLE_NUMERIC_FIELDS.reduce(
+    (shape, field) => ({ ...shape, [field]: Yup.number().nullable().transform(emptyStringToNull) }),
+    {} as Record<string, any>
+  ),
+  ...NOT_NULL_NUMERIC_FIELDS.reduce(
+    (shape, field) => ({ ...shape, [field]: Yup.number().transform(emptyStringToZero) }),
+    {} as Record<string, any>
+  )
 });
 
 export const list = async ({
@@ -162,7 +197,7 @@ export const create = async (
 ): Promise<FinanceProduct> => {
   let validatedData: ProductData;
   try {
-    validatedData = await productSchema.validate(data);
+    validatedData = { ...data, ...(await productSchema.validate(data)) };
   } catch (err: any) {
     throw new AppError(err.message);
   }
@@ -183,7 +218,7 @@ export const update = async (
 
   let validatedData: ProductData;
   try {
-    validatedData = await productSchema.validate(data);
+    validatedData = { ...data, ...(await productSchema.validate(data)) };
   } catch (err: any) {
     throw new AppError(err.message);
   }

@@ -3,6 +3,39 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.206] — Cadastro de Produto (arma/munição) só com dados de produto + corrige erro ao editar — 2026-10-23
+
+### Corrigido
+- **Erro interno ao editar Produto e salvar** continuava acontecendo (ex.:
+  SKU 75008418) mesmo depois da v2.3.204 — aquela correção só cobria 4
+  campos numéricos específicos de arma (capacidade de cartuchos,
+  quantidade/comprimento de cano, energia cinética). O cadastro de
+  Produto tem várias outras colunas numéricas (peso, estoque reservado/
+  ideal/por lote, pontos de fidelidade/troca, quantidade em estoque) que
+  quebravam do mesmo jeito ao ficar em branco. Corrigido de forma
+  abrangente: toda coluna numérica de Produto agora trata "" (campo
+  vazio) corretamente — como `null` nas que aceitam (peso, estoque
+  mínimo, campos de arma) ou como `0` nas que são obrigatórias no banco
+  (estoque, estoque reservado/ideal/por lote, pontos).
+
+### Alterado
+- **Cadastro de Produto do tipo Arma/Munição voltou a ser só dado de
+  produto + especificação técnica**, como pedido pelo cliente (clube de
+  tiro): removidos da tela, só pra esse tipo, os campos que não têm
+  nenhum uso na emissão real da nota fiscal nem fazem sentido num
+  cadastro de arma — Alíquota de imposto (dashboard), Reforma Tributária
+  (IVA 2027) inteira, toda a seção "Dados Gerais — Complementares" (GTIN,
+  código original, cor/tamanho, categorias, tabelas de preço 2-5,
+  estoque reservado/ideal/por lote, comissão, margem de desconto, pontos
+  de fidelidade/troca) e 8 campos de "Dados Fiscais" sem equivalente na
+  nota real (ICMS ECF, Un. Medida Trib., CFOP Principal/Fora UF, Artigo,
+  Cód. Benefício Fiscal, FCP, Desconto Condicional). Confirmado campo a
+  campo contra 2 notas fiscais reais do cliente (uma de arma, uma de
+  munição): os 13 campos de ICMS/CSOSN/IBPT que a nota de verdade usa
+  continuam no cadastro (sem equivalente na tela de Venda hoje); todo o
+  resto só aparece pra produto/serviço comum. Produto/serviço comum não
+  muda em nada.
+
 ## [2.3.205] — Cadastro de arma por unidade (número de série) — Etapa 1 — 2026-10-23
 
 ### Adicionado

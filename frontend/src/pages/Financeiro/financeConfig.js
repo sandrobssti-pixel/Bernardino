@@ -145,6 +145,16 @@ const hasStockControl = (values) => !!values.controlStock;
 // "Filiação") — pedido do cliente: painel de Serviço "tem que ser
 // diferente do de Produto", sem esses campos de mercadoria no meio.
 const isNotService = (values) => values.type !== "service";
+// Pedido do cliente (clube de tiro): cadastro de Produto do tipo Arma/
+// Munição é só dado do produto + especificação técnica — nada de fiscal/
+// tributo/IVA2027/referência genérica de outro sistema ali. Confirmado
+// contra 2 notas fiscais reais (arma e munição): só os campos de ICMS/
+// CSOSN/IBPT (que a nota de verdade usa, sem equivalente na Venda) ficam;
+// o resto desaparece pra esse tipo. Ver docs/MANUAL_TECNICO.md, seção 184.
+const isNotServiceAndNotWeaponAmmo = (values) =>
+  isNotService(values) && !isWeaponOrAmmunition(values);
+const hasStockControlAndNotWeaponAmmo = (values) =>
+  hasStockControl(values) && !isWeaponOrAmmunition(values);
 
 const WEAPON_TYPE_OPTIONS = [
   { value: "pistol", label: "Pistola" },
@@ -279,12 +289,14 @@ export const financeProductFields = [
     step: "0.01",
     defaultValue: "0",
     gridSize: 6,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   { name: "controlStock", label: "Controlar estoque", type: "switch", gridSize: 6, visibleWhen: isNotService },
   {
     type: "sectionTitle",
     label: "Reforma Tributária (IVA 2027)",
     helperText: "Só tem efeito depois de ativado em Configuração Fiscal — preenchimento preventivo.",
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   {
     name: "ivaEducationReduction",
@@ -293,18 +305,21 @@ export const financeProductFields = [
     defaultValue: false,
     gridSize: 12,
     disabledWhen: reform2027Disabled,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   {
     name: "ivaCstCbs",
     label: "CST da CBS (IVA 2027)",
     gridSize: 6,
     disabledWhen: reform2027Disabled,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   {
     name: "ivaCstIbs",
     label: "CST do IBS (IVA 2027)",
     gridSize: 6,
     disabledWhen: reform2027Disabled,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   {
     name: "ivaCbsRate",
@@ -314,6 +329,7 @@ export const financeProductFields = [
     defaultValue: "0",
     gridSize: 6,
     disabledWhen: reform2027Disabled,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   {
     name: "ivaIbsRate",
@@ -323,6 +339,7 @@ export const financeProductFields = [
     defaultValue: "0",
     gridSize: 6,
     disabledWhen: reform2027Disabled,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
   { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: hasStockControl },
   {
@@ -338,35 +355,35 @@ export const financeProductFields = [
     type: "sectionTitle",
     label: "Dados Gerais — Complementares",
     helperText: "Campos do sistema de referência do cliente que não existiam ainda aqui.",
-    visibleWhen: isNotService,
+    visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
-  { name: "barcodeGtin", label: "Cód. Barras (GTIN)", gridSize: 4, visibleWhen: isNotService },
-  { name: "supplierCode", label: "Cód. Fornecedor", gridSize: 4, visibleWhen: isNotService },
-  { name: "originalCode", label: "Código Original", gridSize: 4, visibleWhen: isNotService },
-  { name: "similarProductCode", label: "Cód. Produto Similar", gridSize: 6, visibleWhen: isNotService },
-  { name: "colorSizeFlavor", label: "Cor/Tamanho/Sabor", gridSize: 6, visibleWhen: isNotService },
-  { name: "weight", label: "Peso", type: "number", step: "0.001", gridSize: 4, visibleWhen: isNotService },
-  { name: "category", label: "Categoria", gridSize: 4, visibleWhen: isNotService },
-  { name: "subcategory", label: "Subcategoria", gridSize: 4, visibleWhen: isNotService },
-  { name: "packaging", label: "Embalagem", gridSize: 4, visibleWhen: isNotService },
-  { name: "productFamily", label: "Família", gridSize: 4, visibleWhen: isNotService },
-  { name: "storageLocation", label: "Local no Estoque/Armazenagem", gridSize: 4, visibleWhen: isNotService },
-  { name: "priceTable2", label: "Tabela 2 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "priceTable3", label: "Tabela 3 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "priceTable4", label: "Tabela 4 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "priceTable5", label: "Tabela 5 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "reservedStock", label: "Estoq. Reserv.", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
-  { name: "idealStock", label: "Estoq. Ideal", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
-  { name: "stockByLot", label: "Por Lote", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControl },
-  { name: "lotControl", label: "Controle por Lote", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "isComposite", label: "Produto Composto", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "isRawMaterial", label: "Matéria Prima", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "isEquipment", label: "Equipamento", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "soldByWeight", label: "Venda por KG", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "commissionRate", label: "Comissão (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "maxDiscountMargin", label: "Marg. Desc. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
-  { name: "loyaltyPoints", label: "Pontos", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotService },
-  { name: "redemptionPoints", label: "Pontos Troca", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotService },
+  { name: "barcodeGtin", label: "Cód. Barras (GTIN)", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "supplierCode", label: "Cód. Fornecedor", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "originalCode", label: "Código Original", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "similarProductCode", label: "Cód. Produto Similar", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "colorSizeFlavor", label: "Cor/Tamanho/Sabor", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "weight", label: "Peso", type: "number", step: "0.001", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "category", label: "Categoria", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "subcategory", label: "Subcategoria", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "packaging", label: "Embalagem", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "productFamily", label: "Família", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "storageLocation", label: "Local no Estoque/Armazenagem", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable2", label: "Tabela 2 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable3", label: "Tabela 3 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable4", label: "Tabela 4 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable5", label: "Tabela 5 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "reservedStock", label: "Estoq. Reserv.", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
+  { name: "idealStock", label: "Estoq. Ideal", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
+  { name: "stockByLot", label: "Por Lote", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
+  { name: "lotControl", label: "Controle por Lote", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "isComposite", label: "Produto Composto", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "isRawMaterial", label: "Matéria Prima", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "isEquipment", label: "Equipamento", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "soldByWeight", label: "Venda por KG", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "commissionRate", label: "Comissão (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "maxDiscountMargin", label: "Marg. Desc. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "loyaltyPoints", label: "Pontos", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "redemptionPoints", label: "Pontos Troca", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
 
   {
     type: "sectionTitle",
@@ -423,7 +440,7 @@ export const financeProductFields = [
     disabledWhen: icmsSubstitutionOff,
   },
   { name: "icmsRate", label: "ICMS (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService, disabledWhen: icmsExemptOn },
-  { name: "icmsEcf", label: "ICMS ECF", gridSize: 4, visibleWhen: isNotService },
+  { name: "icmsEcf", label: "ICMS ECF", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "icmsStRate", label: "ICMS ST (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
   { name: "icmsStMva", label: "IVA - ST (MVA %)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService, disabledWhen: icmsSubstitutionOff },
   // Valor ICMS Desonerado (R$, v2.3.183, pedido do cliente) — campo já
@@ -432,19 +449,19 @@ export const financeProductFields = [
   // (vICMSDeson) — "desoneração" não é uma alíquota, é um valor fixo
   // abatido. Ver FocusNFeService.buildItemIcms.
   { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
-  { name: "taxableUnit", label: "Un. Medida Trib.", gridSize: 4, visibleWhen: isNotService },
-  { name: "cfopPrincipal", label: "CFOP Principal (venda interna)", defaultValue: "5102", gridSize: 4, visibleWhen: isNotService },
-  { name: "cfopOutState", label: "CFOP Fora UF (interestadual)", defaultValue: "6102", gridSize: 4, visibleWhen: isNotService },
-  { name: "taxArticle", label: "Artigo", gridSize: 6, visibleWhen: isNotService },
-  { name: "fiscalBenefitCode", label: "Cód. Benefício Fiscal", gridSize: 6, visibleWhen: isNotService },
+  { name: "taxableUnit", label: "Un. Medida Trib.", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "cfopPrincipal", label: "CFOP Principal (venda interna)", defaultValue: "5102", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "cfopOutState", label: "CFOP Fora UF (interestadual)", defaultValue: "6102", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "taxArticle", label: "Artigo", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "fiscalBenefitCode", label: "Cód. Benefício Fiscal", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
   // "Valor Aproximado dos Tributos" (Lei da Transparência, v2.3.183) —
   // texto no rodapé da nota, manual (tabela do IBPT, atualizada a cada 6
   // meses por NCM — este sistema não calcula/valida, só usa o número
   // informado aqui). Deixa em branco/zero se não quiser usar.
   { name: "ibptRate", label: "Alíquota aprox. tributos - IBPT (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotService },
   { name: "ibptSource", label: "Fonte IBPT (código da tabela)", gridSize: 6, visibleWhen: isNotService },
-  { name: "usesFcp", label: "Utilizar Alíq. de Fundo de Combate à Pobreza (FCP)", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
-  { name: "conditionalDiscountNfe", label: "Desconto Condicional na NFe/NFCe", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
+  { name: "usesFcp", label: "Utilizar Alíq. de Fundo de Combate à Pobreza (FCP)", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "conditionalDiscountNfe", label: "Desconto Condicional na NFe/NFCe", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
 
   { name: "active", label: "Ativo", type: "switch", defaultValue: true, gridSize: 6 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
