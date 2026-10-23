@@ -29,9 +29,12 @@ import {
   StarsOutlined,
   DeviceHubOutlined,
   FlashOn,
+  Forum,
 } from "@material-ui/icons";
 import PromptModal from "../../components/PromptModal";
 import PromptFilesTab from "../../components/PromptModal/PromptFilesTab";
+import BlockedNumbersTab from "../../components/PromptModal/BlockedNumbersTab";
+import TestPromptModal from "../../components/PromptModal/TestPromptModal";
 import { toast } from "react-toastify";
 import ConfirmationModal from "../../components/ConfirmationModal";
 import { AuthContext } from "../../context/Auth/AuthContext";
@@ -319,6 +322,8 @@ const Prompts = () => {
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [testModalOpen, setTestModalOpen] = useState(false);
+  const [promptToTest, setPromptToTest] = useState(null);
   const { user, socket } = useContext(AuthContext);
 
   const { getPlanCompany } = usePlans();
@@ -385,6 +390,16 @@ const Prompts = () => {
     setPromptModalOpen(true);
   };
 
+  const handleOpenTestModal = (prompt) => {
+    setPromptToTest(prompt);
+    setTestModalOpen(true);
+  };
+
+  const handleCloseTestModal = () => {
+    setTestModalOpen(false);
+    setPromptToTest(null);
+  };
+
   const handleCloseConfirmationModal = () => {
     setConfirmModalOpen(false);
     setSelectedPrompt(null);
@@ -424,6 +439,12 @@ const Prompts = () => {
         promptId={selectedPrompt?.id}
       />
 
+      <TestPromptModal
+        open={testModalOpen}
+        onClose={handleCloseTestModal}
+        prompt={promptToTest}
+      />
+
       <Tabs
         value={tabValue}
         onChange={(e, value) => setTabValue(value)}
@@ -433,11 +454,16 @@ const Prompts = () => {
       >
         <Tab label="Assistentes de IA" />
         <Tab label="Arquivos da IA" />
+        <Tab label="Números sem IA" />
       </Tabs>
 
       {tabValue === 1 ? (
         <Paper className={classes.mainPaper} variant="outlined" style={{ padding: 16 }}>
           <PromptFilesTab />
+        </Paper>
+      ) : tabValue === 2 ? (
+        <Paper className={classes.mainPaper} variant="outlined" style={{ padding: 16 }}>
+          <BlockedNumbersTab />
         </Paper>
       ) : (
       <>
@@ -512,6 +538,16 @@ const Prompts = () => {
                     </TableCell>
                     <TableCell align="right" className={classes.tableCell}>
                       <div className={classes.actionsCell}>
+                        <Tooltip title="Testar agente" arrow>
+                          <IconButton
+                            size="small"
+                            className={classes.actionIconBtn}
+                            onClick={() => handleOpenTestModal(prompt)}
+                          >
+                            <Forum style={{ fontSize: 15 }} />
+                          </IconButton>
+                        </Tooltip>
+
                         <Tooltip title="Editar prompt" arrow>
                           <IconButton
                             size="small"

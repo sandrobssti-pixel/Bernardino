@@ -42,6 +42,7 @@ import CompaniesSettings from "../models/CompaniesSettings";
 import LogTicket from "../models/LogTicket";
 import Prompt from "../models/Prompt";
 import PromptFiles from "../models/PromptFiles";
+import PromptBlockedNumber from "../models/PromptBlockedNumber";
 import Partner from "../models/Partner";
 import ContactWallet from "../models/ContactWallet";
 import ScheduledMessages from "../models/ScheduledMessages";
@@ -134,6 +135,7 @@ const models = [
   LogTicket,
   Prompt,
   PromptFiles,
+  PromptBlockedNumber,
   Partner,
   ContactWallet,
   ScheduledMessages,

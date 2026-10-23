@@ -88,6 +88,7 @@ import { add, differenceInMilliseconds } from "date-fns";
 import { FlowCampaignModel } from "../../models/FlowCampaign";
 import ShowTicketService from "../TicketServices/ShowTicketService";
 import { handleOpenAi } from "../IntegrationsServices/OpenAiService";
+import IsNumberBlockedService from "../PromptBlockedNumberServices/IsNumberBlockedService";
 import { IOpenAi } from "../../@types/openai";
 import HandleNpsReplyService from "../TicketServices/HandleNpsReplyService";
 import type { MessageUserReceiptUpdate } from "baileys";
@@ -5875,7 +5876,14 @@ const handleMessage = async (
     }
 
     
-    if (isOpenai && !isNil(flow) && !ticket.queueId) {
+    // "Números sem IA" (PromptBlockedNumber) — checado uma vez só, reusado
+    // nos dois gatilhos de IA abaixo (nó do Flowbuilder e IA na conexão).
+    const numberBlockedForAI = await IsNumberBlockedService(
+      ticket.companyId,
+      contact?.number
+    );
+
+    if (isOpenai && !isNil(flow) && !ticket.queueId && !numberBlockedForAI) {
       const nodeSelected = flow.flow["nodes"].find(
         (node: any) => node.id === ticket.lastFlowId
       );
@@ -5948,7 +5956,8 @@ const handleMessage = async (
       !isGroup &&
       !msg.key.fromMe &&
       !ticket.userId &&
-      !isNil(whatsapp.promptId)
+      !isNil(whatsapp.promptId) &&
+      !numberBlockedForAI
     ) {
       const { prompt } = whatsapp;
       // v2.3.201 — mesma correção de remoteJid (@lid) do bloco acima.

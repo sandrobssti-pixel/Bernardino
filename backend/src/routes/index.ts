@@ -48,6 +48,7 @@ import officialCampaignRoutes from "./officialCampaignRoutes";
 
 import promptRoutes from "./promptRouter";
 import promptFilesRoutes from "./promptFilesRoutes";
+import promptBlockedNumberRoutes from "./promptBlockedNumberRoutes";
 import statisticsRoutes from "./statisticsRoutes";
 import scheduleMessageRoutes from "./ScheduledMessagesRoutes";
 import flowDefaultRoutes from "./flowDefaultRoutes";
@@ -121,6 +122,7 @@ routes.use(autoImportContactsRoutes);
 
 routes.use(promptRoutes);
 routes.use(promptFilesRoutes);
+routes.use(promptBlockedNumberRoutes);
 routes.use(statisticsRoutes);
 routes.use(companySettingsRoutes);
 routes.use(scheduleMessageRoutes);

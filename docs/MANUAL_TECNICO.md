@@ -12746,3 +12746,98 @@ confirmar com um teste real depois do deploy (inclusive comparando o
 o sinal que provou a chamada estava saindo).
 
 **Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`.
+
+## 181. Testar agente + Números sem IA (v2.3.202)
+
+### Contexto
+
+Fases 2 e 3 do plano original de redesign do Assistente IA (confirmado
+pelo cliente ainda no início desse trabalho, junto com a criptografia da
+API key e a sincronização de Mensagens Rápidas — ver seção 177). Ficaram
+pendentes enquanto o bug de produção (seções 177-180) era investigado.
+
+### Fase 2 — Testar agente
+
+`OpenAiService.handleOpenAi` (2181 linhas) é fortemente acoplado a
+`Ticket`/`Contact`/`wbot`/`Message` — tem efeito colateral real (manda
+mensagem de verdade, atualiza ticket, transfere fila) e exige resposta
+em JSON estruturado (`{"action":...,"messages":[...]}`) pensado pro
+pipeline de divisão de mensagens do WhatsApp. Não dava pra reaproveitar
+direto pra um teste "de mentirinha".
+
+Achado melhor ponto de partida: `ImproveTicketReplyService.ts` (já
+existia, usado pra "melhorar" o texto de uma resposta do atendente) —
+mesmo formato de problema (chamar IA, texto livre, sem ticket/wbot),
+já com timeout, retry do Gemini e tratamento de erro por provedor
+prontos. `TestPromptService.ts` (novo) segue exatamente esse molde:
+
+- Busca o `Prompt` (hook `@AfterFind` já decifra a `apiKey`).
+- Monta um system prompt simples a partir de `prompt.prompt` (pede
+  resposta em texto natural, SEM o protocolo JSON de ação — não faz
+  sentido pro teste, que não despacha nada).
+- Branch por provedor: `gemini` usa `GoogleGenerativeAI` com
+  `startChat({history})` (histórico real multi-turno); os três
+  compatíveis com OpenAI (`openai`/`deepseek`/`groq`) usam o SDK
+  `openai` com `getOpenAICompatibleBaseURL(provider)` (mesmo helper já
+  usado em `ImproveTicketReplyService.ts`/`OpenAiService.ts`) +
+  `extractOpenAICompatibleText` (já exportado de
+  `OpenAIProviderService.ts`).
+- Stateless: frontend manda o histórico inteiro (`history`, até 20
+  mensagens) a cada chamada — sem sessão no backend, sem tabela nova.
+- `PromptController.test` / rota `POST /prompt/:promptId/test`.
+- `TestPromptModal.js` (novo) — chat simples (bolhas usuário/assistente),
+  aberto por um ícone novo na lista de Assistentes de IA, aviso explícito
+  de que é simulação (não reproduz divisão de mensagem/envio de arquivo
+  do catálogo do pipeline real).
+
+### Fase 3 — Números sem IA
+
+- **`PromptBlockedNumber`** (model + migration novos, tabela
+  `PromptBlockedNumbers`) — `companyId`, `number` (só dígitos, mesma
+  normalização `.replace(/\D/g, "")` já usada em outros pontos do
+  sistema pra número de WhatsApp — ver `CheckGroupAdmin.ts`/
+  `SendMessage.ts`), `label` opcional. Índice único `(companyId,
+  number)`.
+- **`IsNumberBlockedService.ts`** — normaliza o número recebido (aceita
+  com `@s.whatsapp.net`, formatação com parênteses/traço etc.) antes de
+  comparar, pra bater com qualquer formato que `contact.number` venha.
+- **Gatilho** — `wbotMessageListener.ts` calcula
+  `numberBlockedForAI` UMA VEZ (evita duas queries) logo antes dos dois
+  pontos que chamam `handleOpenAi` diretamente (nó do Flowbuilder sem
+  fila e "IA na conexão", os mesmos dois corrigidos na seção 180 pro
+  bug do `@lid`) e adiciona `&& !numberBlockedForAI` nas duas
+  condições. **Não** bloqueia o fluxo de continuação de sessão do
+  Typebot (`ticket.typebotSessionId`) — isso é outro recurso
+  (Flowbuilder visual), fora do escopo de "IA automática" que o cliente
+  pediu pra poder desligar por número.
+- CRUD simples (`PromptBlockedNumberServices/{List,Create,Delete}Service.ts`
+  + controller/rotas) + aba nova "Números sem IA" na tela Assistente IA
+  (`BlockedNumbersTab.js`, mesmo padrão visual de `PromptFilesTab.js`).
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` (backend) limpos; `npx eslint` +
+`npx craco build` (frontend) limpos. `TestPromptService` testado contra
+Postgres local: empresa errada (404), mensagem vazia (400), Prompt sem
+`apiKey` (400), Prompt inexistente (404), e uma chamada de verdade à
+OpenAI com chave inválida (confirma o path de rede completo e o erro
+502 normalizado — só não deu pra testar uma chamada com chave válida
+nesta sessão, sem credencial de teste). Blocklist testado via script
+direto: normalização bate pra número puro, com `@s.whatsapp.net` e
+formatado com parênteses/traço; duplicata rejeitada; depois de apagar,
+`IsNumberBlockedService` volta a liberar.
+
+**Arquivos**: `backend/src/services/PromptServices/TestPromptService.ts`
+(novo), `backend/src/controllers/PromptController.ts`,
+`backend/src/routes/promptRouter.ts`,
+`frontend/src/components/PromptModal/TestPromptModal.js` (novo),
+`backend/src/models/PromptBlockedNumber.ts` (novo),
+`backend/src/database/migrations/
+20261023160000-create-prompt-blocked-numbers.ts` (novo),
+`backend/src/services/PromptBlockedNumberServices/` (novo),
+`backend/src/controllers/PromptBlockedNumberController.ts` (novo),
+`backend/src/routes/promptBlockedNumberRoutes.ts` (novo),
+`backend/src/routes/index.ts`, `backend/src/database/index.ts`,
+`backend/src/services/WbotServices/wbotMessageListener.ts`,
+`frontend/src/components/PromptModal/BlockedNumbersTab.js` (novo),
+`frontend/src/pages/Prompts/index.js`.

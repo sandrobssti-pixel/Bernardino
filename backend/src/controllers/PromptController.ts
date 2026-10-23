@@ -5,6 +5,7 @@ import DeletePromptService from "../services/PromptServices/DeletePromptService"
 import ListPromptsService from "../services/PromptServices/ListPromptsService";
 import ShowPromptService from "../services/PromptServices/ShowPromptService";
 import UpdatePromptService from "../services/PromptServices/UpdatePromptService";
+import TestPromptService from "../services/PromptServices/TestPromptService";
 import Prompt from "../models/Prompt";
 import Whatsapp from "../models/Whatsapp";
 import { verify } from "jsonwebtoken";
@@ -140,6 +141,19 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
   });
 
   return res.status(200).json(maskPrompt(prompt));
+};
+
+export const test = async (req: Request, res: Response): Promise<Response> => {
+  const { promptId } = req.params;
+  const { message, history } = req.body;
+  const authHeader = req.headers.authorization;
+  const [, token] = authHeader.split(" ");
+  const decoded = verify(token, authConfig.secret);
+  const { companyId } = decoded as TokenPayload;
+
+  const reply = await TestPromptService({ promptId, companyId, message, history });
+
+  return res.status(200).json({ reply });
 };
 
 export const remove = async (

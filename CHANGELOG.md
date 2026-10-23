@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.202] — Testar agente + Números sem IA — 2026-10-23
+
+### Adicionado
+- **Testar agente**: botão novo na lista de Assistentes de IA abre um chat
+  de teste interno — simula a personalidade/instruções do agente sem
+  mandar nada pelo WhatsApp e sem gerar ticket/contato nenhum. Usa a
+  mesma chave/modelo/provedor configurados no Prompt.
+- **Números sem IA**: nova aba na tela Assistente IA pra cadastrar números
+  que nunca recebem resposta automática da IA (conexão ou nó do
+  Flowbuilder) — o atendimento humano continua normal, só a IA não
+  dispara pra esses números.
+
 ## [2.3.201] — Assistente IA da conexão não entregava resposta a contato via @lid — 2026-10-23
 
 ### Corrigido
