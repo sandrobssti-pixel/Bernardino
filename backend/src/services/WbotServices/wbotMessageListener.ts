@@ -2,6 +2,7 @@ import path, { join } from "path";
 import { readFile, writeFile } from "fs/promises";
 import fs from "fs";
 import { createHash } from "crypto";
+import { decryptApiKey } from "../../utils/promptApiKeyCrypto";
 import * as Sentry from "@sentry/node";
 import { isNil, isNull } from "lodash";
 import { REDIS_URI_MSG_CONN } from "../../config/redis";
@@ -5909,7 +5910,11 @@ const handleMessage = async (
         voiceRegion,
         maxTokens: Number(maxTokens) || 0,
         temperature: Number(temperature) || 0,
-        apiKey,
+        // v2.3.197 — a API key salva no nó do FlowBuilder pode estar
+        // cifrada (ver FlowUpdateDataService.ts); `decryptApiKey` já
+        // devolve sem mexer se o valor não estiver nesse formato (nó
+        // antigo, salvo antes dessa mudança).
+        apiKey: decryptApiKey(apiKey),
         queueId: Number(queueId) || 0,
         maxMessages: Number(maxMessages) || 0,
         maxResponseMessages: Number(maxResponseMessages) || 3,

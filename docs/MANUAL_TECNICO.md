@@ -12357,3 +12357,75 @@ nada quebra (fica em texto puro, só avisa no log).
 `backend/src/models/Prompt.ts`, `backend/src/database/migrations/
 20261023100000-encrypt-existing-prompt-api-keys.ts` (novo),
 `.env.coolify.example`.
+
+## 176. API Key cifrada também nos fluxos do FlowBuilder (v2.3.197)
+
+### Contexto
+
+Fecha o vazamento mapeado na seção 175: a cópia da API key que o
+FlowBuilder guarda dentro de cada fluxo salvo (`node.data.
+typebotIntegration.apiKey`, num nó tipo "openai"). Investigação mais a
+fundo mostrou que o alcance real era menor do que os 8 arquivos que
+batiam com `typebotIntegration`/`IOpenAi` na busca inicial — a maioria
+só lê outros campos (`answerKey`, tipo do nó). Só DOIS arquivos de
+verdade LEEM a API key desse JSON pra chamar a IA:
+`wbotMessageListener.ts` (linha ~5901) e `ActionsWebhookService.ts`
+(linha ~467) — os outros caminhos de IA (conexão direta via
+`whatsapp.promptId`, `ShowPromptService`) já usam a tabela `Prompts`
+normal, coberta pelos hooks da seção 175.
+
+### O que foi feito
+
+- **`backend/src/helpers/flowBuilderApiKeyCrypto.ts`** (novo) —
+  `encryptFlowNodesApiKeys`/`decryptFlowNodesApiKeys`: percorre o array
+  de nós de um fluxo, aplica `encryptApiKey`/`decryptApiKey` (mesmas
+  funções de `promptApiKeyCrypto.ts`, seção 175) só no `apiKey` de nós
+  que tiverem `data.typebotIntegration.apiKey` — qualquer outro nó
+  passa intocado.
+- **Gravação** (`FlowUpdateDataService.ts`, onde o editor salva o
+  fluxo inteiro) — `nodes: encryptFlowNodesApiKeys(bodyData.nodes)`
+  antes do `FlowBuilderModel.update(...)`. Esse `update` é uma chamada
+  ESTÁTICA/em massa (`FlowBuilderModel.update({...}, {where})`), não um
+  `instance.save()` — hooks de model (`@BeforeSave` etc.) NÃO disparam
+  nesse caso (Sequelize só dispara hook por instância com
+  `individualHooks: true`, que esse código não usa), por isso a cifra
+  tem que ser explícita aqui, diferente da tabela `Prompts` (que usa
+  hook porque lá tudo passa por `instance.update()`/`.create()`).
+- **Leitura pro editor** (`GetFlowBuilderService.ts` e
+  `FlowsGetDataService.ts` — arquivos praticamente duplicados, mesma
+  lógica, mantidos os dois por via das dúvidas de qual rota usa qual) —
+  decifra os nós antes de devolver, pra tela do editor mostrar a chave
+  de verdade, não o texto cifrado.
+- **Leitura em tempo de execução** (`wbotMessageListener.ts` e
+  `ActionsWebhookService.ts`) — `apiKey: decryptApiKey(apiKey)` no
+  ponto exato onde cada um monta o `openAiSettings` a partir do nó
+  selecionado do fluxo.
+- **`DuplicateFlowBuilderService.ts`** — não precisou mudar: copia
+  `flow.flow` bruto de um fluxo pro outro (nunca passa pelo
+  Get/decifra), então duplicar um fluxo já cifrado continua cifrado
+  corretamente, sem decifrar/recifrar à toa.
+- **Migration de DADOS**
+  `20261023110000-encrypt-existing-flowbuilder-api-keys` — cifra a API
+  key de todo nó "openai" já salvo em qualquer fluxo existente. Só
+  grava de novo as linhas onde alguma API key realmente mudou (evita
+  `UPDATE` em fluxo sem nó de IA). Idempotente pelo mesmo mecanismo da
+  migration irmã da seção 175.
+
+### Testado
+
+`npx tsc --noEmit` + `npm run build` limpos. Testado de ponta a ponta
+contra Postgres local: fluxo inserido manualmente com API key em texto
+puro num nó "openai" → migration cifra → `GetFlowBuilderService`
+devolve decifrado (simula abrir no editor) → resalvar esse mesmo fluxo
+decifrado via `FlowUpdateDataService` (simula o editor salvando de
+novo) cifra corretamente de novo → recarregar depois do resave ainda
+decifra certo — prova que o ciclo abrir→editar→salvar→abrir de novo é
+estável, sem degradar nem corromper a chave a cada volta.
+
+**Arquivos**: `backend/src/helpers/flowBuilderApiKeyCrypto.ts` (novo),
+`backend/src/database/migrations/
+20261023110000-encrypt-existing-flowbuilder-api-keys.ts` (novo),
+`backend/src/services/FlowBuilderService/{FlowUpdateDataService,
+GetFlowBuilderService,FlowsGetDataService}.ts`,
+`backend/src/services/WbotServices/wbotMessageListener.ts`,
+`backend/src/services/WebhookService/ActionsWebhookService.ts`.

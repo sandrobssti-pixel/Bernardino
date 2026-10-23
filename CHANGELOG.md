@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.197] — API Key cifrada também nos fluxos do FlowBuilder — 2026-10-23
+
+### Adicionado
+- A cópia da API key que o FlowBuilder guarda dentro de cada fluxo (nó
+  "openai") agora também é cifrada — mesma proteção da tabela principal
+  (v2.3.196), fechando o vazamento por completo. Fluxos já salvos foram
+  cifrados automaticamente no deploy; o editor continua mostrando a
+  chave normalmente ao abrir pra editar.
+
 ## [2.3.196] — API Key do Assistente IA cifrada no banco — 2026-10-23
 
 ### Adicionado

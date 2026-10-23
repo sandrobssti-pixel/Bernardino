@@ -1,6 +1,7 @@
 import { WebhookModel } from "../../models/Webhook";
 import User from "../../models/User";
 import { FlowBuilderModel } from "../../models/FlowBuilder";
+import { decryptFlowNodesApiKeys } from "../../helpers/flowBuilderApiKeyCrypto";
 
 interface Request {
   companyId: number;
@@ -26,6 +27,12 @@ const FlowsGetDataService = async ({
           }
         });
         let flow = rows[0]
+
+        // v2.3.197 — mesmo motivo de GetFlowBuilderService.ts: devolve a
+        // API key dos nós "openai" já decifrada.
+        if (flow?.flow && (flow.flow as any).nodes) {
+          (flow.flow as any).nodes = decryptFlowNodesApiKeys((flow.flow as any).nodes);
+        }
 
         return {
             flow: flow
