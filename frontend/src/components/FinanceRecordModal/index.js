@@ -564,9 +564,27 @@ const FinanceRecordModal = ({
                             const { records } = await resource.list({ searchParam });
                             return records || [];
                           }}
-                          onChange={(e, newValue) =>
-                            setFieldValue(field.name, newValue?.id || "")
-                          }
+                          onChange={(e, newValue) => {
+                            setFieldValue(field.name, newValue?.id || "");
+                            // `field.autofillFields` (opcional, v2.3.211)
+                            // — lista de nomes de campo que existem tanto
+                            // no registro escolhido quanto neste
+                            // formulário; copia o valor de cada um pra cá
+                            // (ex.: mainSupplierId → autofill dos 13
+                            // campos fiscais do Produto com os valores já
+                            // cadastrados no Fornecedor escolhido).
+                            // Mesmo padrão de "preenche automático, mas
+                            // continua editável" já usado no resto do
+                            // sistema (ex.: CFOP/preço ao escolher
+                            // produto na Venda). Não mexe em nada quando
+                            // o campo é limpo (newValue null) — só
+                            // autopreenche ao escolher algo.
+                            if (field.autofillFields && newValue) {
+                              field.autofillFields.forEach((autofillField) =>
+                                setFieldValue(autofillField, newValue[autofillField] ?? "")
+                              );
+                            }
+                          }}
                         />
                       </Grid>
                     );

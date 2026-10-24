@@ -8,7 +8,14 @@ import FinanceSupplier from "../../models/FinanceSupplier";
 // v2.3.168) já vir com o nome do fornecedor pronto — mesmo motivo do
 // `embeddedKey` novo no FinanceRecordModal.js (associação chama
 // `mainSupplier`, não `supplier`).
-const PRODUCT_INCLUDE = [{ model: FinanceSupplier, as: "mainSupplier", attributes: ["id", "name"] }];
+// Sem `attributes` restrito (v2.3.211): o autofill de dados fiscais no
+// cadastro de Produto (FinanceRecordModal.js, `autofillFields`) lê os
+// 13 campos fiscais do fornecedor já vinculado direto deste objeto
+// embutido — com `attributes: ["id", "name"]` como antes, reselecionar
+// o mesmo fornecedor no formulário zerava os campos fiscais do produto
+// (FinanceAsyncAutocomplete reaproveita esse objeto embutido como opção
+// da lista, sobrepondo a versão completa vinda da busca).
+const PRODUCT_INCLUDE = [{ model: FinanceSupplier, as: "mainSupplier" }];
 
 interface ListRequest {
   companyId: number;

@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.211] — Dados fiscais do Fornecedor preenchem o Produto automaticamente — 2026-10-24
+
+### Adicionado
+- **Cadastro de Fornecedor ganhou os mesmos 13 campos de ICMS/CSOSN/
+  IBPT que já existiam no Produto** — preenche uma vez por fornecedor
+  (baseado numa nota real dele) pra servir de padrão.
+- **Ao escolher o fornecedor no cadastro de Produto, esses 13 campos já
+  vêm preenchidos automaticamente** com os valores cadastrados nesse
+  fornecedor — continuam editáveis por produto, pra quando um produto
+  específico tiver tratamento fiscal diferente do padrão do fornecedor.
+  Pedido do cliente: "pra não ter trabalho de preencher tudo quando
+  colocar o código do produto".
+- Mecanismo genérico (`autofillFields`) reaproveitável por qualquer
+  campo de busca (`asyncSelect`) do módulo Financeiro no futuro, não é
+  específico de Produto/Fornecedor.
+
+### Técnico
+- `FinanceProductService.show/list` passou a trazer o fornecedor
+  vinculado (`mainSupplier`) com todos os campos, não só `id`/`name` —
+  precisa dos 13 campos fiscais completos pro autofill funcionar
+  corretamente ao reabrir um produto pra editar.
+
 ## [2.3.210] — Tira SIGMA/SINARM do cadastro da arma por unidade — 2026-10-24
 
 ### Alterado

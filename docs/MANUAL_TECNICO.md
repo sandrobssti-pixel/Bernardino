@@ -13659,3 +13659,86 @@ Frontend: parseado via Babel, build de produção (`craco build`)
 completo sem erro.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`.
+
+## 191. Dados fiscais do Fornecedor preenchem o Produto automaticamente (v2.3.211)
+
+### Contexto
+
+Depois de "mantenha tudo" (seção 188, dados fiscais ficam no cadastro
+de Produto), o cliente voltou com a dúvida de como evitar redigitar os
+13 campos de ICMS/CSOSN/IBPT em cada produto novo: "cadastro de produto
+tem que colocar os impostos mas para não ter trabalho de preencher tudo
+quando colocar o código do produto já preenche os impostos... tem que
+criar um cadastro independente que quando lance o produto já tenha os
+impostos automaticamente". Interpretação confirmada pelo padrão já
+usado no resto do sistema (CFOP/preço auto-preenchidos ao escolher
+produto na Venda): o "cadastro independente" é o **Fornecedor**, já
+existente — ele ganha os mesmos 13 campos fiscais, preenchidos uma vez
+(baseado numa nota real daquele fornecedor), e o Produto os copia
+automaticamente ao escolher o fornecedor, continuando editável por
+produto se precisar.
+
+### Desenho
+
+**Backend** — aditivo, mesmo padrão dos campos fiscais do Produto
+(seção 145):
+- Migration `20261024110000-add-fiscal-fields-to-finance-suppliers`:
+  os mesmos 13 campos (`icmsExempt`, `icmsSubstitution`, `icmsOrigin`,
+  `csosnContribuinte`, `csosnNaoContribuinte`, `icmsBcModality`,
+  `icmsStBcModality`, `icmsRate`, `icmsStRate`, `icmsStMva`,
+  `icmsDesoneration`, `ibptRate`, `ibptSource`) em `FinanceSuppliers`,
+  mesmos defaults da tabela de Produtos. Nenhum é INTEGER de verdade
+  (todos VARCHAR/BOOLEAN) — sem risco do bug de `""` em coluna
+  numérica (seção 189).
+- `FinanceSupplier.ts`/`FinanceSupplierService.ts`: campos adicionados
+  ao model e à interface `SupplierData` — `create`/`update` já
+  aceitavam qualquer campo do model sem mudança de lógica adicional.
+- `FinanceProductService.ts`, `PRODUCT_INCLUDE`: tirado o
+  `attributes: ["id", "name"]` do include de `mainSupplier` — o
+  autofill no frontend precisa do fornecedor completo (os 13 campos
+  fiscais) embutido no produto ao abrir pra editar, senão reselecionar
+  o mesmo fornecedor no formulário zeraria os campos fiscais do
+  produto (`FinanceAsyncAutocomplete` reaproveita esse objeto embutido
+  como opção da lista, sobrepondo a versão completa vinda da busca ao
+  focar o campo — ver `runSearch` em `FinanceAsyncAutocomplete/
+  index.js`).
+
+**Frontend** — mecanismo genérico novo, não específico de Produto/
+Fornecedor:
+- `financeConfig.js`: `FISCAL_FIELD_NAMES` (lista central dos 13 nomes
+  de campo, reaproveitada nos 3 lugares — campos do Produto, campos
+  novos do Fornecedor, e `autofillFields`); `financeSupplierFields`
+  ganhou a seção "Dados Fiscais" (mesmos componentes/opções do Produto:
+  `ICMS_ORIGIN_OPTIONS`, `CSOSN_OPTIONS`, etc. — precisou mover a
+  definição de `FISCAL_FIELD_NAMES`/push dos campos do Fornecedor pra
+  DEPOIS dessas constantes no arquivo, já que são `const` referenciadas
+  antes de existir dava erro de temporal dead zone); campo
+  `mainSupplierId` do Produto ganhou `autofillFields: FISCAL_FIELD_NAMES`.
+- `FinanceRecordModal/index.js`: o `onChange` do campo `asyncSelect`
+  genérico agora também lê `field.autofillFields` (se existir) e copia
+  o valor de cada campo do registro escolhido pro formulário atual via
+  `setFieldValue` — além de preencher só o id, como já fazia. Não mexe
+  em nada quando o campo é limpo (newValue null), só ao escolher algo.
+  Reaproveitável por qualquer `asyncSelect` futuro do módulo (cliente→
+  venda, etc.), não é hardcoded pra fornecedor/produto.
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo. Testado contra Postgres local: cria
+Fornecedor com perfil fiscal próprio, cria Produto vinculado a ele,
+confirma que `show()` devolve `mainSupplier` com os 13 campos fiscais
+completos (não só id/name) — é o que o autofill do frontend precisa
+pra funcionar certo ao reabrir o produto.
+
+Frontend: `financeConfig.js` e `FinanceRecordModal/index.js` parseados
+via Babel, build de produção (`craco build`) completo sem erro.
+
+Não testado: fluxo completo na UI real (navegador) — sem acesso a
+servidor do cliente nesta sessão.
+
+**Arquivos**: `backend/src/database/migrations/20261024110000-add-fiscal-fields-to-finance-suppliers.ts`
+(novo), `backend/src/models/FinanceSupplier.ts`,
+`backend/src/services/FinanceService/FinanceSupplierService.ts`,
+`backend/src/services/FinanceService/FinanceProductService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/components/FinanceRecordModal/index.js`.

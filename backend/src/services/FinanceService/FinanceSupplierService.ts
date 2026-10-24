@@ -31,6 +31,23 @@ interface SupplierData {
   contactName?: string;
   notes?: string;
   active?: boolean;
+  // "Dados Fiscais" (v2.3.211) — mesmos 13 campos do Produto, servem de
+  // valor padrão pro autofill no cadastro de Produto. Todos string/
+  // boolean no banco (nenhum numérico de verdade), sem risco do bug de
+  // "" em coluna INTEGER (ver seção 189).
+  icmsExempt?: boolean;
+  icmsSubstitution?: boolean;
+  icmsOrigin?: string;
+  csosnContribuinte?: string;
+  csosnNaoContribuinte?: string;
+  icmsBcModality?: string;
+  icmsStBcModality?: string;
+  icmsRate?: string;
+  icmsStRate?: string;
+  icmsStMva?: string;
+  icmsDesoneration?: string;
+  ibptRate?: string;
+  ibptSource?: string;
 }
 
 const supplierSchema = Yup.object().shape({

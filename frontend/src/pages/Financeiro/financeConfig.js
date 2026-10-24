@@ -249,6 +249,62 @@ const ICMS_ST_BC_MODALITY_OPTIONS = [
   { value: "6", label: "6 - Valor da Operação" },
 ];
 
+// Os mesmos 13 campos de ICMS/CSOSN/IBPT confirmados contra notas reais
+// (ver seção 145/185 do manual técnico), agora também no cadastro de
+// Fornecedor (v2.3.211) — preenchidos uma vez por fornecedor pra servir
+// de valor padrão/autofill no Produto ("não ter trabalho de preencher
+// tudo [de novo] quando lançar o código", pedido exato do cliente). Lista
+// central reaproveitada em 3 lugares: os campos do Produto acima
+// (visibleWhen: isNotService), os campos abaixo do Fornecedor, e
+// `autofillFields` no `mainSupplierId` do Produto (ver mais abaixo).
+const FISCAL_FIELD_NAMES = [
+  "icmsExempt",
+  "icmsSubstitution",
+  "icmsOrigin",
+  "csosnContribuinte",
+  "csosnNaoContribuinte",
+  "icmsBcModality",
+  "icmsStBcModality",
+  "icmsRate",
+  "icmsStRate",
+  "icmsStMva",
+  "icmsDesoneration",
+  "ibptRate",
+  "ibptSource",
+];
+
+const supplierIcmsSubstitutionOff = (values) => !values.icmsSubstitution;
+const supplierIcmsExemptOn = (values) => !!values.icmsExempt;
+
+financeSupplierFields.push(
+  {
+    type: "sectionTitle",
+    label: "Dados Fiscais",
+    helperText:
+      "Preenchido uma vez — serve de valor padrão pro cadastro de Produto quando esse fornecedor for escolhido (continua editável por produto).",
+  },
+  { name: "icmsExempt", label: "Produtos Isentos de ICMS (padrão)", type: "switch", defaultValue: false, gridSize: 6 },
+  { name: "icmsSubstitution", label: "ICMS por Substituição Tributária (padrão)", type: "switch", defaultValue: false, gridSize: 6 },
+  { name: "icmsOrigin", label: "Origem", type: "select", options: ICMS_ORIGIN_OPTIONS, defaultValue: "0", gridSize: 12 },
+  { name: "csosnContribuinte", label: "Tipo Tributação ICMS (Contribuinte)", type: "select", options: CSOSN_OPTIONS, defaultValue: "101", gridSize: 6 },
+  { name: "csosnNaoContribuinte", label: "Tipo Tributação ICMS (Não Contribuinte)", type: "select", options: CSOSN_OPTIONS, defaultValue: "102", gridSize: 6 },
+  { name: "icmsBcModality", label: "Modalidade de determinação da BC do ICMS", type: "select", options: ICMS_BC_MODALITY_OPTIONS, defaultValue: "3", gridSize: 6 },
+  {
+    name: "icmsStBcModality",
+    label: "Modalidade de determinação da BC do ICMS-ST",
+    type: "select",
+    options: ICMS_ST_BC_MODALITY_OPTIONS,
+    gridSize: 6,
+    disabledWhen: supplierIcmsSubstitutionOff,
+  },
+  { name: "icmsRate", label: "ICMS (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, disabledWhen: supplierIcmsExemptOn },
+  { name: "icmsStRate", label: "ICMS ST (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, disabledWhen: supplierIcmsSubstitutionOff },
+  { name: "icmsStMva", label: "IVA - ST (MVA %)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, disabledWhen: supplierIcmsSubstitutionOff },
+  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "ibptRate", label: "Alíquota aprox. tributos - IBPT (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "ibptSource", label: "Fonte IBPT (código da tabela)", gridSize: 6 }
+);
+
 export const financeProductColumns = [
   {
     field: "photoUrl",
@@ -393,7 +449,20 @@ export const financeProductFields = [
     label: "Fornecedor / Produção",
     visibleWhen: isNotService,
   },
-  { name: "mainSupplierId", label: "Distribuidor / Fornecedor Principal", type: "asyncSelect", optionsResource: "suppliers", embeddedKey: "mainSupplier", gridSize: 12, visibleWhen: isNotService },
+  {
+    name: "mainSupplierId",
+    label: "Distribuidor / Fornecedor Principal",
+    type: "asyncSelect",
+    optionsResource: "suppliers",
+    embeddedKey: "mainSupplier",
+    gridSize: 12,
+    visibleWhen: isNotService,
+    // Autofill (v2.3.211, pedido do cliente): escolher o fornecedor já
+    // preenche os 13 campos fiscais do Produto com os valores
+    // cadastrados nesse fornecedor (continuam editáveis por produto se
+    // precisar). Ver `autofillFields` em FinanceRecordModal/index.js.
+    autofillFields: FISCAL_FIELD_NAMES,
+  },
   { name: "productionLeadTime", label: "Prazo de Produção", gridSize: 6, visibleWhen: isNotService },
   { name: "designCode", label: "Código Desenho", gridSize: 6, visibleWhen: isNotService },
   { name: "productionScale", label: "Escala de Produção", gridSize: 6, visibleWhen: isNotService },
