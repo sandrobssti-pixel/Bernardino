@@ -112,9 +112,27 @@ const resolvePeriodRange = (preset, customStart, customEnd) => {
   return {};
 };
 
-const statusChip = (status) => {
-  if (status === "confirmed") return <Chip size="small" label="Confirmada" style={{ backgroundColor: "#10b981", color: "#fff" }} />;
-  if (status === "cancelled") return <Chip size="small" label="Cancelada" style={{ backgroundColor: "#6b7280", color: "#fff" }} />;
+// v2.3.216 (pedido do cliente, print real da venda #519): o status da
+// LISTA de vendas mostrava só "Confirmada" pra uma venda que já tinha nota
+// fiscal AUTORIZADA de verdade pela Sefaz — o "autorizada" só aparecia
+// entrando no detalhe da venda (chip de status do documento, dentro do
+// histórico). Confunde o operador, que não enxerga sem abrir se já saiu
+// nota ou não. Agora deriva do mesmo `sale.fiscalDocuments` que a lista já
+// recebe (mesmo include usado pelos ícones de ação logo abaixo) — sem
+// chamada nova ao backend.
+const hasDocumentWithStatus = (sale, status) => (sale.fiscalDocuments || []).some((doc) => doc.status === status);
+
+const statusChip = (sale) => {
+  if (sale.status === "confirmed") {
+    if (hasDocumentWithStatus(sale, "authorized")) {
+      return <Chip size="small" label="Autorizada" style={{ backgroundColor: "#4f46e5", color: "#fff" }} />;
+    }
+    if (hasDocumentWithStatus(sale, "processing")) {
+      return <Chip size="small" label="Processando NF" style={{ backgroundColor: "#3b82f6", color: "#fff" }} />;
+    }
+    return <Chip size="small" label="Confirmada" style={{ backgroundColor: "#10b981", color: "#fff" }} />;
+  }
+  if (sale.status === "cancelled") return <Chip size="small" label="Cancelada" style={{ backgroundColor: "#6b7280", color: "#fff" }} />;
   return <Chip size="small" label="Rascunho" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />;
 };
 
@@ -601,7 +619,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 <TableCell>{sale.customer?.name || "Consumidor não identificado"}</TableCell>
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
                 <TableCell align="right">{money(sale.totalValue)}</TableCell>
-                <TableCell>{statusChip(sale.status)}</TableCell>
+                <TableCell>{statusChip(sale)}</TableCell>
                 <TableCell align="right">
                   {sale.status === "draft" && (
                     <>
@@ -636,7 +654,20 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      <Tooltip title="Emitir nota fiscal">
+                      {/* Rótulo muda pra "Ver nota fiscal" assim que já existe
+                          documento autorizado/processando (v2.3.216) — o
+                          ícone continua abrindo a mesma tela (agora sem os
+                          botões de emitir de novo, ver SaleDetailModal.js),
+                          mas não pode mais dizer "Emitir" pro operador não
+                          entender que ainda precisa/pode clicar pra gerar
+                          outra nota. */}
+                      <Tooltip
+                        title={
+                          sale.fiscalDocuments?.some((d) => ["authorized", "processing"].includes(d.status))
+                            ? "Ver nota fiscal"
+                            : "Emitir nota fiscal"
+                        }
+                      >
                         <IconButton size="small" onClick={() => handleViewDetail(sale, true)}>
                           <ReceiptIcon fontSize="small" />
                         </IconButton>

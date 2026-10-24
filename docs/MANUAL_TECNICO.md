@@ -14030,3 +14030,59 @@ sem erro.
 
 **Arquivos**: `backend/src/services/FiscalService/FiscalDocumentService.ts`,
 `frontend/src/components/SaleDetailModal/index.js`.
+
+## 196. Lista de Vendas não mostrava "Autorizada" (v2.3.216)
+
+### Pedido
+
+Cliente mandou dois prints (venda #519, Hercules da Conceição
+Gonçalves, nota 507) e o PDF da DANFE real já autorizada: a tela de
+detalhe da venda mostra a nota com status "Autorizada" certinho, mas ao
+fechar e voltar pra lista principal de Vendas, a coluna Status continua
+mostrando "Confirmada" — sem indicar em lugar nenhum, sem abrir o
+detalhe, que a nota já saiu de verdade. Pedido explícito: "o status
+permanece o mesmo confirmada deveria apresentar autorizada".
+
+Junto, reforçou o pedido já atendido na v2.3.215 (o cliente ainda
+testava a versão anterior ao deploy, por isso os três botões "Emitir
+NF-e/NFC-e/NFS-e" ainda apareciam no print) — confirmado aqui que o
+ícone de "Emitir nota fiscal" na LISTA (fora do detalhe) também precisa
+parar de sugerir "emitir" quando já existe nota.
+
+### Diagnóstico
+
+`SaleList.js` (`statusChip`) só olhava `sale.status`, que no modelo só
+tem 3 valores (`draft`/`confirmed`/`cancelled`) — "autorizada" é
+propriedade do `FiscalDocument` (`doc.status === "authorized"`), não da
+`Sale`. A lista já recebe `sale.fiscalDocuments` no include padrão
+(`SaleService.list`/`includeOptions`, os mesmos ícones de ação da linha
+já usam isso — `sale.fiscalDocuments?.some(...)`), só o chip de status
+nunca tinha olhado pra isso.
+
+O ícone "Emitir nota fiscal" (`ReceiptIcon`) na coluna Ações, por sua
+vez, sempre dizia "Emitir" pra qualquer venda confirmada, mesmo uma que
+já tinha nota autorizada — clicar nele continua seguro (abre
+`SaleDetailModal` no modo `focusFiscal`, que desde a v2.3.215 não
+oferece mais os botões de emitir quando já existe nota real), mas o
+texto "Emitir" sozinho já é um convite a clicar errado.
+
+### Correção
+
+- `statusChip(sale)` (antes `statusChip(status)`) agora deriva de
+  `sale.fiscalDocuments`: tem documento `"authorized"` → chip
+  "Autorizada" (roxo/índigo `#4f46e5`, cor nova, não reaproveita o
+  verde de "Confirmada" pra dar pra diferenciar à primeira vista); tem
+  só `"processing"` → chip "Processando NF" (azul); nenhum dos dois →
+  continua "Confirmada" (verde), comportamento de sempre.
+- Tooltip do ícone `ReceiptIcon` na coluna Ações agora é condicional:
+  "Ver nota fiscal" quando já existe documento autorizado/processando,
+  "Emitir nota fiscal" caso contrário — mesmo ícone, mesmo `onClick`
+  (`handleViewDetail(sale, true)`), só o texto muda.
+
+### Verificação
+
+Frontend: build de produção (`CI=true npm run build`) sem erro. Mudança
+é só leitura de um array que a lista já carrega (sem endpoint novo) —
+não precisou de teste contra Postgres.
+
+**Arquivos**: `frontend/src/components/SaleList/index.js`.

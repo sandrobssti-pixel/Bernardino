@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.216] — Lista de Vendas mostra "Autorizada" quando a nota já saiu — 2026-10-24
+
+### Corrigido
+- **Lista de Vendas (Financeiro → Vendas) só mostrava "Confirmada"**
+  pra uma venda que já tinha nota fiscal autorizada de verdade pela
+  Sefaz — "autorizada" só aparecia abrindo o detalhe da venda. Cliente
+  mandou print (venda #519, nota 507 já autorizada) mostrando a lista
+  principal ainda dizendo "Confirmada", sem indicar que a nota já tinha
+  saído. Agora o status na lista vira **"Autorizada"** (roxo/índigo)
+  quando a venda tem nota autorizada, ou **"Processando NF"** (azul)
+  quando tem nota em processamento assíncrono — sem chamada nova ao
+  backend, só reaproveitando os documentos que a lista já recebe.
+- **Ícone "Emitir nota fiscal" na lista continuava dizendo "Emitir"**
+  mesmo depois de já existir nota autorizada/processando pra aquela
+  venda — mesmo clicando não gera mais nota duplicada (trava da
+  v2.3.215), mas o rótulo confundia o operador. Agora vira "Ver nota
+  fiscal" nesse caso.
+
 ## [2.3.215] — Bug crítico: nada impedia emitir duas notas fiscais reais pra mesma venda — 2026-10-24
 
 ### Corrigido (bug real em produção)
