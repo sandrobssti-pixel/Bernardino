@@ -35,6 +35,14 @@ Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/)
   continuam no cadastro (sem equivalente na tela de Venda hoje); todo o
   resto só aparece pra produto/serviço comum. Produto/serviço comum não
   muda em nada.
+- Revisão do próprio cliente sobre o corte acima: "Controle por Lote" e
+  "Equipamento" continuam fazendo sentido pra arma/munição — voltaram a
+  aparecer (só "Produto Composto"/"Matéria Prima" saem). "Controlar
+  estoque"/estoque/estoque mínimo **não foram tocados** — continuam
+  exatamente como já funcionavam, porque desligar isso pra arma
+  desativaria o bloqueio de venda sem estoque disponível
+  (`SaleService.ensureStockAvailable`/`adjustStock`, que dependem de
+  `controlStock` ligado pra descontar/checar estoque na Venda).
 
 ## [2.3.205] — Cadastro de arma por unidade (número de série) — Etapa 1 — 2026-10-23
 

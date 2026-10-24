@@ -13286,6 +13286,30 @@ que no banco são `VARCHAR` (`price`, `costPrice`, `taxRate`, tabelas de
 preço, todos os campos de ICMS/IBPT/IVA 2027) nunca tiveram esse
 problema — aceitam `""` como texto sem erro.
 
+### Ajuste pós-entrega, mesma versão (revisão do cliente)
+
+O cliente mandou o recorte exato dos campos que quer ver no cadastro de
+arma (exemplo real, SKU 10011647) e pediu pra conferir "se tem alguma
+coisa a acrescentar ou corrigir e deixar o que já está funcionando".
+Duas correções, sem bump de versão (ainda não implantado):
+
+1. **"Controle por Lote" (`lotControl`) e "Equipamento" (`isEquipment`)
+   voltam a aparecer** pra arma/munição — o cliente confirmou que fazem
+   sentido aqui, diferente dos outros ~22 campos da seção "Dados Gerais
+   — Complementares". Só "Produto Composto"/"Matéria Prima" continuam
+   escondidos pra esse tipo.
+2. **"Controlar estoque"/"Quantidade em estoque"/"Estoque mínimo" NÃO
+   foram escondidos**, mesmo não aparecendo no recorte que o cliente
+   mandou — checado em `SaleService.ts` antes de mexer:
+   `ensureStockAvailable`/`adjustStock` só descontam/bloqueiam venda sem
+   estoque quando `item.product.controlStock` é `true`; esconder esse
+   campo faria `stripHiddenFieldValues` (FinanceRecordModal/index.js)
+   resetá-lo pra `false` em todo save de arma, desligando essa proteção
+   silenciosamente. Como `stockQuantity` do produto-arma já é
+   recalculado automaticamente pela contagem de unidades em estoque
+   (seção 184), manter `controlStock` ligado faz as duas coisas
+   funcionarem juntas sem conflito — por isso ficou como já estava.
+
 ### Verificação
 
 Backend: `tsc --noEmit` limpo. Testado contra Postgres local de verdade

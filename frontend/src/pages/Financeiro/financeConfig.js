@@ -375,10 +375,13 @@ export const financeProductFields = [
   { name: "reservedStock", label: "Estoq. Reserv.", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
   { name: "idealStock", label: "Estoq. Ideal", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
   { name: "stockByLot", label: "Por Lote", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
-  { name: "lotControl", label: "Controle por Lote", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  // Confirmado com o cliente (v2.3.206) que "Controle por Lote" e
+  // "Equipamento" continuam fazendo sentido pra arma/munição — só os
+  // outros 2 (Produto Composto/Matéria Prima) saem pra esse tipo.
+  { name: "lotControl", label: "Controle por Lote", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
   { name: "isComposite", label: "Produto Composto", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "isRawMaterial", label: "Matéria Prima", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
-  { name: "isEquipment", label: "Equipamento", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "isEquipment", label: "Equipamento", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotService },
   { name: "soldByWeight", label: "Venda por KG", type: "switch", defaultValue: false, gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "commissionRate", label: "Comissão (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "maxDiscountMargin", label: "Marg. Desc. (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
