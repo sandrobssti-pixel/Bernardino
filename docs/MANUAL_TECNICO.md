@@ -13571,3 +13571,56 @@ iniciado — depende de o cliente confirmar que quer essa frente antes.
 **Arquivos**: `frontend/src/pages/Financeiro/index.js`,
 `backend/src/database/migrations/20261024100000-add-fiscal-fields-to-sale-items.ts`
 (novo, não utilizado ainda).
+
+## 189. Causa real do "Internal server error" ao editar Produto — mainSupplierId (v2.3.209)
+
+### Diagnóstico
+
+Depois da correção da seção 188 (prop `finance` faltando), o cliente
+reproduziu o "Internal server error" de novo e desta vez capturou a
+evidência certa — não pelos logs do servidor (poluídos por
+`[SCHEDULE_VERIFY]`, nunca deu pra isolar por ali), mas pela aba Network
+do DevTools: `PUT /finance/products/33` e `/finance/products/32`
+retornando `500`.
+
+Causa: o campo "Distribuidor/Fornecedor Principal" (`mainSupplierId`,
+aba Fornecedor/Produção, v2.3.168) é uma `asyncSelect` — quando nenhum
+fornecedor está escolhido, `buildInitialValues`
+(`FinanceRecordModal/index.js`) preenche com `""` (vazio), não `null`.
+`mainSupplierId` é uma coluna `INTEGER` (FK pra `FinanceSuppliers`) no
+banco — `""` nela dá o mesmo erro de sintaxe (22P02) que os outros
+campos numéricos vazios já corrigidos nas seções 183/185, só que esse
+tinha ficado de fora da lista: não "parece" numérico no formulário (é
+um campo de busca por nome, não um `<input type="number">`), por isso
+não foi lembrado nas duas correções anteriores. Como a maioria dos
+produtos do cliente não tem fornecedor principal escolhido, isso
+quebrava a edição de praticamente qualquer produto — explica o volume
+de relatos ("erro quando edita e coloca mais produtos").
+
+### Correção
+
+`mainSupplierId` entrou em `NULLABLE_NUMERIC_FIELDS`
+(`FinanceProductService.ts`) — mesmo padrão `emptyStringToNull` já
+usado pros outros 6 campos nullable. Conferido contra o modelo
+(`grep ": number;"` em `FinanceProduct.ts`) que agora **todas** as 13
+colunas realmente numéricas do Produto (incluindo a FK) estão cobertas
+pela validação — 7 nullable (`weight`, `minStockQuantity`,
+`cartridgeCapacity`, `barrelCount`, `barrelLength`, `kineticEnergyJ`,
+`mainSupplierId`) + 6 `NOT NULL DEFAULT 0` (`stockQuantity`,
+`reservedStock`, `idealStock`, `stockByLot`, `loyaltyPoints`,
+`redemptionPoints`).
+
+### Verificação
+
+Testado contra Postgres local reproduzindo o payload exato que o PUT
+manda quando nenhum fornecedor é escolhido (`mainSupplierId: ""`):
+falhava antes da correção, passa depois (create e update, produto fica
+com `mainSupplierId: null`). `tsc --noEmit` limpo.
+
+**Lição pra próxima vez que aparecer "erro interno" num formulário
+genérico deste módulo**: não dá pra confiar só na lista de campos
+`type: "number"` do form — qualquer FK opcional representada como
+`asyncSelect`/autocomplete que manda `""` quando vazia é candidata ao
+mesmo bug, mesmo sem "parecer" numérica.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`.

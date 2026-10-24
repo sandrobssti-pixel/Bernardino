@@ -52,6 +52,10 @@ interface ProductData {
   origin?: string;
   manufacturingLotNumber?: string;
   packageBarcode?: string;
+  // Aba "Fornecedor/Produção" (v2.3.168) — FK pra FinanceSupplier,
+  // opcional. Mesmo motivo do emptyStringToNull abaixo: formulário manda
+  // "" quando nenhum fornecedor foi escolhido.
+  mainSupplierId?: number | null;
 }
 
 // Número de série, registro SIGMA/SINARM e situação da arma migraram pra
@@ -69,16 +73,21 @@ const stripDeprecatedWeaponFields = (data: ProductData): ProductData => {
   return cleaned;
 };
 
-// Campos numéricos (INTEGER/FLOAT no Postgres) são opcionais, mas o
-// formulário manda "" (nunca undefined) quando a pessoa deixa em branco
-// ou quando `stripHiddenFieldValues` (FinanceRecordModal/index.js) limpa
-// um campo que ficou invisível pro tipo de produto atual (ex.: "Peso"
-// escondido pra arma/munição, v2.3.205) — e "" num INTEGER/FLOAT do
-// Postgres dá erro de sintaxe (22P02), que o usuário via como "erro
-// interno" ao salvar (relatado originalmente no SKU 10034336, depois de
-// novo no SKU 75008418 com um campo numérico diferente). Mesmo padrão de
-// transform usado em UpdateUserService/CreateUserService/ContactController
-// pra campo opcional vindo vazio do formulário. Listas = todas as colunas
+// Campos numéricos (INTEGER/FLOAT no Postgres, FK incluída) são
+// opcionais, mas o formulário manda "" (nunca undefined) quando a pessoa
+// deixa em branco/não escolhe nada, ou quando `stripHiddenFieldValues`
+// (FinanceRecordModal/index.js) limpa um campo que ficou invisível pro
+// tipo de produto atual (ex.: "Peso" escondido pra arma/munição,
+// v2.3.205) — e "" num INTEGER/FLOAT do Postgres dá erro de sintaxe
+// (22P02), que o usuário via como "erro interno" ao salvar. Relatado 3
+// vezes com causas diferentes na mesma classe de bug: SKU 10034336
+// (seção 183), SKU 75008418 (seção 185), e por último `mainSupplierId`
+// (produtos #32/#33, v2.3.209) — esse último só apareceu porque é uma
+// FK numérica opcional (aba Fornecedor/Produção), fácil de esquecer que
+// é "numérica" já que o campo no formulário é um autocomplete, não um
+// <input type="number">. Mesmo padrão de transform usado em
+// UpdateUserService/CreateUserService/ContactController pra campo
+// opcional vindo vazio do formulário. Listas = todas as colunas
 // realmente numéricas de FinanceProduct (ver models/FinanceProduct.ts) —
 // os demais campos "numéricos" do formulário (price, costPrice, taxRate,
 // ICMS/IBPT, tabelas de preço...) são VARCHAR no banco e aceitam ""
@@ -98,7 +107,8 @@ const NULLABLE_NUMERIC_FIELDS = [
   "cartridgeCapacity",
   "barrelCount",
   "barrelLength",
-  "kineticEnergyJ"
+  "kineticEnergyJ",
+  "mainSupplierId"
 ] as const;
 
 const NOT_NULL_NUMERIC_FIELDS = [

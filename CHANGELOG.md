@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.209] — Corrige "Internal server error" ao editar praticamente qualquer Produto — 2026-10-24
+
+### Corrigido
+- **Causa real do "Internal server error" relatado ao editar produto**
+  (reproduzido em produção, SKUs #32 e #33): o campo "Distribuidor/
+  Fornecedor Principal" manda `""` (vazio) quando nenhum fornecedor está
+  escolhido — e por ser uma FK numérica no banco, isso quebrava a
+  gravação exatamente como os outros campos numéricos já corrigidos
+  (seções 183/185), só que esse ficou de fora porque não parece
+  "numérico" no formulário (é um campo de busca, não um `<input
+  type="number">`). Como a maioria dos produtos não tem fornecedor
+  principal escolhido, isso afetava praticamente **qualquer edição de
+  produto**. Confirmado contra o banco local antes e depois da correção.
+
 ## [2.3.208] — Corrige busca de fornecedor no cadastro de Produto — 2026-10-24
 
 ### Corrigido
