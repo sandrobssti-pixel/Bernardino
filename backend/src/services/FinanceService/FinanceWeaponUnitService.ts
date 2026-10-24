@@ -11,7 +11,14 @@ import FinanceWeaponUnitEvent from "../../models/FinanceWeaponUnitEvent";
 // docs/MANUAL_TECNICO.md, seção 184. Etapa 2 (integração com Venda —
 // "reserved" abaixo, reserveForSale/releaseForSaleItem/
 // markSoldForSaleItem) autorizada depois, em chat direto — seção 186.
-export const STATUS_OPTIONS = ["in_stock", "reserved", "sold", "maintenance", "decommissioned"];
+// "separated" (v2.3.214, pedido do cliente) — diferente de "reserved"
+// (automático, só existe linkado a uma venda em aberto): é uma marcação
+// MANUAL pro operador separar uma arma pra alguém sem precisar criar a
+// venda ainda (ex.: cliente reservou por telefone). Mesmo efeito de
+// "sair do estoque disponível" que as outras situações não-"in_stock"
+// já têm — `recalculateStockQuantity` só conta `status === "in_stock"`,
+// nenhuma lógica nova precisou mudar pra isso funcionar.
+export const STATUS_OPTIONS = ["in_stock", "reserved", "separated", "sold", "maintenance", "decommissioned"];
 
 interface UnitData {
   serialNumber: string;

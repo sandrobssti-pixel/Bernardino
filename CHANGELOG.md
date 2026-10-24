@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.214] — Nova situação "Separada para venda" no cadastro de armas por número de série — 2026-10-24
+
+### Adicionado
+- **Nova opção de Situação no cadastro de arma por número de série
+  (Etapa 1): "Separada para venda"** — marcação manual pro operador
+  reservar uma arma pra um cliente (ex.: combinado por telefone) sem
+  precisar criar a venda ainda. Diferente da situação "Reservada"
+  (automática, só existe quando a unidade está linkada a uma venda em
+  aberto — Etapa 2): essa é escolhida à mão no próprio cadastro da
+  arma, antes de existir qualquer venda. Mesmo efeito das outras
+  situações que não são "Em estoque": a unidade sai do
+  `stockQuantity` disponível do produto automaticamente — nenhuma
+  lógica de cálculo de estoque precisou mudar.
+
 ## [2.3.213] — E-mail do emitente passa a ir também pro DANFE — 2026-10-24
 
 ### Alterado

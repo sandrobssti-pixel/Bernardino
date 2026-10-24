@@ -192,6 +192,13 @@ const ORIGIN_OPTIONS = [
 
 export const WEAPON_STATUS_OPTIONS = [
   { value: "in_stock", label: "Em estoque" },
+  // "Separada para venda" (v2.3.214, pedido do cliente) — marcação
+  // manual pro operador reservar uma arma pra alguém sem precisar criar
+  // a venda ainda (ex.: cliente reservou por telefone). Diferente de
+  // "reserved" (automática, só existe linkada a uma venda em aberto —
+  // ver statusLabel em WeaponUnitsSection.js), por isso não entra nessa
+  // lista de opções selecionáveis à mão.
+  { value: "separated", label: "Separada para venda" },
   { value: "sold", label: "Vendida" },
   { value: "maintenance", label: "Em manutenção" },
   { value: "decommissioned", label: "Baixada / Inutilizada" },

@@ -13870,3 +13870,61 @@ novo, sem teste de banco necessário.
 
 **Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`,
 `backend/src/models/FiscalConfig.ts`.
+
+## 194. Nova situação "Separada para venda" no cadastro de arma por número de série (v2.3.214)
+
+### Pedido
+
+Cliente pediu: "no cadastro do produto Armas deste modelo (por número
+de série) campo situação colocar a opção venda separada no estoque" —
+precisa marcar uma arma específica (por número de série, Etapa 1) como
+reservada pra um cliente antes mesmo de existir uma venda formal (ex.:
+cliente combinou a compra por telefone e o vendedor quer deixar aquela
+unidade de lado, sem ainda lançar a venda no sistema).
+
+### Por que não reaproveitar a situação "Reservada" existente
+
+A Etapa 2 (integração com Venda) já tem uma situação `"reserved"`, mas
+ela é **automática**: só existe enquanto a unidade está linkada a uma
+Venda em aberto (`WeaponUnitsSection.js`, função `statusLabel`, caso
+especial `"reserved"` → "Reservada (venda em aberto)") e volta pra
+disponível se a venda for cancelada/excluída. Não é selecionável à mão
+pelo operador. O pedido do cliente é um caso diferente: separar a arma
+**sem** nenhuma venda ainda existir. Por isso entrou como um valor
+novo, `"separated"`, e não uma reutilização de `"reserved"`.
+
+### Implementação
+
+Como `FinanceWeaponUnit.status` é uma coluna string livre (não enum no
+banco) e `recalculateStockQuantity` já conta só `status === "in_stock"`
+pro `stockQuantity` do produto, qualquer valor novo de situação já sai
+do estoque disponível automaticamente — não precisou mudar nenhuma
+lógica de cálculo de estoque, só cadastrar o novo valor:
+
+- **Backend** (`FinanceWeaponUnitService.ts`): `"separated"` adicionado
+  em `STATUS_OPTIONS` (usado pelo Yup `unitSchema` pra validar o
+  campo `status`). `remove()` continua bloqueando exclusão só pra
+  `"reserved"`/`"sold"` — unidade "separated" pode ser editada/excluída
+  livremente, já que não existe venda linkada a ela pra se preocupar
+  em desincronizar.
+- **Frontend** (`financeConfig.js`): `{ value: "separated", label:
+  "Separada para venda" }` adicionado em `WEAPON_STATUS_OPTIONS`,
+  aparece no seletor de Situação do cadastro da unidade
+  (`WeaponUnitsSection.js`) e resolve o label na tabela automaticamente
+  (sem precisar de caso especial, diferente de `"reserved"`, porque já
+  está na lista de opções).
+- Campo SIGMA/SINARM (removido do formulário na v2.3.210) e botão de
+  excluir unidade não foram afetados — continuam com o mesmo
+  comportamento de antes pra essa nova situação.
+
+### Verificação
+
+Backend: `tsc --noEmit` e build de produção limpos. Testado contra
+Postgres local (`atendeflow_test`) com script descartável: criado
+produto arma, 2 unidades em estoque, uma marcada como `"separated"` via
+`FinanceWeaponUnitService.update` — confirmado `stockQuantity` caindo
+de 2 pra 1 e a unidade mantendo `status === "separated"`. Frontend:
+build de produção (`CI=true npm run build`) sem erro.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceWeaponUnitService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.
