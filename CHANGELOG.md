@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.207] — Venda de arma por número de série (Etapa 2) — baixa só na emissão da nota — 2026-10-24
+
+### Adicionado
+- **Item de Venda do tipo Arma agora escolhe a UNIDADE (número de
+  série) cadastrada no SKU**, em vez de só a quantidade — pedido do
+  cliente: "quando for vender o operador vai visualizar quanto tem em
+  estoque e quantas armas tem com número de série liberados naquele
+  código de produto". A tela de Venda mostra quantas unidades estão
+  disponíveis e lista os números de série pra escolher; SIGMA/SINARM
+  vem auto-preenchido da unidade escolhida.
+- **A baixa definitiva do estoque disponível só acontece quando a nota
+  fiscal daquela venda é REALMENTE autorizada pelo gateway** (Focus
+  NFe) — não na confirmação da venda. Entre confirmar a venda e a nota
+  ser emitida, a unidade fica "reservada" (ninguém mais pode escolhê-
+  la, mas ainda não é baixa definitiva). Cancelar a venda (antes ou
+  depois da nota) devolve a unidade pro estoque disponível, igual já
+  acontecia pro resto do sistema.
+- Bloqueio de corrida: duas vendas não podem reservar a mesma unidade
+  (a segunda recebe erro claro "arma não disponível pra venda").
+  Excluir uma unidade presa numa venda (reservada ou já vendida) também
+  é bloqueado — precisa cancelar a venda primeiro.
+
+### Técnico
+- Etapa autorizada em chat direto com o cliente (não por relay cross-
+  session, diferente da Etapa 1) — ver docs/MANUAL_TECNICO.md, seção
+  186. Munição/insumo continua com os campos manuais de sempre (sem
+  sub-cadastro por lote ainda — próxima entrega).
+
 ## [2.3.206] — Cadastro de Produto (arma/munição) só com dados de produto + corrige erro ao editar — 2026-10-23
 
 ### Corrigido

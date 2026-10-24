@@ -7,9 +7,11 @@ import FinanceWeaponUnitEvent from "../../models/FinanceWeaponUnitEvent";
 
 // Unidade física de arma — sub-cadastro do Produto (SKU/modelo), uma
 // linha por número de série. Etapa 1 autorizada (ver mensagem do Sandro
-// via sessão "Manutenção VPS") — Venda/relatório ficam pra próximas
-// etapas. Ver FinanceWeaponUnit.ts e docs/MANUAL_TECNICO.md, seção 184.
-export const STATUS_OPTIONS = ["in_stock", "sold", "maintenance", "decommissioned"];
+// via sessão "Manutenção VPS") — ver FinanceWeaponUnit.ts e
+// docs/MANUAL_TECNICO.md, seção 184. Etapa 2 (integração com Venda —
+// "reserved" abaixo, reserveForSale/releaseForSaleItem/
+// markSoldForSaleItem) autorizada depois, em chat direto — seção 186.
+export const STATUS_OPTIONS = ["in_stock", "reserved", "sold", "maintenance", "decommissioned"];
 
 interface UnitData {
   serialNumber: string;
@@ -238,6 +240,12 @@ export const remove = async (
   if (!unit) {
     throw new AppError("ERR_FINANCE_WEAPON_UNIT_NOT_FOUND", 404);
   }
+  // Unidade presa numa venda (reservada ou já vendida) não pode ser
+  // excluída solta — perderia a rastreabilidade do item de venda que
+  // aponta pra ela (v2.3.207/Etapa 2). Cancelar a venda primeiro libera.
+  if (unit.status === "reserved" || unit.status === "sold") {
+    throw new AppError("ERR_FINANCE_WEAPON_UNIT_LINKED_TO_SALE");
+  }
   await unit.destroy();
   await recalculateStockQuantity(productId);
 };
@@ -293,4 +301,63 @@ export const search = async ({
     order: [["serialNumber", "ASC"]],
     limit: 20
   });
+};
+
+// --------------------------------------------------------------------
+// Etapa 2 (integração com Venda), autorizada em chat direto com o
+// Sandro — não por relay cross-session como a Etapa 1 (ver seção 184).
+// Pedido do cliente: a unidade só sai de "em estoque" (disponível pra
+// outra venda) quando reservada numa venda confirmada; só vira "sold"
+// de verdade quando a nota fiscal daquela venda for REALMENTE
+// autorizada (não na confirmação da venda em si) — ver
+// FiscalDocumentService.emit/refreshStatus, que chamam
+// SaleService.markWeaponUnitsSold depois de confirmado o `authorized`
+// do gateway. Ver docs/MANUAL_TECNICO.md, seção 186.
+// --------------------------------------------------------------------
+
+// Chamado por SaleService.confirm/update ao confirmar uma venda com item
+// de arma vinculado a uma unidade. Falha se a unidade não estiver mais
+// "em estoque" (já reservada/vendida por outra venda, ou em manutenção/
+// baixada) — mesma checagem de corrida que o índice único já cobria pro
+// SKU único, agora pro status da unidade.
+export const reserveForSale = async (
+  weaponUnitId: number,
+  saleItemId: number,
+  companyId: number
+): Promise<void> => {
+  const unit = await FinanceWeaponUnit.findOne({ where: { id: weaponUnitId, companyId } });
+  if (!unit) {
+    throw new AppError("ERR_FINANCE_WEAPON_UNIT_NOT_FOUND", 404);
+  }
+  if (unit.status !== "in_stock") {
+    throw new AppError("ERR_FINANCE_WEAPON_UNIT_NOT_AVAILABLE");
+  }
+  await unit.update({ status: "reserved", saleItemId });
+  await recalculateStockQuantity(unit.productId);
+};
+
+// Chamado por SaleService.cancel/update ao cancelar uma venda ou trocar
+// a composição de uma já confirmada — devolve a unidade pra "em
+// estoque", esteja ela "reservada" (nota nunca chegou a ser emitida) ou
+// já "sold" (nota autorizada, mas a venda foi cancelada depois — mesma
+// regra de "devolve estoque" já aplicada ao resto do sistema). Nunca
+// falha quando não acha a unidade (item de venda sem arma vinculada, ou
+// unidade já excluída) — mesmo padrão tolerante de
+// FinanceImportService.upsertProductRecord.
+export const releaseForSaleItem = async (saleItemId: number, companyId: number): Promise<void> => {
+  const unit = await FinanceWeaponUnit.findOne({ where: { saleItemId, companyId } });
+  if (!unit) return;
+  await unit.update({ status: "in_stock", saleItemId: null, soldAt: null });
+  await recalculateStockQuantity(unit.productId);
+};
+
+// Chamado por SaleService.markWeaponUnitsSold quando a NF-e da venda é
+// autorizada de verdade pelo gateway (Focus NFe) — a baixa definitiva do
+// estoque disponível. Idempotente: já "sold" (segunda chamada, ex.:
+// refreshStatus confirmando de novo um status já tratado) é um no-op.
+export const markSoldForSaleItem = async (saleItemId: number, companyId: number): Promise<void> => {
+  const unit = await FinanceWeaponUnit.findOne({ where: { saleItemId, companyId } });
+  if (!unit || unit.status === "sold") return;
+  await unit.update({ status: "sold", soldAt: new Date() });
+  await recalculateStockQuantity(unit.productId);
 };

@@ -13,6 +13,7 @@ import {
 } from "sequelize-typescript";
 import Sale from "./Sale";
 import FinanceProduct from "./FinanceProduct";
+import FinanceWeaponUnit from "./FinanceWeaponUnit";
 
 // Item de uma venda (Fase 3 — ver Sale.ts). Guarda uma cópia de
 // descrição/NCM/CFOP no momento da venda (em vez de só referenciar o
@@ -137,6 +138,19 @@ class SaleItem extends Model<SaleItem> {
   @Default("")
   @Column
   packageId: string;
+
+  // Unidade física de arma (nº de série) escolhida pra esse item —
+  // Etapa 2 (v2.3.207), ver docs/MANUAL_TECNICO.md seção 186. Nullable:
+  // item de produto comum, ou item de arma antigo (anterior a esta
+  // versão) nunca tem. Sem `@BelongsTo` de volta em FinanceWeaponUnit
+  // (ficaria import circular) — o vínculo nos dois sentidos é mantido
+  // em código por FinanceWeaponUnitService, não pelo Sequelize.
+  @ForeignKey(() => FinanceWeaponUnit)
+  @Column
+  weaponUnitId: number;
+
+  @BelongsTo(() => FinanceWeaponUnit)
+  weaponUnit: FinanceWeaponUnit;
 
   @ForeignKey(() => Sale)
   @AllowNull(false)

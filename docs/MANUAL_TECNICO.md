@@ -13342,3 +13342,136 @@ especificados pelo cliente.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 186. Venda de arma por número de série (Etapa 2) — baixa só na emissão da nota (v2.3.207)
+
+### Contexto e autorização
+
+Diferente da Etapa 1 (seção 184), autorizada por relay cross-session,
+esta etapa foi pedida e confirmada pelo próprio Sandro em chat direto
+nesta sessão: "quando chegue o produto, o operador quando cadastrar
+lance no código do produto SKU, os produtos, chegaram 10 em cada SKU, o
+operário tem que lançar um a um porque eu quero saber quais armas tem
+no estoque por número de série e quando for vender o operador vai
+visualizar quanto tem em estoque e quantas armas tem com número de
+série liberados naquele código de produto SKU". Perguntado explicitamente
+(`AskUserQuestion`, 3 perguntas) antes de codar, porque isso é
+literalmente a "Etapa 2 (exige nova autorização)" documentada na seção
+184 — respostas do cliente:
+
+1. Autorizado implementar a tela de Venda mostrando estoque + lista de
+   números de série disponíveis pra escolher.
+2. A baixa definitiva (unidade "vendida", estoque desconta) só acontece
+   **quando a nota fiscal for emitida de verdade** — não na confirmação
+   da venda. Entre a venda confirmada e a nota emitida, a unidade fica
+   "reservada" (mais fiel ao controle de arma de verdade; opção mais
+   complexa, mas foi a escolhida).
+3. Munição/insumo: o cliente pediu **as duas coisas** — estoque total
+   visível na Venda (já existe, `stockQuantity`) E rastreio por lote
+   (Lote + SIGMA/SINARM + ID), mirando a mesma estrutura da arma mas
+   por lote. **Não implementado nesta entrega** — fica pra próxima,
+   ainda precisa de decisão de como a Venda consome quantidade parcial
+   de um lote.
+
+### Desenho
+
+Reaproveita os campos `saleItemId`/`soldAt` do `FinanceWeaponUnit` já
+deixados reservados (sem uso) na Etapa 1 justamente pra isso. Nenhuma
+mudança de schema em `FinanceWeaponUnits` — só uma coluna nova,
+aditiva, em `SaleItems`:
+
+- `SaleItems.weaponUnitId` (INTEGER nullable, sem FK declarada no
+  Sequelize pra não criar import circular entre `SaleItem.ts` e
+  `FinanceWeaponUnit.ts` — mesmo padrão não-declarado que
+  `FinanceWeaponUnit.saleItemId` já usava desde a Etapa 1; a
+  integridade é garantida em código, não no banco).
+- `FinanceWeaponUnitService.STATUS_OPTIONS` ganha `"reserved"` (entre
+  `in_stock` e `sold`).
+
+Três funções novas em `FinanceWeaponUnitService.ts`, cada uma
+recalculando `stockQuantity` do produto no final (mesma função da
+Etapa 1 — "em estoque" nunca inclui reservada/vendida, então a conta já
+sai certa sem precisar de lógica nova ali):
+
+- `reserveForSale(weaponUnitId, saleItemId, companyId)` — falha se a
+  unidade não estiver `in_stock` (corrida entre duas vendas pela mesma
+  arma).
+- `releaseForSaleItem(saleItemId, companyId)` — devolve pra `in_stock`
+  (reservada OU já vendida — cancelar depois da nota também devolve,
+  mesma regra já aplicada ao resto do sistema).
+- `markSoldForSaleItem(saleItemId, companyId)` — baixa definitiva,
+  idempotente.
+
+Em `SaleService.ts`: item com `weaponUnitId` preenchido sai da conta de
+`ensureStockAvailable`/`adjustStock` (que são por QUANTIDADE do
+produto) — teria conflito/dupla contagem com o controle por UNIDADE.
+Ganha sua própria checagem/ajuste em paralelo:
+
+- `ensureWeaponUnitsAvailable` — chamada em `confirm`/`update`, checa
+  que a(s) unidade(s) escolhida(s) ainda estão `in_stock` antes de
+  reservar.
+- `reserveWeaponUnits`/`releaseWeaponUnits` — chamadas nos mesmos 3
+  pontos onde `adjustStock(+1)`/`adjustStock(-1)` já eram chamadas
+  (`confirm`, `update` quando a venda já estava confirmada, `cancel`).
+- `markWeaponUnitsSold(saleId, companyId)` exportado — chamado por
+  `FiscalDocumentService.emit` (quando o gateway já volta "authorized"
+  na hora, gateway síncrono) e por `refreshStatus` (quando a nota
+  ficou "processing" e só agora, reconsultada, vira "authorized" —
+  gateway assíncrono). `FiscalDocumentService.cancel` não precisou de
+  gancho novo — já chama `SaleService.cancel` no final, que por sua vez
+  já chama `releaseWeaponUnits`.
+
+Frontend (`SaleModal.js`): ao escolher um produto tipo arma no item da
+venda, carrega as unidades daquele SKU (`finance.products.weaponUnits.list`)
+e troca os campos manuais de SIGMA/lote/ID por um `<select>` "Número de
+série" (obrigatório, mostra quantas disponíveis), que auto-preenche o
+SIGMA/SINARM da unidade escolhida (read-only, mesma lógica de "auto
+preenchimento" pedida desde a Etapa 1). Munição continua com os 3
+campos manuais de sempre (sigmaSinarm/ammoLot/packageId), sem sub-
+cadastro ainda. Validação no cliente (antes de mandar pro backend):
+item de arma sem `weaponUnitId` escolhido bloqueia o "Salvar" com
+mensagem clara.
+
+`WeaponUnitsSection.js` (tela de cadastro de Produto): "reservada" não
+é uma opção manualmente selecionável no `<select>` de situação (só
+existe de verdade linkada a uma venda em aberto), mas ganhou um rótulo
+legível na tabela ("Reservada (venda em aberto)"); o botão de excluir
+fica desabilitado pra unidade reservada/vendida (mesmo bloqueio que o
+backend já aplicava, só evita a viagem até o servidor pra ver o erro).
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo. Testado contra Postgres local de
+verdade, dois scripts separados cobrindo os cenários reais:
+- Reservar ao confirmar, bloquear uma 2ª venda pela mesma unidade
+  reservada, cancelar e ver a unidade voltar pro estoque (com
+  `saleItemId` limpo), vender de novo, simular a nota autorizada
+  (`markWeaponUnitsSold`) e confirmar baixa definitiva (`sold`,
+  `soldAt` preenchido, `stockQuantity` reflete), bloquear excluir
+  unidade vendida, cancelar a venda JÁ vendida e confirmar que devolve
+  pro estoque mesmo assim.
+- Editar uma venda confirmada trocando a unidade escolhida de A pra B:
+  A libera, B reserva, `stockQuantity` fecha certo.
+
+Frontend: `financeConfig.js`-adjacente (`SaleModal.js`,
+`WeaponUnitsSection.js`) parseados via Babel e build de produção
+(`craco build`) completo sem erro.
+
+Não testado: fluxo completo na UI real (navegador), e o caminho de
+verdade com o gateway Focus NFe (síncrono x assíncrono) — só a função
+que esses dois caminhos chamam (`markWeaponUnitsSold`) foi testada
+direto, não o `emit`/`refreshStatus` inteiros (exigiria mockar a API
+real da Focus, fora do alcance desta sessão).
+
+**Pendente** (próxima entrega, aguardando o cliente detalhar como a
+Venda consome quantidade parcial de um lote): sub-cadastro de lote
+(Lote + SIGMA/SINARM + ID) pra munição/insumo, espelhando esta mesma
+Etapa 2 mas por lote em vez de por unidade única.
+
+**Arquivos**: `backend/src/database/migrations/20261024090000-add-weapon-unit-id-to-sale-items.ts`
+(novo), `backend/src/models/SaleItem.ts`,
+`backend/src/services/FinanceService/FinanceWeaponUnitService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`.

@@ -94,6 +94,11 @@ const emptyItem = {
   sigmaSinarm: "",
   ammoLot: "",
   packageId: "",
+  // Unidade física de arma (nº de série) escolhida pra esse item —
+  // Etapa 2 (v2.3.207, pedido do cliente). Null pra item de produto
+  // comum/munição (que não usa sub-cadastro por unidade) ou venda
+  // antiga, anterior a esta versão.
+  weaponUnitId: "",
 };
 
 const buildInitialValues = (sale, defaultCfop) => ({
@@ -161,6 +166,7 @@ const buildInitialValues = (sale, defaultCfop) => ({
           sigmaSinarm: item.sigmaSinarm || "",
           ammoLot: item.ammoLot || "",
           packageId: item.packageId || "",
+          weaponUnitId: item.weaponUnitId || "",
         }))
       : [{ ...emptyItem, cfop: defaultCfop || "5102" }],
 });
@@ -212,9 +218,37 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   // `handleSkuOrNameLookup` abaixo) — um timer por índice, sobrevive a
   // re-render (Formik recalcula a cada tecla digitada).
   const skuLookupTimers = useRef({});
+  // Unidades (números de série) do produto-arma escolhido em cada linha
+  // — Etapa 2 (v2.3.207). Carregadas na hora que a pessoa escolhe o
+  // produto (`loadWeaponUnits`), ou ao abrir pra editar uma venda que já
+  // tinha item de arma (ver `useEffect` abaixo).
+  const [weaponUnitsByIndex, setWeaponUnitsByIndex] = useState({});
+
+  const loadWeaponUnits = async (index, productId) => {
+    if (!finance || !productId) return;
+    try {
+      const units = await finance.products.weaponUnits.list(productId);
+      setWeaponUnitsByIndex((prev) => ({ ...prev, [index]: units || [] }));
+    } catch (err) {
+      toastError(err);
+    }
+  };
 
   useEffect(() => {
     setInitialValues(buildInitialValues(sale, defaultCfop));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sale, open]);
+
+  // Reabrir uma venda (rascunho) que já tinha item de arma com unidade
+  // escolhida precisa carregar as unidades daquele produto de novo —
+  // sem isso, o <Select> de "Número de série" ficaria sem opções (não
+  // sabe quais existem) e perderia a seleção visualmente.
+  useEffect(() => {
+    (sale?.items || []).forEach((item, index) => {
+      if (item.weaponUnitId && item.productId) {
+        loadWeaponUnits(index, item.productId);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sale, open]);
 
@@ -223,6 +257,19 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   const handleSubmit = async (values, { setSubmitting }) => {
     if (values.items.length === 0) {
       toast.error("Adicione pelo menos um item à venda.");
+      setSubmitting(false);
+      return;
+    }
+    // Item de arma sem número de série escolhido venderia "o produto"
+    // sem saber qual unidade física saiu — bloqueia aqui, antes de
+    // mandar pro backend (que também bloqueia, mas com um erro menos
+    // claro). Ver docs/MANUAL_TECNICO.md, seção 186.
+    const missingSerial = values.items.find((item) => {
+      const product = products.find((p) => p.id === item.productId);
+      return product?.type === "weapon" && !item.weaponUnitId;
+    });
+    if (missingSerial) {
+      toast.error(`Escolha o número de série da arma no item "${missingSerial.description}".`);
       setSubmitting(false);
       return;
     }
@@ -296,6 +343,12 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
 
   const handleProductChange = (index, product, setFieldValue, operationType) => {
     setFieldValue(`items.${index}.productId`, product?.id || "");
+    // Trocar o produto invalida a unidade de arma escolhida antes (era
+    // de outro SKU) — limpa e recarrega a lista de números de série
+    // disponíveis pro produto novo (Etapa 2, v2.3.207).
+    setFieldValue(`items.${index}.weaponUnitId`, "");
+    setFieldValue(`items.${index}.sigmaSinarm`, "");
+    setWeaponUnitsByIndex((prev) => ({ ...prev, [index]: [] }));
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
       setFieldValue(`items.${index}.sku`, product.sku || "");
@@ -308,7 +361,24 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
       const defaultProductCfop =
         operationType === "interstate" ? product.cfopOutState : product.cfopPrincipal;
       setFieldValue(`items.${index}.cfop`, defaultProductCfop || "5102");
+
+      if (product.type === "weapon") {
+        // Cada linha de arma é exatamente 1 unidade (1 número de série)
+        // — não faz sentido "quantidade" aqui.
+        setFieldValue(`items.${index}.quantity`, 1);
+        loadWeaponUnits(index, product.id);
+      }
     }
+  };
+
+  // Ao escolher o número de série, auto-preenche o SIGMA/SINARM já
+  // cadastrado naquela unidade (pedido original do cliente desde a
+  // Etapa 1: "tenha a auto preenchimento") — continua editável à mão se
+  // precisar corrigir só nesta venda.
+  const handleWeaponUnitChange = (index, unitId, units, setFieldValue) => {
+    setFieldValue(`items.${index}.weaponUnitId`, unitId);
+    const unit = (units || []).find((u) => u.id === unitId);
+    setFieldValue(`items.${index}.sigmaSinarm`, unit?.sigmaRegistrationNumber || "");
   };
 
   const fetchCustomerOptions = async (searchParam) => {
@@ -479,8 +549,19 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     <>
                       {values.items.map((item, index) => {
                         const selectedProduct = products.find((p) => p.id === item.productId);
-                        const isWeaponOrAmmo =
-                          selectedProduct?.type === "weapon" || selectedProduct?.type === "ammunition";
+                        const isWeapon = selectedProduct?.type === "weapon";
+                        const isAmmo = selectedProduct?.type === "ammunition";
+                        // Lista de números de série daquele produto-arma
+                        // (Etapa 2, v2.3.207) — inclui a unidade já
+                        // escolhida por este item mesmo que o status dela
+                        // não seja mais "in_stock" (está reservada por
+                        // esta própria venda).
+                        const weaponUnitsForItem = (weaponUnitsByIndex[index] || []).filter(
+                          (u) => u.status === "in_stock" || u.id === item.weaponUnitId
+                        );
+                        const inStockCount = (weaponUnitsByIndex[index] || []).filter(
+                          (u) => u.status === "in_stock"
+                        ).length;
 
                         return (
                         <Grid container spacing={1} key={index} className={classes.itemRow}>
@@ -621,11 +702,65 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             </Typography>
                           </Grid>
 
+                          {/* Arma: escolhe a UNIDADE (número de série)
+                              cadastrada naquele SKU, em vez de digitar à
+                              mão — Etapa 2 (v2.3.207, pedido do cliente:
+                              "quando for vender o operador vai visualizar
+                              quanto tem em estoque e quantas armas tem com
+                              número de série liberados naquele SKU"). A
+                              baixa definitiva do estoque só acontece quando
+                              a nota fiscal for emitida de verdade (ver
+                              FinanceWeaponUnitService.markSoldForSaleItem),
+                              não aqui — aqui só reserva ao confirmar a
+                              venda. SIGMA/SINARM vem só-leitura da unidade
+                              escolhida (auto preenchimento). */}
+                          {isWeapon && (
+                            <>
+                              <Grid item xs={12} sm={6}>
+                                <TextField
+                                  select
+                                  required
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="Número de série"
+                                  helperText={`${inStockCount} disponível(is) em estoque neste SKU`}
+                                  value={item.weaponUnitId || ""}
+                                  onChange={(e) =>
+                                    handleWeaponUnitChange(index, Number(e.target.value), weaponUnitsForItem, setFieldValue)
+                                  }
+                                >
+                                  {weaponUnitsForItem.length === 0 && (
+                                    <MenuItem value="" disabled>
+                                      Nenhuma arma disponível neste SKU
+                                    </MenuItem>
+                                  )}
+                                  {weaponUnitsForItem.map((unit) => (
+                                    <MenuItem key={unit.id} value={unit.id}>
+                                      {unit.serialNumber}
+                                      {unit.status !== "in_stock" ? " (reservada nesta venda)" : ""}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </Grid>
+                              <Grid item xs={12} sm={6}>
+                                <Field
+                                  as={TextField}
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="SIGMA/SINARM (da unidade escolhida)"
+                                  name={`items.${index}.sigmaSinarm`}
+                                />
+                              </Grid>
+                            </>
+                          )}
+
                           {/* SIGMA/SINARM, lote de munição e ID de embalagem
-                              (v2.3.166) — só aparecem quando o item é Arma ou
-                              Munição (controle exigido por lei pra esses dois
-                              tipos, pedido do contador do cliente). */}
-                          {isWeaponOrAmmo && (
+                              (v2.3.166) — munição/insumo ainda não tem
+                              sub-cadastro por lote (ver docs/MANUAL_TECNICO.md,
+                              seção 186), continua manual por enquanto. */}
+                          {isAmmo && (
                             <>
                               <Grid item xs={12} sm={4}>
                                 <Field

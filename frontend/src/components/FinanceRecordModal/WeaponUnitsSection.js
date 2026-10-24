@@ -54,8 +54,13 @@ const EMPTY_DRAFT = {
   notes: "",
 };
 
+// "reserved" não é uma opção do <select> de edição manual (só existe
+// linkada a uma venda em aberto, ver FinanceWeaponUnitService.reserveForSale
+// — Etapa 2, v2.3.207), mas precisa de um rótulo legível na tabela.
 const statusLabel = (value) =>
-  WEAPON_STATUS_OPTIONS.find((o) => o.value === value)?.label || value || "—";
+  value === "reserved"
+    ? "Reservada (venda em aberto)"
+    : WEAPON_STATUS_OPTIONS.find((o) => o.value === value)?.label || value || "—";
 
 // Sub-cadastro de unidades físicas de arma (uma linha por número de série)
 // dentro do Produto/SKU — v2.3.205, Etapa 1. Diferente dos outros campos
@@ -307,7 +312,16 @@ const WeaponUnitsSection = ({ product, finance }) => {
                   <IconButton size="small" onClick={() => handleEdit(unit)} title="Editar">
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton size="small" onClick={() => handleRemove(unit)} title="Excluir">
+                  <IconButton
+                    size="small"
+                    onClick={() => handleRemove(unit)}
+                    disabled={unit.status === "reserved" || unit.status === "sold"}
+                    title={
+                      unit.status === "reserved" || unit.status === "sold"
+                        ? "Presa numa venda — cancele a venda pra liberar"
+                        : "Excluir"
+                    }
+                  >
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </TableCell>

@@ -355,8 +355,17 @@ que eram esquecimento:
   cliente — ver docs/MANUAL_TECNICO.md, seção 184, inclusive o relato de
   uma primeira versão que foi implementada ALÉM do autorizado e teve que
   ser revertida antes do commit final: nunca avançar pra uma etapa
-  seguinte sem autorização explícita e por escrito pra ESSA etapa,
-  mesmo que pareça óbvio continuar).** Até a v2.3.204, cada arma física
+  seguinte sem autorização explícita pra ESSA etapa, mesmo que pareça
+  óbvio continuar — autorização em chat direto do cliente conta, não
+  só por escrito; a Etapa 2 abaixo foi autorizada assim). Etapa 2
+  (v2.3.207, seção 186): Venda de item de arma escolhe a UNIDADE
+  (`weaponUnitId` em `SaleItem`), que fica "reserved" ao confirmar a
+  venda e só vira "sold" (baixa definitiva) quando a NOTA FISCAL for
+  REALMENTE autorizada (`SaleService.markWeaponUnitsSold`, chamado por
+  `FiscalDocumentService.emit`/`refreshStatus` — nunca na confirmação
+  da venda em si). Munição/insumo ainda não tem sub-cadastro por lote
+  (pedido, não implementado) — continua com campos manuais soltos na
+  Venda.** Até a v2.3.204, cada arma física
   era um `FinanceProduct` inteiro (mesmo SKU repetido entre as armas do
   mesmo modelo, `serialNumber`/`sigmaRegistrationNumber`/`weaponStatus`
   gravados direto no produto). Esses 3 campos migraram (só pra cadastro

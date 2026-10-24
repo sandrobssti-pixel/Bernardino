@@ -103,6 +103,16 @@ export const emit = async (
     companyId
   } as any);
 
+  // Pedido do cliente (Etapa 2, v2.3.207): a arma só sai de verdade do
+  // estoque disponível quando a nota é REALMENTE autorizada pelo
+  // gateway — não antes (ver SaleService.markWeaponUnitsSold e seção
+  // 186 do manual técnico). Gateway síncrono (já volta "authorized"
+  // aqui) cai nesse caminho; gateway assíncrono ("processing") só marca
+  // depois, em `refreshStatus`.
+  if (document.status === "authorized") {
+    await SaleService.markWeaponUnitsSold(sale.id, companyId);
+  }
+
   return document;
 };
 
@@ -156,6 +166,13 @@ export const refreshStatus = async (
     raw: result.raw || document.raw,
     issuedAt: result.status === "authorized" ? new Date() : document.issuedAt
   });
+
+  // Mesmo gancho de `emit` acima, pro caminho assíncrono (nota ficou
+  // "processing" na emissão e só agora, reconsultada, vira "authorized"
+  // de verdade).
+  if (result.status === "authorized") {
+    await SaleService.markWeaponUnitsSold(document.saleId, companyId);
+  }
 
   return document;
 };

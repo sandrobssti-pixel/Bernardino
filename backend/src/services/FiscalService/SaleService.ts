@@ -6,9 +6,11 @@ import SaleItem from "../../models/SaleItem";
 import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceReceivable from "../../models/FinanceReceivable";
+import FinanceWeaponUnit from "../../models/FinanceWeaponUnit";
 import FiscalConfig from "../../models/FiscalConfig";
 import FiscalDocument from "../../models/FiscalDocument";
 import * as Iva2027Service from "./Iva2027Service";
+import * as FinanceWeaponUnitService from "../FinanceService/FinanceWeaponUnitService";
 import { isProductionActive } from "./FiscalConfigService";
 
 interface ListRequest {
@@ -41,6 +43,9 @@ interface SaleItemData {
   sigmaSinarm?: string;
   ammoLot?: string;
   packageId?: string;
+  // Unidade física de arma (nº de série) escolhida pra esse item —
+  // Etapa 2, ver docs/MANUAL_TECNICO.md seção 186.
+  weaponUnitId?: number | null;
 }
 
 interface SaleData {
@@ -365,7 +370,8 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
       taxRate: product?.taxRate ?? "0",
       sigmaSinarm: item.sigmaSinarm || "",
       ammoLot: item.ammoLot || "",
-      packageId: item.packageId || ""
+      packageId: item.packageId || "",
+      weaponUnitId: item.weaponUnitId || null
     };
 
     if (reformEnabled) {
@@ -476,6 +482,7 @@ export const update = async (
   // foi mexido, ver `confirm` abaixo).
   if (wasConfirmed) {
     await adjustStock(sale, -1);
+    await releaseWeaponUnits(sale, companyId);
   }
 
   await sale.update({
@@ -506,7 +513,9 @@ export const update = async (
     // só falta descontar a nova) — repetir a edição com quantidade
     // menor resolve, sem duplicar desconto.
     ensureStockAvailable(updated);
+    await ensureWeaponUnitsAvailable(updated, companyId);
     await adjustStock(updated, 1);
+    await reserveWeaponUnits(updated, companyId);
 
     if (updated.receivableId) {
       await FinanceReceivable.update(
@@ -524,9 +533,12 @@ export const update = async (
 // cadastrado) ou produto que não controla estoque (ex.: serviço) nunca
 // entram nessa conta. Pedido do cliente (v2.3.114): "não venda se não
 // tiver disponível" — bloqueia a confirmação, não só avisa.
+// Item de arma com `weaponUnitId` fica de fora dessa conta por
+// quantidade — a disponibilidade dele é por unidade (`serialNumber`),
+// checada em `ensureWeaponUnitsAvailable` (v2.3.207/Etapa 2).
 const ensureStockAvailable = (sale: Sale): void => {
   const shortages = (sale.items || [])
-    .filter(item => item.product?.controlStock)
+    .filter(item => !item.weaponUnitId && item.product?.controlStock)
     .map(item => ({ item, product: item.product, needed: Number(item.quantity) || 0 }))
     .filter(({ product, needed }) => needed > product.stockQuantity);
 
@@ -540,9 +552,13 @@ const ensureStockAvailable = (sale: Sale): void => {
 
 // `direction` 1 = desconta (confirmar), -1 = devolve (cancelar) — mesma
 // função nos dois sentidos pra não duplicar a lógica de "só mexe quando
-// tem produto + controla estoque".
+// tem produto + controla estoque". Item com `weaponUnitId` nunca entra
+// aqui — o `stockQuantity` do produto-arma já é recalculado à parte por
+// `FinanceWeaponUnitService.recalculateStockQuantity` (contagem de
+// unidades "em estoque"); somar/subtrair aqui também duplicaria a conta.
 const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
   for (const item of sale.items || []) {
+    if (item.weaponUnitId) continue;
     if (!item.product?.controlStock) continue;
     const quantity = Number(item.quantity) || 0;
     if (quantity === 0) continue;
@@ -550,6 +566,61 @@ const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
       by: direction * quantity,
       where: { id: item.product.id }
     });
+  }
+};
+
+// --------------------------------------------------------------------
+// Etapa 2 — integração de arma (por número de série) com a Venda,
+// autorizada pelo Sandro em chat direto. Pedido explícito: a unidade só
+// sai de "disponível" quando a VENDA é confirmada (fica "reservada" —
+// ninguém mais pode escolhê-la enquanto isso), e só vira "vendida" de
+// verdade (baixa definitiva) quando a NOTA FISCAL daquela venda for
+// REALMENTE autorizada pelo gateway — não antes. Ver
+// `markWeaponUnitsSold` (chamado por FiscalDocumentService.emit/
+// refreshStatus) e docs/MANUAL_TECNICO.md, seção 186.
+// --------------------------------------------------------------------
+
+const ensureWeaponUnitsAvailable = async (sale: Sale, companyId: number): Promise<void> => {
+  const weaponItems = (sale.items || []).filter(item => item.weaponUnitId);
+  if (weaponItems.length === 0) return;
+
+  const units = await FinanceWeaponUnit.findAll({
+    where: { id: weaponItems.map(item => item.weaponUnitId), companyId }
+  });
+  const unitById = new Map(units.map(unit => [unit.id, unit]));
+
+  const unavailable = weaponItems.filter(item => unitById.get(item.weaponUnitId as number)?.status !== "in_stock");
+  if (unavailable.length > 0) {
+    const details = unavailable
+      .map(item => unitById.get(item.weaponUnitId as number)?.serialNumber || item.description)
+      .join(", ");
+    throw new AppError(`Arma(s) não disponível(is) pra venda (já reservada/vendida/baixada): ${details}`);
+  }
+};
+
+const reserveWeaponUnits = async (sale: Sale, companyId: number): Promise<void> => {
+  for (const item of sale.items || []) {
+    if (!item.weaponUnitId) continue;
+    await FinanceWeaponUnitService.reserveForSale(item.weaponUnitId, item.id, companyId);
+  }
+};
+
+const releaseWeaponUnits = async (sale: Sale, companyId: number): Promise<void> => {
+  for (const item of sale.items || []) {
+    if (!item.weaponUnitId) continue;
+    await FinanceWeaponUnitService.releaseForSaleItem(item.id, companyId);
+  }
+};
+
+// Chamado por FiscalDocumentService.emit/refreshStatus quando a nota
+// fiscal da venda é autorizada de verdade pelo gateway — só nesse
+// momento a(s) unidade(s) de arma da venda realmente "saem" do estoque
+// (ver comentário da seção acima).
+export const markWeaponUnitsSold = async (saleId: string | number, companyId: number): Promise<void> => {
+  const sale = await show(saleId, companyId);
+  for (const item of sale.items || []) {
+    if (!item.weaponUnitId) continue;
+    await FinanceWeaponUnitService.markSoldForSaleItem(item.id, companyId);
   }
 };
 
@@ -572,6 +643,7 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
   }
 
   ensureStockAvailable(sale);
+  await ensureWeaponUnitsAvailable(sale, companyId);
 
   const description = `Venda #${sale.id}${sale.customer ? ` - ${sale.customer.name}` : ""}`;
 
@@ -585,6 +657,7 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
   } as any);
 
   await adjustStock(sale, 1);
+  await reserveWeaponUnits(sale, companyId);
   await sale.update({ status: "confirmed", receivableId: receivable.id });
 
   return show(id, companyId);
@@ -613,6 +686,7 @@ export const cancel = async (id: string | number, companyId: number): Promise<Sa
 
   if (sale.status === "confirmed") {
     await adjustStock(sale, -1);
+    await releaseWeaponUnits(sale, companyId);
   }
 
   if (sale.receivableId) {
