@@ -270,6 +270,14 @@ const Financeiro = () => {
           templateFilename="modelo-importacao-produtos.xlsx"
           context={financeRecordContext}
           enablePhotoUpload
+          // Faltava — sem isso, `FinanceRecordModal` não tinha acesso a
+          // `finance.suppliers` (campo "Distribuidor/Fornecedor
+          // Principal" nunca retornava resultado nenhum ao buscar) nem a
+          // `finance.products.weaponUnits` (seção "Armas deste modelo"
+          // quebrava ao tentar listar/salvar unidade). Bug relatado pelo
+          // cliente: "quando digita fornecedor não aparece os
+          // cadastrados". Ver docs/MANUAL_TECNICO.md, seção 188.
+          finance={finance}
         />
       );
     }

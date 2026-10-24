@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.208] — Corrige busca de fornecedor no cadastro de Produto — 2026-10-24
+
+### Corrigido
+- **Campo "Distribuidor / Fornecedor Principal" no cadastro de Produto
+  nunca retornava nenhum resultado ao digitar**, mesmo com fornecedores
+  cadastrados (relatado pelo cliente: "quando digita fornecedor não
+  aparece os cadastrados"). Causa raiz: a aba Produtos do Financeiro não
+  estava passando os dados de acesso ao backend (`finance`) pro
+  formulário de edição — o mesmo problema também deixava a seção "Armas
+  deste modelo" (número de série) sem conseguir listar/salvar unidades
+  corretamente. Um `finance={finance}` faltando numa única linha.
+
+### Técnico
+- Migration preparatória (sem uso ainda no código): `SaleItems` ganhou
+  cópia dos 13 campos de ICMS/CSOSN/IBPT do Produto, como primeiro passo
+  pra possivelmente tornar esses campos editáveis por item de Venda —
+  pausado a pedido do cliente pra esclarecer antes se os dados fiscais
+  de SAÍDA devem mesmo sair do cadastro de Produto (pedido de manhã) ou
+  ficar lá (sugestão de um prompt de contador que o cliente trouxe à
+  tarde) — ver docs/MANUAL_TECNICO.md, seção 188.
+
 ## [2.3.207] — Venda de arma por número de série (Etapa 2) — baixa só na emissão da nota — 2026-10-24
 
 ### Adicionado

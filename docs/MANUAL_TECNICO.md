@@ -13475,3 +13475,90 @@ Etapa 2 mas por lote em vez de por unidade única.
 `backend/src/services/FiscalService/FiscalDocumentService.ts`,
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`.
+
+## 188. Busca de fornecedor quebrada no cadastro de Produto + pausa na mudança de dados fiscais (v2.3.208)
+
+### Bug real, causa raiz simples
+
+Cliente reportou, logo depois do deploy da v2.3.207: "quando digita
+fornecedor não aparece os cadastrados". Comprovado que os 4
+fornecedores reais do cliente (CBC Brasil, Glock do Brasil, Pavei
+Brasil, Taurus Armas S.A.) existem e aparecem normalmente na aba
+"Fornecedores" — o problema era só na busca embutida dentro do
+cadastro de Produto (campo "Distribuidor/Fornecedor Principal").
+
+Causa: `frontend/src/pages/Financeiro/index.js`, a aba `"products"`
+monta `<FinanceRecordList ... />` sem passar a prop `finance` — as
+outras abas (Clientes, Fornecedores, Contas a Pagar/Receber) todas
+passam `finance={finance}`, só a de Produtos não. Sem essa prop,
+`FinanceRecordModal` (que o `FinanceRecordList` abre por baixo) nunca
+recebe acesso a `finance.suppliers`/`finance.products.weaponUnits` —
+qualquer campo `type: "asyncSelect"` com `optionsResource: "suppliers"`
+cai sempre no `if (!resource) return [];` do `FinanceRecordModal.js` e
+devolve lista vazia pra qualquer busca. A seção "Armas deste modelo"
+(`WeaponUnitsSection.js`, Etapa 1/184) também dependia dessa mesma prop
+— provavelmente já estava quebrada desde que esse componente foi
+criado, só não tinha sido notada porque o teste desta sessão sempre
+rodou contra Postgres local direto no `FinanceWeaponUnitService`, nunca
+clicando de verdade na tela de Produtos do navegador. Correção: uma
+linha, `finance={finance}` na chamada de `FinanceRecordList` da aba
+`products`.
+
+**Lição**: todo o trabalho desta sessão em cima de arma/munição foi
+testado via script contra Postgres local (`node` chamando os services
+direto) — forte pra pegar bug de lógica/dado, mas não pega esse tipo de
+"prop não chegou no componente", que só aparece testando a tela de
+verdade no navegador. Nenhuma sessão anterior teve acesso a navegador
+pra essa parte do sistema.
+
+### "Internal server error" — ainda não localizado
+
+Cliente também reportou "Internal server error" (string literal que só
+existe em `backend/src/app.ts`, handler de erro genérico — ou seja, é
+erro de servidor de verdade, não um bug só de frontend) ao "editar e
+colocar mais produtos". Pedido os logs do backend (`docker logs
+atendeflow-backend-1`) duas vezes, filtrando e sem filtrar o ruído de
+`[SCHEDULE_VERIFY]` (log não relacionado que lota o buffer) — as duas
+vezes, nenhuma linha de erro apareceu, só o ruído de sempre. Hipótese
+mais provável: o cliente não reproduziu o erro de novo bem na hora
+antes de rodar o comando dos logs (timing), não uma falha do próprio
+logger (`pino`, escreve em stdout, capturado por `docker logs`
+normalmente — confirmado lendo `src/utils/logger.ts` e o handler de
+erro em `app.ts`, que chama `logger.error(err)` antes de responder
+500). **Não resolvido nesta sessão** — precisa de uma reprodução nova,
+com o comando de log rodado imediatamente depois.
+
+### Mudança de rumo nos dados fiscais — pausada, não decidida
+
+Mesmo dia, duas instruções do cliente em direções opostas sobre onde
+os 13 campos de ICMS/CSOSN/IBPT (seção 185) devem morar:
+
+1. De manhã: "dados fiscais não é pra estar em cadastro de produto" —
+   levou a começar uma migration (`20261024100000-add-fiscal-fields-
+   to-sale-items`) copiando os 13 campos pra `SaleItems`, pra virarem
+   editáveis por item de Venda (mesmo padrão de "snapshot" já usado em
+   `description`/`sku`/`ncm`/`cfop`/`costPrice`/`taxRate`) e tirar a
+   aba "Dados Fiscais" do cadastro de Produto-arma/munição de vez.
+2. Mesma tarde: colou um prompt pedindo um fluxo de "Contador
+   Especialista" com dois blocos — Bloco 1 (regras de ENTRADA, no
+   lançamento da nota do fornecedor: CFOP de entrada, CST/CSOSN de
+   entrada, crédito x custo) e Bloco 2 (regras de SAÍDA/venda) — e o
+   Bloco 2, como o próprio cliente redigiu, diz que o CST/CSOSN de
+   saída deve ficar "configurado no cadastro deste produto", ou seja,
+   o OPOSTO do pedido da manhã.
+
+**Nada foi decidido ou revertido** — a migration de `SaleItems` rodou
+(testada, inerte: só `ADD COLUMN` com default seguro, nenhum código
+lê/escreve essas colunas ainda), mas o resto do trabalho (model,
+`SaleService`, `FocusNFeService`, `SaleModal.js`, esconder "Dados
+Fiscais" do Produto) foi **pausado** até o cliente esclarecer a
+contradição. Também identificado, mas não construído: este sistema não
+tem NENHUM conceito de "nota fiscal de entrada"/recebimento de
+mercadoria do fornecedor hoje — o pedido do cliente de "lançar os
+tributos de entrada pegando informação dos fornecedores" é, na
+prática, um módulo novo inteiro (Compras/Entrada), não um ajuste no que
+já existe.
+
+**Arquivos**: `frontend/src/pages/Financeiro/index.js`,
+`backend/src/database/migrations/20261024100000-add-fiscal-fields-to-sale-items.ts`
+(novo, não utilizado ainda).
