@@ -219,18 +219,41 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
   // hora certa (acesso ao conteúdo de uma janela de outra origem é
   // bloqueado pelo navegador) — por isso o pequeno atraso fixo abaixo, que
   // é o mesmo contorno usado por sistemas que imprimem PDF de terceiro.
-  const handlePrint = (doc) => {
+  const handlePrint = async (doc) => {
     if (!doc?.pdfUrl) return;
-    const printWindow = window.open(doc.pdfUrl, "_blank");
-    if (!printWindow) return;
-    setTimeout(() => {
-      try {
-        printWindow.print();
-      } catch (err) {
-        // Pop-up bloqueado/navegador recusou — o PDF já abriu na aba nova,
-        // o operador ainda consegue imprimir por lá manualmente.
-      }
-    }, 1200);
+    try {
+      // v2.3.220: passa pelo backend (`downloadPdf`, blob) em vez de abrir
+      // `doc.pdfUrl` direto — uma nota CANCELADA precisa sair carimbada
+      // (ver FiscalDocumentService.getPdf); de quebra, o blob fica na
+      // mesma origem deste site, não mais na da Focus NFe.
+      const blob = await fiscal.fiscalDocuments.downloadPdf(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      const printWindow = window.open(url, "_blank");
+      if (!printWindow) return;
+      setTimeout(() => {
+        try {
+          printWindow.print();
+        } catch (err) {
+          // Pop-up bloqueado/navegador recusou — o PDF já abriu na aba nova,
+          // o operador ainda consegue imprimir por lá manualmente.
+        }
+      }, 1200);
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  // "Ver DANFe (PDF)" (v2.3.220) — mesmo motivo do handlePrint acima:
+  // passa pelo backend em vez de abrir `doc.pdfUrl` direto, pra uma nota
+  // cancelada vir carimbada.
+  const handleViewPdf = async (doc) => {
+    try {
+      const blob = await fiscal.fiscalDocuments.downloadPdf(doc.id);
+      const url = window.URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      toastError(err);
+    }
   };
 
   // Marca/desmarca "Precisa corrigir" (amarelo) numa nota com erro —
@@ -538,7 +561,7 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
                       <>
                         {doc.pdfUrl && (
                           <Tooltip title="Ver DANFe (PDF)">
-                            <IconButton size="small" onClick={() => window.open(doc.pdfUrl, "_blank")}>
+                            <IconButton size="small" onClick={() => handleViewPdf(doc)}>
                               <PictureAsPdfIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>

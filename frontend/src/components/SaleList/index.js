@@ -174,6 +174,11 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   // trocar explicitamente.
   const [downloadFormat, setDownloadFormat] = useState("pdf");
   const [downloading, setDownloading] = useState(false);
+  // "Baixar notas do período" (v2.3.220) — formato do zip (padrão: os
+  // dois juntos, PDF + XML, é o que a contabilidade pede no fechamento
+  // mensal).
+  const [periodExportFormat, setPeriodExportFormat] = useState("both");
+  const [exportingPeriod, setExportingPeriod] = useState(false);
   const fileInputRef = useRef(null);
 
   const fetchSales = useCallback(async () => {
@@ -231,7 +236,12 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       const documents = await fiscal.fiscalDocuments.list(sale.id);
       const doc = (documents || []).find((d) => d.status === "authorized" && d.pdfUrl);
       if (doc) {
-        window.open(doc.pdfUrl, "_blank");
+        // v2.3.220: passa pelo backend (blob) em vez de abrir `doc.pdfUrl`
+        // direto — mesmo caminho usado no detalhe da venda, consistente
+        // pros dois lugares que baixam PDF.
+        const blob = await fiscal.fiscalDocuments.downloadPdf(doc.id);
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, "_blank");
       } else {
         toast.info("Nenhuma nota autorizada encontrada pra essa venda.");
       }
@@ -353,6 +363,50 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
         `${skipped} venda(s) sem nota autorizada com ${downloadFormat.toUpperCase()} disponível — ignorada(s).`
       );
     }
+  };
+
+  // "Baixar notas do período" (v2.3.220, pedido do cliente: "preciso de
+  // um filtro pra baixar PDF e XML por período, pois no final do mês
+  // tem que mandar pra contabilidade gerar o DARF do Simples Nacional")
+  // — diferente do `handleBulkDownload` acima (que depende de marcar
+  // manualmente as vendas da PÁGINA atual, até 20 por vez): usa direto o
+  // período já escolhido no filtro ali em cima e baixa TODAS as notas
+  // autorizadas daquele intervalo, de uma vez, num ZIP só (backend monta
+  // o zip, ver FiscalDocumentService.exportPeriodZip).
+  const handleExportPeriod = async () => {
+    const { startDate, endDate } = resolvePeriodRange(periodPreset, customStart, customEnd);
+    if (!startDate || !endDate) {
+      toast.warn("Escolha um período (Hoje/Semana/Mês/Personalizado) antes de baixar.");
+      return;
+    }
+    setExportingPeriod(true);
+    try {
+      const blob = await fiscal.fiscalDocuments.exportPeriod(startDate, endDate, periodExportFormat);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `notas-fiscais-${startDate}-a-${endDate}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      // Mesmo motivo do handlePreview em SaleDetailModal.js: resposta de
+      // erro também vem como Blob por causa do `responseType: "blob"`.
+      const blobData = err?.response?.data;
+      if (blobData instanceof Blob) {
+        try {
+          const text = await blobData.text();
+          const parsed = JSON.parse(text);
+          toastError({ response: { data: parsed } });
+        } catch {
+          toastError(err);
+        }
+      } else {
+        toastError(err);
+      }
+    }
+    setExportingPeriod(false);
   };
 
   const handleConfirmAction = async () => {
@@ -523,6 +577,38 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
             <MenuItem value="pdf">PDF</MenuItem>
             <MenuItem value="xml">XML</MenuItem>
           </TextField>
+          {/* "Baixar notas do período" (v2.3.220) — diferente do botão
+              "Baixar selecionadas" (precisa marcar venda por venda, só
+              as da página atual): baixa TODAS as notas autorizadas do
+              período escolhido ali em cima, de uma vez, num ZIP só.
+              Pedido do cliente pro fechamento mensal com a
+              contabilidade (DARF do Simples Nacional). */}
+          <TextField
+            select
+            variant="outlined"
+            size="small"
+            label="Zip do período"
+            style={{ minWidth: 140 }}
+            value={periodExportFormat}
+            onChange={(e) => setPeriodExportFormat(e.target.value)}
+          >
+            <MenuItem value="both">PDF + XML</MenuItem>
+            <MenuItem value="pdf">Só PDF</MenuItem>
+            <MenuItem value="xml">Só XML</MenuItem>
+          </TextField>
+          <Tooltip title="Baixa num ZIP só todas as notas autorizadas do período escolhido acima — pro fechamento mensal com a contabilidade">
+            <span>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<GetAppIcon />}
+                onClick={handleExportPeriod}
+                disabled={exportingPeriod}
+              >
+                {exportingPeriod ? "Gerando ZIP..." : "Baixar notas do período"}
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
           {canImport && (

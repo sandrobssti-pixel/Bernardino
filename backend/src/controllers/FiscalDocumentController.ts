@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import fs from "fs";
 import AppError from "../errors/AppError";
 import EnsureFiscalAccess from "../services/FiscalService/EnsureFiscalAccess";
 import * as FiscalDocumentService from "../services/FiscalService/FiscalDocumentService";
@@ -113,4 +114,45 @@ export const previewDanfe = async (req: Request, res: Response): Promise<Respons
 
   res.setHeader("Content-Type", "application/pdf");
   res.send(result.pdf);
+};
+
+// Devolve o PDF de verdade da nota (v2.3.220) — proxy pelo backend, não
+// um redirect pra Focus NFe, porque uma nota CANCELADA precisa vir
+// carimbada "CANCELADA" na diagonal (ver `FiscalDocumentService.getPdf`).
+export const downloadPdf = async (req: Request, res: Response): Promise<Response | void> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { id } = req.params;
+
+  const pdf = await FiscalDocumentService.getPdf(id, companyId);
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.send(pdf);
+};
+
+// ZIP com todas as notas autorizadas de um período (v2.3.220, pedido do
+// cliente pro fechamento mensal com a contabilidade/DARF do Simples
+// Nacional).
+export const exportPeriod = async (req: Request, res: Response): Promise<Response | void> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { startDate, endDate, format } = req.query as { startDate?: string; endDate?: string; format?: string };
+
+  if (!startDate || !endDate) {
+    throw new AppError("ERR_FISCAL_EXPORT_PERIOD_REQUIRED");
+  }
+
+  const { zipPath, fileName } = await FiscalDocumentService.exportPeriodZip(
+    startDate,
+    endDate,
+    (format as "pdf" | "xml" | "both") || "both",
+    companyId
+  );
+
+  res.download(zipPath, fileName, (err) => {
+    fs.rmSync(zipPath, { force: true });
+    if (err && !res.headersSent) {
+      res.status(500).json({ error: "ERR_FISCAL_EXPORT_DOWNLOAD_FAILED" });
+    }
+  });
 };

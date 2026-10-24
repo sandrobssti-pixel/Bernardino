@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.220] — Carimbo "CANCELADA" no PDF, download por backend, ZIP de notas por período — 2026-10-24
+
+### Adicionado
+- **PDF de nota cancelada agora sai carimbado "CANCELADA" na diagonal**
+  — o PDF que a Focus NFe devolve é sempre o DANFE "original", igual
+  pra nota autorizada ou cancelada; nada nele avisa visualmente. Agora
+  todo download/visualização/impressão de PDF passa pelo próprio
+  backend (não mais um link direto pra Focus NFe), que carimba quando o
+  documento está cancelado (usando `pdf-lib`, nova dependência, sem
+  binário nativo).
+- **"Baixar notas do período"** na lista de Vendas — baixa num ZIP só
+  (PDF, XML ou os dois) todas as notas AUTORIZADAS do período já
+  escolhido no filtro, sem precisar marcar venda por venda (como o
+  "Baixar selecionadas" já existente, limitado a uma página de cada
+  vez). Pedido do cliente pro fechamento mensal com a contabilidade —
+  DARF do Simples Nacional.
+
 ## [2.3.219] — Rótulo do e-mail do emitente esclarecido — 2026-10-24
 
 ### Alterado

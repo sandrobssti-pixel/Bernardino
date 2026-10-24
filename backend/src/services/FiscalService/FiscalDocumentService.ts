@@ -1,7 +1,16 @@
+import axios from "axios";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import archiver from "archiver";
+import { Op } from "sequelize";
+import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
 import AppError from "../../errors/AppError";
 import FiscalDocument from "../../models/FiscalDocument";
 import FiscalDocumentEmailLog from "../../models/FiscalDocumentEmailLog";
 import Company from "../../models/Company";
+import Sale from "../../models/Sale";
+import FinanceCustomer from "../../models/FinanceCustomer";
 import User from "../../models/User";
 import * as SaleService from "./SaleService";
 import * as FiscalConfigService from "./FiscalConfigService";
@@ -407,4 +416,129 @@ export const previewDanfe = async (
   const gateway = FiscalGatewayService.getGateway(config.gatewayProvider);
   const fn = FiscalGatewayService.requireFeature(gateway, "previewDanfe");
   return fn(sale, company, config);
+};
+
+// Carimbo diagonal "CANCELADA" (v2.3.220, pedido do cliente) — o PDF que
+// a Focus NFe devolve (`pdfUrl`) é sempre o DANFE "original", igual pra
+// uma nota autorizada ou já cancelada; nada no documento em si avisa
+// visualmente que foi cancelada (só o `status` que este sistema guarda).
+// Carimbado aqui, no nosso próprio PDF servido pro download — não muda o
+// documento na Focus NFe nem o XML autorizado, só o PDF que a gente
+// entrega pro operador baixar/imprimir, pra não confundir com uma nota
+// válida. `pdf-lib` escolhido por não ter dependência nativa (roda igual
+// dentro do container Docker, sem precisar instalar nada a mais no
+// Dockerfile).
+const stampCancelled = async (pdfBytes: Buffer): Promise<Buffer> => {
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const text = "CANCELADA";
+  const size = 70;
+
+  for (const page of pdfDoc.getPages()) {
+    const { width, height } = page.getSize();
+    const textWidth = font.widthOfTextAtSize(text, size);
+    page.drawText(text, {
+      x: width / 2 - textWidth / 2,
+      y: height / 2,
+      size,
+      font,
+      color: rgb(0.8, 0.1, 0.1),
+      opacity: 0.35,
+      rotate: degrees(45)
+    });
+  }
+
+  return Buffer.from(await pdfDoc.save());
+};
+
+// Baixa o PDF de verdade (proxy pelo próprio backend, não um redirect pra
+// Focus NFe) — necessário pra poder carimbar "CANCELADA" antes de
+// entregar, quando for o caso. Documento sem `pdfUrl` ainda (processando/
+// erro) não tem o que baixar.
+export const getPdf = async (id: string | number, companyId: number): Promise<Buffer> => {
+  const document = await show(id, companyId);
+
+  if (!document.pdfUrl) {
+    throw new AppError("ERR_FISCAL_DOCUMENT_PDF_NOT_AVAILABLE");
+  }
+
+  const response = await axios.get(document.pdfUrl, { responseType: "arraybuffer" });
+  const pdfBytes = Buffer.from(response.data);
+
+  return document.status === "cancelled" ? stampCancelled(pdfBytes) : pdfBytes;
+};
+
+// Nome de arquivo seguro — troca qualquer caractere que não seja
+// letra/número/espaço/hífen por "_" (evita barra, acento mal-codificado
+// etc. quebrando o zip em algum SO).
+const safeFileName = (value: string): string =>
+  (value || "").replace(/[^\p{L}\p{N} _-]/gu, "").trim().replace(/\s+/g, "-").slice(0, 60) || "nota";
+
+// Exporta em ZIP todas as notas AUTORIZADAS de um período (v2.3.220,
+// pedido do cliente: "preciso de um filtro pra baixar PDF e XML por
+// período, pois no final do mês tem que mandar pra contabilidade gerar
+// o DARF do Simples Nacional"). Filtra por `issuedAt` (quando a nota foi
+// autorizada de verdade pela Sefaz), não por `saleDate` — é a data que
+// importa pra apuração de imposto, pode divergir da data da venda em si.
+// Só nota AUTORIZADA entra (cancelada não é receita, não deveria entrar
+// no DARF) — mesmo padrão de zip+tempdir já usado em
+// `FlowExportController.ts`.
+export const exportPeriodZip = async (
+  startDate: string,
+  endDate: string,
+  format: "pdf" | "xml" | "both",
+  companyId: number
+): Promise<{ zipPath: string; fileName: string }> => {
+  const documents = await FiscalDocument.findAll({
+    where: {
+      companyId,
+      status: "authorized",
+      issuedAt: {
+        [Op.gte]: new Date(`${startDate}T00:00:00`),
+        [Op.lte]: new Date(`${endDate}T23:59:59`)
+      }
+    },
+    include: [{ model: Sale, as: "sale", include: [{ model: FinanceCustomer, as: "customer" }] }],
+    order: [["issuedAt", "ASC"]]
+  });
+
+  if (documents.length === 0) {
+    throw new AppError("ERR_FISCAL_NO_DOCUMENTS_IN_PERIOD");
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "fiscal-export-"));
+
+  try {
+    for (const rawDoc of documents) {
+      const doc = resolveDocumentUrls(rawDoc);
+      const customerName = (doc as any).sale?.customer?.name || "consumidor";
+      const baseName = `NFe-${doc.number || doc.id}-${safeFileName(customerName)}`;
+
+      if ((format === "pdf" || format === "both") && doc.pdfUrl) {
+        const response = await axios.get(doc.pdfUrl, { responseType: "arraybuffer" });
+        fs.writeFileSync(path.join(tempDir, `${baseName}.pdf`), Buffer.from(response.data));
+      }
+      if ((format === "xml" || format === "both") && doc.xmlUrl) {
+        const response = await axios.get(doc.xmlUrl, { responseType: "arraybuffer" });
+        fs.writeFileSync(path.join(tempDir, `${baseName}.xml`), Buffer.from(response.data));
+      }
+    }
+
+    const zipFileName = `notas-fiscais-${startDate}-a-${endDate}.zip`;
+    const zipPath = path.join(os.tmpdir(), `fiscal-export-${companyId}-${Date.now()}.zip`);
+
+    await new Promise<void>((resolve, reject) => {
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver("zip", { zlib: { level: 9 } });
+      output.on("close", () => resolve());
+      archive.on("error", (err) => reject(err));
+      archive.pipe(output);
+      archive.directory(tempDir, false);
+      archive.finalize();
+    });
+
+    return { zipPath, fileName: zipFileName };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 };

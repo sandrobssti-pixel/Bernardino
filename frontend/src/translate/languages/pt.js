@@ -1898,6 +1898,10 @@ const messages = {
         ERR_FISCAL_DOCUMENT_JUSTIFICATION_TOO_SHORT:
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",
+        ERR_FISCAL_DOCUMENT_PDF_NOT_AVAILABLE: "Essa nota ainda não tem PDF disponível pra baixar.",
+        ERR_FISCAL_EXPORT_PERIOD_REQUIRED: "Escolha o período (data inicial e final) antes de baixar.",
+        ERR_FISCAL_NO_DOCUMENTS_IN_PERIOD: "Nenhuma nota autorizada encontrada nesse período.",
+        ERR_FISCAL_EXPORT_DOWNLOAD_FAILED: "Falha ao baixar o arquivo — tente de novo.",
         ERR_NO_FISCAL_MODULE_ACCESS: "Seu plano não inclui o módulo fiscal.",
         ERR_NO_PAYMENT_MODULE_ACCESS: "Seu plano não inclui a cobrança via gateway (Pix/boleto).",
         ERR_NO_FLOWBUILDER_MODULE_ACCESS: "Seu plano não inclui criar/editar fluxos no Flowbuilder.",

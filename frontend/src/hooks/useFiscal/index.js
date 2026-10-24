@@ -121,6 +121,25 @@ const useFiscal = () => {
       });
       return data;
     },
+    // PDF de verdade da nota (v2.3.220) — passa pelo backend em vez de um
+    // link direto pra Focus NFe, porque uma nota cancelada vem carimbada
+    // "CANCELADA" na diagonal (ver FiscalDocumentService.getPdf).
+    downloadPdf: async (id) => {
+      const { data } = await api.get(`/fiscal-documents/${id}/pdf`, {
+        responseType: "blob",
+      });
+      return data;
+    },
+    // ZIP com todas as notas autorizadas de um período (v2.3.220, pedido
+    // do cliente pro fechamento mensal com a contabilidade/DARF do
+    // Simples Nacional).
+    exportPeriod: async (startDate, endDate, format) => {
+      const { data } = await api.get(`/fiscal-documents/export-period`, {
+        params: { startDate, endDate, format },
+        responseType: "blob",
+      });
+      return data;
+    },
     // Exclui de verdade um documento de teste (Homologação) — o backend
     // recusa (ERR_FISCAL_DOCUMENT_CANNOT_DELETE_PRODUCTION) se for um
     // documento de Produção, nota fiscal real (v2.3.118).

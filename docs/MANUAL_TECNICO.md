@@ -14394,3 +14394,132 @@ própria Focus NFe, fora do controle deste sistema. Cliente já abriu
 chamado com o suporte da Focus NFe sobre isso.
 
 **Arquivos**: `frontend/src/components/FiscalConfigPanel/index.js`.
+
+## 200. Carimbo "CANCELADA", download de PDF pelo backend, ZIP de notas por período (v2.3.220)
+
+### Pedido
+
+Cliente mandou as duas DANFEs reais do incidente 505/506 (já com o
+status real confirmado: 505 autorizada, 506 cancelada — ver seção 201
+pra correção dos dados dessa venda específica) e pediu três coisas
+juntas:
+
+1. Quando baixar o PDF de uma nota cancelada, o documento vir com
+   "CANCELADA" carimbado na diagonal, pra não confundir com uma nota
+   válida.
+2. Um filtro pra baixar PDF e XML por período, porque no fim do mês
+   precisa mandar pra contabilidade gerar o DARF do Simples Nacional.
+
+### 1. Carimbo "CANCELADA"
+
+Conferido: o PDF que a Focus NFe devolve (`pdfUrl` salvo em
+`FiscalDocument`) é sempre o DANFE "como foi emitido" — pra uma nota
+cancelada, o PDF continua idêntico ao de quando foi autorizada, sem
+nenhum aviso visual de cancelamento. Isso é assim na origem (gateway),
+não tem parâmetro pra pedir diferente.
+
+Resolvido carimbando no PDF que ESTE sistema entrega — sem mudar o
+documento na Focus NFe nem o XML autorizado (que são os de verdade,
+legais), só o arquivo que o operador baixa/imprime daqui. Nova
+dependência `pdf-lib` (puro JS, sem binário nativo — roda igual dentro
+do container Docker sem precisar instalar nada a mais).
+
+Isso exigiu trocar a forma como o PDF é servido: antes, os botões
+"Ver DANFe"/"Baixar nota"/"Imprimir" abriam `doc.pdfUrl` DIRETO (link
+pra Focus NFe) — agora todos passam por um endpoint novo do próprio
+backend (`GET /fiscal-documents/:id/pdf`,
+`FiscalDocumentService.getPdf`), que baixa o PDF da Focus NFe, carimba
+"CANCELADA" SE `document.status === "cancelled"`, e devolve. Frontend
+troca `window.open(doc.pdfUrl)` por buscar o blob
+(`fiscal.fiscalDocuments.downloadPdf(id)`) e abrir um Object URL — mesmo
+padrão já usado em `previewDanfe` (pré-visualização).
+
+Testado visualmente: PDF real de uma nota cancelada, depois de
+carimbado, renderizado com `pdftoppm` — texto "CANCELADA" grande,
+vermelho translúcido, na diagonal, cobrindo a página inteira sem
+esconder os dados (chave de acesso, valores etc. continuam legíveis).
+
+### 2. ZIP de notas por período
+
+Diferente do "Baixar selecionadas" que já existia (precisa marcar
+checkbox venda por venda, só as da PÁGINA atual — até 20 por vez):
+botão novo "Baixar notas do período" usa direto o filtro de Período já
+escolhido na tela (Hoje/Semana/Mês/Personalizado) e baixa TODAS as
+notas AUTORIZADAS daquele intervalo de uma vez, num ZIP só.
+
+Backend (`FiscalDocumentService.exportPeriodZip`): filtra
+`FiscalDocument` por `status: "authorized"` (nota cancelada não é
+receita, não deveria entrar no DARF) e `issuedAt` dentro do intervalo
+(data de AUTORIZAÇÃO pela Sefaz, que é o que importa pra apuração de
+imposto — pode divergir de `Sale.saleDate`). Pra cada documento, baixa
+PDF e/ou XML (conforme o formato escolhido: só PDF, só XML, ou os
+dois) pra uma pasta temporária, nomeando
+`NFe-<número>-<nome do cliente>.pdf/.xml`, zipa tudo com `archiver`
+(mesmo padrão já usado em `FlowExportController.ts`) e serve como
+download — pasta temporária e zip são apagados depois (`finally`/
+callback do `res.download`).
+
+Rota: `GET /fiscal-documents/export-period?startDate=...&endDate=...&format=pdf|xml|both`.
+Frontend (`SaleList.js`): novo seletor de formato + botão "Baixar notas
+do período", ao lado do filtro de Período já existente — avisa se
+nenhum período foi escolhido antes de tentar.
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Testado contra Postgres local
+com um servidor HTTP fake (simulando a Focus NFe): 3 documentos
+criados (um dentro do período escolhido, um fora, um cancelado dentro
+do período) — confirmado que o ZIP gerado tem EXATAMENTE os 2 arquivos
+certos (PDF+XML da nota dentro do período e autorizada), excluindo
+corretamente a de fora do período e a cancelada. Frontend: build de
+produção sem erro.
+
+**Arquivos**: `backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/controllers/FiscalDocumentController.ts`,
+`backend/src/routes/fiscalRoutes.ts`, `backend/package.json` (nova
+dependência `pdf-lib`), `frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/translate/languages/pt.js`.
+
+## 201. Correção pontual de dados: venda #518 (duplicidade de NF-e 505/506)
+
+### Contexto
+
+Depois da correção do bug de emissão duplicada (v2.3.215), o cliente
+pediu pra corrigir o ESTADO REAL da venda #518 (Lucas Sallenave
+Cambeses), afetada pelo próprio bug antes dele existir: a nota 505 foi
+emitida (autorizada de verdade), depois a 506 (duplicada) também saiu,
+e foi cancelada corretamente pela tela. Só que cancelar a 506 cascateou
+cancelando a VENDA inteira (`SaleService.cancel`), mesmo a 505
+continuando autorizada — deixando a venda mostrando "Cancelada" no
+painel quando na realidade tem nota fiscal válida, a arma mostrando
+"em estoque" quando na verdade foi vendida, e a cobrança (já paga,
+confirmado com o cliente) mostrando cancelada.
+
+### Correção
+
+Não é alteração de código — é dado de produção. Em vez de SQL cru (que
+poderia deixar inconsistência escondida, principalmente no estoque de
+uma ARMA controlada), a correção reverte exatamente os 3 efeitos que
+`SaleService.cancel()` tinha aplicado, usando os MESMOS serviços do
+próprio sistema (`FinanceWeaponUnitService.markSoldForSaleItem`
+inclusive, que recalcula `stockQuantity` sozinho):
+
+1. `Sale.status`: "cancelled" → "confirmed"
+2. Unidade de arma (serial da pistola do item): volta pra "sold"
+   (tinha sido liberada de volta pra "in_stock" errado por
+   `releaseWeaponUnits`)
+3. `FinanceReceivable` da venda: volta pra "received" (cliente
+   confirmou que já estava paga antes do cancelamento indevido)
+
+Lógica validada contra Postgres local antes de entregar o script pro
+cliente rodar em produção (reproduzindo o cenário completo: venda
+confirmada + arma vendida + cobrança paga + nota autorizada → simula o
+bug cancelando → confirma os 3 efeitos errados → roda a correção →
+confirma os 3 de volta ao estado certo, incluindo o `stockQuantity`
+recalculado). Script entregue direto ao cliente (não faz parte do
+repositório — é um ajuste pontual, com checagens de segurança que
+abortam sem mudar nada se a venda não bater com o esperado:
+cliente/valor/id), pra rodar uma vez dentro do container do backend em
+produção.

@@ -49,6 +49,8 @@ fiscalRoutes.post("/fiscal-documents/:id/cancel", isAuth, FiscalDocumentControll
 fiscalRoutes.post("/fiscal-documents/:id/correction-letter", isAuth, FiscalDocumentController.correctionLetter);
 fiscalRoutes.post("/fiscal-documents/:id/send-email", isAuth, FiscalDocumentController.sendEmail);
 fiscalRoutes.get("/fiscal-documents/:id/email-logs", isAuth, FiscalDocumentController.emailLogs);
+fiscalRoutes.get("/fiscal-documents/:id/pdf", isAuth, FiscalDocumentController.downloadPdf);
+fiscalRoutes.get("/fiscal-documents/export-period", isAuth, FiscalDocumentController.exportPeriod);
 
 fiscalRoutes.get("/fiscal/numbering/invalidations", isAuth, FiscalNumberingController.index);
 fiscalRoutes.post("/fiscal/numbering/invalidations", isAuth, FiscalNumberingController.invalidate);
