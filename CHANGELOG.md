@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.212] — "Observações" da Venda agora vai pra nota fiscal de verdade — 2026-10-24
+
+### Corrigido
+- **Campo "Observações" da Venda nunca era incluído na nota fiscal
+  emitida** — bug real, achado comparando a NFe #504 já emitida com o
+  que estava cadastrado na venda #517: o cliente tinha digitado em
+  Observações a descrição técnica completa da arma (marca, modelo,
+  acabamento, calibre, capacidade, carregadores, sistema, cano, alma,
+  raias, peso, país de fabricação), o número de série e o número de
+  autorização do Exército, e nada disso saiu em "Informações
+  Complementares" da nota — só o aviso padrão do Simples Nacional e o
+  texto de tributos aproximados (IBPT). Agora `sale.notes` entra como
+  última linha das Informações Complementares, texto livre, sem
+  processamento nenhum.
+- **Notas anteriores a essa correção que já foram emitidas** (como a
+  #504) não podem ser alteradas retroativamente — o caminho correto é
+  uma Carta de Correção Eletrônica (CC-e), que o sistema já suporta
+  (tela da nota → corrigir), já que adicionar essa informação não muda
+  valor nem cálculo de imposto.
+
+### Adicionado
+- Descrição técnica da arma (marca, modelo, calibre, capacidade,
+  sistema, cano, alma, procedência) + número de série (da unidade
+  física escolhida na venda) também passam a ser gerados
+  automaticamente nas "Informações Complementares" por item, pra vendas
+  que não preencherem Observações manualmente — complementar ao que já
+  sai de Observações, não substitui.
+
 ## [2.3.211] — Dados fiscais do Fornecedor preenchem o Produto automaticamente — 2026-10-24
 
 ### Adicionado

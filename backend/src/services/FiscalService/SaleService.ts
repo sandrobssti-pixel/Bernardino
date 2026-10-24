@@ -228,11 +228,16 @@ const includeOptions = [
         // Campos fiscais da aba "Dados Fiscais" do Produto (v2.3.167) —
         // precisam vir junto pra `FocusNFeService.buildItemsPayload`
         // conseguir montar o ICMS/CSOSN/CFOP de verdade por item, em vez
-        // de hardcoded.
+        // de hardcoded. Campos técnicos de arma (brand/model/...,
+        // v2.3.212) — precisam vir junto pra
+        // `FocusNFeService.buildItemAdditionalInfo` montar a descrição
+        // técnica completa em "Informações Complementares", igual a
+        // nota real de arma traz.
         attributes: [
           "id",
           "name",
           "sku",
+          "type",
           "controlStock",
           "stockQuantity",
           "icmsExempt",
@@ -244,8 +249,23 @@ const includeOptions = [
           "icmsStBcModality",
           "icmsRate",
           "icmsStRate",
-          "icmsStMva"
+          "icmsStMva",
+          "brand",
+          "model",
+          "weaponType",
+          "caliber",
+          "cartridgeCapacity",
+          "operatingMode",
+          "barrelCount",
+          "barrelLength",
+          "boreType",
+          "origin"
         ]
+      },
+      {
+        model: FinanceWeaponUnit,
+        as: "weaponUnit",
+        attributes: ["id", "serialNumber"]
       }
     ]
   },

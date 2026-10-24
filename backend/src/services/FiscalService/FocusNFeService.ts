@@ -147,11 +147,66 @@ const normalizeNcm = (ncm: string | null | undefined): string => {
 // na v2.3.183 pra bater com o formato da nota real do sistema antigo
 // ("LOTE: X / ID: Y" / "SIGMA: Z") — mesma informação, só o texto do
 // rótulo mudou.
-const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefined => {
+const buildAmmoAdditionalInfo = (item: Sale["items"][number]): string[] => {
   const parts: string[] = [];
   if (item.ammoLot) parts.push(`LOTE: ${item.ammoLot}`);
   if (item.packageId) parts.push(`ID: ${item.packageId}`);
   if (item.sigmaSinarm) parts.push(`SIGMA: ${item.sigmaSinarm}`);
+  return parts;
+};
+
+// Rótulos em português pra montar o texto — mesmos valores dos <select>
+// do cadastro de Produto (OPERATING_MODE_OPTIONS/BORE_TYPE_OPTIONS/
+// ORIGIN_OPTIONS em financeConfig.js), espelhados aqui porque o backend
+// não importa código do frontend. Qualquer valor fora da lista (ou
+// campo deixado em branco no cadastro) usa o próprio valor cru em vez
+// de travar a nota por falta de label.
+const OPERATING_MODE_LABELS: Record<string, string> = {
+  semi_automatic: "SEMIAUTOMATICA",
+  repeating: "REPETICAO",
+  single_action: "ACAO SIMPLES",
+  double_action: "ACAO DUPLA",
+  automatic: "AUTOMATICA",
+  other: "OUTRO"
+};
+const BORE_TYPE_LABELS: Record<string, string> = { smooth: "LISA", rifled: "RAIADA" };
+const ORIGIN_LABELS: Record<string, string> = { national: "NACIONAL", imported: "IMPORTADA" };
+
+// Descrição técnica da arma + número de série em "Informações
+// Complementares" (v2.3.212) — formato confirmado contra nota fiscal
+// real de arma que o cliente mandou (marca/modelo, calibre, capacidade,
+// sistema, cano, alma, procedência, número de série). Número de série
+// vem da unidade física escolhida no item da venda
+// (`item.weaponUnit.serialNumber`, Etapa 2/v2.3.207) — item sem unidade
+// escolhida (venda antiga, de antes da Etapa 2) não tem como saber qual
+// arma física saiu, e não entra nenhuma linha de "Nº DE SERIE" pra não
+// informar um serial errado/genérico na nota.
+const buildWeaponAdditionalInfo = (item: Sale["items"][number]): string[] => {
+  const product = item.product;
+  if (product?.type !== "weapon") return [];
+
+  const parts: string[] = [];
+  if (product.brand) parts.push(`MARCA: ${product.brand}`);
+  if (product.model) parts.push(`MODELO: ${product.model}`);
+  if (product.caliber) parts.push(`CALIBRE: ${product.caliber}`);
+  if (product.cartridgeCapacity) parts.push(`CAPACIDADE: ${product.cartridgeCapacity} TIROS`);
+  if (product.operatingMode) {
+    parts.push(`SISTEMA: ${OPERATING_MODE_LABELS[product.operatingMode] || product.operatingMode}`);
+  }
+  if (product.barrelCount || product.barrelLength) {
+    const count = product.barrelCount || 1;
+    const length = product.barrelLength ? `${product.barrelLength}CM` : "";
+    parts.push(`CANO: ${count}X${length ? ` ${length}` : ""}`);
+  }
+  if (product.boreType) parts.push(`ALMA: ${BORE_TYPE_LABELS[product.boreType] || product.boreType}`);
+  if (product.origin) parts.push(`PROCEDENCIA: ${ORIGIN_LABELS[product.origin] || product.origin}`);
+  if (item.weaponUnit?.serialNumber) parts.push(`Nº DE SERIE: ${item.weaponUnit.serialNumber}`);
+
+  return parts;
+};
+
+const buildItemAdditionalInfo = (item: Sale["items"][number]): string | undefined => {
+  const parts = [...buildWeaponAdditionalInfo(item), ...buildAmmoAdditionalInfo(item)];
   return parts.length > 0 ? parts.join(" / ") : undefined;
 };
 
@@ -483,6 +538,18 @@ const buildTransporte = (sale: Sale) => {
 //    fontes IBPT diferentes na mesma nota não têm um jeito "certo" de
 //    combinar num texto só, essa é a simplificação adotada). Não gera
 //    nada quando nenhum item tem `ibptRate` preenchido.
+// 3) `sale.notes` (campo "Observações" da Venda, v2.3.212) — bug real
+//    encontrado contra uma nota já emitida (venda #517): o cliente
+//    digita ali a descrição técnica completa da arma (marca, modelo,
+//    acabamento, calibre, capacidade, carregadores, sistema, cano,
+//    alma, raias, peso, país de fabricação), o número de série E o
+//    número de autorização do Exército — campos que nem fazem parte do
+//    cadastro de Produto hoje (acabamento/carregadores/raias/peso/país/
+//    autorização não têm campo próprio) — mas esse texto nunca ia pro
+//    payload da nota de verdade, só ficava guardado no sistema. Entra
+//    como a ÚLTIMA linha (depois do aviso fixo e do IBPT), texto livre,
+//    sem nenhum processamento — exatamente o que o cliente já digita
+//    manualmente lá.
 const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefined => {
   const lines: string[] = [];
 
@@ -508,6 +575,10 @@ const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefin
         .toFixed(2)
         .replace(".", ",")}%)${sourceText}`
     );
+  }
+
+  if (sale.notes?.trim()) {
+    lines.push(sale.notes.trim());
   }
 
   return lines.length > 0 ? lines.join("\n") : undefined;

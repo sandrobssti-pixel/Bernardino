@@ -13742,3 +13742,81 @@ servidor do cliente nesta sessão.
 `backend/src/services/FinanceService/FinanceProductService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/components/FinanceRecordModal/index.js`.
+
+## 192. "Observações" da Venda não ia pra nota fiscal de verdade (v2.3.212)
+
+### Diagnóstico
+
+Cliente tentou editar a venda #517 pra ver a pré-visualização (deu 400
+— esperado, a venda já tinha nota autorizada, `assertSaleEditable`
+bloqueia editar venda com documento fiscal real; o 410 na
+pré-visualização também é esperado, `FocusNFeService.previewDanfe`
+bloqueia esse recurso em Produção de propósito, ver comentário na
+própria função). Mandou a NF-e #504 já emitida (PDF) — "Informações
+Adicionais" só tinha o aviso padrão do Simples Nacional + o texto de
+tributos IBPT, nada mais. Cliente então colou o conteúdo do campo
+"Observações" da venda #517: descrição técnica completa da arma
+(marca, modelo, acabamento, calibre, capacidade, carregadores, sistema,
+cano, alma, raias, peso, país de fabricação), número de série, e
+"AUTORIZAÇÃO: 99298026024191" (número de autorização do Exército,
+campo que nem existe no cadastro de Produto).
+
+Achado: `buildAdditionalInfo` (`FocusNFeService.ts`) monta as
+"Informações Complementares" da nota com só 2 linhas fixas (aviso
+Simples Nacional + IBPT, v2.3.183) — **nunca lia `sale.notes`**. O
+cliente já tinha o hábito certo (digitar tudo isso em Observações antes
+de emitir), o sistema só nunca transmitia esse texto pra nota de
+verdade.
+
+### Correção
+
+`buildAdditionalInfo` ganhou uma 3ª linha: `sale.notes.trim()`, sem
+nenhum processamento — exatamente o texto livre que o cliente já
+digita. Entra depois do aviso Simples Nacional e do IBPT.
+
+Além disso, implementada (complementar, não substitui Observações) a
+geração automática por item da descrição técnica da arma + número de
+série em "Informações Complementares" — pendente desde a seção 185/186
+— pra vendas que não preencherem Observações manualmente também
+saírem com o mínimo (marca, modelo, calibre, capacidade, sistema, cano,
+alma, procedência, número de série da unidade física escolhida na
+venda). Rótulos em português espelhados de `OPERATING_MODE_OPTIONS`/
+`BORE_TYPE_OPTIONS`/`ORIGIN_OPTIONS` (`financeConfig.js`), já que o
+backend não importa código do frontend. Campos que o cliente digita
+manualmente e não têm equivalente no cadastro de Produto (acabamento,
+carregadores, cano em detalhe com raias, peso, país de fabricação,
+autorização do Exército) **não são gerados automaticamente** — só saem
+se o cliente continuar preenchendo Observações, que é o caminho
+completo de verdade.
+
+`SaleService.ts`, `includeOptions`: `product` (dos itens) ganhou os
+campos técnicos de arma (brand/model/weaponType/caliber/
+cartridgeCapacity/operatingMode/barrelCount/barrelLength/boreType/
+origin/type) e os itens ganharam o include de `weaponUnit` (`id`,
+`serialNumber`) — sem isso `buildWeaponAdditionalInfo` não tinha como
+montar a descrição nem saber o número de série da unidade escolhida.
+
+### Nota já emitida (#504) — não dá pra alterar retroativamente
+
+Essa correção vale só pra notas emitidas DAQUI PRA FRENTE. A nota #504
+já tem protocolo de autorização real na Sefaz — não pode ser editada
+nem reemitida por cima. O caminho correto, já suportado pelo sistema
+(`FiscalDocumentService.emitCorrectionLetter`), é uma **Carta de
+Correção Eletrônica (CC-e)**: adicionar a informação complementar que
+faltou não muda valor nem cálculo de imposto, então é elegível pra
+correção por carta (diferente de um erro de valor/cálculo, que exigiria
+cancelar e reemitir). Avisado ao cliente.
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo, build de produção sem erro. Lógica de
+`buildAdditionalInfo`/`buildWeaponAdditionalInfo` é só concatenação de
+string sem I/O — conferida por leitura (`if (x) lines.push(x)`, sem
+efeito colateral) em vez de um harness de teste contra Postgres (não
+haveria o que testar ali: nenhuma leitura/escrita de banco nova nesta
+mudança). **Não testado contra o gateway real da Focus NFe** (mesmo
+aviso de confiança do topo do arquivo — esta sessão não tem token de
+sandbox).
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`.
