@@ -13928,3 +13928,105 @@ build de produção (`CI=true npm run build`) sem erro.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceWeaponUnitService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 195. Bug crítico: emissão duplicada de nota fiscal real (v2.3.215)
+
+### Incidente real
+
+Cliente reportou (com as duas DANFEs reais em anexo, nota 505 e nota
+506, mesmo item "PISTOLA GX2 .38TPC", mesmo destinatário, mesmo valor
+R$ 6.100,00, emitidas 37 segundos uma da outra) que o sistema gerou
+**duas notas fiscais eletrônicas reais, autorizadas pela Sefaz**, pra
+uma venda de uma arma com apenas 1 unidade em estoque. Confirmado
+depois pelo próprio suporte da Focus NFe que houve duplicidade de
+verdade (duas chaves de acesso distintas, ambas autorizadas).
+
+Sequência reconstruída: emitiu a nota pela primeira vez (virou NF-e
+505, autorizada); reabriu a tela de detalhe da venda depois (pelo ícone
+de nota fiscal na lista de Vendas); os botões "Emitir NF-e/NFC-e/NFS-e"
+continuavam lá, exatamente iguais, sem nenhum aviso de que já existia
+nota; clicou em "Emitir NF-e" de novo e saiu a NF-e 506 — mesma venda,
+mesmo item, segunda nota real. Cancelou a 506 (motivo, confirmação,
+tudo normal) — isso cascateou `FiscalDocumentService.cancel` →
+`SaleService.cancel`, que cancela a VENDA por baixo (v2.3.189). Só que
+a nota 505 **nunca foi cancelada** e continuou "autorizada" de verdade
+— a lista principal de Vendas só mostra o status da VENDA (virou
+"Cancelada"), não "há uma nota 505 ainda pendente de cancelamento" —
+dando a falsa impressão de que o problema tinha sumido.
+
+### Causa raiz
+
+**Não existia NENHUMA trava contra emitir duas vezes.** Nem no backend
+nem no frontend:
+
+- `FiscalDocumentService.emit()` só checava `sale.status === "confirmed"`
+  — nada verificava se a venda JÁ tinha uma nota autorizada/processando
+  antes de chamar o gateway de novo. O gateway (Focus NFe) não tem como
+  saber "essa venda já tem nota" — ele só emite o que mandamos; cada
+  chamada de `emit()` é uma nota nova e real pra Sefaz.
+- `SaleDetailModal.js` renderizava os botões "Emitir X" sempre que
+  `sale.status === "confirmed"`, **sem olhar a lista de documentos já
+  emitidos** — reabrir a tela da venda (de qualquer jeito: ícone de
+  nota na lista, Fechar+abrir de novo etc.) sempre mostrava os botões
+  de novo, disponíveis, como se nada tivesse sido emitido ainda.
+
+Interessante notar que uma trava parecida **já existia**, mas só pra
+EDITAR a venda (`SaleService.assertSaleEditable`, erro
+`ERR_SALE_HAS_FISCAL_DOCUMENT`, desde a v2.3.188) — bloqueia salvar
+alteração nos itens de uma venda que já tem nota real. Só nunca foi
+replicada pro fluxo de EMITIR, que é o que realmente importa aqui.
+
+### Correção
+
+- **Backend** (`FiscalDocumentService.emit`): logo depois de carregar a
+  venda (que já vem com `fiscalDocuments` incluído, ver
+  `SaleService.show`/`includeOptions`), verifica se algum documento tem
+  `status` em `["authorized", "processing"]`; se tiver, lança
+  `ERR_SALE_HAS_FISCAL_DOCUMENT` (reaproveitando o mesmo código/
+  tradução que já existia pro caso de editar) **antes** de chamar o
+  gateway. Essa é a trava que importa de verdade — vale mesmo se o
+  frontend tiver algum bug ou for usado de outro jeito (outra aba,
+  outro cliente HTTP).
+- **Frontend** (`SaleDetailModal.js`): passou a buscar os documentos
+  (`fetchDocuments`) sempre que a tela abre, não só quando o histórico
+  está expandido — precisa saber ANTES de renderizar se já existe nota
+  real. Com `hasRealFiscalDocument` (mesma checagem do backend) true, a
+  área de emissão vira uma mensagem ("Esta venda já tem nota fiscal
+  autorizada ou em processamento — para corrigir, use carta de correção
+  ou cancele a nota antes de emitir outra") em vez de mostrar os
+  botões.
+
+### Simplificação pedida junto (mesma conversa)
+
+Cliente pediu pra reduzir a três botões de emissão (NF-e/NFC-e/NFS-e)
+pra um único "Emitir Nota Fiscal" — essa empresa só emite NF-e de
+verdade, três botões lado a lado só aumentava a chance de clique
+errado. Trocado por um botão único, tipo `"nfe"` fixo no `onClick`
+(`setPendingEmitType("nfe")`) — o resto do fluxo (tela de conferência
+antes de enviar, `handleEmit`) é genérico e não precisou mudar. O
+backend continua aceitando os três tipos em `VALID_TYPES` (não é uma
+limitação de sistema, só simplificação de tela pra essa empresa).
+
+Também pedido um botão de "Imprimir" direto (além do já existente "ver
+PDF", que dependia do operador achar Ctrl+P sozinho) — abre o DANFe
+numa aba nova e chama `window.print()` depois de um pequeno atraso
+(não dá pra saber com certeza quando o PDF, servido por outro domínio
+— Focus NFe —, terminou de carregar, por causa de política de
+cross-origin do navegador; mesmo contorno usado por outros sistemas
+que imprimem PDF de terceiro).
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Testado contra Postgres local
+(`atendeflow_test`) com script descartável que reproduz o incidente
+real: cria venda confirmada + `FiscalDocument` com `status: "authorized"`
+simulando a nota 505, chama `FiscalDocumentService.emit()` de novo
+(reproduz o clique duplicado que gerou a 506) — confirmado que lança
+`ERR_SALE_HAS_FISCAL_DOCUMENT` e **nenhum FiscalDocument novo é
+criado**; cenário de controle (só nota cancelada, sem autorizada/
+processando) confirma que `emit()` não fica bloqueado à toa — segue em
+frente até tentar o gateway normalmente. Frontend: build de produção
+sem erro.
+
+**Arquivos**: `backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`frontend/src/components/SaleDetailModal/index.js`.

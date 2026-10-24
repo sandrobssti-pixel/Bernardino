@@ -33,6 +33,7 @@ import EditIcon from "@material-ui/icons/Edit";
 import VisibilityIcon from "@material-ui/icons/Visibility";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import CodeIcon from "@material-ui/icons/Code";
+import PrintIcon from "@material-ui/icons/Print";
 import FlagIcon from "@material-ui/icons/Flag";
 import FlagOutlinedIcon from "@material-ui/icons/FlagOutlined";
 import BlockIcon from "@material-ui/icons/Block";
@@ -152,9 +153,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
     if (open) setHistoryExpanded(focusFiscal);
   }, [open, focusFiscal, sale?.id]);
 
+  // Busca os documentos sempre que a tela abre (não só quando o histórico
+  // está expandido, v2.3.215) — precisa saber se já existe nota
+  // autorizada/processando ANTES de decidir se mostra os botões "Emitir",
+  // senão reabrir essa tela (ex.: pelo ícone de recibo na lista de Vendas)
+  // continuava oferecendo "Emitir" de novo pra uma venda que já tinha nota
+  // real, e nada no frontend barrava o clique — ver bug real das notas
+  // 505/506 duplicadas.
   useEffect(() => {
-    if (open && historyExpanded) fetchDocuments();
-  }, [open, historyExpanded, fetchDocuments]);
+    if (open) fetchDocuments();
+  }, [open, fetchDocuments]);
 
   const handleConfirmEmit = async () => {
     const type = pendingEmitType;
@@ -191,6 +199,28 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
     } catch (err) {
       toastError(err);
     }
+  };
+
+  // "Imprimir direto na impressora" (v2.3.215, pedido do cliente) — abre o
+  // DANFe numa aba nova e já chama o diálogo de impressão do navegador,
+  // em vez de deixar o operador abrir o PDF e achar o Ctrl+P/ícone de
+  // impressão sozinho. O PDF é servido por outro domínio (Focus NFe), então
+  // não dá pra saber quando terminou de carregar pra chamar `print()` na
+  // hora certa (acesso ao conteúdo de uma janela de outra origem é
+  // bloqueado pelo navegador) — por isso o pequeno atraso fixo abaixo, que
+  // é o mesmo contorno usado por sistemas que imprimem PDF de terceiro.
+  const handlePrint = (doc) => {
+    if (!doc?.pdfUrl) return;
+    const printWindow = window.open(doc.pdfUrl, "_blank");
+    if (!printWindow) return;
+    setTimeout(() => {
+      try {
+        printWindow.print();
+      } catch (err) {
+        // Pop-up bloqueado/navegador recusou — o PDF já abriu na aba nova,
+        // o operador ainda consegue imprimir por lá manualmente.
+      }
+    }, 1200);
   };
 
   // Marca/desmarca "Precisa corrigir" (amarelo) numa nota com erro —
@@ -330,6 +360,13 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
   );
   const netValue = Number(sale.totalValue || 0) - totalTax;
 
+  // Mesma checagem do backend (`FiscalDocumentService.emit`,
+  // `SaleService.assertSaleEditable`) — esconde os botões "Emitir" assim
+  // que já existe nota autorizada/processando, pra não oferecer na tela
+  // uma ação que o backend vai recusar (ou pior, aceitar de novo se o
+  // guard de lá um dia regredir — ver bug real das notas 505/506).
+  const hasRealFiscalDocument = documents.some(doc => ["authorized", "processing"].includes(doc.status));
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth classes={{ paper: classes.dialogPaper }}>
       <DialogTitle>Venda #{sale.id}</DialogTitle>
@@ -380,20 +417,24 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
           Notas fiscais
         </Typography>
 
-        {sale.status === "confirmed" ? (
+        {sale.status === "confirmed" && hasRealFiscalDocument ? (
+          <Typography variant="body2" color="textSecondary" style={{ marginBottom: 8 }}>
+            Esta venda já tem nota fiscal autorizada ou em processamento —
+            para corrigir, use carta de correção ou cancele a nota antes de
+            emitir outra.
+          </Typography>
+        ) : sale.status === "confirmed" ? (
           <Box className={classes.emitButtons}>
-            {["nfe", "nfce", "nfse"].map((type) => (
-              <Button
-                key={type}
-                size="small"
-                variant="outlined"
-                startIcon={emitting === type ? <CircularProgress size={14} /> : DOC_TYPE_ICON[type]}
-                disabled={!!emitting}
-                onClick={() => setPendingEmitType(type)}
-              >
-                Emitir {DOC_TYPE_LABEL[type]}
-              </Button>
-            ))}
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              startIcon={emitting === "nfe" ? <CircularProgress size={14} color="inherit" /> : DOC_TYPE_ICON.nfe}
+              disabled={!!emitting}
+              onClick={() => setPendingEmitType("nfe")}
+            >
+              Emitir Nota Fiscal
+            </Button>
             <Button
               size="small"
               variant="outlined"
@@ -486,9 +527,16 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
                     {doc.status === "authorized" && (
                       <>
                         {doc.pdfUrl && (
-                          <Tooltip title="Ver / imprimir DANFe (PDF)">
+                          <Tooltip title="Ver DANFe (PDF)">
                             <IconButton size="small" onClick={() => window.open(doc.pdfUrl, "_blank")}>
                               <PictureAsPdfIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        {doc.pdfUrl && (
+                          <Tooltip title="Imprimir DANFe direto na impressora">
+                            <IconButton size="small" onClick={() => handlePrint(doc)}>
+                              <PrintIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                         )}

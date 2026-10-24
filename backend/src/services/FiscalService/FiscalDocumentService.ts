@@ -72,6 +72,22 @@ export const emit = async (
     throw new AppError("ERR_SALE_NOT_CONFIRMED");
   }
 
+  // Trava emissão duplicada (v2.3.215) — bug real em produção: nada aqui
+  // impedia clicar "Emitir nota" de novo (reabrindo a tela/duplo clique)
+  // depois que a venda já tinha uma nota real saída, e o gateway não tem
+  // ideia nenhuma de "essa venda já tem nota" — ele só emite o que
+  // mandamos. Resultado: duas NF-e's de verdade, autorizadas pela Sefaz,
+  // pra uma venda de arma com só 1 unidade em estoque (notas 505/506,
+  // mesmo item, mesmo destinatário). Mesma checagem/mesmo erro que
+  // `SaleService.assertSaleEditable` já usa pra bloquear EDITAR a venda
+  // com nota real — aqui bloqueia EMITIR outra nota, pelo mesmo motivo.
+  const hasRealFiscalDocument = (sale.fiscalDocuments || []).some(doc =>
+    ["authorized", "processing"].includes(doc.status)
+  );
+  if (hasRealFiscalDocument) {
+    throw new AppError("ERR_SALE_HAS_FISCAL_DOCUMENT");
+  }
+
   const config = await FiscalConfigService.show(companyId);
 
   if (!FiscalConfigService.getActiveGatewayToken(config)) {

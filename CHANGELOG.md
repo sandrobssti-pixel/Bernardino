@@ -3,6 +3,44 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.215] — Bug crítico: nada impedia emitir duas notas fiscais reais pra mesma venda — 2026-10-24
+
+### Corrigido (bug real em produção)
+- **Nenhuma trava existia contra emitir a nota fiscal duas vezes pra mesma
+  venda** — nem no backend, nem no frontend. Cliente reproduziu em
+  produção: emitiu a nota de uma venda (virou NF-e autorizada de
+  verdade), reabriu a tela da venda (pelo ícone de nota na lista) e o
+  botão "Emitir" continuava lá, clicável, sem nada avisando que já
+  existia nota. Clicou de novo e saiu uma SEGUNDA NF-e real, autorizada
+  pela Sefaz, pro mesmo item (nota 505 e depois 506, pistola com só 1
+  unidade em estoque) — confirmado também pelo suporte da Focus NFe.
+  Cancelar a nota 506 cancelou a venda por baixo (v2.3.189), mas a nota
+  505 continuou autorizada e sem aparecer em lugar nenhum da lista
+  principal de Vendas, dando a falsa impressão de que "só tinha uma nota
+  cancelada" quando na verdade havia uma nota real ainda pendente de
+  cancelamento manual.
+- **Backend** (`FiscalDocumentService.emit`): agora barra a emissão com
+  `ERR_SALE_HAS_FISCAL_DOCUMENT` sempre que a venda já tem alguma nota
+  "autorizada" ou "processando" — mesma checagem que já existia só pra
+  bloquear EDITAR a venda (`SaleService.assertSaleEditable`), agora
+  também pra EMITIR. Essa é a trava que realmente impede o bug de se
+  repetir, mesmo que o frontend falhe/seja contornado.
+- **Frontend** (`SaleDetailModal.js`): os botões de "Emitir" somem assim
+  que já existe nota autorizada/processando pra aquela venda (antes só
+  reapareciam escondidos quando a venda virava "cancelada" por inteiro)
+  — mostra uma mensagem explicando que precisa de carta de correção ou
+  cancelamento antes de emitir outra.
+
+### Alterado
+- **Simplificado pra um único botão "Emitir Nota Fiscal"** (pedido do
+  cliente) — antes eram três botões lado a lado (NF-e/NFC-e/NFS-e), e
+  essa empresa só emite NF-e de verdade; menos botão = menos chance de
+  clique errado/duplicado. O backend continua aceitando os três tipos
+  (`VALID_TYPES`), só a tela desta empresa ficou mais simples.
+- **Novo botão "Imprimir"** na lista de notas autorizadas — abre o DANFe
+  numa aba nova e já chama o diálogo de impressão do navegador, em vez
+  de o operador precisar abrir o PDF e achar o Ctrl+P sozinho.
+
 ## [2.3.214] — Nova situação "Separada para venda" no cadastro de armas por número de série — 2026-10-24
 
 ### Adicionado
