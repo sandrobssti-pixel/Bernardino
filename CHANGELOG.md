@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.213] — E-mail do emitente passa a ir também pro DANFE — 2026-10-24
+
+### Alterado
+- **E-mail do emitente (Configuração Fiscal) agora também vai no
+  payload da nota fiscal** (`email_emitente`) — antes (v2.3.184) ficava
+  só nos relatórios internos (Serviços, Termo de Cautela), por pedido
+  explícito do cliente na época. Cliente confirmou agora que quer esse
+  e-mail no quadro do emitente da nota também — decisão revertida.
+
+### Esclarecido (sem mudança de código)
+- Telefone cortado no quadro do emitente do DANFE (ex.: "Tel.: (71)
+  99636-"): não é bug deste sistema — o quadro é desenhado pela própria
+  Focus NFe (gateway de emissão), não por um template nosso. O sistema
+  só manda os dígitos completos do telefone; o corte visual é limitação
+  do template/fonte da Focus NFe, fora do nosso controle — precisa ser
+  reportado a eles.
+
 ## [2.3.212] — "Observações" da Venda agora vai pra nota fiscal de verdade — 2026-10-24
 
 ### Corrigido

@@ -13820,3 +13820,53 @@ sandbox).
 
 **Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`,
 `backend/src/services/FiscalService/SaleService.ts`.
+
+## 193. E-mail do emitente passa a ir pro DANFE + telefone cortado é limitação da Focus NFe (v2.3.213)
+
+### Pedido
+
+Cliente mandou print do quadro do emitente no DANFE (NF-e #504,
+Federação Baiana de Tiro Defensivo & Olimpico) — telefone aparecendo
+cortado ("Tel.: (71) 99636-") e sem e-mail. Pediu pra "alinhar as
+informações... faltando informações do número de atendimento mais
+email".
+
+### Diagnóstico
+
+1. **E-mail**: `FocusNFeService.buildEmitente` nunca mandava
+   `config.emitterEmail` pra Focus NFe — campo existe em
+   `FiscalConfig.ts` desde a v2.3.184, mas foi criado de propósito só
+   pros relatórios internos (Serviços, Termo de Cautela), com o próprio
+   cliente dizendo na época "isso é interno da empresa, não da nota".
+   Perguntado de volta antes de mudar (contradição com decisão
+   anterior) — cliente confirmou o e-mail
+   (`confiancaprocessualba@gmail.com`) e pediu pra entrar na nota
+   também.
+2. **Telefone cortado**: perguntado se o número salvo em Configuração
+   Fiscal estava incompleto — cliente confirmou que está completo ("719
+   9636-5862"), só não cabe na caixa. **Esse quadro do DANFE é
+   renderizado pela própria Focus NFe** (gateway), não por nenhum
+   template deste sistema — `buildEmitente` só manda os dígitos do
+   telefone (`telefone_emitente`), nunca controlou fonte/layout. Não há
+   nada a corrigir no código; é uma limitação do template da Focus NFe,
+   que precisa ser reportada a eles (ou visto se o painel da conta
+   Focus NFe tem alguma opção de ajuste de template).
+
+### Correção
+
+`buildEmitente` ganhou `email_emitente: config.emitterEmail ||
+undefined` — mesma convenção de nome dos outros campos (`telefone_
+emitente`, `cnpj_emitente`...), não confirmado contra resposta real da
+Focus NFe (mesmo aviso de confiança do topo do arquivo). Comentário em
+`FiscalConfig.ts` (`emitterEmail`) atualizado pra não dizer mais "nunca
+no payload da Focus NFe" — registra a mudança de decisão pra não se
+perder quando alguém ler esse código depois.
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo, build de produção sem erro. Mudança é só
+adicionar uma chave no objeto retornado por `buildEmitente` — sem I/O
+novo, sem teste de banco necessário.
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/models/FiscalConfig.ts`.

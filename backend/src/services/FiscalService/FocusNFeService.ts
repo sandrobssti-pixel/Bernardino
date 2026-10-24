@@ -449,7 +449,15 @@ const buildEmitente = (company: Company, config: FiscalConfig) => ({
   municipio_emitente: config.emitterCity || undefined,
   uf_emitente: config.emitterState || undefined,
   cep_emitente: (config.emitterZipCode || "").replace(/\D/g, "") || undefined,
-  telefone_emitente: (config.emitterPhone || "").replace(/\D/g, "") || undefined
+  telefone_emitente: (config.emitterPhone || "").replace(/\D/g, "") || undefined,
+  // v2.3.213 — reverte a decisão da v2.3.184 ("isso é interno da
+  // empresa, não da nota"): cliente confirmou explicitamente que quer
+  // esse e-mail (`emitterEmail`, Configuração Fiscal) também no
+  // DANFE/quadro do emitente, não só nos relatórios internos (Serviços/
+  // Termo de Cautela). `email_emitente` segue a mesma convenção de nome
+  // dos outros campos deste objeto — não confirmado contra resposta
+  // real da Focus NFe (mesmo aviso de confiança do topo do arquivo).
+  email_emitente: config.emitterEmail || undefined
 });
 
 // finNFe (Sefaz) — "1" Normal, "2" Complementar, "3" Ajuste, "4"

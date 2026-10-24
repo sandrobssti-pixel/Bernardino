@@ -109,12 +109,14 @@ class FiscalConfig extends Model<FiscalConfig> {
   @Column
   emitterPhone: string;
 
-  // E-mail de contato do emitente (v2.3.184, pedido do cliente) — usado só
-  // no rodapé dos relatórios INTERNOS do AtendeFlow (Serviços, Termo de
-  // Cautela etc.), nunca no payload da Focus NFe nem na nota fiscal em si
-  // (o cliente foi explícito: isso é interno da empresa, não da nota).
-  // Separado de `Company.email` (login da conta) de propósito — o
-  // contato fiscal/processual pode ser um e-mail diferente.
+  // E-mail de contato do emitente (v2.3.184, pedido do cliente) — usado no
+  // rodapé dos relatórios INTERNOS do AtendeFlow (Serviços, Termo de
+  // Cautela etc.) E, desde a v2.3.213, também no payload da Focus NFe
+  // (`FocusNFeService.buildEmitente`, campo `email_emitente`) — o cliente
+  // tinha pedido originalmente "isso é interno, não da nota", mas
+  // confirmou depois que queria o e-mail no quadro do emitente da nota
+  // também. Separado de `Company.email` (login da conta) de propósito —
+  // o contato fiscal/processual pode ser um e-mail diferente.
   @Default("")
   @Column
   emitterEmail: string;
