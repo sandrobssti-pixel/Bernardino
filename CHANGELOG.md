@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.219] — Rótulo do e-mail do emitente esclarecido — 2026-10-24
+
+### Alterado
+- Campo "E-mail de contato" em Configuração Fiscal: rótulo mudou de
+  "(rodapé dos relatórios internos)" pra "(relatórios internos e quadro
+  do emitente na nota fiscal)" — desde a v2.3.213 esse mesmo campo
+  também vai pro DANFE (`email_emitente`), mas o rótulo nunca tinha sido
+  atualizado, dando a entender que era só interno. Cliente confirmou o
+  e-mail de verdade da emissora (`ctprocessualba@gmail.com`) — o anterior
+  (`confiancaprocessualba@gmail.com`) nunca existiu, foi engano desta
+  sessão. Não é bug de código: é só questão de manter o campo em
+  Configuração Fiscal atualizado com o e-mail certo (nenhum dado é
+  corrigido automaticamente por este commit).
+
 ## [2.3.218] — Nº Venda sequencial, ordem por código do cliente, bug de cancelamento sem cancelar a nota real — 2026-10-24
 
 ### Adicionado

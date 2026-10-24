@@ -14354,3 +14354,43 @@ a flag, sem bloqueio nenhum. Frontend: build de produção sem erro.
 `frontend/src/components/SaleList/index.js`,
 `frontend/src/components/SaleDetailModal/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 199. Rótulo do campo "E-mail do emitente" esclarecido (v2.3.219)
+
+### Contexto
+
+Cliente reportou de novo que o e-mail não aparecia no quadro do
+emitente do DANFE, agora informando `ctprocessualba@gmail.com` como o
+e-mail de verdade — esclareceu que `confiancaprocessualba@gmail.com`
+(valor registrado como "confirmado" mais cedo nesta sessão, seção 193)
+nunca existiu. Não dá pra saber se foi um engano de transcrição desta
+sessão ou troca de ideia do cliente — o que importa é o valor certo
+agora: `ctprocessualba@gmail.com`.
+
+### Diagnóstico
+
+O código (`FocusNFeService.buildEmitente`, `email_emitente:
+config.emitterEmail`) está certo desde a v2.3.213 — não precisa de
+mudança nenhuma. O campo em si, em Configuração Fiscal, tinha o rótulo
+"E-mail de contato (rodapé dos relatórios internos)" — sobrou da época
+(v2.3.184) em que esse campo só alimentava relatórios internos (Serviços,
+Termo de Cautela). Desde a v2.3.213 o MESMO campo também vai pro DANFE,
+mas o rótulo nunca foi atualizado — dava a entender (erradamente) que
+era só interno.
+
+### Correção
+
+Rótulo mudado pra "E-mail de contato (relatórios internos e quadro do
+emitente na nota fiscal)" — só isso, sem mudança de código/lógica. Pra
+resolver de verdade a caixa do DANFE, o cliente precisa digitar
+`ctprocessualba@gmail.com` nesse campo (Financeiro → Configuração
+Fiscal) — nenhum dado de produção é alterado por este commit, é
+cadastro.
+
+### Telefone cortado
+
+Sem mudança (reconfirmado nesta conversa): é limitação do template da
+própria Focus NFe, fora do controle deste sistema. Cliente já abriu
+chamado com o suporte da Focus NFe sobre isso.
+
+**Arquivos**: `frontend/src/components/FiscalConfigPanel/index.js`.

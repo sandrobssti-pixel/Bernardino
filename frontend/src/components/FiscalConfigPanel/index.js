@@ -623,7 +623,7 @@ const FiscalConfigPanel = ({ fiscal }) => {
                   variant="outlined"
                   size="small"
                   name="emitterEmail"
-                  label="E-mail de contato (rodapé dos relatórios internos)"
+                  label="E-mail de contato (relatórios internos e quadro do emitente na nota fiscal)"
                 />
               </Grid>
             </Grid>
