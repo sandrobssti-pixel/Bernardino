@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import Sale from "../../models/Sale";
@@ -434,6 +434,20 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
   });
 };
 
+// Próximo número sequencial de venda, por empresa (v2.3.218) — mesmo
+// padrão de `FinanceCustomerService.nextCustomerCode`, ver comentário em
+// `Sale.saleNumber`.
+const nextSaleNumber = async (companyId: number): Promise<string> => {
+  const [result]: any[] = await Sale.sequelize!.query(
+    `SELECT COALESCE(MAX(CAST("saleNumber" AS INTEGER)), 0) AS "maxNumber"
+     FROM "Sales"
+     WHERE "companyId" = :companyId AND "saleNumber" ~ '^[0-9]+$'`,
+    { replacements: { companyId }, type: QueryTypes.SELECT }
+  );
+  const maxNumber = Number(result?.maxNumber) || 0;
+  return String(maxNumber + 1).padStart(5, "0");
+};
+
 export const create = async (data: SaleData, companyId: number): Promise<Sale> => {
   try {
     await saleSchema.validate(data);
@@ -442,8 +456,10 @@ export const create = async (data: SaleData, companyId: number): Promise<Sale> =
   }
 
   const total = calculateTotal(data.items);
+  const saleNumber = await nextSaleNumber(companyId);
 
   const sale = await Sale.create({
+    saleNumber,
     saleDate: data.saleDate || null,
     notes: data.notes || "",
     customerId: data.customerId || null,
@@ -712,11 +728,33 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
 // automatizado (ver aviso de confiança no topo de FocusNFeService.ts
 // pro mesmo padrão já usado com a Focus NFe — nunca implementar endpoint
 // que move dinheiro sem doc oficial ou risco aceito explicitamente).
-export const cancel = async (id: string | number, companyId: number): Promise<Sale> => {
+// `calledAfterFiscalDocumentCancel` (v2.3.218): quando `true`, pula a
+// checagem de nota real abaixo — só `FiscalDocumentService.cancel` passa
+// isso, DEPOIS de já ter cancelado a NF-e de verdade na Sefaz (a ordem
+// importa: cancela lá primeiro, só então chama isto aqui). Uma chamada
+// direta (sem essa flag — é o caso do botão "Cancelar venda" na lista)
+// com nota autorizada/processando é bloqueada: bug real corrigido nesta
+// versão, cancelar a venda por esse caminho nunca cancelava a NF-e na
+// Sefaz, só o registro local — deixava uma nota de verdade "esquecida",
+// autorizada, enquanto o sistema achava que estava tudo cancelado.
+export const cancel = async (
+  id: string | number,
+  companyId: number,
+  calledAfterFiscalDocumentCancel = false
+): Promise<Sale> => {
   const sale = await show(id, companyId);
 
   if (sale.status === "cancelled") {
     return sale;
+  }
+
+  if (!calledAfterFiscalDocumentCancel) {
+    const hasRealFiscalDocument = (sale.fiscalDocuments || []).some(doc =>
+      ["authorized", "processing"].includes(doc.status)
+    );
+    if (hasRealFiscalDocument) {
+      throw new AppError("ERR_SALE_HAS_FISCAL_DOCUMENT");
+    }
   }
 
   if (sale.status === "confirmed") {

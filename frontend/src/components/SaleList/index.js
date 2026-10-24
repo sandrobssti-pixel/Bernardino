@@ -589,7 +589,15 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                   onChange={toggleSelectAll}
                 />
               </TableCell>
-              <TableCell>#</TableCell>
+              {/* "Nº Venda" (v2.3.218, pedido do cliente) — era o `id`
+                  interno do banco (confuso, não sequencial-bonito tipo o
+                  código do cliente). Agora mostra `sale.saleNumber`
+                  (sequencial PRÓPRIO da venda, por empresa — ver
+                  comentário em Sale.ts: não reaproveita o código do
+                  cliente porque aí toda venda do mesmo cliente mostraria
+                  o mesmo número, perdendo a função de identificar cada
+                  venda). */}
+              <TableCell>Nº Venda</TableCell>
               <TableCell>Cliente</TableCell>
               <TableCell>Data</TableCell>
               <TableCell align="right">Total</TableCell>
@@ -623,7 +631,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                     />
                   </Tooltip>
                 </TableCell>
-                <TableCell>{sale.id}</TableCell>
+                <TableCell>{sale.saleNumber || sale.id}</TableCell>
                 <TableCell>{sale.customer?.name || "Consumidor não identificado"}</TableCell>
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
                 <TableCell align="right">{money(sale.totalValue)}</TableCell>
@@ -697,11 +705,25 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                           </IconButton>
                         </Tooltip>
                       )}
-                      <Tooltip title="Cancelar venda">
-                        <IconButton size="small" onClick={() => requestCancel(sale)}>
-                          <CancelIcon fontSize="small" />
-                        </IconButton>
-                      </Tooltip>
+                      {/* "Cancelar venda" (X) só aparece SEM nota real —
+                          bug real corrigido na v2.3.218: esse botão
+                          cancelava a venda por baixo (devolve estoque,
+                          cancela cobrança) sem nunca cancelar a NF-e de
+                          verdade na Sefaz, deixando uma nota AUTORIZADA
+                          "esquecida" enquanto o sistema já achava que
+                          estava tudo cancelado. Com nota real, o único
+                          caminho agora é "Cancelar nota" (dentro de "Ver
+                          nota fiscal" acima), que cancela a Sefaz PRIMEIRO
+                          e só depois cancela a venda por baixo — mesmo
+                          prazo real de 24h da Sefaz pra cancelamento de
+                          NF-e, avisado lá (SaleDetailModal.js). */}
+                      {!sale.fiscalDocuments?.some((d) => ["authorized", "processing"].includes(d.status)) && (
+                        <Tooltip title="Cancelar venda">
+                          <IconButton size="small" onClick={() => requestCancel(sale)}>
+                            <CancelIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </>
                   )}
                   {sale.status === "cancelled" && (

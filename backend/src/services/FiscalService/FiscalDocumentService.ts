@@ -235,6 +235,24 @@ export const cancel = async (
     throw new AppError("ERR_FISCAL_DOCUMENT_NOT_CANCELLABLE");
   }
 
+  // Prazo de 24h pra cancelamento de NF-e (v2.3.218, pedido do cliente:
+  // "cancelar venda fica disponível até 24 horas depois que gerou a
+  // venda") — mesma regra geral da Sefaz pra NF-e modelo 55 (evento de
+  // Cancelamento). Checado aqui ANTES de chamar o gateway (resposta mais
+  // rápida, mensagem em português clara) — o gateway/Sefaz continua
+  // sendo quem decide de verdade (se algum estado tiver prazo diferente
+  // do padrão nacional, a chamada abaixo não seria alcançada mesmo assim
+  // por causa deste bloqueio; ajustar aqui se um cliente de outro estado
+  // confirmar prazo diferente). Depois do prazo, a correção vai por
+  // Carta de Correção Eletrônica (quando não muda valor/imposto) — já
+  // suportado por `emitCorrectionLetter` abaixo.
+  if (document.issuedAt) {
+    const hoursSinceIssued = (Date.now() - new Date(document.issuedAt).getTime()) / (1000 * 60 * 60);
+    if (hoursSinceIssued > 24) {
+      throw new AppError("ERR_FISCAL_DOCUMENT_CANCEL_DEADLINE_PASSED");
+    }
+  }
+
   if (!justification || justification.trim().length < 15) {
     throw new AppError("ERR_FISCAL_DOCUMENT_JUSTIFICATION_TOO_SHORT");
   }
@@ -248,7 +266,7 @@ export const cancel = async (
   }
 
   await document.update({ status: "cancelled" });
-  await SaleService.cancel(document.saleId, companyId);
+  await SaleService.cancel(document.saleId, companyId, true);
   return document;
 };
 

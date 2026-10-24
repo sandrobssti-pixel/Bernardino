@@ -32,6 +32,20 @@ class Sale extends Model<Sale> {
   @Column
   id: number;
 
+  // Número sequencial da venda (v2.3.218, pedido do cliente: "#" da lista
+  // de Vendas era o `id` interno do banco — confuso, cliente achou que
+  // devia bater com o código do cliente). Zero-padded, SEQUENCIAL POR
+  // EMPRESA, atribuído na criação — mesmo mecanismo de
+  // `FinanceCustomer.code` (`SaleService.nextSaleNumber`), mas um
+  // contador PRÓPRIO: reaproveitar o código do cliente aqui repetiria o
+  // mesmo número em toda venda daquele cliente, perdendo a função de
+  // identificar cada venda individualmente. `id` continua existindo (é a
+  // chave real do banco, usada em toda referência interna/URL); este
+  // campo é só o número "bonito" mostrado pro operador.
+  @Default("")
+  @Column
+  saleNumber: string;
+
   @Column(DataType.DATEONLY)
   saleDate: Date;
 

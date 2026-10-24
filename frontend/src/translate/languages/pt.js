@@ -1893,6 +1893,8 @@ const messages = {
           "Configure o token do gateway fiscal em Configuração Fiscal antes de emitir notas.",
         ERR_FISCAL_DOCUMENT_NOT_CANCELLABLE:
           "Só é possível cancelar uma nota já autorizada.",
+        ERR_FISCAL_DOCUMENT_CANCEL_DEADLINE_PASSED:
+          "Prazo de 24h pra cancelar essa nota já passou — use Carta de Correção (se não mudar valor/imposto) ou resolva direto com a Sefaz/contador.",
         ERR_FISCAL_DOCUMENT_JUSTIFICATION_TOO_SHORT:
           "A justificativa de cancelamento precisa ter pelo menos 15 caracteres.",
         ERR_FISCAL_DOCUMENT_NOT_FOUND: "Documento fiscal não encontrado.",

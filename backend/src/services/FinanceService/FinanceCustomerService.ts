@@ -80,7 +80,10 @@ export const list = async ({
     where: whereCondition,
     limit,
     offset,
-    order: [["name", "ASC"]]
+    // Ordem por código crescente (v2.3.218, pedido do cliente) — antes
+    // era por nome; "code" é string zero-padded de tamanho fixo (5
+    // dígitos), então ordenação alfabética bate com a numérica.
+    order: [["code", "ASC"]]
   });
 
   return { records, count, hasMore: count > offset + records.length };

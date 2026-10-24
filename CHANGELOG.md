@@ -3,6 +3,33 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.218] — Nº Venda sequencial, ordem por código do cliente, bug de cancelamento sem cancelar a nota real — 2026-10-24
+
+### Adicionado
+- **Lista de Clientes agora ordena por código crescente** (era por nome).
+- **Coluna "Nº Venda" na lista de Vendas** (era "#", mostrando o `id`
+  interno do banco) — número sequencial **próprio da venda**, por
+  empresa, no mesmo formato "00001" do código do cliente (não reaproveita
+  o código do cliente ali, senão toda venda do mesmo cliente mostraria o
+  mesmo número). Vendas que já existiam foram numeradas retroativamente
+  na ordem em que foram criadas.
+- **Prazo de 24h pra cancelar nota fiscal autorizada** (pedido do
+  cliente, mesma regra da Sefaz pra NF-e) — passado o prazo, o botão
+  "Cancelar nota" fica desabilitado com aviso; a correção segue por
+  Carta de Correção Eletrônica.
+
+### Corrigido (bug real)
+- **"Cancelar venda" (ícone X na lista) cancelava a venda por baixo SEM
+  nunca cancelar a nota fiscal de verdade na Sefaz** — devolvia estoque
+  e cancelava a cobrança, mas a NF-e ficava "esquecida", ainda
+  autorizada, enquanto o sistema já achava que estava tudo cancelado
+  (mesma categoria do bug de emissão duplicada da v2.3.215). Agora esse
+  botão só aparece quando a venda NÃO tem nota autorizada/processando;
+  com nota real, o único caminho é "Cancelar nota" (dentro do detalhe da
+  venda), que cancela a Sefaz PRIMEIRO e só depois cancela a venda por
+  baixo. Trava replicada no backend (`SaleService.cancel`), não só
+  escondida na tela.
+
 ## [2.3.217] — Código do cliente, mais colunas em Vendas, pagamento misto, horário certo e limpeza do cadastro de Produto — 2026-10-24
 
 ### Adicionado

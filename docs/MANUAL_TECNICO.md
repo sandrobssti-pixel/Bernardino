@@ -14248,3 +14248,109 @@ correto). Frontend: build de produção sem erro nem warning.
 `frontend/src/components/SaleList/index.js`,
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 198. Nº Venda sequencial, ordem por código do cliente, bug de "cancelar venda" sem cancelar a nota real (v2.3.218)
+
+### Pedido
+
+Depois de ver a lista de Vendas já com as colunas da v2.3.217 (Código do
+produto / Nº Nota Fiscal) funcionando no servidor, o cliente mandou
+print perguntando o que era a numeração da primeira coluna ("#", 517-520
+— o `id` interno do banco) e pediu pra corrigir esse campo "com o mesmo
+código do cliente" (já que o código do cliente ficou sequencial),
+descreveu o fluxo esperado de uma nota autorizada (visualizar/baixar
+PDF/baixar XML/cancelar venda disponível até 24h depois de gerada), e
+mandou uma mensagem separada: "coloque em ordem crescente pelo código no
+cadastro de cliente".
+
+### 1. "#" virou "Nº Venda" — sequencial PRÓPRIO, não o código do cliente
+
+Reaproveitar o código do cliente na coluna "#" faria toda venda do MESMO
+cliente mostrar o mesmo número ali — perderia a função de um "#"/
+identificador, que é diferenciar cada LINHA. Em vez disso, `Sale` ganhou
+`saleNumber` (string, "00001"...), mesmo mecanismo de
+`FinanceCustomer.code` mas com contador PRÓPRIO
+(`SaleService.nextSaleNumber`, mesma query `MAX(CAST(... AS INTEGER))`
+com filtro regex, por empresa). Migration faz o mesmo backfill por
+`ROW_NUMBER() OVER (PARTITION BY "companyId" ORDER BY id ASC)` das
+vendas que já existiam. Coluna da lista renomeada de "#" pra "Nº Venda"
+(`SaleList.js`), pra não confundir mais com o `id` interno nem com o
+número da nota fiscal.
+
+`id` continua existindo — é a chave real do banco, usada em toda URL/
+referência interna; `saleNumber` é só o número "bonito" mostrado pro
+operador.
+
+### 2. "Número da nota fiscal abreviado"
+
+Já estava satisfeito pela coluna "Nº Nota Fiscal" da v2.3.217 (mostra só
+o número curto do documento — 504, 505, 507... — nunca a chave de acesso
+de 44 dígitos). Não foi criado campo novo pra isso.
+
+### 3. Ordem por código crescente na lista de Clientes
+
+`FinanceCustomerService.list`: `order` trocado de `[["name", "ASC"]]`
+pra `[["code", "ASC"]]` — como `code` é string zero-padded de tamanho
+fixo (5 dígitos), ordenação alfabética bate com a numérica, sem precisar
+de `CAST`.
+
+### 4. Bug real: "Cancelar venda" não cancelava a nota fiscal de verdade
+
+Lendo o pedido do cliente sobre o fluxo esperado (visualizar/baixar/
+cancelar com prazo de 24h), foi conferido o botão "Cancelar venda" (ícone
+X) da lista de Vendas — achado um bug real, na mesma categoria do bug de
+emissão duplicada corrigido na v2.3.215: esse botão chama
+`SaleService.cancel()`, que **nunca verificava se a venda já tinha uma
+nota fiscal AUTORIZADA de verdade antes de cancelar** — só devolvia
+estoque e cancelava a cobrança, deixando a NF-e real "esquecida" (ainda
+autorizada na Sefaz) enquanto o sistema já mostrava a venda como
+"Cancelada". O caminho CORRETO pra isso já existia
+(`FiscalDocumentService.cancel`, "Cancelar nota" dentro do detalhe da
+venda) — cancela a Sefaz PRIMEIRO, só então cancela a venda por baixo —
+mas nada impedia o atalho errado pelo botão da lista.
+
+Corrigido em duas camadas (mesmo padrão da v2.3.215):
+- **Backend** (`SaleService.cancel`): novo parâmetro
+  `calledAfterFiscalDocumentCancel` (default `false`). Chamada direta
+  (como o botão da lista faz, via `SaleController.cancel`) com nota
+  autorizada/processando lança `ERR_SALE_HAS_FISCAL_DOCUMENT` (mesmo
+  erro/tradução já usado pra bloquear EDITAR uma venda com nota real).
+  `FiscalDocumentService.cancel` passa `true` nessa chamada — já rodou
+  DEPOIS de cancelar a nota de verdade na Sefaz, não deve ser barrada.
+- **Frontend** (`SaleList.js`): ícone "Cancelar venda" só aparece quando
+  a venda NÃO tem documento autorizado/processando — com nota real, o
+  único caminho vira "Ver nota fiscal" → "Cancelar nota" (dentro do
+  detalhe).
+
+### 5. Prazo de 24h pra cancelar nota autorizada
+
+Pedido explícito do cliente, mesma regra geral da Sefaz pra NF-e modelo
+55 (evento de Cancelamento). Checado em `FiscalDocumentService.cancel`
+ANTES de chamar o gateway: `(Date.now() - issuedAt) / 1h > 24` → lança
+`ERR_FISCAL_DOCUMENT_CANCEL_DEADLINE_PASSED` (mensagem nova, aponta pra
+Carta de Correção). Mesmo cálculo replicado no frontend
+(`SaleDetailModal.js`, `isPastCancelDeadline`) só pra desabilitar o botão
+e avisar ANTES de clicar — quem decide de verdade continua sendo o
+backend (e, em última instância, a própria Sefaz via gateway; se algum
+estado tiver prazo diferente do padrão nacional, é só ajustar essa
+checagem depois de confirmado com o cliente).
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Migration rodada contra Postgres
+local (`atendeflow_test`), idempotente. Testado contra Postgres local:
+`SaleService.create` gerando "00001"/"00002" em sequência; `cancel()`
+chamado DIRETO (sem a flag) numa venda com `FiscalDocument` autorizado
+lança `ERR_SALE_HAS_FISCAL_DOCUMENT` e NÃO muda o status da venda;
+`cancel()` com a flag (`true`, simulando a chamada pós-cancelamento real)
+cancela normalmente; venda sem nota real continua cancelando direto, sem
+a flag, sem bloqueio nenhum. Frontend: build de produção sem erro.
+
+**Arquivos**: `backend/src/models/Sale.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/services/FinanceService/FinanceCustomerService.ts`,
+`backend/src/database/migrations/20261024170000-add-sale-number-to-sales.ts`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/components/SaleDetailModal/index.js`,
+`frontend/src/translate/languages/pt.js`.

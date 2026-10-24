@@ -82,6 +82,16 @@ const statusChip = (status) => {
   return <Chip size="small" label="Processando" style={{ backgroundColor: "#3b82f6", color: "#fff" }} />;
 };
 
+// Prazo de 24h pra cancelar NF-e (v2.3.218, pedido do cliente) — mesma
+// regra já checada no backend (`FiscalDocumentService.cancel`), repetida
+// aqui só pra desabilitar o botão achar/avisar ANTES de clicar, com uma
+// mensagem clara; quem decide de verdade continua sendo o backend/Sefaz.
+const isPastCancelDeadline = (doc) => {
+  if (!doc?.issuedAt) return false;
+  const hoursSinceIssued = (Date.now() - new Date(doc.issuedAt).getTime()) / (1000 * 60 * 60);
+  return hoursSinceIssued > 24;
+};
+
 // Detalhe de uma venda (Fase 3 — módulo fiscal): mostra os itens, os
 // botões de emissão (quando confirmada) e o histórico de tentativas
 // anteriores. Desde a v2.3.188, "Editar" (via `onEdit`) continua
@@ -564,10 +574,22 @@ const SaleDetailModal = ({ open, onClose, sale, fiscal, focusFiscal = false, onE
                             </IconButton>
                           </Tooltip>
                         )}
-                        <Tooltip title="Cancelar nota">
-                          <IconButton size="small" onClick={() => setCancelDialogDoc(doc)}>
-                            <BlockIcon fontSize="small" />
-                          </IconButton>
+                        <Tooltip
+                          title={
+                            isPastCancelDeadline(doc)
+                              ? "Prazo de 24h pra cancelar essa nota já passou — use Carta de Correção ou resolva com a Sefaz/contador"
+                              : "Cancelar nota"
+                          }
+                        >
+                          <span>
+                            <IconButton
+                              size="small"
+                              disabled={isPastCancelDeadline(doc)}
+                              onClick={() => setCancelDialogDoc(doc)}
+                            >
+                              <BlockIcon fontSize="small" />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                       </>
                     )}
