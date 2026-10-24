@@ -3,6 +3,55 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.217] — Código do cliente, mais colunas em Vendas, pagamento misto, horário certo e limpeza do cadastro de Produto — 2026-10-24
+
+### Adicionado
+- **Código sequencial do cliente** ("00001", "00002"...) — atribuído
+  sozinho ao cadastrar, por empresa, visível como nova coluna "Código"
+  na lista de Clientes. Clientes que já existiam antes desta versão
+  foram numerados retroativamente na ordem em que foram cadastrados
+  (migration de backfill).
+- **Lista de Vendas ganhou as colunas "Código do produto"** (SKU de
+  todos os itens da venda, separados por vírgula) **e "Nº Nota Fiscal"**
+  (número do documento autorizado, quando já emitido) — sem tirar
+  nenhuma coluna/campo que já existia.
+- **"Venda Mista" na forma de pagamento** — ao escolher, abrem 3 campos
+  de valor (Dinheiro / PIX / Cartão), um aviso avisa se a soma não bate
+  com o total da venda (não trava o formulário). Na nota fiscal, vira
+  várias entradas no grupo de pagamento da NF-e (um `formas_pagamento`
+  por valor preenchido) em vez de uma só.
+- **CNPJ do fornecedor autopreenche "CNPJ do Fabricante"** do Produto ao
+  escolher o Distribuidor/Fornecedor Principal — mesmo mecanismo que já
+  preenchia os 13 campos fiscais (v2.3.211), ampliado pra campos com
+  nome diferente dos dois lados.
+
+### Corrigido
+- **Bug real: selecionar o fornecedor num Produto NOVO (ainda não
+  salvo) fazia a caixa voltar vazia** assim que mudava de campo — o
+  valor exibido vinha só da relação já salva no registro (`record`),
+  que não existe ainda pra um cadastro novo. O id continuava indo pro
+  Formik certinho (o autopreenchimento dos campos fiscais funcionava),
+  só a CAIXA em si que parecia ter "esquecido" a escolha. Afeta
+  qualquer campo de busca (fornecedor, cliente etc.) ao CRIAR um
+  registro novo, não só Produto.
+- **Horário da nota fiscal saindo errado** (3h adiantado, offset
+  UTC→Brasília) — `data_emissao`/`data_entrada_saida` eram montados com
+  `new Date().toISOString()` (sempre UTC); o servidor roda em UTC, não
+  em horário de Brasília, e a Focus NFe não convertia esse "Z". Confirmado
+  numa nota real: protocolo de autorização (carimbado pela Sefaz) saiu
+  12:19:29, mas a "HORA DE SAÍDA" (mandada por este sistema) saiu
+  15:19:27 no mesmo DANFE. Corrigido formatando a hora de verdade no
+  fuso de Brasília com offset explícito (`-03:00`).
+
+### Removido
+- **Cadastro de Produto**: campos "Prazo de Produção", "Código
+  Desenho" e "Escala de Produção" (seção Fornecedor/Produção) — sem uso,
+  saíram do formulário (colunas continuam no banco, nenhum dado
+  antigo é apagado).
+- **Forma de pagamento da Venda**: opção "Importado do XML" — valor
+  técnico deixado pela importação de planilha antiga, nunca devia
+  aparecer como opção escolhível à mão.
+
 ## [2.3.216] — Lista de Vendas mostra "Autorizada" quando a nota já saiu — 2026-10-24
 
 ### Corrigido

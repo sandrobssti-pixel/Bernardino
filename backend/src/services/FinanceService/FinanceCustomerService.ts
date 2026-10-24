@@ -1,4 +1,4 @@
-import { Op, Sequelize } from "sequelize";
+import { Op, QueryTypes, Sequelize } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceCustomer from "../../models/FinanceCustomer";
@@ -38,6 +38,21 @@ interface CustomerData {
 const customerSchema = Yup.object().shape({
   name: Yup.string().required("ERR_FINANCE_CUSTOMER_INVALID_NAME").min(2)
 });
+
+// Próximo código sequencial do cliente, por empresa (v2.3.217) — "00001",
+// "00002"... O filtro `"code" ~ '^[0-9]+$'` evita que um `CAST` quebre em
+// cima de um valor em branco/legado não numérico (defensivo; depois da
+// migration que fez o backfill, todo cliente já tem um código numérico).
+const nextCustomerCode = async (companyId: number): Promise<string> => {
+  const [result]: any[] = await FinanceCustomer.sequelize!.query(
+    `SELECT COALESCE(MAX(CAST("code" AS INTEGER)), 0) AS "maxCode"
+     FROM "FinanceCustomers"
+     WHERE "companyId" = :companyId AND "code" ~ '^[0-9]+$'`,
+    { replacements: { companyId }, type: QueryTypes.SELECT }
+  );
+  const maxCode = Number(result?.maxCode) || 0;
+  return String(maxCode + 1).padStart(5, "0");
+};
 
 export const list = async ({
   companyId,
@@ -94,7 +109,8 @@ export const create = async (
     throw new AppError(err.message);
   }
 
-  const record = await FinanceCustomer.create({ ...data, companyId } as any);
+  const code = await nextCustomerCode(companyId);
+  const record = await FinanceCustomer.create({ ...data, code, companyId } as any);
   return record;
 };
 
@@ -162,12 +178,14 @@ export const linkFromContact = async (
   const documentDigits = String(contact.document || "").replace(/\D/g, "");
   const documentType = documentDigits.length === 14 ? "cnpj" : "cpf";
 
+  const code = await nextCustomerCode(companyId);
   const record = await FinanceCustomer.create({
     name: contact.name,
     phone: contact.number,
     email: contact.email || "",
     document: contact.document || "",
     documentType,
+    code,
     contactId: contact.id,
     companyId
   } as any);

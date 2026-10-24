@@ -64,6 +64,9 @@ interface SaleData {
   recipientType?: string;
   ieIndicator?: string;
   paymentMethod?: string;
+  paymentCashValue?: string;
+  paymentPixValue?: string;
+  paymentCardValue?: string;
   // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168) — ver
   // comentário completo em Sale.ts.
   issuancePurpose?: string;
@@ -114,7 +117,10 @@ const FISCAL_FIELD_DEFAULTS: Record<string, string> = {
   finalConsumerType: "final",
   recipientType: "customer",
   ieIndicator: "non_contributor",
-  paymentMethod: ""
+  paymentMethod: "",
+  paymentCashValue: "0",
+  paymentPixValue: "0",
+  paymentCardValue: "0"
 };
 
 const buildFiscalFields = (data: SaleData): Record<string, string> => {
@@ -270,7 +276,16 @@ const includeOptions = [
     ]
   },
   { model: FinanceReceivable, as: "receivable", attributes: ["id", "status", "dueDate"] },
-  { model: FiscalDocument, as: "fiscalDocuments", attributes: ["id", "type", "status", "environment"] }
+  {
+    model: FiscalDocument,
+    as: "fiscalDocuments",
+    // "number" incluído (v2.3.217, pedido do cliente: mostrar o número da
+    // nota fiscal na lista de Vendas) — antes só vinha nos outros 4
+    // campos, já usados pra decidir status/ícones de ação da linha; agora
+    // a própria lista (SaleList.js) também lê pra mostrar o número sem
+    // precisar de uma chamada extra por venda.
+    attributes: ["id", "type", "status", "environment", "number"]
+  }
 ];
 
 const saleSchema = Yup.object().shape({

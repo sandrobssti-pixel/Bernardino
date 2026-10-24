@@ -116,6 +116,9 @@ const buildInitialValues = (sale, defaultCfop) => ({
   recipientType: sale?.recipientType || "customer",
   ieIndicator: sale?.ieIndicator || "non_contributor",
   paymentMethod: sale?.paymentMethod || "",
+  paymentCashValue: sale?.paymentCashValue || "",
+  paymentPixValue: sale?.paymentPixValue || "",
+  paymentCardValue: sale?.paymentCardValue || "",
   // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168).
   issuancePurpose: sale?.issuancePurpose || "normal",
   volumeQuantity: sale?.volumeQuantity || 0,
@@ -943,6 +946,72 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                       ))}
                     </Field>
                   </Grid>
+                  {/* Venda mista (v2.3.217, pedido do cliente: "as vezes o
+                      cliente paga em dinheiro, pix e cartão de crédito")
+                      — abre os 3 valores só quando a forma de pagamento é
+                      "mixed"; os 3 somados não precisam bater exatamente
+                      com o total da venda (ex.: troco em dinheiro já
+                      recebido não é "valor pago" fiscal) — por isso o aviso
+                      é só informativo, não trava o formulário. */}
+                  {values.paymentMethod === "mixed" && (
+                    <>
+                      <Grid item xs={12} sm={4}>
+                        <Field
+                          as={TextField}
+                          type="number"
+                          inputProps={{ step: "0.01", min: "0" }}
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          label="Valor em dinheiro"
+                          name="paymentCashValue"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Field
+                          as={TextField}
+                          type="number"
+                          inputProps={{ step: "0.01", min: "0" }}
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          label="Valor no PIX"
+                          name="paymentPixValue"
+                        />
+                      </Grid>
+                      <Grid item xs={12} sm={4}>
+                        <Field
+                          as={TextField}
+                          type="number"
+                          inputProps={{ step: "0.01", min: "0" }}
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          label="Valor no cartão"
+                          name="paymentCardValue"
+                        />
+                      </Grid>
+                      {(() => {
+                        const mixedSum =
+                          (Number(values.paymentCashValue) || 0) +
+                          (Number(values.paymentPixValue) || 0) +
+                          (Number(values.paymentCardValue) || 0);
+                        const total = (values.items || []).reduce(
+                          (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+                          0
+                        );
+                        const diff = Math.round((total - mixedSum) * 100) / 100;
+                        return diff !== 0 ? (
+                          <Grid item xs={12}>
+                            <Typography variant="caption" color="error">
+                              Soma dos pagamentos ({money(mixedSum)}) difere do total da venda ({money(total)}) em{" "}
+                              {money(Math.abs(diff))}.
+                            </Typography>
+                          </Grid>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
                 </Grid>
 
                 <Divider style={{ margin: "16px 0" }} />

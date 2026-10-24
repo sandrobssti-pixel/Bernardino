@@ -28,6 +28,17 @@ class FinanceCustomer extends Model<FinanceCustomer> {
   @Column
   id: number;
 
+  // Código sequencial do cliente (v2.3.217, pedido do cliente: "colocar o
+  // código do cliente começando por 00001 em ordem crescente") — 5 dígitos
+  // com zero à esquerda, sequencial POR EMPRESA (multi-tenant), atribuído
+  // sozinho na criação (`FinanceCustomerService.nextCustomerCode`), nunca
+  // editável pelo usuário. Diferente de `id` (chave interna do banco, não
+  // pensada pra aparecer pro cliente/operador) — esse é o "código" que
+  // aparece no painel, visível e sequencial de verdade.
+  @Default("")
+  @Column
+  code: string;
+
   @AllowNull(false)
   @Column
   name: string;

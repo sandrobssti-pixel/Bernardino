@@ -593,6 +593,14 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               <TableCell>Cliente</TableCell>
               <TableCell>Data</TableCell>
               <TableCell align="right">Total</TableCell>
+              {/* Código do produto + Nº da nota fiscal (v2.3.217, pedido do
+                  cliente) — antes só apareciam entrando no detalhe da
+                  venda. Código do produto junta o SKU de todos os itens
+                  (uma venda pode ter mais de um produto); nº da nota vem
+                  do documento AUTORIZADO mais recente (mesmo
+                  `sale.fiscalDocuments` que já decide o chip de Status). */}
+              <TableCell>Código do produto</TableCell>
+              <TableCell>Nº Nota Fiscal</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="right">Ações</TableCell>
             </TableRow>
@@ -619,6 +627,12 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 <TableCell>{sale.customer?.name || "Consumidor não identificado"}</TableCell>
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
                 <TableCell align="right">{money(sale.totalValue)}</TableCell>
+                <TableCell>
+                  {(sale.items || []).map((item) => item.sku).filter(Boolean).join(", ") || "—"}
+                </TableCell>
+                <TableCell>
+                  {(sale.fiscalDocuments || []).find((d) => d.status === "authorized")?.number || "—"}
+                </TableCell>
                 <TableCell>{statusChip(sale)}</TableCell>
                 <TableCell align="right">
                   {sale.status === "draft" && (
@@ -713,10 +727,10 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 </TableCell>
               </TableRow>
             ))}
-            {loading && <TableRowSkeleton columns={7} />}
+            {loading && <TableRowSkeleton columns={9} />}
             {!loading && sales.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} align="center">
+                <TableCell colSpan={9} align="center">
                   Nenhuma venda registrada ainda.
                 </TableCell>
               </TableRow>

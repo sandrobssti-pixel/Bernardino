@@ -1,8 +1,23 @@
 import axios, { AxiosInstance } from "axios";
 import { v4 as uuidv4 } from "uuid";
+import { formatInTimeZone } from "date-fns-tz";
 import Sale from "../../models/Sale";
 import FiscalConfig from "../../models/FiscalConfig";
 import Company from "../../models/Company";
+
+// v2.3.217 — bug real em produção: `data_emissao`/`data_entrada_saida`
+// eram montados com `new Date().toISOString()`, que sempre devolve o
+// instante em UTC (sufixo "Z"). O servidor roda em UTC (não em horário de
+// Brasília), e a Focus NFe aparentemente não converte esse "Z" — usa os
+// dígitos como se já fossem hora local. Resultado visível em nota real: o
+// "PROTOCOLO DE AUTORIZAÇÃO" (carimbado pela própria Sefaz, correto) saiu
+// 12:19:29, mas a "HORA DE SAÍDA" desta nota (que ESTE sistema mandou) saiu
+// 15:19:27 no mesmo DANFE — 3h adiantado, exatamente o offset UTC→Brasília
+// (UTC-03:00). Corrigido formatando a hora de verdade no fuso de Brasília,
+// com offset explícito (`-03:00`) na string em vez de "Z" — ver
+// `nowInBrasiliaISO` abaixo.
+const nowInBrasiliaISO = (): string =>
+  formatInTimeZone(new Date(), "America/Sao_Paulo", "yyyy-MM-dd'T'HH:mm:ssXXX");
 
 // Adapter pro gateway de emissão fiscal Focus NFe (focusnfe.com.br) — Fase 3
 // do roadmap, ver docs/MANUAL_TECNICO.md, seção 6.2. Escolhido porque cobre
@@ -411,6 +426,30 @@ const buildIndicadores = (sale: Sale) => {
     fields.indicador_intermediador = INTERMEDIARY_CODES[sale.intermediaryType] || "0";
   }
 
+  // "Venda Mista" (v2.3.217, pedido do cliente: "as vezes o cliente paga
+  // em dinheiro, pix e cartão") — o grupo `formas_pagamento` da NF-e já
+  // aceita VÁRIAS entradas (um `<detPag>` por forma usada), por isso não
+  // precisou de código Sefaz novo: monta uma entrada por valor preenchido
+  // (dinheiro "01", PIX "17", cartão "03" — mesmos códigos já usados pros
+  // outros meios avulsos em `PAYMENT_METHOD_CODES`), ignorando os que
+  // ficaram zerados/em branco.
+  if (sale.paymentMethod === "mixed") {
+    const entries = [
+      { code: PAYMENT_METHOD_CODES.money, value: Number(sale.paymentCashValue) || 0 },
+      { code: PAYMENT_METHOD_CODES.pix, value: Number(sale.paymentPixValue) || 0 },
+      { code: PAYMENT_METHOD_CODES.credit_card, value: Number(sale.paymentCardValue) || 0 }
+    ].filter(entry => entry.value > 0);
+
+    if (entries.length > 0) {
+      fields.formas_pagamento = entries.map(entry => ({
+        forma_pagamento: entry.code,
+        valor_pagamento: entry.value
+      }));
+    }
+
+    return fields;
+  }
+
   const paymentCode = PAYMENT_METHOD_CODES[sale.paymentMethod];
   if (paymentCode) {
     fields.formas_pagamento = [
@@ -603,7 +642,7 @@ const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefin
 // documentação da Focus NFe, nunca testado contra conta/chave real nesta
 // sessão.
 const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => {
-  const now = new Date().toISOString();
+  const now = nowInBrasiliaISO();
   return {
     data_emissao: now,
     data_entrada_saida: now,
@@ -626,7 +665,7 @@ const buildNfePayload = (sale: Sale, company: Company, config: FiscalConfig) => 
 };
 
 const buildNfcePayload = (sale: Sale, company: Company, config: FiscalConfig) => ({
-  data_emissao: new Date().toISOString(),
+  data_emissao: nowInBrasiliaISO(),
   presenca_comprador: sale.consumerPresence || "1",
   serie: config.nfceSeries,
   ...buildIndicadores(sale),
@@ -646,7 +685,7 @@ const buildNfsePayload = (sale: Sale, company: Company, config: FiscalConfig) =>
     .join("; ");
 
   return {
-    data_emissao: new Date().toISOString(),
+    data_emissao: nowInBrasiliaISO(),
     prestador: {
       cnpj: (company.document || "").replace(/\D/g, ""),
       inscricao_municipal: config.municipalRegistration,

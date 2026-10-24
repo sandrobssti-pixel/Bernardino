@@ -14086,3 +14086,165 @@ Frontend: build de produção (`CI=true npm run build`) sem erro. Mudança
 não precisou de teste contra Postgres.
 
 **Arquivos**: `frontend/src/components/SaleList/index.js`.
+
+## 197. Lote de pedidos do cliente: código do cliente, colunas em Vendas, pagamento misto, horário certo, limpeza de Produto (v2.3.217)
+
+### Pedido (uma mensagem só, várias correções)
+
+1. Código sequencial do cliente, começando em "00001", crescente, visível no painel.
+2. Lista de Vendas ganhar colunas de código do produto e número da nota fiscal, sem tirar nada que já existe.
+3. Cadastro de Produto, seção Fornecedor/Produção: tirar "Prazo de Produção", "Código Desenho", "Escala de Produção".
+4. Bug: escolher o Distribuidor/Fornecedor Principal no Produto não preenche CNPJ e a seleção "não fica gravada" ao mudar de campo.
+5. Forma de pagamento da Venda: adicionar "Venda Mista" (dinheiro + PIX + cartão).
+6. Horário errado nas notas fiscais — "horário de Brasília tem que sair exato".
+7. Forma de pagamento: tirar a opção errada "Importado do XML".
+
+Pedido explícito do cliente: "não deixe de aplicar nenhuma, e o que já
+tiver implantado só faz o que não tem" — tratado item a item abaixo.
+
+### 1. Código do cliente
+
+`FinanceCustomer` ganhou coluna `code` (string, "00001"...). Atribuído
+em `FinanceCustomerService.nextCustomerCode(companyId)`: `SELECT
+COALESCE(MAX(CAST("code" AS INTEGER)), 0) ... WHERE "code" ~
+'^[0-9]+$'` (filtro regex evita `CAST` quebrar em cima de um valor em
+branco/legado), +1, `padStart(5, "0")`. Chamado nos dois pontos que
+criam `FinanceCustomer` (`create` e `linkFromContact`, esse último
+usado quando um Contato do atendimento vira cliente financeiro). **Por
+empresa** (multi-tenant) — cada empresa nova começa do 00001 de novo,
+testado contra Postgres local confirmando isso.
+
+Migration faz backfill dos clientes que já existiam: `ROW_NUMBER() OVER
+(PARTITION BY "companyId" ORDER BY id ASC)`, formatado em 5 dígitos —
+numera cada cliente já cadastrado na ordem em que foi criado, por
+empresa, sem mexer em nenhum outro dado.
+
+Visível como nova coluna "Código" (primeira coluna) em
+`financeCustomerColumns`, `financeConfig.js` — não editável no
+formulário (`financeCustomerFields` não ganhou campo nenhum, é
+só-leitura/atribuído pelo sistema).
+
+### 2. Colunas novas na lista de Vendas
+
+`SaleList.js`: "Código do produto" junta o SKU de todos os itens da
+venda (`sale.items.map(i => i.sku).join(", ")` — uma venda pode ter
+mais de um produto, por isso junta em vez de mostrar um só). "Nº Nota
+Fiscal" pega o `number` do documento com `status === "authorized"` mais
+recente em `sale.fiscalDocuments` (mesmo array que já decide o chip de
+"Autorizada", v2.3.216). Precisou incluir `"number"` nos atributos do
+include de `fiscalDocuments` em `SaleService.ts` (antes só vinham
+`id`/`type`/`status`/`environment`) — sem isso a lista não teria o dado
+pra mostrar sem uma chamada extra por linha.
+
+### 3. Limpeza do cadastro de Produto
+
+"Prazo de Produção" (`productionLeadTime`), "Código Desenho"
+(`designCode`) e "Escala de Produção" (`productionScale`) removidos de
+`financeProductFields` (`financeConfig.js`) — mesma cautela já usada
+pro SIGMA/SINARM da Etapa 1 (v2.3.210): coluna continua existindo no
+banco, só não aparece mais no formulário pra preencher.
+
+### 4. Bug real: seleção de fornecedor "não ficava gravada"
+
+Causa raiz, achada lendo `FinanceRecordModal/index.js`: o valor exibido
+de todo campo `asyncSelect` vinha de
+```js
+const embedded = record?.[singularKey];
+const selected = embedded && embedded.id === currentId ? embedded : null;
+```
+`embedded` só existe quando `record` (o registro sendo editado) JÁ tem
+essa relação salva — pra um registro **novo** (`record` null), `embedded`
+é sempre `undefined`, então `selected` é sempre `null`, **não importa o
+que o usuário escolher no dropdown**. O id ia pro Formik certinho
+(`setFieldValue(field.name, newValue.id)` sempre rodava), só a CAIXA em
+si voltava vazia visualmente assim que o componente re-renderizava —
+exatamente o "não fica gravado quando vai pra outro campo" reportado.
+Esse bug não é exclusivo do campo Fornecedor do Produto: afeta
+QUALQUER campo `asyncSelect` (Cliente, Fornecedor, Produto...) ao criar
+um registro novo em qualquer lugar do Financeiro.
+
+Corrigido com um padrão já existente no mesmo arquivo pro campo
+`serviceSelect` (`servicePickerValue`): um `useState` à parte
+(`asyncSelectValues`, objeto por nome de campo) guarda o OBJETO INTEIRO
+escolhido, independente do que `record` tem. Semeado a partir de
+`record` no mesmo `useEffect([record, open])` que já reseta os outros
+estados do modal (editar um registro existente continua funcionando
+igual); atualizado no `onChange` de cada `asyncSelect` assim que algo é
+escolhido. `selected` agora lê só de `asyncSelectValues[field.name]`.
+
+### CNPJ autofill (parte do pedido 4)
+
+`field.autofillFields` (mecanismo da v2.3.211, só copiava campos de
+MESMO NOME dos dois lados) ganhou suporte a `{ source, target }` pra
+campos com nome diferente — `mainSupplierId` agora tem
+`[...FISCAL_FIELD_NAMES, { target: "manufacturerCnpj", source:
+"document" }]`: ao escolher o fornecedor, `manufacturerCnpj` (Produto)
+recebe o valor de `document` (Fornecedor). Onde `autofillFields` tem só
+strings (uso antigo, os 13 campos fiscais) o comportamento não muda —
+`typeof autofillField === "string" ? [autofillField, autofillField] :
+[autofillField.target, autofillField.source]`.
+
+### 5. Venda Mista
+
+`Sale` ganhou 3 colunas (`paymentCashValue`/`paymentPixValue`/
+`paymentCardValue`, string, default "0"), seguindo o mesmo padrão
+genérico de `FISCAL_FIELD_DEFAULTS`/`buildFiscalFields` já usado pros
+outros campos fiscais da Venda — só precisou adicionar as 3 chaves ali,
+sem lógica nova de save/update. `SaleModal.js` mostra os 3 campos de
+valor só quando `paymentMethod === "mixed"`, com aviso (não bloqueante)
+se a soma não bate com o total.
+
+`FocusNFeService.buildIndicadores`: o grupo `formas_pagamento` da NF-e
+já aceita várias entradas (um `<detPag>` por forma usada) — pra
+`paymentMethod === "mixed"` monta uma entrada por valor > 0 (dinheiro
+"01", PIX "17", cartão "03", mesmos códigos Sefaz já usados pros meios
+avulsos), em vez da entrada única de sempre.
+
+### 6. Horário errado nas notas fiscais
+
+Achado comparando uma nota real: "PROTOCOLO DE AUTORIZAÇÃO" (carimbado
+pela própria Sefaz) 12:19:29, "HORA DE SAÍDA" (mandada por este
+sistema) 15:19:27 no MESMO DANFE — exatos 3h de diferença, o offset
+UTC→Brasília (UTC-03:00). Causa: `data_emissao`/`data_entrada_saida`
+em `FocusNFeService.ts` (NF-e, NFC-e, NFS-e) eram montados com `new
+Date().toISOString()`, que sempre devolve UTC ("Z") — o servidor roda
+em UTC (o Postgres já estava certo, `timezone: 'America/Sao_Paulo'` em
+`config/database.ts`, mas isso não afeta `new Date()` do Node), e a
+Focus NFe aparentemente não convertia esse "Z" pra horário local.
+
+Corrigido com `date-fns-tz` (já era dependência do projeto, nunca tinha
+sido usada) — `nowInBrasiliaISO()` formata a hora de verdade no fuso de
+Brasília com offset explícito (`yyyy-MM-dd'T'HH:mm:ssXXX` →
+`2026-10-24T12:19:27-03:00`), usado nos 3 lugares que antes chamavam
+`new Date().toISOString()`.
+
+### 7. "Importado do XML" fora da lista
+
+`SALE_PAYMENT_METHOD_OPTIONS` perdeu a opção "Importado do XML" — valor
+técnico que `SaleImportService.ts` grava sozinho ao importar planilha,
+nunca devia aparecer como opção pra escolher à mão numa venda normal.
+Vendas antigas que já tenham esse valor salvo continuam com ele (não é
+migração de dado, só não aparece mais no `<select>`). "Venda Mista"
+(item 5) entrou no lugar.
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Migrations rodadas contra
+Postgres local (`atendeflow_test`), as duas idempotentes. Testado
+contra Postgres local: `FinanceCustomerService.create` gerando
+"00001"/"00002"/"00003" em sequência, e reiniciando do "00001" numa
+empresa diferente (código é por empresa). `nowInBrasiliaISO()`
+conferido manualmente (`date-fns-tz`, saída com offset `-03:00`
+correto). Frontend: build de produção sem erro nem warning.
+
+**Arquivos**: `backend/src/models/FinanceCustomer.ts`,
+`backend/src/models/Sale.ts`,
+`backend/src/services/FinanceService/FinanceCustomerService.ts`,
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/database/migrations/20261024150000-add-code-to-finance-customers.ts`,
+`backend/src/database/migrations/20261024160000-add-mixed-payment-fields-to-sales.ts`,
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

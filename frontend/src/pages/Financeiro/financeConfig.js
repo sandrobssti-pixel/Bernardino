@@ -28,6 +28,10 @@ const ADDRESS_FIELDS = [
 ];
 
 export const financeCustomerColumns = [
+  // Código sequencial (v2.3.217, pedido do cliente) — "00001", "00002"...
+  // atribuído sozinho na criação (FinanceCustomerService.nextCustomerCode),
+  // não é um campo editável no formulário.
+  { field: "code", label: "Código" },
   { field: "name", label: "Nome" },
   { field: "document", label: "CPF/CNPJ" },
   { field: "email", label: "E-mail" },
@@ -467,12 +471,19 @@ export const financeProductFields = [
     // Autofill (v2.3.211, pedido do cliente): escolher o fornecedor já
     // preenche os 13 campos fiscais do Produto com os valores
     // cadastrados nesse fornecedor (continuam editáveis por produto se
-    // precisar). Ver `autofillFields` em FinanceRecordModal/index.js.
-    autofillFields: FISCAL_FIELD_NAMES,
+    // precisar). Ampliado na v2.3.217 pra também trazer o CNPJ do
+    // fornecedor escolhido pro campo "CNPJ do Fabricante" abaixo (nome
+    // diferente dos dois lados — `document` no Fornecedor, por isso o
+    // formato `{ source, target }` em vez de uma string só). Ver
+    // `autofillFields` em FinanceRecordModal/index.js.
+    autofillFields: [...FISCAL_FIELD_NAMES, { target: "manufacturerCnpj", source: "document" }],
   },
-  { name: "productionLeadTime", label: "Prazo de Produção", gridSize: 6, visibleWhen: isNotService },
-  { name: "designCode", label: "Código Desenho", gridSize: 6, visibleWhen: isNotService },
-  { name: "productionScale", label: "Escala de Produção", gridSize: 6, visibleWhen: isNotService },
+  // "Prazo de Produção"/"Código Desenho"/"Escala de Produção" removidos
+  // (v2.3.217, pedido do cliente: "não há necessidade desses campos") —
+  // não eram usados, saíram do formulário. Colunas continuam existindo
+  // no banco (nenhuma migration de remoção), mesma cautela já usada pro
+  // SIGMA/SINARM da Etapa 1 (v2.3.210): dado antigo que alguém já tenha
+  // preenchido não é apagado, só não aparece mais pra preencher de novo.
   { name: "manufacturerCnpj", label: "CNPJ do Fabricante", gridSize: 6, visibleWhen: isNotService },
 
   // -- Campos de arma/munição/insumo — só aparecem quando Tipo = Arma ou
@@ -759,14 +770,23 @@ export const SALE_IE_INDICATOR_OPTIONS = [
 // Forma de pagamento — lista exatamente como o contador passou (duas
 // opções, "À vista" e "Dinheiro", mapeiam pro mesmo código Sefaz "01" no
 // backend; ver PAYMENT_METHOD_CODES em FocusNFeService.ts).
+// "Importado do XML" removida (v2.3.217, pedido do cliente: "tirar a
+// opção errada que está lá importado do xml") — era só um valor técnico
+// deixado pela importação de planilha/XML de vendas antigas
+// (SaleImportService.ts), nunca fez sentido como opção escolhível à mão
+// na venda; vendas antigas que já tiverem esse valor salvo continuam
+// com ele (não é migração de dado, só sai da lista de opções do
+// formulário). "Venda Mista" nova no lugar, mesmo pedido: "as vezes o
+// cliente paga em dinheiro, pix e cartão" — ver os 3 campos de valor
+// que aparecem em SaleModal.js quando essa opção é escolhida.
 export const SALE_PAYMENT_METHOD_OPTIONS = [
   { value: "", label: "—" },
   { value: "cash_upfront", label: "À vista" },
   { value: "credit_card", label: "Cartão de Crédito" },
   { value: "debit_card", label: "Cartão de Débito" },
   { value: "money", label: "Dinheiro" },
-  { value: "imported_xml", label: "Importado do XML" },
   { value: "pix", label: "PIX" },
+  { value: "mixed", label: "Venda Mista" },
   { value: "no_payment", label: "Sem pagamento" },
 ];
 

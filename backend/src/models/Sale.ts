@@ -96,11 +96,36 @@ class Sale extends Model<Sale> {
   @Column
   ieIndicator: string;
 
-  // "cash_upfront" | "credit_card" | "debit_card" | "money" |
+  // "cash_upfront" | "credit_card" | "debit_card" | "money" | "mixed" |
   // "imported_xml" | "pix" | "no_payment" — forma_pagamento (tPag).
+  // "mixed" ("Venda Mista", v2.3.217) é o único valor que usa os 3 campos
+  // de valor logo abaixo — os outros continuam usando o total da venda
+  // inteiro como valor pago (ver `FocusNFeService.buildIndicadores`).
+  // "imported_xml" saiu da lista de opções do formulário (v2.3.217) mas
+  // continua existindo aqui — venda antiga importada que já tenha esse
+  // valor salvo não muda retroativamente.
   @Default("")
   @Column
   paymentMethod: string;
+
+  // Valores por forma de pagamento quando `paymentMethod === "mixed"`
+  // (v2.3.217, pedido do cliente: "as vezes o cliente paga em dinheiro,
+  // pix e cartão de crédito") — mesmo padrão de coluna string pros
+  // valores monetários já usado no resto do sistema (`totalValue`,
+  // `SaleItem.unitPrice` etc.), não numérico/decimal de propósito (evita
+  // erro de arredondamento de float do Postgres). Ficam "0" pras outras
+  // formas de pagamento, sem efeito nenhum.
+  @Default("0")
+  @Column
+  paymentCashValue: string;
+
+  @Default("0")
+  @Column
+  paymentPixValue: string;
+
+  @Default("0")
+  @Column
+  paymentCardValue: string;
 
   // --------------------------------------------------------------------
   // "Finalidade da Emissão" (v2.3.168, tela de emissão de NF-e do sistema

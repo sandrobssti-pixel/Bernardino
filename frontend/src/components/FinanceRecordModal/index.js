@@ -222,6 +222,17 @@ const FinanceRecordModal = ({
   // visível na caixa depois de escolher (o campo em si não é salvo, ver
   // comentário no branch `field.type === "serviceSelect"` abaixo).
   const [servicePickerValue, setServicePickerValue] = useState(null);
+  // Objeto completo escolhido em cada campo "asyncSelect" (v2.3.217, bug
+  // real: "escolher o fornecedor no cadastro de Produto NOVO — a seleção
+  // some da caixa assim que muda de campo"). Causa: o valor exibido vinha
+  // só de `record?.[singularKey]` (a relação já embutida no registro
+  // SALVO) comparado com o id atual — pra um registro ainda não salvo
+  // (`record` null/sem essa relação ainda), isso dava sempre `null`,
+  // mesmo logo depois de escolher algo no dropdown (o id ia pro Formik
+  // certinho, só a CAIXA voltava vazia visualmente). Mesmo padrão já usado
+  // acima pra `servicePickerValue` — guarda o objeto inteiro escolhido à
+  // parte do Formik (que só guarda o id), por nome de campo.
+  const [asyncSelectValues, setAsyncSelectValues] = useState({});
 
   useEffect(() => {
     setInitialValues(buildInitialValues(fields, record));
@@ -229,6 +240,17 @@ const FinanceRecordModal = ({
     setPhotoFile(null);
     setPhotoPreview(record?.photoUrl || null);
     setServicePickerValue(null);
+    // Semeia `asyncSelectValues` com as relações já embutidas no `record`
+    // (editar um registro existente) — fica `{}` pra um registro novo,
+    // cada campo só ganha valor depois que o `onChange` dele disparar.
+    const seededAsyncSelects = {};
+    (fields || []).forEach((f) => {
+      if (f.type === "asyncSelect") {
+        const singularKey = f.embeddedKey || f.optionsResource.replace(/s$/, "");
+        if (record?.[singularKey]) seededAsyncSelects[f.name] = record[singularKey];
+      }
+    });
+    setAsyncSelectValues(seededAsyncSelects);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, open]);
 
@@ -549,8 +571,13 @@ const FinanceRecordModal = ({
                     // qualquer fornecedor).
                     const singularKey = field.embeddedKey || field.optionsResource.replace(/s$/, "");
                     const embedded = record?.[singularKey];
-                    const currentId = values[field.name];
-                    const selected = embedded && embedded.id === currentId ? embedded : null;
+                    // v2.3.217: o valor exibido vem de `asyncSelectValues`
+                    // (objeto inteiro guardado à parte do Formik, ver
+                    // comentário no `useState` dele acima) — nunca mais só
+                    // de `embedded`, que é sempre vazio pra um registro
+                    // ainda não salvo e fazia a caixa voltar em branco
+                    // assim que o usuário escolhia algo.
+                    const selected = asyncSelectValues[field.name] || null;
 
                     return (
                       <Grid item xs={12} sm={gridSize} key={field.name}>
@@ -566,23 +593,31 @@ const FinanceRecordModal = ({
                           }}
                           onChange={(e, newValue) => {
                             setFieldValue(field.name, newValue?.id || "");
-                            // `field.autofillFields` (opcional, v2.3.211)
-                            // — lista de nomes de campo que existem tanto
-                            // no registro escolhido quanto neste
-                            // formulário; copia o valor de cada um pra cá
-                            // (ex.: mainSupplierId → autofill dos 13
-                            // campos fiscais do Produto com os valores já
-                            // cadastrados no Fornecedor escolhido).
-                            // Mesmo padrão de "preenche automático, mas
-                            // continua editável" já usado no resto do
-                            // sistema (ex.: CFOP/preço ao escolher
-                            // produto na Venda). Não mexe em nada quando
+                            setAsyncSelectValues((prev) => ({ ...prev, [field.name]: newValue || null }));
+                            // `field.autofillFields` (opcional, v2.3.211,
+                            // ampliado v2.3.217) — lista de campos a
+                            // autopreencher a partir do registro escolhido.
+                            // Cada entrada é uma string (nome IGUAL dos dois
+                            // lados — ex.: os 13 campos fiscais do Produto,
+                            // mesmo nome no Fornecedor) OU um objeto
+                            // `{ source, target }` quando o nome é
+                            // DIFERENTE (ex.: `manufacturerCnpj` no Produto
+                            // vem de `document` no Fornecedor — "CNPJ do
+                            // Fabricante" autopreenchido ao escolher o
+                            // Distribuidor/Fornecedor Principal, pedido do
+                            // cliente). Mesmo padrão de "preenche
+                            // automático, mas continua editável" já usado
+                            // no resto do sistema. Não mexe em nada quando
                             // o campo é limpo (newValue null) — só
                             // autopreenche ao escolher algo.
                             if (field.autofillFields && newValue) {
-                              field.autofillFields.forEach((autofillField) =>
-                                setFieldValue(autofillField, newValue[autofillField] ?? "")
-                              );
+                              field.autofillFields.forEach((autofillField) => {
+                                const [target, source] =
+                                  typeof autofillField === "string"
+                                    ? [autofillField, autofillField]
+                                    : [autofillField.target, autofillField.source];
+                                setFieldValue(target, newValue[source] ?? "");
+                              });
                             }
                           }}
                         />
