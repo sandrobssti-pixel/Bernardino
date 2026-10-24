@@ -13624,3 +13624,38 @@ genérico deste módulo**: não dá pra confiar só na lista de campos
 mesmo bug, mesmo sem "parecer" numérica.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceProductService.ts`.
+
+## 190. SIGMA/SINARM fora do cadastro de unidade de arma (v2.3.210)
+
+### Contexto
+
+Cliente, olhando a seção "Armas deste modelo" dentro do cadastro de
+Produto (Etapa 1, seção 184): "esse campo não é pra estar em cadastro
+também sigma/sinarm" — o número de registro SIGMA/SINARM só é gerado
+quando a arma é vendida e registrada no Exército pelo comprador, não
+quando ela chega no estoque do lojista. Pedir esse campo no momento do
+"deu entrada no estoque" não faz sentido — o número não existe ainda.
+
+### Mudança
+
+`WeaponUnitsSection.js`: removido o `TextField` "Nº de registro
+SIGMA/SINARM" do formulário de adicionar/editar unidade, e a coluna
+correspondente da tabela de listagem. `draft.sigmaRegistrationNumber`
+continua existindo no estado do componente (não removido) — só não tem
+mais input editável: unidade nova sempre salva `""`, unidade existente
+que por algum motivo já tivesse um valor (import antigo, ou escrito
+depois pela Etapa 2/processo do Despachante Bélico) continua
+preservando esse valor ao editar outros campos (não é sobrescrita).
+
+Coluna/campo `sigmaRegistrationNumber` **não foi removido do banco nem
+do model** — continua existindo, opcional, só não é mais pedido nesta
+tela. `SaleModal.js` (Etapa 2, seção 186) continua auto-preenchendo o
+SIGMA/SINARM da Venda a partir da unidade escolhida, se ela tiver um
+valor preenchido por outro caminho.
+
+### Verificação
+
+Frontend: parseado via Babel, build de produção (`craco build`)
+completo sem erro.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`.

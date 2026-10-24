@@ -213,14 +213,11 @@ const WeaponUnitsSection = ({ product, finance }) => {
           onChange={(e) => setDraft((d) => ({ ...d, serialNumber: e.target.value }))}
           style={{ minWidth: 160 }}
         />
-        <TextField
-          label="Nº de registro SIGMA/SINARM"
-          size="small"
-          variant="outlined"
-          value={draft.sigmaRegistrationNumber}
-          onChange={(e) => setDraft((d) => ({ ...d, sigmaRegistrationNumber: e.target.value }))}
-          style={{ minWidth: 180 }}
-        />
+        {/* SIGMA/SINARM tirado do cadastro da unidade (v2.3.210, pedido do
+            cliente) — esse número só existe depois que a arma é vendida e
+            registrada no Exército, não quando ela chega no estoque. Campo
+            continua existindo no banco (sigmaRegistrationNumber), só não é
+            mais pedido nesta tela. */}
         <TextField
           select
           label="Situação"
@@ -295,7 +292,6 @@ const WeaponUnitsSection = ({ product, finance }) => {
           <TableHead>
             <TableRow>
               <TableCell>Número de série</TableCell>
-              <TableCell>Registro SIGMA/SINARM</TableCell>
               <TableCell>Situação</TableCell>
               <TableCell>Observações</TableCell>
               <TableCell align="right">Ações</TableCell>
@@ -305,7 +301,6 @@ const WeaponUnitsSection = ({ product, finance }) => {
             {units.map((unit) => (
               <TableRow key={unit.id}>
                 <TableCell>{unit.serialNumber}</TableCell>
-                <TableCell>{unit.sigmaRegistrationNumber || "—"}</TableCell>
                 <TableCell>{statusLabel(unit.status)}</TableCell>
                 <TableCell>{unit.notes || "—"}</TableCell>
                 <TableCell align="right">

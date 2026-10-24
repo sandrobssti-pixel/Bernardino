@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.210] — Tira SIGMA/SINARM do cadastro da arma por unidade — 2026-10-24
+
+### Alterado
+- **Campo "Nº de registro SIGMA/SINARM" saiu do cadastro de unidade de
+  arma** ("Armas deste modelo", dentro do Produto) — pedido do cliente:
+  esse número só existe depois que a arma é vendida e registrada no
+  Exército, não faz sentido pedir quando a arma só chegou no estoque.
+  Continua existindo no banco (campo opcional, nunca obrigatório), só
+  não é mais pedido/mostrado nessa tela.
+
 ## [2.3.209] — Corrige "Internal server error" ao editar praticamente qualquer Produto — 2026-10-24
 
 ### Corrigido
