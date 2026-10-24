@@ -13547,17 +13547,26 @@ os 13 campos de ICMS/CSOSN/IBPT (seção 185) devem morar:
    saída deve ficar "configurado no cadastro deste produto", ou seja,
    o OPOSTO do pedido da manhã.
 
-**Nada foi decidido ou revertido** — a migration de `SaleItems` rodou
-(testada, inerte: só `ADD COLUMN` com default seguro, nenhum código
-lê/escreve essas colunas ainda), mas o resto do trabalho (model,
-`SaleService`, `FocusNFeService`, `SaleModal.js`, esconder "Dados
-Fiscais" do Produto) foi **pausado** até o cliente esclarecer a
-contradição. Também identificado, mas não construído: este sistema não
-tem NENHUM conceito de "nota fiscal de entrada"/recebimento de
-mercadoria do fornecedor hoje — o pedido do cliente de "lançar os
-tributos de entrada pegando informação dos fornecedores" é, na
-prática, um módulo novo inteiro (Compras/Entrada), não um ajuste no que
-já existe.
+**Decidido** (mesmo dia, resposta direta do cliente: "mantenha tudo
+sobre os produtos de armas, munições/insumos, com essa informação
+agora"): os 13 campos de ICMS/CSOSN/IBPT **continuam no cadastro de
+Produto**, como já estava em produção — nenhuma mudança de verdade foi
+feita, o pedido da manhã (tirar dados fiscais do Produto) fica sem
+efeito pra esse tipo. A migration de `SaleItems`
+(`20261024100000-add-fiscal-fields-to-sale-items`) já tinha rodado
+(testada, inerte: só `ADD COLUMN` com default seguro) e **fica como
+está, sem uso** — não foi revertida (reverter uma migration já
+aplicada em teste sem necessidade real adicionaria risco à toa; as 13
+colunas novas em `SaleItems` não atrapalham nada ficando paradas,
+nenhum código lê nem escreve nelas). Se um dia fizer sentido usá-las,
+já estão lá; se não, podem ser removidas numa limpeza futura.
+
+Ainda identificado, mas não construído nem pedido formalmente: este
+sistema não tem NENHUM conceito de "nota fiscal de entrada"/
+recebimento de mercadoria do fornecedor hoje — o pedido do cliente de
+"lançar os tributos de entrada pegando informação dos fornecedores"
+seria, na prática, um módulo novo inteiro (Compras/Entrada). Não
+iniciado — depende de o cliente confirmar que quer essa frente antes.
 
 **Arquivos**: `frontend/src/pages/Financeiro/index.js`,
 `backend/src/database/migrations/20261024100000-add-fiscal-fields-to-sale-items.ts`
