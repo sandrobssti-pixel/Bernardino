@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.221] — Lista de Vendas mostra nota cancelada junto com a autorizada — 2026-10-25
+
+### Adicionado
+- **Coluna "Nº Nota Fiscal" na lista de Vendas agora mostra TODOS os
+  documentos com número** (autorizado e cancelado), não só o
+  autorizado atual — ex.: "505, 506 (cancelada)". Antes, uma nota
+  duplicada já cancelada (caso real da venda #518, incidente da
+  v2.3.215) só aparecia abrindo o histórico dentro do detalhe da venda;
+  pedido do cliente pra aparecer direto na lista. Tentativa que nunca
+  chegou a ter número (erro antes de ir pra Sefaz) continua de fora.
+
+### Dados de produção
+- Corrigida a venda #518 (Lucas Sallenave Cambeses), afetada pelo
+  incidente de duplicidade da v2.3.215: status voltou pra "confirmada"
+  (nota 505 autorizada), cobrança voltou pra "recebida" (já estava
+  paga) — não foi alteração de código, script pontual rodado em
+  produção (ver seção 201 do manual técnico).
+
 ## [2.3.220] — Carimbo "CANCELADA" no PDF, download por backend, ZIP de notas por período — 2026-10-24
 
 ### Adicionado

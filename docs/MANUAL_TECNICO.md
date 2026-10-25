@@ -14523,3 +14523,42 @@ repositório — é um ajuste pontual, com checagens de segurança que
 abortam sem mudar nada se a venda não bater com o esperado:
 cliente/valor/id), pra rodar uma vez dentro do container do backend em
 produção.
+
+## 202. Lista de Vendas mostra nota cancelada junto com a autorizada (v2.3.221)
+
+### Pedido
+
+Depois da correção de dados da venda #518 (seção 201), cliente conferiu
+o banco direto (script de leitura, confirmou 505 "authorized" e 506
+"cancelled", exatamente certo) e foi ver a lista de Vendas — a coluna
+"Nº Nota Fiscal" só mostrava "505", sem rastro da 506 cancelada em
+lugar nenhum da lista. Pedido: "quero que aqui apareça a 506".
+
+### Diagnóstico
+
+Não era bug — os dados já estavam certos (confirmado pelo próprio
+cliente com o script de leitura). A coluna só pegava o documento
+`status === "authorized"` (`SaleList.js`), por design — a v2.3.217
+criou essa coluna pensando no caso normal (uma nota por venda). O
+histórico completo (incluindo cancelada) só aparecia abrindo o detalhe
+da venda → "Ver histórico de tentativas".
+
+### Correção
+
+Coluna "Nº Nota Fiscal" agora lista TODOS os documentos que chegaram a
+ter número (autorizado ou cancelado — não entra tentativa que falhou
+antes de ir pra Sefaz, essa nunca teve número de verdade), ordenados por
+id (ordem cronológica de emissão), com `(cancelada)` ao lado do número
+quando for o caso: `sale.fiscalDocuments.filter(d => d.number).sort((a,b)
+=> a.id - b.id).map(d => d.status === "cancelled" ? \`${d.number}
+(cancelada)\` : d.number).join(", ")`. Pra venda #518 agora mostra
+"505, 506 (cancelada)" direto na lista, sem precisar abrir nada.
+
+### Verificação
+
+Frontend: build de produção sem erro. Mudança é só leitura de um array
+que a lista já carrega (`sale.fiscalDocuments`, mesmo usado pelo chip de
+status desde a v2.3.216) — sem endpoint novo, sem teste de banco
+necessário.
+
+**Arquivos**: `frontend/src/components/SaleList/index.js`.

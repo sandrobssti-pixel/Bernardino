@@ -724,8 +724,21 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 <TableCell>
                   {(sale.items || []).map((item) => item.sku).filter(Boolean).join(", ") || "—"}
                 </TableCell>
+                {/* Mostra TODO documento com número (autorizado ou
+                    cancelado), não só o autorizado atual (v2.3.221,
+                    pedido do cliente depois do incidente da venda #518:
+                    "quero que aqui apareça a 506" — a nota duplicada que
+                    foi cancelada só aparecia abrindo o histórico dentro
+                    do detalhe da venda, não dava pra ver direto na
+                    lista). Tentativa que nunca chegou a ter número
+                    (erro antes de ir pra Sefaz) continua de fora — não é
+                    uma nota de verdade. */}
                 <TableCell>
-                  {(sale.fiscalDocuments || []).find((d) => d.status === "authorized")?.number || "—"}
+                  {(sale.fiscalDocuments || [])
+                    .filter((d) => d.number)
+                    .sort((a, b) => a.id - b.id)
+                    .map((d) => (d.status === "cancelled" ? `${d.number} (cancelada)` : d.number))
+                    .join(", ") || "—"}
                 </TableCell>
                 <TableCell>{statusChip(sale)}</TableCell>
                 <TableCell align="right">
