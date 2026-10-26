@@ -607,6 +607,19 @@ const ensureStockAvailable = (sale: Sale): void => {
 // aqui — o `stockQuantity` do produto-arma já é recalculado à parte por
 // `FinanceWeaponUnitService.recalculateStockQuantity` (contagem de
 // unidades "em estoque"); somar/subtrair aqui também duplicaria a conta.
+//
+// BUG REAL corrigido (v2.3.222, pedido do cliente: "quando vai realizar
+// a venda não está baixando automaticamente do estoque") — o `by`
+// abaixo usava `direction * quantity` direto: com `direction = 1`
+// (confirmar), isso dava um `by` POSITIVO, e `Model.increment` com `by`
+// positivo SOMA ao campo — ou seja, confirmar uma venda estava
+// AUMENTANDO o estoque, o oposto do que o comentário acima sempre disse
+// que deveria acontecer ("1 = desconta"). Cancelar, por simetria, estava
+// DIMINUINDO o estoque de um item que nunca tinha sido vendido de
+// verdade. Corrigido negando o sinal: `direction = 1` agora desconta de
+// verdade, `direction = -1` devolve de verdade — bate com o comentário
+// e com `ensureStockAvailable` (que já comparava certo, `needed >
+// product.stockQuantity`, antes de confirmar).
 const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
   for (const item of sale.items || []) {
     if (item.weaponUnitId) continue;
@@ -614,7 +627,7 @@ const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
     const quantity = Number(item.quantity) || 0;
     if (quantity === 0) continue;
     await FinanceProduct.increment("stockQuantity", {
-      by: direction * quantity,
+      by: -direction * quantity,
       where: { id: item.product.id }
     });
   }

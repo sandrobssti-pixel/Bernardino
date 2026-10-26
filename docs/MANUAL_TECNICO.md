@@ -14562,3 +14562,81 @@ status desde a v2.3.216) — sem endpoint novo, sem teste de banco
 necessário.
 
 **Arquivos**: `frontend/src/components/SaleList/index.js`.
+
+## 203. Bug crítico: confirmar venda SOMAVA estoque em vez de descontar (v2.3.222)
+
+### Pedido
+
+Cliente reportou dois problemas no mesmo lote: (1) cadastro de Cliente,
+nome digitado some ao pular de campo; (2) "quando vai realizar a venda
+não está baixando automaticamente do estoque" — pediu uma mensagem de
+confirmação manual como workaround.
+
+### 1. Nome sumindo no cadastro de Cliente
+
+Não foi possível reproduzir ao vivo pra confirmar a causa exata (sem
+ambiente com browser interativo nesta sessão), mas o mecanismo mais
+plausível, por eliminação de código, é o MESMO já achado e corrigido
+ontem (v2.3.217) pro campo `asyncSelect` de Fornecedor: o
+`useEffect([record, open])` em `FinanceRecordModal/index.js` chama
+`setInitialValues(buildInitialValues(fields, record))` — como o
+Formik ali está com `enableReinitialize`, qualquer mudança de
+REFERÊNCIA em `initialValues` (mesmo com o MESMO conteúdo de antes)
+reseta o formulário inteiro, apagando tudo que não foi "salvo" ainda.
+
+Reforçado preventivamente: `setInitialValues` agora compara o conteúdo
+novo com o antigo (`JSON.stringify`) antes de trocar a referência — se
+for igual, devolve a referência ANTIGA (React não re-renderiza, Formik
+não vê `initialValues` mudar, nada é resetado). Isso neutraliza esse
+bug inteiro COMO CLASSE, independente de qual re-render específico
+estava disparando o `useEffect` de novo durante a digitação. Pedido ao
+cliente pra testar de novo depois do deploy, já que não foi possível
+confirmar 100% a causa exata sem reproduzir ao vivo.
+
+### 2. Bug real: confirmar venda aumentava o estoque
+
+Lendo `SaleService.ts` pra entender por que o estoque "não baixava",
+achada a função `adjustStock`:
+```ts
+// `direction` 1 = desconta (confirmar), -1 = devolve (cancelar)
+const adjustStock = async (sale: Sale, direction: 1 | -1) => {
+  ...
+  await FinanceProduct.increment("stockQuantity", {
+    by: direction * quantity,   // BUG: direction=1 dá "by" POSITIVO
+    where: { id: item.product.id }
+  });
+};
+```
+O PRÓPRIO comentário já documentava a intenção certa ("1 = desconta"),
+mas a conta fazia o oposto: `Model.increment` com `by` positivo SOMA ao
+campo — `direction = 1` (chamado em `confirm()`) gerava `by =
++quantity`, AUMENTANDO o estoque ao confirmar uma venda, não
+descontando. Por simetria, cancelar (`direction = -1`) diminuía o
+estoque de algo que nunca saiu de verdade. `ensureStockAvailable`
+(checagem de estoque suficiente ANTES de confirmar) sempre esteve
+correta (`needed > product.stockQuantity`) — só a aplicação de verdade
+do desconto é que tinha o sinal trocado, por isso o sintoma era
+"parece que não baixa" (na real, ia pro lado errado, compensando ou
+mascarando o resultado dependendo de quantas vendas/cancelamentos já
+tinham acontecido antes).
+
+Corrigido negando o sinal: `by: -direction * quantity` — `direction =
+1` agora desconta de verdade, `direction = -1` devolve de verdade,
+batendo com o comentário e com `ensureStockAvailable`.
+
+Dado que a causa raiz (estoque não descontava) está corrigida, a
+mensagem de confirmação manual pedida como workaround foi colocada em
+espera — perguntado ao cliente se ainda quer esse passo extra agora
+que o automático volta a funcionar, antes de adicionar fricção nova ao
+fluxo de venda sem necessidade.
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Testado contra Postgres local
+(`atendeflow_test`): produto com `stockQuantity: 100`, venda de 10
+unidades confirmada → estoque vai pra 90 (antes do fix, iria pra 110);
+venda cancelada → estoque volta pra 100. Frontend: build de produção
+sem erro.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`frontend/src/components/FinanceRecordModal/index.js`.

@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.222] — Bug crítico: confirmar venda SOMAVA estoque em vez de descontar — 2026-10-26
+
+### Corrigido (bug real em produção)
+- **Confirmar uma venda de produto com controle de estoque estava
+  AUMENTANDO o estoque em vez de descontar** (e cancelar a venda
+  diminuía o estoque de algo que nunca tinha sido vendido de verdade) —
+  o código já tinha um comentário dizendo a direção certa ("1 =
+  desconta ao confirmar"), mas a conta (`by: direction * quantity`)
+  estava com o sinal invertido. Corrigido negando o sinal (`by:
+  -direction * quantity`). Testado contra Postgres local: confirmar
+  venda de 10 unidades (estoque inicial 100) agora deixa o estoque em
+  90 (antes ia pra 110); cancelar devolve corretamente pra 100.
+- **Bug real: digitar o nome no cadastro de Cliente e pular pra outro
+  campo apagava o que tinha sido digitado** — reforçado o ponto que já
+  tinha causado um bug parecido um dia antes (v2.3.217, seleção de
+  fornecedor): o formulário genérico (`FinanceRecordModal`) resetava
+  TUDO sempre que recalculava os valores iniciais, mesmo sem mudança
+  real nenhuma, por causa do `enableReinitialize` do Formik reagindo a
+  uma referência de objeto nova (não ao conteúdo). Agora só troca a
+  referência quando o conteúdo realmente muda.
+
 ## [2.3.221] — Lista de Vendas mostra nota cancelada junto com a autorizada — 2026-10-25
 
 ### Adicionado

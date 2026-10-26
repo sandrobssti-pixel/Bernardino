@@ -235,7 +235,24 @@ const FinanceRecordModal = ({
   const [asyncSelectValues, setAsyncSelectValues] = useState({});
 
   useEffect(() => {
-    setInitialValues(buildInitialValues(fields, record));
+    // v2.3.222 (bug real: "cadastro do cliente, operador digita o nome,
+    // pula de campo, o nome some como se não tivesse digitado nada") —
+    // `enableReinitialize` do Formik (abaixo) reseta TODO o formulário
+    // sempre que `initialValues` muda de REFERÊNCIA, mesmo com o mesmo
+    // conteúdo de antes (mesmo bug de fundo já achado no `asyncSelect`,
+    // v2.3.217, ver comentário logo acima). Esse efeito só devia rodar
+    // de verdade quando `record`/`open` mudam pra valer (trocar de
+    // registro, abrir/fechar o modal) — mas qualquer re-render que
+    // refaça a MESMA venda/cliente novo (`record` null) já bastava pra
+    // criar um objeto novo com o conteúdo idêntico e disparar o reset.
+    // Comparando o conteúdo antes de trocar a referência: se for igual
+    // ao que já está lá, devolve a referência ANTIGA — React não
+    // re-renderiza, Formik não vê `initialValues` mudar, nada é
+    // resetado.
+    setInitialValues((prev) => {
+      const next = buildInitialValues(fields, record);
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
     setPaymentResult(null);
     setPhotoFile(null);
     setPhotoPreview(record?.photoUrl || null);
