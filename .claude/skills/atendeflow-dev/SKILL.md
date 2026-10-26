@@ -324,6 +324,14 @@ que eram esquecimento:
   é inconsistência a corrigir de passagem; se um dia decidirem
   internacionalizar o Financeiro, é um projeto próprio pra TODOS os
   `ERR_FINANCE_*`/rótulos de uma vez, não field-by-field.
+  **Ressalva confirmada depois (v2.3.215-220)**: isso vale pros códigos
+  `ERR_FINANCE_*` (Fase 1/2 — Produto, Fornecedor, Cliente...). Os
+  códigos `ERR_FISCAL_*`/`ERR_SALE_*` (Fase 3 — Venda/NF-e,
+  `FiscalDocumentService.ts`/`SaleService.ts`) **já têm, sim, entradas
+  em `backendErrors` no `pt.js`** (ex. `ERR_SALE_HAS_FISCAL_DOCUMENT`,
+  `ERR_FISCAL_DOCUMENT_NOT_CANCELLABLE`) — ao adicionar um erro novo
+  nesse sub-módulo específico, seguir o padrão que já existe lá
+  (adicionar a entrada em `pt.js`), não o da lista acima.
 - **Yup nesse projeto é 0.32.x** (backend `^0.32.11`, frontend `^0.32.8`) —
   sintaxe de objeto antiga pra condicional, não a função `(schema) =>
   schema` do Yup 1.x:
@@ -989,3 +997,189 @@ quê/quando" (Processo, N por cliente, cada um com a própria esteira/
 status/protocolo), nunca campos de processo direto no cadastro do
 cliente — mesmo princípio já usado em outros módulos deste projeto
 (`FinanceCustomer` 1 → N `FinanceReceivable`/`Sale`).
+
+## 16. Deploy "não pegou" mesmo com o commit certo no servidor — confira se os containers foram RECRIADOS
+
+Diferente da seção 7 (git divergido): já aconteceu (outubro/2026,
+v2.3.218→v2.3.220) do `git log -1` no servidor bater exatamente com o
+commit esperado, e MESMO ASSIM a versão em produção continuar sendo a
+anterior — o `git pull` tinha rodado, mas o `docker compose up -d
+--build` daquela rodada não chegou a ser executado (ou não recriou os
+containers). Sintoma: `docker compose -f docker-compose.coolify.yml ps`
+mostrando `backend`/`frontend` com "Up 25 hours" (ou qualquer tempo
+grande, incompatível com "acabei de fazer deploy").
+
+**Sempre conferir isso depois de instruir um deploy**, não só o `git
+log`:
+
+```bash
+docker compose -f docker-compose.coolify.yml ps
+```
+
+`backend`/`frontend` devem aparecer com tempo de "Up" recente (segundos/
+minutos) — se continuar com um tempo grande, o build/recreate não rodou
+de verdade, repetir o comando da seção 6.
+
+## 17. Container sem `wget`/`curl` — testar um endpoint de dentro dele via Node
+
+A imagem `node:20-bookworm-slim` usada no backend (`Dockerfile`) não tem
+`wget` nem `curl` instalados — tentar `docker compose exec backend wget
+...`/`curl ...` falha com `executable file not found in $PATH`. Pra
+testar um endpoint local de dentro do container (ex.: confirmar que
+`/version` já bate com o deploy novo, sem depender de proxy/CDN na
+frente), usar o próprio Node (sempre disponível, é o runtime):
+
+```bash
+docker compose -f docker-compose.coolify.yml exec backend node -e \
+  "require('http').get('http://localhost:8080/version', r => { let d=''; r.on('data', c => d+=c); r.on('end', () => console.log(d)); })"
+```
+
+Útil pra isolar se um "não atualizou" relatado pelo cliente é o backend
+mesmo (nesse caso o teste acima já mostraria a versão nova) ou alguma
+camada entre ele e o navegador (cache do Cloudflare Tunnel — conferir
+`cf-cache-status` nos headers da resposta no DevTools; raramente é
+isso, por padrão um Tunnel não cacheia JSON dinâmico — ou só cache HTTP
+normal do navegador via ETag, que gera um 304 perfeitamente normal e
+NÃO é sinal de bug).
+
+## 18. `asyncSelect` (FinanceRecordModal): valor exibido nunca pode depender só do `record`
+
+Bug real (v2.3.217) presente desde que o tipo de campo `asyncSelect`
+existe: o valor mostrado na caixa vinha de
+```js
+const embedded = record?.[singularKey];
+const selected = embedded && embedded.id === currentId ? embedded : null;
+```
+`embedded` só existe quando `record` (o registro sendo editado) JÁ tem
+aquela relação salva no banco — pra um registro **novo** (`record`
+null/undefined), `embedded` é sempre `undefined`, então `selected` é
+sempre `null`, **não importa o que o usuário escolha no dropdown**. O
+id ia pro Formik certinho (o `setFieldValue` do `onChange` sempre
+rodava — autofill e submit funcionavam), só a CAIXA em si voltava
+vazia visualmente a cada re-render, dando a impressão de "a seleção não
+fica gravada". Afeta QUALQUER campo `asyncSelect` (fornecedor, cliente,
+produto...) em QUALQUER cadastro deste módulo, sempre que for um
+registro novo (não reproduz ao EDITAR um já existente, por isso levou
+tempo pra aparecer).
+
+Corrigido com o mesmo padrão que já existia só pro campo `serviceSelect`
+(`servicePickerValue`): um `useState` à parte, por nome de campo
+(`asyncSelectValues`), guarda o OBJETO INTEIRO escolhido — semeado a
+partir de `record` no `useEffect([record, open])` (editar continua
+funcionando), atualizado no `onChange` de cada campo assim que algo é
+escolhido. **Qualquer campo de seleção assíncrona novo precisa seguir
+esse padrão (estado próprio, nunca derivar só de `record`+`values`)** —
+não é um bug específico de um cadastro, é o jeito certo de fazer esse
+tipo de campo neste projeto.
+
+## 19. Travar uma ação perigosa duplicada: frontend E backend, com flag de bypass pra chamada interna legítima
+
+Padrão usado duas vezes neste módulo (emissão duplicada de NF-e,
+v2.3.215; "cancelar venda" sem cancelar a nota real, v2.3.218) — mesma
+forma dos dois bugs: uma ação de UI continuava disponível/permitida
+mesmo depois que o estado real já não permitia mais aquilo (nota já
+emitida; nota já autorizada), porque só o FRONTEND escondia o botão
+"depois" (ou nem isso), sem trava nenhuma no backend.
+
+Receita que funcionou nos dois casos:
+- **Backend primeiro, é a trava que importa de verdade**: antes de
+  executar a ação, checar o estado real (`sale.fiscalDocuments.some(d =>
+  ["authorized","processing"].includes(d.status))`) e lançar um
+  `AppError` conhecido se já não for mais permitido — vale mesmo se o
+  frontend tiver bug ou for usado de outro jeito (outra aba, outro
+  cliente HTTP).
+- **Frontend depois, só pra UX**: esconder/desabilitar o botão quando o
+  mesmo estado já não permite mais a ação, com uma mensagem explicando
+  o caminho certo (ex.: "já tem nota autorizada — cancele por lá").
+- **Quando uma função já legítima PRECISA pular essa trava** (ex.:
+  `SaleService.cancel` chamado internamente por
+  `FiscalDocumentService.cancel`, DEPOIS de já ter cancelado a nota real
+  na Sefaz): passar um parâmetro booleano explícito (`calledAfter...`,
+  default `false`) em vez de duplicar a função ou enfraquecer a
+  checagem — só quem já fez o trabalho de verdade antes consegue pular.
+
+## 20. Código sequencial "bonito" por empresa (00001, 00002...) — padrão reaproveitável
+
+Usado duas vezes (código do cliente, v2.3.217; número da venda,
+v2.3.218) — sempre que pedirem um número sequencial "limpo" (diferente
+do `id` interno do banco, que é global e pode ter buracos), mesma
+receita as duas vezes:
+
+```ts
+const nextCode = async (companyId: number): Promise<string> => {
+  const [result]: any[] = Model.sequelize!.query(
+    `SELECT COALESCE(MAX(CAST("code" AS INTEGER)), 0) AS "maxCode"
+     FROM "Tabela" WHERE "companyId" = :companyId AND "code" ~ '^[0-9]+$'`,
+    { replacements: { companyId }, type: QueryTypes.SELECT }
+  );
+  return String((Number(result?.maxCode) || 0) + 1).padStart(5, "0");
+};
+```
+
+- **Sempre por empresa** (multi-tenant, seção 4) — nunca um contador
+  global.
+- **Filtro regex `~ '^[0-9]+$'`** evita o `CAST` quebrar em cima de um
+  valor em branco/legado não numérico.
+- **Nunca reaproveitar o código de OUTRA entidade** mesmo que pareça
+  conveniente (ex.: usar o código do CLIENTE como número da VENDA) — se
+  a entidade nova pode ter mais de um registro associado à primeira
+  (um cliente com várias vendas), isso repete o número e quebra a
+  função de identificar cada linha. Contador sempre próprio da entidade
+  que está sendo numerada.
+- **Backfill pra registros que já existiam**: migration com `UPDATE
+  ... SET "code" = LPAD(numbered.rn::text, 5, '0') FROM (SELECT id,
+  ROW_NUMBER() OVER (PARTITION BY "companyId" ORDER BY id ASC) AS rn
+  FROM "Tabela") AS numbered WHERE ...` — numera na ordem de criação
+  (`id ASC`), por empresa.
+
+## 21. Data/hora mandada pra gateway externo (Focus NFe): nunca `new Date().toISOString()` puro
+
+Bug real em produção (v2.3.217), achado comparando uma nota fiscal já
+emitida: o "PROTOCOLO DE AUTORIZAÇÃO" (carimbado pela própria Sefaz)
+saiu 12:19:29, mas a "HORA DE SAÍDA" (mandada por este sistema) saiu
+15:19:27 no MESMO DANFE — exatos 3h de diferença, o offset UTC→Brasília
+(UTC-03:00). Causa: `FocusNFeService.ts` usava `new
+Date().toISOString()` (sempre devolve UTC, sufixo "Z") pra
+`data_emissao`/`data_entrada_saida` — o servidor roda em UTC (não em
+horário de Brasília), e a Focus NFe não convertia esse "Z" pra horário
+local.
+
+Corrigido com `date-fns-tz` (já era dependência do projeto, nunca tinha
+sido usada antes) — formatar com offset explícito em vez de UTC:
+```ts
+import { formatInTimeZone } from "date-fns-tz";
+const nowInBrasiliaISO = (): string =>
+  formatInTimeZone(new Date(), "America/Sao_Paulo", "yyyy-MM-dd'T'HH:mm:ssXXX");
+// → "2026-10-24T12:19:27-03:00", não "2026-10-24T15:19:27.000Z"
+```
+**Qualquer data/hora mandada daqui pra fora** (gateway fiscal, qualquer
+API de terceiro que não seja só armazenamento interno no Postgres — que
+já tem `timezone: 'America/Sao_Paulo'` configurado certo em
+`config/database.ts`) precisa passar por esse mesmo tratamento, nunca
+`new Date().toISOString()` direto.
+
+## 22. Carimbo em PDF (`pdf-lib`) e ZIP de vários arquivos (`archiver`) — capacidades já disponíveis
+
+- **Carimbar um PDF existente** (ex.: "CANCELADA" na diagonal numa nota
+  cancelada, v2.3.220) — `pdf-lib` (nova dependência, puro JS, sem
+  binário nativo, roda igual dentro do container Docker):
+  ```ts
+  import { PDFDocument, rgb, degrees, StandardFonts } from "pdf-lib";
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  for (const page of pdfDoc.getPages()) {
+    const { width, height } = page.getSize();
+    const textWidth = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: width/2 - textWidth/2, y: height/2, size, font, color: rgb(0.8,0.1,0.1), opacity: 0.35, rotate: degrees(45) });
+  }
+  return Buffer.from(await pdfDoc.save());
+  ```
+  Testar visualmente antes de confiar (não só "não deu erro"):
+  `pdftoppm -png -r 80 arquivo.pdf saida` gera um PNG pra olhar o
+  resultado real (ferramenta já disponível no ambiente desta sessão).
+- **Zipar vários arquivos baixados na hora** (ex.: notas fiscais de um
+  período, v2.3.220) — `archiver` já é dependência (usado antes em
+  `FlowExportController.ts`), padrão: gravar cada arquivo numa pasta
+  temporária (`fs.mkdtempSync`), `archive.directory(tempDir, false)`,
+  `archive.pipe(output)` + `finalize()`, servir com `res.download` e
+  apagar a pasta temporária/o zip depois (`finally`/callback).
