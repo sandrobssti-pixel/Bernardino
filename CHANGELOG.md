@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.223] — Cadastro de munição por caixinha (lote + ID) + mensagem de confirmação de estoque — 2026-10-26
+
+### Adicionado
+- **Cadastro de munição por "caixinha pequena"** (pedido do cliente) —
+  o Produto (SKU) agora representa a "caixa cheia" fechada; dentro do
+  cadastro dele, nova seção pra registrar cada caixinha/cartela física
+  que sai de dentro ao abrir, com **Lote** (o mesmo da caixa cheia/
+  remessa, compartilhado entre as caixinhas dela) e **ID/código de
+  barras** (único por caixinha). Suporta cadastro em lote (cola a lista
+  de IDs de uma remessa inteira de uma vez, mesmo lote e quantidade
+  padrão pra todas, com exceção por linha se alguma caixinha vier com
+  quantidade diferente).
+- **Venda de munição agora escolhe a CAIXINHA** (lote + ID) em vez de
+  digitar lote/ID à mão — mesmo padrão já usado pra arma por número de
+  série: só mostra caixinhas em estoque, nunca deixa vender a mesma
+  caixinha física duas vezes (travado também no backend), e a caixinha
+  só sai de verdade do estoque disponível quando a nota fiscal for
+  REALMENTE autorizada (não só ao confirmar a venda).
+- **Mensagem de confirmação ao confirmar uma venda com item de estoque
+  simples** — "Deseja baixar do estoque: [itens]?" antes de confirmar,
+  pedido do cliente depois da correção do bug de estoque da v2.3.222.
+
 ## [2.3.222] — Bug crítico: confirmar venda SOMAVA estoque em vez de descontar — 2026-10-26
 
 ### Corrigido (bug real em produção)

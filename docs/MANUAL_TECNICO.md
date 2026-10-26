@@ -14640,3 +14640,104 @@ sem erro.
 
 **Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
 `frontend/src/components/FinanceRecordModal/index.js`.
+
+## 204. Cadastro de munição por caixinha (lote + ID) + mensagem de confirmação de estoque (v2.3.223)
+
+### Pedido
+
+Depois da correção do bug de estoque (v2.3.222), o cliente confirmou
+três pontos num vai-e-vem de perguntas/respostas:
+
+1. Manter a mensagem de confirmação manual ("deseja baixar do
+   estoque?") mesmo com a baixa automática já corrigida.
+2. Munição vem em "caixa cheia" fechada (ex.: 20 caixinhas de 50
+   unidades = 1000, ou 32 cartelas de 10 = 320). Ao abrir a caixa
+   cheia, cada caixinha/cartela física ganha um **ID (código de
+   barras) próprio**, mas todas as caixinhas da MESMA caixa
+   cheia/remessa compartilham o **mesmo lote**. Motivo explícito:
+   remessas diferentes da mesma caixa cheia podem estar em estoque ao
+   mesmo tempo com lotes diferentes — uma venda de 100 unidades (2
+   caixinhas de 50) pode sair de uma caixinha do lote antigo e outra
+   do lote novo, por isso o rastreio tem que ser por CAIXINHA, não só
+   por produto.
+3. A venda nunca é de unidade avulsa — sempre a caixinha/cartela
+   inteira (10, 25, 50, 300 ou 500 unidades, variando por produto/
+   calibre — ex.: pote de 300/500 unidades pro calibre .22LR).
+
+### Arquitetura — espelhando Etapa 1/2 de armas (FinanceWeaponUnit)
+
+Em vez de inventar um modelo novo, foi replicado o MESMO padrão já
+validado em produção pra arma por número de série
+(`FinanceWeaponUnit`/`FinanceWeaponUnitService`/`WeaponUnitsSection.js`/
+integração em `SaleModal.js`), adaptado pros campos certos:
+
+| Arma (referência) | Munição (novo) |
+|---|---|
+| `FinanceWeaponUnit` | `FinanceAmmoVolume` |
+| `serialNumber` (1 campo, identifica a unidade) | `lotNumber` + `barcodeId` (2 campos — lote da remessa + ID da caixinha) |
+| 1 unidade = 1 item, sempre | `unitQuantity` por caixinha (10/25/50/300/500, varia) |
+| `FinanceWeaponUnitService` | `FinanceAmmoVolumeService` — mesmo ciclo `in_stock → reserved → sold`, mesmas funções `reserveForSale`/`releaseForSaleItem`/`markSoldForSaleItem`, mesma filosofia de `recalculateStockQuantity` (aqui SOMA `unitQuantity` das caixinhas em estoque, não conta unidades) |
+| `SaleItem.weaponUnitId` | `SaleItem.ammoVolumeId` (nova FK) |
+| `ensureWeaponUnitsAvailable`/`reserveWeaponUnits`/`releaseWeaponUnits`/`markWeaponUnitsSold` em `SaleService.ts` | `ensureAmmoVolumesAvailable`/`reserveAmmoVolumes`/`releaseAmmoVolumes`/`markAmmoVolumesSold`, chamadas nos MESMOS pontos (`confirm`/`cancel`/`update`/`FiscalDocumentService.emit`+`refreshStatus`) |
+| `WeaponUnitsSection.js` | `AmmoVolumesSection.js` — mesma UX (adicionar um a um + cadastro em lote), adaptada: lote + quantidade padrão informados UMA VEZ pro lote inteiro, cola só os IDs um por linha (ou "ID,quantidade" pra sobrescrever numa caixinha específica com quantidade diferente) |
+| Select "Número de série" em `SaleModal.js` | Select "Caixinha (lote / ID)" em `SaleModal.js` — mesma lógica, escolher a caixinha preenche os campos `ammoLot`/`packageId` (que JÁ existiam e já iam pra nota fiscal desde a v2.3.166 — nenhuma mudança precisou em `FocusNFeService.buildAmmoAdditionalInfo`) e a `quantity` da linha (a caixinha é vendida inteira) |
+
+`manufacturingLotNumber`/`packageBarcode` (campos únicos por Produto, de
+antes) saíram do formulário do Produto — ficavam redundantes/enganosos
+com múltiplas caixinhas de lotes diferentes em estoque ao mesmo tempo.
+Mesma decisão já tomada pro SIGMA/SINARM da arma (v2.3.210): colunas
+continuam no banco, dado antigo não é apagado.
+
+`ensureStockAvailable`/`adjustStock` (o desconto SIMPLES de estoque,
+corrigido na v2.3.222) passaram a ignorar item com `ammoVolumeId`
+também — mesma exclusão que já existia pra `weaponUnitId`, senão a
+baixa seria contada duas vezes (pelo mecanismo simples E pelo
+`recalculateStockQuantity` da caixinha).
+
+### Índice único e travê real de duplicidade
+
+`(companyId, barcodeId)` é único (índice parcial, mesmo padrão do
+`serialNumber` da arma) — impossível cadastrar duas caixinhas com o
+mesmo ID na mesma empresa. Na venda, `reserveForSale` só aceita uma
+caixinha com `status === "in_stock"`; tentar vender a MESMA caixinha
+(mesmo ID) numa segunda venda é recusado com erro claro — exatamente o
+"evita vender o mesmo produto duas vezes pois vamos verificar pelo ID"
+pedido pelo cliente.
+
+### Mensagem de confirmação de estoque (item 1 do pedido)
+
+`SaleList.js`: o modal de "Confirmar venda" (já existia) agora lista os
+itens com controle de estoque SIMPLES (nunca arma/munição por unidade,
+que já tem o próprio fluxo de reserva) que serão descontados — "Deseja
+baixar do estoque: 10x Munição X?" — antes de confirmar. Não bloqueia,
+só avisa (mesmo padrão do resto do sistema).
+
+### Verificação
+
+Backend: `tsc --noEmit` e build limpos. Migration rodada contra
+Postgres local (`atendeflow_test`), idempotente (tabela nova +
+`ammoVolumeId` em `SaleItems`). Testado contra Postgres local
+reproduzindo o CENÁRIO REAL descrito pelo cliente: 2 remessas da mesma
+caixa cheia (lote antigo com 2 caixinhas de 50, lote novo com 1
+caixinha de 50) → venda de 100 unidades usando 1 caixinha de cada lote
+→ confirma (ambas ficam "reserved", `stockQuantity` cai pra só a
+caixinha restante) → tentar vender a MESMA caixinha numa segunda venda
+é recusado → autoriza a nota (ambas viram "sold") → cancela a venda
+(devolve as duas pro estoque, `stockQuantity` volta a somar as 3).
+Frontend: build de produção sem erro.
+
+**Arquivos**: `backend/src/models/FinanceAmmoVolume.ts`,
+`backend/src/models/SaleItem.ts`,
+`backend/src/database/index.ts`,
+`backend/src/database/migrations/20261026100000-create-finance-ammo-volumes.ts`,
+`backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FiscalService/FiscalDocumentService.ts`,
+`backend/src/controllers/FinanceAmmoVolumeController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/SaleList/index.js`.

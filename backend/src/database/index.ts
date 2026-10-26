@@ -67,6 +67,7 @@ import FinanceSupplier from "../models/FinanceSupplier";
 import FinanceProduct from "../models/FinanceProduct";
 import FinanceWeaponUnit from "../models/FinanceWeaponUnit";
 import FinanceWeaponUnitEvent from "../models/FinanceWeaponUnitEvent";
+import FinanceAmmoVolume from "../models/FinanceAmmoVolume";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceReceivable from "../models/FinanceReceivable";
 import FinancePaymentConfig from "../models/FinancePaymentConfig";
@@ -162,6 +163,7 @@ const models = [
   FinanceProduct,
   FinanceWeaponUnit,
   FinanceWeaponUnitEvent,
+  FinanceAmmoVolume,
   FinanceExpense,
   FinanceReceivable,
   FinancePaymentConfig,

@@ -136,6 +136,7 @@ export const emit = async (
   // depois, em `refreshStatus`.
   if (document.status === "authorized") {
     await SaleService.markWeaponUnitsSold(sale.id, companyId);
+    await SaleService.markAmmoVolumesSold(sale.id, companyId);
   }
 
   return document;
@@ -197,6 +198,7 @@ export const refreshStatus = async (
   // de verdade).
   if (result.status === "authorized") {
     await SaleService.markWeaponUnitsSold(document.saleId, companyId);
+    await SaleService.markAmmoVolumesSold(document.saleId, companyId);
   }
 
   return document;

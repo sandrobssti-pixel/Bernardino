@@ -1183,3 +1183,49 @@ já tem `timezone: 'America/Sao_Paulo'` configurado certo em
   temporária (`fs.mkdtempSync`), `archive.directory(tempDir, false)`,
   `archive.pipe(output)` + `finalize()`, servir com `res.download` e
   apagar a pasta temporária/o zip depois (`finally`/callback).
+
+## 23. Sub-cadastro por unidade física rastreável — replicar o padrão de `FinanceWeaponUnit`, não reinventar
+
+Segunda vez que esse padrão apareceu (arma por número de série,
+v2.3.205/207; munição por caixinha/lote+ID, v2.3.223) — quando o
+cliente pedir rastreio por UNIDADE FÍSICA de um produto (sabe
+exatamente qual item saiu, evita vender o mesmo duas vezes), a receita
+é sempre a mesma, só troca os campos de identificação:
+
+- **Model novo** (não reaproveitar o Produto) — FK `productId`, campo(s)
+  de identificação único por empresa (índice único parcial,
+  `WHERE campo IS NOT NULL AND campo <> ''`), `status` (`"in_stock" |
+  "reserved" | "sold"` no mínimo), `saleItemId` nullable (sem `@BelongsTo`
+  de volta, só código mantém o vínculo), `soldAt`.
+- **Service** com `reserveForSale`/`releaseForSaleItem`/
+  `markSoldForSaleItem` (nomes literalmente iguais aos de
+  `FinanceWeaponUnitService`) e um `recalculateStockQuantity` que
+  recalcula `FinanceProduct.stockQuantity` do zero a cada mudança
+  (nunca incrementa/decrementa na mão) — CONTA unidades quando 1
+  registro = 1 item (arma), SOMA um campo de quantidade quando 1
+  registro pode valer mais de 1 unidade (caixinha de munição).
+- **`SaleItem` ganha uma FK nova** (`xxxId`) pro novo model.
+  `SaleService.ts`: `ensureStockAvailable`/`adjustStock` (o desconto
+  SIMPLES de estoque) precisam EXCLUIR item com essa FK preenchida —
+  senão conta a baixa duas vezes. Quatro funções espelhando
+  `ensureWeaponUnitsAvailable`/`reserveWeaponUnits`/
+  `releaseWeaponUnits`/`markWeaponUnitsSold`, chamadas nos MESMOS 4
+  pontos: `confirm()` (ensure+reserve), `cancel()`/`update()`
+  (release), `FiscalDocumentService.emit`+`refreshStatus` (mark sold —
+  só quando a nota é REALMENTE autorizada, nunca na confirmação da
+  venda).
+- **Frontend**: um `XxxSection.js` dentro do `FinanceRecordModal`
+  (pseudo-campo tipo `"xxxUnits"`/`"xxxVolumes"`, mesmo mecanismo de
+  `"photo"`/`"sectionTitle"` — ver `buildInitialValues` e o branch de
+  render em `FinanceRecordModal/index.js`) — ação salva na API na hora,
+  não espera o "Salvar" do produto. Em `SaleModal.js`, troca campo(s) de
+  texto livre por um `<select>` carregado do novo endpoint
+  (`loadXxxUnits`/`handleXxxUnitChange`, mesmo padrão de
+  `loadWeaponUnits`/`handleWeaponUnitChange`), auto-preenchendo o(s)
+  campo(s) de identificação já existentes na nota fiscal (se já
+  existiam como texto livre antes, tipo `ammoLot`/`packageId`, não
+  precisa mudar `FocusNFeService.ts` — a nota já lia esses campos, só
+  passam a vir preenchidos pela escolha em vez de digitados à mão).
+- **Testar o cenário de "mesma unidade vendida duas vezes"** direto
+  contra Postgres local antes de entregar — é o requisito central
+  desse tipo de pedido (rastreabilidade), não um detalhe incidental.

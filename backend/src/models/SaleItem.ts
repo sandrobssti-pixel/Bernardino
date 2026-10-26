@@ -14,6 +14,7 @@ import {
 import Sale from "./Sale";
 import FinanceProduct from "./FinanceProduct";
 import FinanceWeaponUnit from "./FinanceWeaponUnit";
+import FinanceAmmoVolume from "./FinanceAmmoVolume";
 
 // Item de uma venda (Fase 3 — ver Sale.ts). Guarda uma cópia de
 // descrição/NCM/CFOP no momento da venda (em vez de só referenciar o
@@ -151,6 +152,16 @@ class SaleItem extends Model<SaleItem> {
 
   @BelongsTo(() => FinanceWeaponUnit)
   weaponUnit: FinanceWeaponUnit;
+
+  // Caixinha pequena de munição (lote + ID) escolhida pra esse item —
+  // mesmo padrão de `weaponUnitId` acima, v2.3.223. Ver
+  // FinanceAmmoVolume.ts.
+  @ForeignKey(() => FinanceAmmoVolume)
+  @Column
+  ammoVolumeId: number;
+
+  @BelongsTo(() => FinanceAmmoVolume)
+  ammoVolume: FinanceAmmoVolume;
 
   @ForeignKey(() => Sale)
   @AllowNull(false)

@@ -505,8 +505,16 @@ export const financeProductFields = [
   // "weaponUnits" (mesmo mecanismo de "photo"/"sectionTitle", renderizado
   // à parte em FinanceRecordModal.js via WeaponUnitsSection.js).
   { name: "weaponUnitsSection", type: "weaponUnits", gridSize: 12, visibleWhen: isWeapon },
-  { name: "manufacturingLotNumber", label: "Número do lote de fabricação", gridSize: 6, visibleWhen: isAmmunition },
-  { name: "packageBarcode", label: "Código de barras / embalagem", gridSize: 6, visibleWhen: isAmmunition },
+  // Lote + ID (código de barras) da munição passaram a ser por caixinha
+  // pequena (sub-cadastro, v2.3.223, pedido do cliente: "quero cadastrar
+  // por caixas pequenas... pode acontecer de ficar uma caixa do lote
+  // antigo e outra do lote novo") — mesmo mecanismo do
+  // "weaponUnitsSection" acima, agora pra munição. `manufacturingLotNumber`/
+  // `packageBarcode` (campos únicos por produto, de antes) saíram do
+  // formulário por ficarem redundantes/enganosos com múltiplos lotes em
+  // estoque ao mesmo tempo — mesma decisão já tomada pro SIGMA/SINARM da
+  // arma (v2.3.210); colunas continuam no banco, dado antigo não é apagado.
+  { name: "ammoVolumesSection", type: "ammoVolumes", gridSize: 12, visibleWhen: isAmmunition },
 
   {
     type: "sectionTitle",

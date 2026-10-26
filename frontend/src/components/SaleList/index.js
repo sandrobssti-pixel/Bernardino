@@ -454,10 +454,24 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setImporting(false);
   };
 
+  // Itens com controle de estoque simples (não arma/munição por
+  // unidade, que já têm o próprio aviso de reserva) que vão ser
+  // descontados ao confirmar — mensagem direta pro operador (v2.3.223,
+  // pedido do cliente: "coloque uma mensagem direta na tela deseja
+  // baixar no estoque e confirma").
+  const stockItemsToDeduct = (confirmTarget?.items || []).filter(
+    (item) => !item.weaponUnitId && !item.ammoVolumeId && item.product?.controlStock
+  );
+
   const confirmModalProps = {
     confirm: {
       title: confirmTarget ? `Confirmar venda #${confirmTarget.id}?` : "",
-      body: "Isso gera a conta a receber e trava os itens da venda — não é possível desfazer.",
+      body:
+        stockItemsToDeduct.length > 0
+          ? `Isso gera a conta a receber e trava os itens da venda — não é possível desfazer. Deseja baixar do estoque: ${stockItemsToDeduct
+              .map((item) => `${item.quantity}x ${item.description}`)
+              .join(", ")}?`
+          : "Isso gera a conta a receber e trava os itens da venda — não é possível desfazer.",
     },
     cancel: {
       title: confirmTarget ? `Cancelar venda #${confirmTarget.id}?` : "",

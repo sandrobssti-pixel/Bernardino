@@ -226,12 +226,25 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   // produto (`loadWeaponUnits`), ou ao abrir pra editar uma venda que já
   // tinha item de arma (ver `useEffect` abaixo).
   const [weaponUnitsByIndex, setWeaponUnitsByIndex] = useState({});
+  // Caixinhas de munição (lote + ID) do produto escolhido em cada linha
+  // — v2.3.223, mesmo padrão de `weaponUnitsByIndex` acima.
+  const [ammoVolumesByIndex, setAmmoVolumesByIndex] = useState({});
 
   const loadWeaponUnits = async (index, productId) => {
     if (!finance || !productId) return;
     try {
       const units = await finance.products.weaponUnits.list(productId);
       setWeaponUnitsByIndex((prev) => ({ ...prev, [index]: units || [] }));
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
+  const loadAmmoVolumes = async (index, productId) => {
+    if (!finance || !productId) return;
+    try {
+      const volumes = await finance.products.ammoVolumes.list(productId);
+      setAmmoVolumesByIndex((prev) => ({ ...prev, [index]: volumes || [] }));
     } catch (err) {
       toastError(err);
     }
@@ -250,6 +263,9 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     (sale?.items || []).forEach((item, index) => {
       if (item.weaponUnitId && item.productId) {
         loadWeaponUnits(index, item.productId);
+      }
+      if (item.ammoVolumeId && item.productId) {
+        loadAmmoVolumes(index, item.productId);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -352,6 +368,12 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     setFieldValue(`items.${index}.weaponUnitId`, "");
     setFieldValue(`items.${index}.sigmaSinarm`, "");
     setWeaponUnitsByIndex((prev) => ({ ...prev, [index]: [] }));
+    // Mesma lógica acima, pra munição (v2.3.223): trocar o produto
+    // invalida a caixinha escolhida antes.
+    setFieldValue(`items.${index}.ammoVolumeId`, "");
+    setFieldValue(`items.${index}.ammoLot`, "");
+    setFieldValue(`items.${index}.packageId`, "");
+    setAmmoVolumesByIndex((prev) => ({ ...prev, [index]: [] }));
     if (product) {
       setFieldValue(`items.${index}.description`, product.name);
       setFieldValue(`items.${index}.sku`, product.sku || "");
@@ -371,6 +393,9 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
         setFieldValue(`items.${index}.quantity`, 1);
         loadWeaponUnits(index, product.id);
       }
+      if (product.type === "ammunition") {
+        loadAmmoVolumes(index, product.id);
+      }
     }
   };
 
@@ -382,6 +407,23 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
     setFieldValue(`items.${index}.weaponUnitId`, unitId);
     const unit = (units || []).find((u) => u.id === unitId);
     setFieldValue(`items.${index}.sigmaSinarm`, unit?.sigmaRegistrationNumber || "");
+  };
+
+  // Ao escolher a caixinha (lote + ID), auto-preenche "Lote munição"/"ID
+  // embalagem" (mesmos campos de texto que já existiam, agora
+  // preenchidos pela caixinha escolhida em vez de digitados à mão — v2.3.223)
+  // e a quantidade da linha, já que cada caixinha carrega um número fixo
+  // de unidades (o cliente vende a caixinha inteira, nunca fração: "não
+  // vende a unidade só cartela com 10, caixa com 50..."). Continuam
+  // editáveis à mão se precisar corrigir só nesta venda.
+  const handleAmmoVolumeChange = (index, volumeId, volumes, setFieldValue) => {
+    setFieldValue(`items.${index}.ammoVolumeId`, volumeId);
+    const volume = (volumes || []).find((v) => v.id === volumeId);
+    setFieldValue(`items.${index}.ammoLot`, volume?.lotNumber || "");
+    setFieldValue(`items.${index}.packageId`, volume?.barcodeId || "");
+    if (volume?.unitQuantity) {
+      setFieldValue(`items.${index}.quantity`, volume.unitQuantity);
+    }
   };
 
   const fetchCustomerOptions = async (searchParam) => {
@@ -564,6 +606,14 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                         );
                         const inStockCount = (weaponUnitsByIndex[index] || []).filter(
                           (u) => u.status === "in_stock"
+                        ).length;
+                        // Mesma lógica acima, pra munição (v2.3.223) —
+                        // lista de caixinhas (lote + ID) daquele produto.
+                        const ammoVolumesForItem = (ammoVolumesByIndex[index] || []).filter(
+                          (v) => v.status === "in_stock" || v.id === item.ammoVolumeId
+                        );
+                        const inStockAmmoVolumeCount = (ammoVolumesByIndex[index] || []).filter(
+                          (v) => v.status === "in_stock"
                         ).length;
 
                         return (
@@ -759,13 +809,50 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             </>
                           )}
 
-                          {/* SIGMA/SINARM, lote de munição e ID de embalagem
-                              (v2.3.166) — munição/insumo ainda não tem
-                              sub-cadastro por lote (ver docs/MANUAL_TECNICO.md,
-                              seção 186), continua manual por enquanto. */}
+                          {/* Munição: escolhe a CAIXINHA (lote + ID)
+                              cadastrada naquele SKU, em vez de digitar
+                              lote/ID à mão — v2.3.223, pedido do cliente
+                              ("quando o vendedor for vender ela vai ter
+                              noção de quantas ID existem e está
+                              liberado pra venda"), mesmo padrão da
+                              arma por número de série acima. Escolher a
+                              caixinha preenche "Lote munição"/"ID
+                              embalagem" (mesmos campos de sempre, que
+                              já iam pra nota fiscal) e a quantidade da
+                              linha (a caixinha é vendida inteira, nunca
+                              fração). Baixa definitiva do estoque só
+                              acontece quando a nota fiscal for emitida
+                              de verdade, igual a arma. */}
                           {isAmmo && (
                             <>
-                              <Grid item xs={12} sm={4}>
+                              <Grid item xs={12} sm={6}>
+                                <TextField
+                                  select
+                                  required
+                                  fullWidth
+                                  variant="outlined"
+                                  size="small"
+                                  label="Caixinha (lote / ID)"
+                                  helperText={`${inStockAmmoVolumeCount} disponível(is) em estoque neste SKU`}
+                                  value={item.ammoVolumeId || ""}
+                                  onChange={(e) =>
+                                    handleAmmoVolumeChange(index, Number(e.target.value), ammoVolumesForItem, setFieldValue)
+                                  }
+                                >
+                                  {ammoVolumesForItem.length === 0 && (
+                                    <MenuItem value="" disabled>
+                                      Nenhuma caixinha disponível neste SKU
+                                    </MenuItem>
+                                  )}
+                                  {ammoVolumesForItem.map((volume) => (
+                                    <MenuItem key={volume.id} value={volume.id}>
+                                      Lote {volume.lotNumber} / ID {volume.barcodeId} ({volume.unitQuantity} un.)
+                                      {volume.status !== "in_stock" ? " (reservada nesta venda)" : ""}
+                                    </MenuItem>
+                                  ))}
+                                </TextField>
+                              </Grid>
+                              <Grid item xs={12} sm={6}>
                                 <Field
                                   as={TextField}
                                   fullWidth
@@ -775,23 +862,23 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                                   name={`items.${index}.sigmaSinarm`}
                                 />
                               </Grid>
-                              <Grid item xs={6} sm={4}>
+                              <Grid item xs={6} sm={6}>
                                 <Field
                                   as={TextField}
                                   fullWidth
                                   variant="outlined"
                                   size="small"
-                                  label="Lote munição"
+                                  label="Lote munição (da caixinha escolhida)"
                                   name={`items.${index}.ammoLot`}
                                 />
                               </Grid>
-                              <Grid item xs={6} sm={4}>
+                              <Grid item xs={6} sm={6}>
                                 <Field
                                   as={TextField}
                                   fullWidth
                                   variant="outlined"
                                   size="small"
-                                  label="ID embalagem"
+                                  label="ID embalagem (da caixinha escolhida)"
                                   name={`items.${index}.packageId`}
                                 />
                               </Grid>

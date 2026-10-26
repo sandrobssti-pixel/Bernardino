@@ -9,6 +9,7 @@ import * as FinanceCustomerController from "../controllers/FinanceCustomerContro
 import * as FinanceSupplierController from "../controllers/FinanceSupplierController";
 import * as FinanceProductController from "../controllers/FinanceProductController";
 import * as FinanceWeaponUnitController from "../controllers/FinanceWeaponUnitController";
+import * as FinanceAmmoVolumeController from "../controllers/FinanceAmmoVolumeController";
 import * as FinanceExpenseController from "../controllers/FinanceExpenseController";
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
@@ -103,6 +104,34 @@ financeRoutes.delete(
   "/finance/products/:productId/weapon-units/:id",
   isAuth,
   FinanceWeaponUnitController.remove
+);
+
+// Caixinhas pequenas de munição (lote + ID/código de barras),
+// sub-cadastro do Produto (a "caixa cheia") — v2.3.223.
+financeRoutes.get(
+  "/finance/products/:productId/ammo-volumes",
+  isAuth,
+  FinanceAmmoVolumeController.index
+);
+financeRoutes.post(
+  "/finance/products/:productId/ammo-volumes",
+  isAuth,
+  FinanceAmmoVolumeController.store
+);
+financeRoutes.post(
+  "/finance/products/:productId/ammo-volumes/bulk",
+  isAuth,
+  FinanceAmmoVolumeController.storeBulk
+);
+financeRoutes.put(
+  "/finance/products/:productId/ammo-volumes/:id",
+  isAuth,
+  FinanceAmmoVolumeController.update
+);
+financeRoutes.delete(
+  "/finance/products/:productId/ammo-volumes/:id",
+  isAuth,
+  FinanceAmmoVolumeController.remove
 );
 
 // Fase 2 — Financeiro operacional (custos, contas a pagar/receber, relatórios)

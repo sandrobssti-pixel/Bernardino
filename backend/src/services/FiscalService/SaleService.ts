@@ -7,10 +7,12 @@ import FinanceCustomer from "../../models/FinanceCustomer";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceWeaponUnit from "../../models/FinanceWeaponUnit";
+import FinanceAmmoVolume from "../../models/FinanceAmmoVolume";
 import FiscalConfig from "../../models/FiscalConfig";
 import FiscalDocument from "../../models/FiscalDocument";
 import * as Iva2027Service from "./Iva2027Service";
 import * as FinanceWeaponUnitService from "../FinanceService/FinanceWeaponUnitService";
+import * as FinanceAmmoVolumeService from "../FinanceService/FinanceAmmoVolumeService";
 import { isProductionActive } from "./FiscalConfigService";
 
 interface ListRequest {
@@ -46,6 +48,8 @@ interface SaleItemData {
   // Unidade física de arma (nº de série) escolhida pra esse item —
   // Etapa 2, ver docs/MANUAL_TECNICO.md seção 186.
   weaponUnitId?: number | null;
+  // Caixinha de munição (lote + ID) escolhida pra esse item — v2.3.223.
+  ammoVolumeId?: number | null;
 }
 
 interface SaleData {
@@ -272,6 +276,17 @@ const includeOptions = [
         model: FinanceWeaponUnit,
         as: "weaponUnit",
         attributes: ["id", "serialNumber"]
+      },
+      {
+        // Caixinha de munição escolhida pro item (v2.3.223) — attributes
+        // iguais ao que `buildAmmoAdditionalInfo` já lê via
+        // `item.ammoLot`/`item.packageId` (campos de texto auto-
+        // preenchidos no frontend a partir desta mesma caixinha, ver
+        // SaleModal.js); incluído aqui só pra telas que precisem mostrar
+        // o vínculo (ex.: detalhe da venda), não pro payload da NF-e.
+        model: FinanceAmmoVolume,
+        as: "ammoVolume",
+        attributes: ["id", "lotNumber", "barcodeId", "unitQuantity"]
       }
     ]
   },
@@ -406,7 +421,8 @@ const buildItemRows = async (items: SaleItemData[], saleId: number, companyId: n
       sigmaSinarm: item.sigmaSinarm || "",
       ammoLot: item.ammoLot || "",
       packageId: item.packageId || "",
-      weaponUnitId: item.weaponUnitId || null
+      weaponUnitId: item.weaponUnitId || null,
+      ammoVolumeId: item.ammoVolumeId || null
     };
 
     if (reformEnabled) {
@@ -534,6 +550,7 @@ export const update = async (
   if (wasConfirmed) {
     await adjustStock(sale, -1);
     await releaseWeaponUnits(sale, companyId);
+    await releaseAmmoVolumes(sale, companyId);
   }
 
   await sale.update({
@@ -589,7 +606,7 @@ export const update = async (
 // checada em `ensureWeaponUnitsAvailable` (v2.3.207/Etapa 2).
 const ensureStockAvailable = (sale: Sale): void => {
   const shortages = (sale.items || [])
-    .filter(item => !item.weaponUnitId && item.product?.controlStock)
+    .filter(item => !item.weaponUnitId && !item.ammoVolumeId && item.product?.controlStock)
     .map(item => ({ item, product: item.product, needed: Number(item.quantity) || 0 }))
     .filter(({ product, needed }) => needed > product.stockQuantity);
 
@@ -623,6 +640,7 @@ const ensureStockAvailable = (sale: Sale): void => {
 const adjustStock = async (sale: Sale, direction: 1 | -1): Promise<void> => {
   for (const item of sale.items || []) {
     if (item.weaponUnitId) continue;
+    if (item.ammoVolumeId) continue;
     if (!item.product?.controlStock) continue;
     const quantity = Number(item.quantity) || 0;
     if (quantity === 0) continue;
@@ -688,6 +706,54 @@ export const markWeaponUnitsSold = async (saleId: string | number, companyId: nu
   }
 };
 
+// --------------------------------------------------------------------
+// Munição por caixinha (lote + ID), v2.3.223, pedido do cliente — MESMO
+// princípio da arma por número de série acima: caixinha só sai de "em
+// estoque" quando a venda confirma (fica "reservada"), só vira "sold"
+// de verdade quando a nota fiscal for REALMENTE autorizada. Ver
+// FinanceAmmoVolumeService.ts.
+// --------------------------------------------------------------------
+
+const ensureAmmoVolumesAvailable = async (sale: Sale, companyId: number): Promise<void> => {
+  const ammoItems = (sale.items || []).filter(item => item.ammoVolumeId);
+  if (ammoItems.length === 0) return;
+
+  const volumes = await FinanceAmmoVolume.findAll({
+    where: { id: ammoItems.map(item => item.ammoVolumeId), companyId }
+  });
+  const volumeById = new Map(volumes.map(volume => [volume.id, volume]));
+
+  const unavailable = ammoItems.filter(item => volumeById.get(item.ammoVolumeId as number)?.status !== "in_stock");
+  if (unavailable.length > 0) {
+    const details = unavailable
+      .map(item => volumeById.get(item.ammoVolumeId as number)?.barcodeId || item.description)
+      .join(", ");
+    throw new AppError(`Caixinha(s) de munição não disponível(is) pra venda (já reservada/vendida): ${details}`);
+  }
+};
+
+const reserveAmmoVolumes = async (sale: Sale, companyId: number): Promise<void> => {
+  for (const item of sale.items || []) {
+    if (!item.ammoVolumeId) continue;
+    await FinanceAmmoVolumeService.reserveForSale(item.ammoVolumeId, item.id, companyId);
+  }
+};
+
+const releaseAmmoVolumes = async (sale: Sale, companyId: number): Promise<void> => {
+  for (const item of sale.items || []) {
+    if (!item.ammoVolumeId) continue;
+    await FinanceAmmoVolumeService.releaseForSaleItem(item.id, companyId);
+  }
+};
+
+export const markAmmoVolumesSold = async (saleId: string | number, companyId: number): Promise<void> => {
+  const sale = await show(saleId, companyId);
+  for (const item of sale.items || []) {
+    if (!item.ammoVolumeId) continue;
+    await FinanceAmmoVolumeService.markSoldForSaleItem(item.id, companyId);
+  }
+};
+
 // Confirma a venda: trava a edição dos itens e gera a conta a receber
 // correspondente (Fase 2) — é o "gancho" entre o módulo de vendas e o
 // financeiro operacional. Emitir a nota fiscal em si é uma ação separada
@@ -708,6 +774,7 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
 
   ensureStockAvailable(sale);
   await ensureWeaponUnitsAvailable(sale, companyId);
+  await ensureAmmoVolumesAvailable(sale, companyId);
 
   const description = `Venda #${sale.id}${sale.customer ? ` - ${sale.customer.name}` : ""}`;
 
@@ -722,6 +789,7 @@ export const confirm = async (id: string | number, companyId: number): Promise<S
 
   await adjustStock(sale, 1);
   await reserveWeaponUnits(sale, companyId);
+  await reserveAmmoVolumes(sale, companyId);
   await sale.update({ status: "confirmed", receivableId: receivable.id });
 
   return show(id, companyId);
@@ -773,6 +841,7 @@ export const cancel = async (
   if (sale.status === "confirmed") {
     await adjustStock(sale, -1);
     await releaseWeaponUnits(sale, companyId);
+    await releaseAmmoVolumes(sale, companyId);
   }
 
   if (sale.receivableId) {
