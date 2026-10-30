@@ -14741,3 +14741,87 @@ Frontend: build de produção sem erro.
 `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/SaleList/index.js`.
+
+## 205. Endereço/e-mail/telefone do emitente nas Informações Complementares (v2.3.224)
+
+### Pedido
+
+Depois da v2.3.223, o cliente voltou a reportar que, numa NFe real
+recém-emitida (#517, 29/10/2026), o quadro do emitente no DANFE:
+
+1. Não mostra o e-mail do emitente de jeito nenhum (não é truncamento —
+   a linha simplesmente não existe).
+2. Mostra o telefone cortado: "Tel.: (71) 99636-" (faltam os últimos 4
+   dígitos, "5862").
+
+Pediu pra "diminuir a fonte pra caber todo o texto do lado da
+logomarca". Antes de mexer em código, foi confirmado que o dado estava
+certo no cadastro (Configuração Fiscal → print mostrando telefone
+`71996365862` e e-mail `ctprocessualba@gmail.com` preenchidos), e que o
+mesmo payload já ia certo pra Focus NFe desde a v2.3.213
+(`email_emitente`/`telefone_emitente` em `buildEmitente`,
+`FocusNFeService.ts`).
+
+### Resposta do suporte da Focus NFe (decisiva)
+
+> "Nessa parte da DANFe realmente não é apresentado o e-mail do
+> emitente, pois não faz parte do Layout da NF-e padronizada pela API.
+> Portanto, as informações apresentadas estão corretas. Caso seja
+> necessário informar o e-mail do emitente, você pode informá-lo nas
+> informações adicionais do item."
+
+Ou seja: **não é bug nosso nem da Focus NFe** — o quadro do emitente do
+DANFE é um leiaute padronizado (Sefaz), sem campo de e-mail, e sem
+nenhum parâmetro de API pra controlar fonte/layout. O telefone FAZ parte
+do leiaute, mas o espaço do quadro é fixo — um endereço longo (caso real
+do cliente: "Rua das espatódeas roxas, 298 - galpao, Jardim Das
+Margaridas, Salvador-BA, CEP 41502-445") ocupa o espaço disponível e
+corta o telefone.
+
+### Solução
+
+Em vez de tentar mexer num layout que não é nosso (impossível via API),
+o endereço completo + telefone + e-mail do emitente passaram a ser
+**repetidos como a primeira linha** das Informações Complementares
+(`informacoes_adicionais_contribuinte`/infCpl) — campo de texto livre já
+usado pra outras informações (aviso Simples Nacional, IBPT, observações
+da venda), sempre visível por inteiro no rodapé do DANFE,
+independentemente do espaço do quadro do emitente lá em cima.
+
+`backend/src/services/FiscalService/FocusNFeService.ts`:
+- `formatPhoneForDisplay(digits)` — "(XX) XXXXX-XXXX" (11 dígitos,
+  celular) ou "(XX) XXXX-XXXX" (10 dígitos, fixo); fora disso devolve os
+  dígitos como estão.
+- `formatCepForDisplay(digits)` — "XXXXX-XXX" (8 dígitos); fora disso
+  devolve como está.
+- `buildEmitterContactLine(config)` — monta
+  `Endereço/contato do emitente — <rua, número, complemento, bairro,
+  cidade - UF> — CEP <cep> — Tel.: <telefone> — E-mail: <email>`,
+  omitindo qualquer parte vazia; devolve `undefined` se não houver nada
+  pra mostrar.
+- `buildAdditionalInfo` passou a inserir essa linha ANTES do aviso de
+  Simples Nacional/IBPT/observações da venda (ordem das outras linhas
+  não mudou).
+
+### Limitação explícita (comunicada ao cliente)
+
+O quadro do emitente em si (lá em cima, ao lado da logomarca) **não dá
+pra reduzir só pra logo + nome da empresa** — CNPJ, IE e endereço do
+emitente são campos obrigatórios por lei em qualquer DANFE, fazem parte
+do leiaute padronizado pela Sefaz/Focus NFe, sem nenhuma opção de
+API pra esconder ou reformatar. A solução acima garante que a informação
+apareça completa em ALGUM lugar da nota (Informações Complementares),
+não que o quadro de cima mude de aparência.
+
+### Verificação
+
+Testado localmente: função replicada em script Node isolado com os
+dados reais do cliente (CT Confiança/Federação Baiana), saída conferida
+caractere a caractere contra o endereço/telefone/e-mail reais —
+`Endereço/contato do emitente — Rua das espatódeas roxas, 298, galpao,
+Jardim Das Margaridas, Salvador - BA — CEP 41502-445 — Tel.: (71)
+99636-5862 — E-mail: ctprocessualba@gmail.com`. Casos de borda
+(campos vazios, telefone fixo de 10 dígitos) também conferidos.
+Backend: `tsc --noEmit` e `npm run build` limpos.
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`.

@@ -597,8 +597,69 @@ const buildTransporte = (sale: Sale) => {
 //    como a ÚLTIMA linha (depois do aviso fixo e do IBPT), texto livre,
 //    sem nenhum processamento — exatamente o que o cliente já digita
 //    manualmente lá.
+// Formata telefone (só dígitos, 10 ou 11) pro padrão brasileiro de
+// exibição — "(XX) XXXXX-XXXX" (celular/9º dígito) ou "(XX) XXXX-XXXX"
+// (fixo). Fora desses dois tamanhos, devolve os dígitos como estão (não
+// sabemos formatar com confiança).
+const formatPhoneForDisplay = (digits: string): string => {
+  if (digits.length === 11) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return digits;
+};
+
+// Formata CEP (só dígitos) pro padrão "XXXXX-XXX". Fora de 8 dígitos,
+// devolve como está.
+const formatCepForDisplay = (digits: string): string =>
+  digits.length === 8 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+
+// Endereço/e-mail/telefone do emitente nas Informações Complementares
+// (v2.3.224) — confirmado com o suporte da Focus NFe que o e-mail do
+// emitente NÃO FAZ PARTE do leiaute padrão da NF-e/DANFE (não existe
+// campo pra isso no quadro do emitente, então `email_emitente` enviado
+// em `buildEmitente` nunca apareceria ali, por mais correto que o dado
+// esteja cadastrado). Sugestão do próprio suporte: colocar nas
+// informações adicionais. O telefone (`telefone_emitente`) e o endereço
+// FAZEM parte do leiaute e aparecem no quadro do emitente — mas esse
+// quadro é padronizado pela Sefaz/Focus NFe, não dá pra remover ou
+// esconder nenhum desses campos dali (CNPJ/IE/endereço do emitente são
+// obrigatórios por lei em qualquer DANFE), e o cliente reportou telefone
+// cortado numa nota real (endereço longo ocupando o espaço do quadro) —
+// por isso repetimos endereço/telefone/e-mail aqui também, garantindo
+// que apareçam inteiros em algum lugar da nota independente do espaço
+// do quadro do emitente.
+const buildEmitterContactLine = (config: FiscalConfig): string | undefined => {
+  const addressParts = [
+    [config.emitterStreet, config.emitterNumber].filter(Boolean).join(", "),
+    config.emitterComplement,
+    config.emitterNeighborhood,
+    [config.emitterCity, config.emitterState].filter(Boolean).join(" - ")
+  ]
+    .map((part) => (part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
+  const cepDigits = (config.emitterZipCode || "").replace(/\D/g, "");
+  const cep = cepDigits ? `CEP ${formatCepForDisplay(cepDigits)}` : "";
+
+  const email = (config.emitterEmail || "").trim();
+  const phoneDigits = (config.emitterPhone || "").replace(/\D/g, "");
+  const phone = phoneDigits ? `Tel.: ${formatPhoneForDisplay(phoneDigits)}` : "";
+
+  const parts = [addressParts, cep, phone, email ? `E-mail: ${email}` : ""].filter(Boolean);
+  return parts.length > 0 ? `Endereço/contato do emitente — ${parts.join(" — ")}` : undefined;
+};
+
 const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefined => {
   const lines: string[] = [];
+
+  const emitterContact = buildEmitterContactLine(config);
+  if (emitterContact) {
+    lines.push(emitterContact);
+  }
 
   if (config.taxRegime === "simples" || config.taxRegime === "mei") {
     lines.push(

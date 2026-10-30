@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.224] — Endereço/e-mail/telefone do emitente nas Informações Complementares da nota — 2026-10-30
+
+### Corrigido
+- **E-mail do emitente ausente no DANFE** — confirmado com o suporte da
+  Focus NFe que o e-mail do emitente **não faz parte do leiaute padrão**
+  da NF-e/DANFE (não existe campo pra isso no quadro do emitente, então
+  `email_emitente` enviado no payload nunca ia aparecer ali, mesmo com o
+  dado cadastrado certinho em Configuração Fiscal). Sugestão do próprio
+  suporte: colocar nas informações adicionais.
+- **Telefone do emitente cortado no quadro do emitente** (nota real
+  #517, endereço longo ocupando o espaço disponível) — o quadro do
+  emitente é padronizado pela Sefaz/Focus NFe (CNPJ/IE/endereço são
+  obrigatórios por lei ali, não dá pra remover nem controlar fonte/
+  layout via API), então a correção não é removível dali — endereço
+  completo, telefone e e-mail do emitente agora entram REPETIDOS como a
+  PRIMEIRA linha das Informações Complementares ("Endereço/contato do
+  emitente — rua/número/complemento/bairro/cidade-UF — CEP — Tel. — 
+  E-mail"), telefone formatado "(XX) XXXXX-XXXX", garantindo que tudo
+  apareça inteiro em algum lugar da nota mesmo que o quadro do emitente
+  corte alguma coisa por falta de espaço.
+
 ## [2.3.223] — Cadastro de munição por caixinha (lote + ID) + mensagem de confirmação de estoque — 2026-10-26
 
 ### Adicionado
