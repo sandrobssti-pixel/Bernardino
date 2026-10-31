@@ -4,6 +4,7 @@ import CreateService from "../services/PromptFilesServices/CreateService";
 import ListService from "../services/PromptFilesServices/ListService";
 import UpdateService from "../services/PromptFilesServices/UpdateService";
 import DeleteService from "../services/PromptFilesServices/DeleteService";
+import ToggleAiEnabledService from "../services/PromptFilesServices/ToggleAiEnabledService";
 import AppError from "../errors/AppError";
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -50,6 +51,24 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
     newPath: uploadedFile ? uploadedFile.filename.replace("/", "-") : undefined,
     newMediaType: uploadedFile ? uploadedFile.mimetype : undefined,
     newTextContent: !uploadedFile && typeof textContent === "string" ? textContent : undefined
+  });
+
+  return res.status(200).json(promptFile);
+};
+
+export const toggleAiEnabled = async (req: Request, res: Response): Promise<Response> => {
+  const { promptFileId } = req.params;
+  const { aiEnabled } = req.body;
+  const { companyId } = req.user;
+
+  if (typeof aiEnabled !== "boolean") {
+    throw new AppError("ERR_PROMPT_FILE_AI_ENABLED_REQUIRED", 400);
+  }
+
+  const promptFile = await ToggleAiEnabledService({
+    id: promptFileId,
+    companyId,
+    aiEnabled
   });
 
   return res.status(200).json(promptFile);

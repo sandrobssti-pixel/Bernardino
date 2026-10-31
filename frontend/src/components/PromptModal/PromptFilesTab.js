@@ -19,8 +19,11 @@ import {
   InsertDriveFile,
   EditOutlined,
   Close,
-  SyncAlt
+  SyncAlt,
+  ToggleOn,
+  ToggleOff
 } from "@material-ui/icons";
+import Tooltip from "@material-ui/core/Tooltip";
 import api from "../../services/api";
 import toastError from "../../errors/toastError";
 
@@ -75,6 +78,14 @@ const useStyles = makeStyles(theme => {
       fontSize: "0.66rem",
       color: isDark ? "#93c5fd" : "#2563eb",
       marginTop: 2
+    },
+    // Botão "a IA manda automaticamente?" — verde ligado, cinza desligado
+    // (pedido explícito do cliente, v2.3.228).
+    aiToggleOn: {
+      color: "#22c55e"
+    },
+    aiToggleOff: {
+      color: isDark ? "#4b5563" : "#9ca3af"
     }
   };
 });
@@ -195,6 +206,25 @@ const PromptFilesTab = () => {
     }
   };
 
+  // Liga/desliga o envio automático pela IA pra este item (v2.3.228) —
+  // otimista (muda a cor na hora) com rollback se a API falhar.
+  const handleToggleAiEnabled = async file => {
+    const nextValue = !file.aiEnabled;
+    setFiles(prev =>
+      prev.map(f => (f.id === file.id ? { ...f, aiEnabled: nextValue } : f))
+    );
+    try {
+      await api.patch(`/prompt-files/${file.id}/ai-enabled`, {
+        aiEnabled: nextValue
+      });
+    } catch (err) {
+      setFiles(prev =>
+        prev.map(f => (f.id === file.id ? { ...f, aiEnabled: file.aiEnabled } : f))
+      );
+      toastError(err);
+    }
+  };
+
   return (
     <Box>
       <div className={classes.helpText}>
@@ -205,7 +235,9 @@ const PromptFilesTab = () => {
         para qualquer nó de IA usado no flowbuilder. O envio desses arquivos
         funciona com qualquer provedor (OpenAI, Gemini, DeepSeek ou Groq); já a
         leitura de imagens enviadas pelo cliente (visão) só funciona com OpenAI
-        e Gemini.
+        e Gemini. Use o botão <ToggleOn className={classes.aiToggleOn} style={{ fontSize: 16, verticalAlign: "middle" }} />/
+        <ToggleOff className={classes.aiToggleOff} style={{ fontSize: 16, verticalAlign: "middle" }} /> de cada item para ligar
+        (verde) ou desligar (cinza) o envio automático sem precisar apagar o item.
       </div>
 
       <div className={classes.uploadBox}>
@@ -330,6 +362,25 @@ const PromptFilesTab = () => {
                 }}
               />
               <ListItemSecondaryAction>
+                <Tooltip
+                  title={
+                    file.aiEnabled
+                      ? "IA envia automaticamente — clique para desativar"
+                      : "Desativado — a IA não envia este item. Clique para ativar"
+                  }
+                >
+                  <IconButton
+                    edge="end"
+                    size="small"
+                    onClick={() => handleToggleAiEnabled(file)}
+                  >
+                    {file.aiEnabled ? (
+                      <ToggleOn className={classes.aiToggleOn} />
+                    ) : (
+                      <ToggleOff className={classes.aiToggleOff} />
+                    )}
+                  </IconButton>
+                </Tooltip>
                 <IconButton
                   edge="end"
                   size="small"

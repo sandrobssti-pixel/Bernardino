@@ -55,6 +55,12 @@ promptFilesRoutes.put(
   PromptFilesController.update
 );
 
+promptFilesRoutes.patch(
+  "/prompt-files/:promptFileId/ai-enabled",
+  isAuth,
+  PromptFilesController.toggleAiEnabled
+);
+
 promptFilesRoutes.delete(
   "/prompt-files/:promptFileId",
   isAuth,

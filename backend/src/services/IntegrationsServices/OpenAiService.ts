@@ -1573,11 +1573,13 @@ export const handleOpenAi = async (
   const maxResponseMessages = resolveAutoResponseMessageLimit();
 
   // Catálogo é único por empresa, compartilhado entre o assistente
-  // geral de /prompts e qualquer nó de IA do flowbuilder.
+  // geral de /prompts e qualquer nó de IA do flowbuilder. `aiEnabled:
+  // false` (botão dedicado em Arquivos da IA, v2.3.228) tira o item
+  // daqui sem precisar apagar do catálogo.
   let fileCatalog: PromptFiles[] = [];
   try {
     fileCatalog = await PromptFiles.findAll({
-      where: { companyId: ticket.companyId }
+      where: { companyId: ticket.companyId, aiEnabled: true }
     });
   } catch (err) {
     console.error("Falha ao buscar catálogo de arquivos da IA:", err);

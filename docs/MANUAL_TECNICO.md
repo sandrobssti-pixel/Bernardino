@@ -15007,3 +15007,75 @@ Frontend: `eslint` e `npm run build` (produção) sem erro.
 
 **Arquivos**: `backend/src/app.ts`,
 `frontend/src/translate/languages/pt.js`.
+
+## 209. Botão dedicado pra ligar/desligar envio automático de cada item em Arquivos da IA (v2.3.228)
+
+### Pedido
+
+Cliente reportou que a Mensagem Rápida "Filiação 2026" não era enviada
+automaticamente pela IA quando o cliente perguntava sobre o assunto.
+Investigação inicial levantou a hipótese de que o item nunca tinha
+entrado no catálogo "Arquivos da IA" (campo `geral` da Mensagem Rápida,
+rotulado "Permitir editar" — sem nenhuma menção a IA, nested atrás de
+"Permitir visão" também precisar estar ativo). O cliente então mostrou o
+painel "Arquivos da IA": o item "Filiação 2026" **já estava lá**,
+sincronizado — a hipótese de sincronização não era a causa, e o cliente
+pediu diretamente um controle explícito: um botão por item, verde quando
+ligado (IA manda automaticamente) e cinza quando desligado (não manda
+até ligar) — "não essa opção hoje".
+
+### Causa raiz do pedido
+
+Mesmo com o item já no catálogo, não existia NENHUM jeito de desativar
+um item específico sem apagá-lo — o catálogo inteiro (`PromptFiles`
+daquela empresa) sempre ia por completo no prompt da IA
+(`OpenAiService.ts`, variável `fileCatalogText`). O cliente queria um
+controle direto e visível, não dependente de reaproveitar os campos de
+permissão de compartilhamento da Mensagem Rápida (que servem a outro
+propósito — visibilidade/edição entre operadores).
+
+### Solução
+
+- **Migration** `20261031210000-add-ai-enabled-to-prompt-files.ts` —
+  `PromptFiles.aiEnabled` BOOLEAN NOT NULL DEFAULT `true` (idempotente
+  via `describeTable`). Default `true` preserva o comportamento atual de
+  TODO item já cadastrado — nada deixa de ser mandado pela IA só por
+  causa deste deploy; o botão fica disponível pra quem quiser desligar
+  algo específico dali pra frente.
+- **Backend**: endpoint novo e dedicado, separado do `UpdateService`
+  (que exige nome/descrição válidos e tem lógica de "desvincula da
+  Mensagem Rápida de origem" ao trocar conteúdo — nada disso faz sentido
+  pra um clique único de liga/desliga):
+  - `PATCH /prompt-files/:promptFileId/ai-enabled` (body `{ aiEnabled:
+    boolean }`) → `PromptFilesController.toggleAiEnabled` →
+    `ToggleAiEnabledService.ts` (só atualiza o campo, sem revalidar o
+    resto do registro).
+  - `OpenAiService.ts` — a query do catálogo (`fileCatalog =
+    PromptFiles.findAll(...)`) ganhou `aiEnabled: true` no `where`, item
+    desligado nunca entra no `fileCatalogText` mandado pro prompt.
+- **Frontend** (`PromptFilesTab.js`) — ícone `ToggleOn`/`ToggleOff`
+  (`@material-ui/icons`) ao lado de Editar/Excluir em cada linha, verde
+  (`#22c55e`) ligado / cinza desligado, clique dispara
+  `handleToggleAiEnabled` (otimista — muda a cor na hora, desfaz com
+  `toastError` se a API falhar). Texto de ajuda do topo da aba atualizado
+  explicando o botão.
+
+### Verificação
+
+Backend: `tsc --noEmit` e `npm run build` limpos. Migration rodada contra
+Postgres local (`atendeflow_test`), coluna conferida via `\d
+"PromptFiles"` (NOT NULL, default `true`). Teste end-to-end em script
+Node isolado, contra o serviço REAL compilado
+(`ToggleAiEnabledService`) e a MESMA query que `OpenAiService.ts` usa
+pro catálogo: criar item → aparece no catálogo (default `true`) →
+desativar → some do catálogo → reativar → volta a aparecer — os 3
+asserts bateram exatamente como esperado. Frontend: `eslint` e `npm run
+build` (produção) sem erro.
+
+**Arquivos**: `backend/src/database/migrations/20261031210000-add-ai-enabled-to-prompt-files.ts`,
+`backend/src/models/PromptFiles.ts`,
+`backend/src/services/PromptFilesServices/ToggleAiEnabledService.ts`,
+`backend/src/controllers/PromptFilesController.ts`,
+`backend/src/routes/promptFilesRoutes.ts`,
+`backend/src/services/IntegrationsServices/OpenAiService.ts`,
+`frontend/src/components/PromptModal/PromptFilesTab.js`.

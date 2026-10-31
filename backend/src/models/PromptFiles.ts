@@ -8,7 +8,8 @@ import {
   CreatedAt,
   UpdatedAt,
   BelongsTo,
-  AllowNull
+  AllowNull,
+  Default
 } from "sequelize-typescript";
 import Company from "./Company";
 import QuickMessage from "./QuickMessage";
@@ -60,6 +61,16 @@ class PromptFiles extends Model<PromptFiles> {
 
   @BelongsTo(() => QuickMessage)
   sourceQuickMessage: QuickMessage;
+
+  // Botão dedicado em Arquivos da IA (v2.3.228) — "a IA pode mandar isso
+  // automaticamente?" independente de "Permitir visão"/"Permitir editar"
+  // da Mensagem Rápida de origem (esses dois só controlam se o item
+  // ENTRA no catálogo; nunca controlaram se ele fica ativo pra IA usar).
+  // `false` tira o item do que é mandado pro prompt da IA
+  // (`OpenAiService.ts`) sem precisar apagar o item do catálogo.
+  @Default(true)
+  @Column
+  aiEnabled: boolean;
 
   @CreatedAt
   createdAt: Date;

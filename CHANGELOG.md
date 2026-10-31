@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.228] — Botão dedicado pra ligar/desligar envio automático de cada item em Arquivos da IA — 2026-10-31
+
+### Adicionado
+- **Botão "a IA manda isso automaticamente?" em Arquivos da IA**
+  (verde = ligado/envia, cinza = desligado/não envia), independente de
+  "Permitir visão"/"Permitir editar" da Mensagem Rápida de origem — esses
+  dois só controlavam se o item ENTRAVA no catálogo da IA, nunca deram
+  um jeito de desativar um item específico sem apagá-lo. Clique no botão
+  (ícone ao lado de Editar/Excluir) alterna na hora, sem precisar reabrir
+  o item. Novo campo `aiEnabled` em `PromptFiles` (default `true` —
+  nenhum item que já funcionava hoje deixa de funcionar com este
+  deploy); o catálogo mandado pra IA (`OpenAiService.ts`) passa a
+  filtrar só os itens com o botão ligado.
+
 ## [2.3.227] — Mensagem clara quando o arquivo de foto/logomarca é grande demais — 2026-10-31
 
 ### Corrigido
