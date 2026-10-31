@@ -76,6 +76,18 @@ decidir isso na etapa 0 se ainda não estiver claro.)
    **Funções → Adicionar pessoas → Testador do Instagram**, e a pessoa
    precisa aceitar o convite no próprio Instagram.
 
+### Aviso "Unified login" na tela da Meta (outubro/2026)
+
+A Meta passou a mostrar: *"API setup with Unified login is the
+recommended setup… API setup with Instagram login still works, but it's
+now legacy"*. **Continuar em "API setup with Instagram login"** — é a
+configuração pra qual o código foi feito (token `IGAA…`, host
+`graph.instagram.com`). Ela segue funcionando, só não ganha recurso
+novo. Migrar pro Unified login exige adaptar o código antes (tipo de
+token, host da API, permissões, webhook podem mudar): ler o *migration
+guide* da Meta, adaptar e testar num projeto separado — nunca migrar o
+app de um cliente em produção direto pela tela da Meta.
+
 ## 4. Chave da IA
 
 console.anthropic.com → **API Keys → Create Key**. Copiar na hora — a
@@ -222,9 +234,8 @@ Enquanto o app Meta estiver em modo de desenvolvimento, só perfis
 ## 10. Manutenção (vale pra qualquer cliente implantado)
 
 - **Token (60 dias)**: renova sozinho toda segunda via cron da Vercel
-  (precisa de `CRON_SECRET`). Se vencer de vez (agente parado >60 dias),
-  gerar token novo na Meta e repetir `vercel env add` +
-  `vercel --prod`.
+  (precisa de `CRON_SECRET`). Se vencer de vez ou for cancelado pela
+  Meta, trocar pelo painel (ver 10.1) — não precisa mexer na Vercel.
 - **Atualizar código**: `git fetch`/`merge --ff-only` igual etapa 2,
   depois `vercel --prod` de novo.
 - **Trocar uma variável**: `vercel env rm <nome> production --yes` →
@@ -232,6 +243,73 @@ Enquanto o app Meta estiver em modo de desenvolvimento, só perfis
 - **Backup**: dados ficam no Redis (backup/export pelo painel do
   Redis Cloud/Upstash); leads exportáveis a qualquer momento em
   Leads → Exportar CSV, pelo próprio painel do agente.
+
+### 10.1 Token cancelado pela Meta (caso real, outubro/2026)
+
+**Sintoma** (painel → Configurações → "Conexão com o Instagram"):
+selo `desconectado` com
+`Instagram API GET me -> 401: Error validating access token: The session
+has been invalidated because the user changed their password or Facebook
+has changed the session for security reasons.` e Webhook "não foi
+possível ler … me/subscribed_apps -> 401" com a mesma mensagem.
+
+**Causa**: alguém trocou a senha do Instagram (ou do Facebook ligado a
+ele), ou a Meta encerrou as sessões por segurança. Isso **cancela o
+token na hora**, mesmo que o painel ainda mostre "54 dias até vencer"
+(essa contagem é do token antigo — não significa que ele vale).
+
+**Correção** (nada de código, nada de Vercel):
+1. **Não clicar em "Renovar token"** — a Meta não renova token cancelado,
+   só dá erro.
+2. Meta → app → Instagram → **API setup with Instagram login → Gerar
+   tokens de acesso → Gerar token** na conta (entrar com a senha atual).
+   Copiar o `IGAA…`.
+3. Painel do agente → aba **Configurações** → quadro **Conexão com o
+   Instagram** → clicar na linha cinza **"▸ Trocar o token do Instagram
+   pelo painel"** (vem fechada, fica abaixo dos botões) → colar →
+   **Validar e salvar**. O painel confere se o token é válido e da conta
+   certa (`IG_USER_ID`), já renova pra 60 dias e guarda no Redis.
+4. Selo vira `conectado` → clicar **Assinar webhook (messages,
+   comments)** no mesmo quadro.
+5. Testar com uma DM real de um perfil com papel no app.
+
+Avisar o cliente: **toda troca de senha do Instagram derruba o agente**
+— depois de trocar, repetir os passos 2-3. Se ninguém trocou a senha,
+pedir pra conferir em Central de Contas → Senha e segurança → Onde você
+fez login (possível acesso suspeito).
+
+### 10.2 Testar a verificação do webhook pelo terminal
+
+```bash
+curl -s "https://<url-do-projeto>/api/webhook?hub.mode=subscribe&hub.verify_token=<VERIFY_TOKEN real>&hub.challenge=ok123"
+```
+
+- Respondeu `ok123` → URL e token certos: usar exatamente esses valores
+  em "Configurar webhooks" na Meta.
+- Respondeu `Forbidden` → o token não bate com o da Vercel. **Pegadinha
+  real:** o cliente rodou o comando com o texto de exemplo
+  (`SEU_TOKEN`, `VALOR_AQUI`) em vez do valor real — sempre mandar o
+  comando já com o valor (ou dizer onde ver: Vercel → Settings →
+  Environment Variables → `VERIFY_TOKEN` → ícone 👁). `vercel env ls`
+  NÃO mostra o valor, só o nome.
+- O aviso "Para receber webhooks, seu aplicativo deve estar no estado
+  publicado" na tela da Meta é só informativo: dá pra salvar o webhook
+  com o app em desenvolvimento. O erro "O URL do retorno de chamada ou o
+  token de verificação não puderam ser validados" é sempre URL/token
+  (ou `VERIFY_TOKEN` alterado sem `vercel --prod`).
+
+### 10.3 Dúvidas comuns do cliente sobre o comportamento
+
+- **"Curti o post e não aconteceu nada"**: normal — a Meta não manda
+  webhook de curtida. Só DM, comentário e menção chegam.
+- **"Comentei e não mandou boas-vindas"**: a boas-vindas só sai na
+  **primeira DM** de um contato novo. Pra quem comenta, quem age é
+  Comentários → resposta pública e/ou **Resposta privada (DM)**
+  (desligadas por padrão — ativar e salvar).
+- **Comentário não aparece na aba Comentários**: (a) comentou com a
+  própria conta da empresa — o agente ignora de propósito; ou (b) app
+  ainda não publicado e a conta que comentou não tem papel no app; ou
+  (c) campo `comments` não assinado no webhook.
 
 ## 11. Pegadinhas reais mais comuns (resumo — tabela completa no manual)
 
@@ -243,6 +321,9 @@ Enquanto o app Meta estiver em modo de desenvolvimento, só perfis
 | IA não responde, log mostra `401 invalid x-api-key` | Chave da IA errada (ex.: colou token do Instagram no lugar) | Recadastrar a chave certa, `vercel --prod` |
 | "Falta configurar: banco de dados" | Redis não conectado ao projeto, ou sem deploy novo | Reconectar em Storage, `vercel --prod` |
 | Aviso de escalação não chega no WhatsApp | Evolution incompleta/chave errada/instância desconectada | Auditoria item 10, botão "Enviar teste no WhatsApp" |
+| Painel `desconectado`, `401 … session has been invalidated` | Senha do Instagram trocada / Meta encerrou a sessão | Token novo na Meta → Configurações → "Trocar o token do Instagram pelo painel" (10.1) |
+| "Renovar token" dá erro com token cancelado | A Meta não renova token inválido | Gerar token novo e trocar pelo painel (10.1) |
+| `curl` da verificação responde `Forbidden` mesmo com tudo certo | Comando rodado com o texto de exemplo no lugar do token | Rodar com o `VERIFY_TOKEN` real (10.2) |
 
 ## 12. Checklist final
 
