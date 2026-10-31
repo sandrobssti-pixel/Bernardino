@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.225] — Ordem fixa das Informações Complementares + observação da venda nunca mais misturada — 2026-10-31
+
+### Corrigido
+- **Observação da venda aparecendo misturada com os avisos fixos no
+  DANFE** (reportado contra 2 notas reais emitidas, #509 e #517) — causa
+  raiz: o operador tenta separar visualmente a observação pulando linhas
+  em branco no campo, mas o motor de texto da Focus NFe RECOLHE/ignora
+  linhas em branco ao quebrar o texto dentro da célula do DANFE, e a
+  própria Focus NFe gruda o texto de tributos dela (quando
+  "Discriminar tributos"/`discriminaImpostos` está habilitado na conta)
+  direto no fim do campo, sem separador — nenhuma dessas duas coisas é
+  controlável pelo nosso código. Correção: a observação da venda agora
+  vem cercada por um marcador de texto explícito
+  (`>>> Observações da venda: ... <<<`), que não pode ser descartado
+  como espaço em branco.
+- **Ordem fixa das Informações Complementares** (pedido explícito do
+  cliente, depois de ver as notas reais): bloco FIXO sempre primeiro —
+  endereço/contato do emitente (v2.3.224), aviso do Simples Nacional,
+  tributos — e a observação da venda (variável, digitada pelo operador)
+  sempre por ÚLTIMO, nunca misturada no meio do bloco fixo.
+
 ## [2.3.224] — Endereço/e-mail/telefone do emitente nas Informações Complementares da nota — 2026-10-30
 
 ### Corrigido

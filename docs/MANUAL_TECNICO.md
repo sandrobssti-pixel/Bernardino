@@ -14825,3 +14825,70 @@ Jardim Das Margaridas, Salvador - BA — CEP 41502-445 — Tel.: (71)
 Backend: `tsc --noEmit` e `npm run build` limpos.
 
 **Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`.
+
+## 206. Ordem fixa das Informações Complementares + observação da venda nunca mais misturada (v2.3.225)
+
+### Pedido
+
+Depois da v2.3.224, o cliente mandou mais duas notas reais emitidas
+(#509 de 24/10 e uma outra, mais recente, já com o aviso de Simples
+Nacional e o texto de tributos da própria Focus NFe grudados sem
+nenhuma separação: `"...NAO GERA DIREITO A CREDITO FISCAL DE ISS E
+IPI. Trib. aprox. R$: 82,11 Federal, 86,10 Estadual Fonte:
+IBPT/empresometro.com.br C44399"`) mostrando que mesmo pulando ~3
+linhas em branco no campo Observação da venda pra tentar separar
+visualmente, no DANFE impresso tudo sai colado.
+
+Pedido explícito: as informações FIXAS (endereço/contato do emitente +
+aviso do Simples Nacional + tributos) sempre primeiro e sempre juntas,
+e qualquer outra coisa lançada (observação da venda) sempre DEPOIS
+dessas, nunca misturada no meio.
+
+### Causa raiz identificada
+
+Duas coisas, nenhuma controlável diretamente por código nosso:
+
+1. O motor de texto da Focus NFe, ao quebrar o texto do campo
+   `informacoes_adicionais_contribuinte` (infCpl) dentro da célula do
+   DANFE, **recolhe/ignora linhas em branco** — a separação visual que
+   o operador tenta criar pulando linhas desaparece no PDF final.
+2. Quando a conta tem "Discriminar tributos" habilitado
+   (`config.discriminaImpostos`, sincronizado via
+   `FocusAccountService.updateDiscriminaImpostos` — ver v2.3.xxx), a
+   **própria Focus NFe** calcula e acrescenta um texto de tributos
+   (formato "Trib. aprox. R$: X Federal, Y Estadual Fonte: IBPT/
+   empresometro.com.br ...") **no fim do que a gente manda**, sem
+   nenhum separador — isso acontece do lado deles, depois que a nota já
+   foi enviada, não tem como a gente inserir nada entre o nosso texto e
+   esse acréscimo automático.
+
+### Solução
+
+`backend/src/services/FiscalService/FocusNFeService.ts`,
+`buildAdditionalInfo(sale, config)`:
+
+- Ordem fixa, sempre nessa sequência: 1) `buildEmitterContactLine`
+  (endereço/contato do emitente, v2.3.224); 2) aviso do Simples
+  Nacional/MEI; 3) tributos (nossa linha manual, só quando algum
+  produto da venda tem `ibptRate` preenchido); 4) observação da venda
+  (`sale.notes`), SEMPRE por último.
+- Observação da venda agora vem cercada por um **marcador de texto
+  explícito**, não espaço em branco: `>>> Observações da venda: <texto>
+  <<<`. Mesmo que a Focus NFe cole o texto de tributos dela logo depois
+  do `<<<` sem quebra de linha, o marcador deixa claro onde a observação
+  do operador termina — diferente de uma linha em branco, que o motor de
+  texto deles descarta.
+
+### Verificação
+
+Testado localmente com os dados reais do cliente (CT Confiança/
+Federação Baiana) e uma observação multi-linha reproduzindo o caso real
+(lote + 2 IDs com linhas em branco entre eles, como o operador
+realmente digitou). Saída conferida: bloco fixo (endereço/contato +
+Simples) sempre no topo, observação cercada pelo marcador sempre por
+último, simulando também a concatenação do texto de tributos da Focus
+NFe logo depois (sem quebra de linha) pra confirmar que o marcador `<<<`
+continua legível mesmo colado. Backend: `tsc --noEmit` e `npm run build`
+limpos.
+
+**Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`.

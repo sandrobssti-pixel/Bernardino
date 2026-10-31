@@ -653,6 +653,14 @@ const buildEmitterContactLine = (config: FiscalConfig): string | undefined => {
   return parts.length > 0 ? `Endereço/contato do emitente — ${parts.join(" — ")}` : undefined;
 };
 
+// Ordem pedida explicitamente pelo cliente (v2.3.225, depois de ver 2
+// notas reais com o bug de mistura): bloco FIXO sempre primeiro, nessa
+// ordem — endereço/contato do emitente, aviso do Simples Nacional,
+// tributos (nosso ou o que a Focus NFe gruda sozinha no fim do campo
+// quando "Discriminar tributos"/`discriminaImpostos` está habilitado na
+// conta — isso nem passa pelo nosso código, só acontece DEPOIS de tudo
+// que a gente manda) — e qualquer outra coisa variável (observação do
+// operador) sempre DEPOIS desse bloco fixo, nunca misturada nele.
 const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefined => {
   const lines: string[] = [];
 
@@ -685,8 +693,18 @@ const buildAdditionalInfo = (sale: Sale, config: FiscalConfig): string | undefin
     );
   }
 
+  // Observações da venda (texto livre do operador) — bug real
+  // reportado contra 2 notas já emitidas (#509, #517): o operador digita
+  // a observação e tenta separá-la visualmente pulando linhas em
+  // branco, mas o motor de texto da Focus NFe RECOLHE/ignora linhas em
+  // branco ao quebrar o texto dentro da célula do DANFE — a observação
+  // acaba colada sem separação nenhuma no texto fixo acima e/ou no texto
+  // de tributos que a FOCUS NFE acrescenta sozinha no fim do campo
+  // (fora do nosso controle). Marcador de texto explícito (não espaço em
+  // branco, que é descartável) nas duas pontas — e SEMPRE depois do
+  // bloco fixo acima, nunca misturado nele.
   if (sale.notes?.trim()) {
-    lines.push(sale.notes.trim());
+    lines.push(`>>> Observações da venda: ${sale.notes.trim()} <<<`);
   }
 
   return lines.length > 0 ? lines.join("\n") : undefined;
