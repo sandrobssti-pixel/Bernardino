@@ -1229,3 +1229,101 @@ exatamente qual item saiu, evita vender o mesmo duas vezes), a receita
 - **Testar o cenário de "mesma unidade vendida duas vezes"** direto
   contra Postgres local antes de entregar — é o requisito central
   desse tipo de pedido (rastreabilidade), não um detalhe incidental.
+
+## 24. DANFE: o quadro do emitente é leiaute FIXO da Sefaz — não dá pra remover nem reformatar via API
+
+Cliente pediu repetidas vezes (v2.3.224/225) pra "diminuir a fonte" ou
+"deixar só logomarca + nome" no quadro do emitente do DANFE (CNPJ/IE/
+endereço/telefone, lado da logomarca). **Não é configurável** — é
+leiaute padronizado pela Sefaz/Ajuste SINIEF, a Focus NFe só desenha o
+PDF a partir dos dados, não existe parâmetro de API pra fonte/layout.
+Confirmado direto com o suporte da Focus NFe (chamado real) que o
+**e-mail do emitente nem faz parte do leiaute padrão** — não é bug
+nosso nem deles, é ausência de campo no leiaute (sugestão oficial deles:
+colocar nas informações adicionais).
+
+**Lição**: quando o pedido for sobre aparência/conteúdo do DANFE fora
+do que a gente manda no payload, a primeira pergunta é "isso é
+template da Focus NFe ou é o payload que a gente envia?" — se for
+template deles, não adianta mexer em código daqui, a única saída real é
+repetir a informação em `informacoes_adicionais_contribuinte` (infCpl),
+o único campo de texto livre que a gente realmente controla por
+completo (`buildEmitterContactLine`/`buildAdditionalInfo`,
+`FocusNFeService.ts`).
+
+## 25. `informacoes_adicionais_contribuinte` (infCpl): ordem fixa + marcador de texto explícito, nunca confiar em linha em branco
+
+Bug real reportado contra 2 notas emitidas (v2.3.225): operador digitava
+a Observação da venda e tentava separar visualmente pulando linhas em
+branco — no DANFE impresso saía tudo colado. Duas causas, nenhuma
+controlável por código nosso:
+
+1. O motor de texto da Focus NFe **recolhe/ignora linhas em branco** ao
+   quebrar o texto dentro da célula do DANFE — a separação visual
+   desaparece no PDF final.
+2. Quando a conta tem "Discriminar tributos" habilitado
+   (`config.discriminaImpostos`, sincronizado via
+   `FocusAccountService.updateDiscriminaImpostos`), a **própria Focus
+   NFe** acrescenta um texto de tributos (formato "Trib. aprox. R$: X
+   Federal, Y Estadual Fonte: IBPT/empresometro.com.br...") **no fim do
+   que a gente manda, sem separador nenhum** — isso acontece do lado
+   deles, depois que a nota já foi enviada.
+
+**Padrão pra qualquer coisa nova que entrar em `buildAdditionalInfo`**:
+- Bloco FIXO (gerado pelo sistema: endereço/contato do emitente, aviso
+  Simples Nacional, tributos) sempre PRIMEIRO, nessa ordem fixa.
+- Texto VARIÁVEL/livre digitado por operador (`sale.notes`) sempre por
+  ÚLTIMO, cercado por um **marcador de texto explícito** (não espaço em
+  branco, que é descartável): `>>> Observações da venda: ${texto} <<<`.
+  Mesmo que a Focus NFe cole o texto de tributos dela logo depois do
+  `<<<` sem quebra de linha, o marcador deixa claro onde o texto do
+  operador termina.
+
+## 26. Picker de busca combinando mais de um cadastro — normalizar pro mesmo shape, não duplicar campo
+
+Bug real (v2.3.226): campo "Buscar serviço" em Contas a Receber
+(`_servicePicker`, tipo `serviceSelect`, `FinanceRecordModal/index.js`)
+só buscava em `services.list`, sem nenhuma opção de Produto. Em vez de
+criar um SEGUNDO campo (um pra Produto, outro pra Serviço — pedido do
+cliente foi claro: "o primeiro campo tem que colocar produtos"), o
+`fetchOptions` passou a buscar nos dois em paralelo (`Promise.all`) e
+NORMALIZAR os resultados pro mesmo shape que o `fillFields` do campo já
+espera (`{ id, name, value }`), com um campo extra (`kind: "Produto" |
+"Serviço"`) mostrado em `getOptionLabel` pra não confundir item com
+nome igual nos dois cadastros. `id` prefixado (`product-<id>`/
+`service-<id>`) pra nunca colidir entre tabelas diferentes. Produto usa
+`price` (não tem campo `value`) — mapeado pra `value` na normalização,
+então o `fillFields` do campo config não precisou mudar.
+
+Reaproveitável sempre que um picker de preenchimento rápido precisar
+buscar em MAIS de um cadastro ao mesmo tempo: normalizar no
+`fetchOptions`, não mudar a config do campo nem duplicar campo na tela.
+
+## 27. "Internal server error" genérico em QUALQUER upload de foto/logomarca — checar tamanho/tipo do arquivo ANTES de investigar código
+
+Bug real (v2.3.227): cliente reportou "erro interno" ao editar um
+Serviço E ao enviar a foto dele (500 no console). Investigação por
+código (controller, model, migration, rotas) não achou nada óbvio — a
+causa real só apareceu quando o PRÓPRIO cliente percebeu que a
+logomarca tinha 22MB (limite configurado: 5MB).
+
+**Causa raiz estrutural** (não específica de Serviço — vale pra
+QUALQUER upload do projeto: Produto, logomarca da empresa, armaria,
+despachante bélico, currículo): todo `backend/src/config/
+*PhotoUpload.ts` tem `limits.fileSize` e um `fileFilter` que rejeita
+tipo errado com `cb(new Error("ERR_X_INVALID_..."))` — um `Error`
+comum, não `AppError`, então o manipulador de erros global (`app.ts`)
+não reconhecia nenhum dos dois casos e devolvia `500 "Internal server
+error"` sem pista nenhuma. Corrigido de forma CENTRAL em `app.ts`
+(reconhece `multer.MulterError` e qualquer `Error` cuja mensagem bata
+`^ERR_[A-Z_]+$`, devolve `400` com mensagem amigável) — vale pra todos
+os uploads de uma vez, sem precisar tocar em cada config individualmente.
+
+**Lição pra debugar mais rápido da próxima vez**: "erro interno"/500 ao
+salvar um registro que tem upload de foto junto (mesmo que pareça ser
+o campo de TEXTO que falhou — `FinanceRecordModal.handleSubmit` chama
+`onSave()` e `onUploadPhoto()` no MESMO `try/catch`, um erro na foto
+parece erro no registro inteiro) → primeira pergunta é sempre "o
+arquivo anexado é grande demais (>5MB) ou de tipo errado (não é JPG/
+PNG/WEBP)?", ANTES de ler código ou pedir log do servidor.
+
