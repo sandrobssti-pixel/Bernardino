@@ -14892,3 +14892,47 @@ continua legível mesmo colado. Backend: `tsc --noEmit` e `npm run build`
 limpos.
 
 **Arquivos**: `backend/src/services/FiscalService/FocusNFeService.ts`.
+
+## 207. Busca de Produto no campo de preenchimento rápido de Contas a Receber (v2.3.226)
+
+### Pedido
+
+"em contas a receber o primeiro campo tem que colocar produtos, ja tem
+serviços adicionadas, mas não tem produtos para pesquisar" — o campo
+"Buscar serviço (preenche Descrição/Valor)", no topo do formulário de
+Conta a Receber manual (`financeReceivableFields`, campo `_servicePicker`,
+tipo `serviceSelect`, criado na v2.3.175), só buscava no cadastro de
+Serviço (`useServices`) — não tinha como escolher um Produto ali.
+
+### Causa raiz
+
+`FinanceRecordModal/index.js`, branch `field.type === "serviceSelect"` —
+`fetchOptions` chamava só `services.list({ searchParam })`. A prop
+`finance` (que dá acesso a `finance.products.list`, já usada em outros
+campos `asyncSelect` do mesmo modal) nunca era consultada ali.
+
+### Solução
+
+`fetchOptions` agora busca em paralelo (`Promise.all`) em
+`services.list` E `finance.products.list`, normalizando os dois
+formatos pro mesmo shape usado pelo autopreenchimento
+(`field.fillFields`, ex.: `{ description: "name", value: "value" }`):
+Produto usa o campo `price` (não tem campo `value`) — mapeado pra
+`value` na normalização, então o `fillFields` do campo não precisou
+mudar. Cada opção na lista ganhou um `kind` ("Produto"/"Serviço"),
+mostrado em `getOptionLabel` como "Nome (Produto)"/"Nome (Serviço)" —
+evita confundir, por exemplo, um Produto e um Serviço com nome parecido.
+`id` de cada opção virou `product-<id>`/`service-<id>` (prefixado) pra
+nunca colidir entre os dois cadastros (ids numéricos nunca são
+realmente globais entre tabelas diferentes).
+
+Label do campo atualizado: "Buscar produto ou serviço (preenche
+Descrição/Valor)".
+
+### Verificação
+
+Frontend: `eslint` limpo nos dois arquivos alterados, `npm run build`
+(produção) sem erro.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

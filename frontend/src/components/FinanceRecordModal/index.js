@@ -654,13 +654,20 @@ const FinanceRecordModal = ({
 
                   // Campo tipo "serviceSelect" (v2.3.175 — ex.: Contas a
                   // Receber) — busca no cadastro de Serviço (prop `services`,
-                  // o hook `useServices`), mas NÃO é ele mesmo uma coluna do
-                  // registro: ao escolher um serviço, só preenche os campos
-                  // mapeados em `field.fillFields` (ex.: `{ description:
-                  // "name", value: "value" }`), igual ao autopreenchimento já
-                  // usado no Despachante Bélico e no SKU/nome da Venda — o
-                  // vínculo não fica salvo, é só um atalho de preenchimento.
-                  // Por isso fica fora de `buildInitialValues`/do payload.
+                  // o hook `useServices`) E no cadastro de Produto (`finance.
+                  // products`, v2.3.226 — bug real: cliente reportou que só
+                  // tinha serviço pra buscar, não produto, nesse mesmo
+                  // campo), mas NÃO é ele mesmo uma coluna do registro: ao
+                  // escolher um item, só preenche os campos mapeados em
+                  // `field.fillFields` (ex.: `{ description: "name", value:
+                  // "value" }`), igual ao autopreenchimento já usado no
+                  // Despachante Bélico e no SKU/nome da Venda — o vínculo não
+                  // fica salvo, é só um atalho de preenchimento. Por isso fica
+                  // fora de `buildInitialValues`/do payload. Produto usa
+                  // campo `price` (não `value`) — normalizado aqui pra `value`
+                  // pra reaproveitar o mesmo `fillFields` dos dois tipos; cada
+                  // opção na lista mostra "(Produto)"/"(Serviço)" pra não
+                  // confundir item com nome igual nos dois cadastros.
                   if (field.type === "serviceSelect") {
                     return (
                       <Grid item xs={12} sm={gridSize} key={field.name}>
@@ -668,11 +675,29 @@ const FinanceRecordModal = ({
                           label={field.label}
                           value={servicePickerValue}
                           initialOptions={servicePickerValue ? [servicePickerValue] : []}
-                          getOptionLabel={(opt) => opt?.name || ""}
+                          getOptionLabel={(opt) => (opt?.name ? `${opt.name} (${opt.kind})` : "")}
                           fetchOptions={async (searchParam) => {
-                            if (!services) return [];
-                            const { records } = await services.list({ searchParam });
-                            return records || [];
+                            const [serviceRecords, productRecords] = await Promise.all([
+                              services
+                                ? services.list({ searchParam }).then((r) => r.records || [])
+                                : Promise.resolve([]),
+                              finance?.products
+                                ? finance.products.list({ searchParam }).then((r) => r.records || [])
+                                : Promise.resolve([])
+                            ]);
+                            const normalizedProducts = productRecords.map((p) => ({
+                              id: `product-${p.id}`,
+                              name: p.name,
+                              value: p.price,
+                              kind: "Produto"
+                            }));
+                            const normalizedServices = serviceRecords.map((s) => ({
+                              id: `service-${s.id}`,
+                              name: s.name,
+                              value: s.value,
+                              kind: "Serviço"
+                            }));
+                            return [...normalizedProducts, ...normalizedServices];
                           }}
                           onChange={(e, newValue) => {
                             setServicePickerValue(newValue || null);

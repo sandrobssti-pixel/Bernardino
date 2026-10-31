@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.226] — Busca de Produto no campo de preenchimento rápido de Contas a Receber — 2026-10-31
+
+### Corrigido
+- **Contas a Receber — campo "Buscar serviço" não buscava Produto** —
+  o campo de preenchimento rápido (Descrição/Valor) no topo do cadastro
+  manual de Conta a Receber só pesquisava no cadastro de Serviço; agora
+  busca em Serviço E Produto ao mesmo tempo, mostrando "(Produto)"/
+  "(Serviço)" ao lado do nome pra não confundir item com nome igual nos
+  dois cadastros. Produto preenche o Valor a partir do preço de venda
+  (campo `price`); Serviço continua preenchendo a partir do campo
+  `value`, como já funcionava.
+
 ## [2.3.225] — Ordem fixa das Informações Complementares + observação da venda nunca mais misturada — 2026-10-31
 
 ### Corrigido

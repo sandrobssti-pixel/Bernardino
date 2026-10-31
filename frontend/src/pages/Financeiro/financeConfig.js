@@ -717,7 +717,7 @@ export const financeReceivableFields = [
   {
     name: "_servicePicker",
     type: "serviceSelect",
-    label: "Buscar serviço (preenche Descrição/Valor)",
+    label: "Buscar produto ou serviço (preenche Descrição/Valor)",
     fillFields: { description: "name", value: "value" },
     gridSize: 12,
   },
