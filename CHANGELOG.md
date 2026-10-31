@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.227] — Mensagem clara quando o arquivo de foto/logomarca é grande demais — 2026-10-31
+
+### Corrigido
+- **"Erro interno" ao editar Serviço/enviar foto** — causa raiz: a
+  logomarca anexada tinha 22MB, acima do limite de 5MB configurado no
+  upload (`servicePhotoUpload.ts` e os demais `*PhotoUpload.ts` do
+  projeto). O Multer rejeitava certo o arquivo, mas esse erro não era um
+  `AppError` — caía no tratamento genérico e virava "Internal server
+  error" sem nenhuma pista pro operador. Agora o manipulador de erros
+  global (`app.ts`) reconhece erro de limite de tamanho do Multer e
+  mostra uma mensagem clara ("Arquivo muito grande — reduza o tamanho e
+  tente novamente."), e também passou a tratar o erro de tipo de arquivo
+  inválido do `fileFilter` (JPG/PNG/WEBP) da mesma forma — correção
+  central, vale pra TODOS os uploads de foto/logomarca do sistema
+  (Serviço, Produto, logomarca da empresa, armaria, despachante bélico,
+  currículo), não só Serviço.
+- Adicionadas traduções em `pt.js` pra essas mensagens de tipo de
+  arquivo inválido, que nunca tinham sido traduzidas (apareciam com a
+  chave crua, ex. "ERR_SERVICE_INVALID_PHOTO_TYPE").
+
 ## [2.3.226] — Busca de Produto no campo de preenchimento rápido de Contas a Receber — 2026-10-31
 
 ### Corrigido

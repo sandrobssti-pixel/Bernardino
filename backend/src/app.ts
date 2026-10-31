@@ -9,6 +9,7 @@ import compression from "compression";
 import * as Sentry from "@sentry/node";
 import { config as dotenvConfig } from "dotenv";
 import bodyParser from 'body-parser';
+import multer from "multer";
 
 import "./database";
 import uploadConfig from "./config/upload";
@@ -165,11 +166,46 @@ app.use(routes);
 // Manipulador de erros do Sentry
 app.use(Sentry.Handlers.errorHandler());
 
+// Mensagens amigáveis pro erro mais comum de upload (arquivo maior que o
+// limite configurado em cada rota — ver config/*PhotoUpload.ts,
+// uploadExt.ts, resumeUpload.ts) — v2.3.227, bug real: cliente anexou uma
+// logomarca de 22MB num upload de foto com limite de 5MB; o multer rejeita
+// certo (`LIMIT_FILE_SIZE`), mas como esse erro não é uma `AppError`, caía
+// direto no catch-all abaixo e virava "Internal server error" genérico —
+// o operador não tinha como saber o motivo real. `LIMIT_FILE_SIZE` é o
+// único código de MulterError realmente disparado pelos uploads deste
+// projeto hoje (todos usam só `limits.fileSize`, nenhum usa
+// `limits.files`/`fields`/`parts`), mas os outros ficam aqui como
+// fallback genérico também, por completude.
+const MULTER_ERROR_MESSAGES: Record<string, string> = {
+  LIMIT_FILE_SIZE: "Arquivo muito grande — reduza o tamanho e tente novamente.",
+  LIMIT_FILE_COUNT: "Muitos arquivos enviados de uma vez.",
+  LIMIT_UNEXPECTED_FILE: "Campo de arquivo inesperado."
+};
+
 // Middleware de tratamento de erros
 app.use(async (err: Error, req: Request, res: Response, _: NextFunction) => {
   if (err instanceof AppError) {
     logger.warn(err);
     return res.status(err.statusCode).json({ error: err.message });
+  }
+
+  if (err instanceof multer.MulterError) {
+    logger.warn(err);
+    return res
+      .status(400)
+      .json({ error: MULTER_ERROR_MESSAGES[err.code] || "Falha ao enviar o arquivo." });
+  }
+
+  // `fileFilter` de cada config de upload (ex.: servicePhotoUpload.ts)
+  // rejeita tipo de arquivo inválido com `cb(new Error("ERR_X_INVALID_..."))`
+  // — um `Error` comum, não `AppError`, mas segue a MESMA convenção de nome
+  // (`ERR_*`) usada em `AppError` em todo o resto do projeto (traduzido no
+  // frontend via i18n). Tratado igual a `AppError` (400 + chave) em vez de
+  // cair no 500 genérico abaixo.
+  if (/^ERR_[A-Z_]+$/.test(err.message || "")) {
+    logger.warn(err);
+    return res.status(400).json({ error: err.message });
   }
 
   logger.error(err);

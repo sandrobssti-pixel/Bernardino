@@ -14936,3 +14936,74 @@ Frontend: `eslint` limpo nos dois arquivos alterados, `npm run build`
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 208. Mensagem clara quando o arquivo de foto/logomarca é grande demais (v2.3.227)
+
+### Pedido
+
+Cliente reportou "erro interno" ao editar um Serviço e ao enviar a foto
+dele (console mostrando `500` em `POST .../services/38/photo`). Pedi o
+log do backend pra não arriscar um fix às cegas; antes de conseguir o
+log, o próprio cliente achou a causa: a logomarca anexada tinha **22MB**.
+
+### Causa raiz
+
+Todo upload de foto/logomarca do projeto (`backend/src/config/
+*PhotoUpload.ts` — Serviço, Produto, logomarca da empresa, armaria,
+despachante bélico, currículo) tem `limits.fileSize` (5MB ou 8MB) e um
+`fileFilter` que rejeita tipo de arquivo não permitido com
+`cb(new Error("ERR_X_INVALID_..."))`. Os dois casos geram um `Error`
+comum (não `AppError`), que o manipulador de erros global
+(`backend/src/app.ts`) não reconhecia — caía direto no `catch-all` e
+virava `500 "Internal server error"` genérico, sem nenhuma pista pro
+operador sobre o motivo real (arquivo grande demais ou tipo errado).
+
+Isso explica os DOIS sintomas reportados juntos: `FinanceRecordModal.
+handleSubmit` chama `onSave()` (editar o registro) e, se tiver foto nova
+selecionada, `onUploadPhoto()` **na sequência**, dentro do MESMO
+`try/catch` — o 500 veio da etapa de foto, mas como o catch é único, deu
+a impressão de que "editar o serviço" também tinha falhado.
+
+### Solução
+
+`backend/src/app.ts` — manipulador de erros global passou a reconhecer,
+ANTES do catch-all genérico:
+
+1. `err instanceof multer.MulterError` — mapeia `err.code` pra uma
+   mensagem amigável (`LIMIT_FILE_SIZE` → "Arquivo muito grande —
+   reduza o tamanho e tente novamente.", + `LIMIT_FILE_COUNT`/
+   `LIMIT_UNEXPECTED_FILE` como fallback, embora nenhum upload deste
+   projeto hoje use `limits.files`/`fields`/`parts` pra realmente
+   disparar esses dois). Devolve `400`, não `500`.
+2. `Error` comum cuja mensagem bate o padrão `ERR_[A-Z_]+$` (convenção
+   já usada em TODOS os `fileFilter` de tipo de arquivo inválido do
+   projeto) — tratado igual a `AppError` (`400` + a chave), reaproveitando
+   o mesmo mecanismo de tradução do frontend (`backendErrors` em
+   `pt.js`) já usado pros erros `AppError` do resto do sistema.
+
+Correção central (1 arquivo só, `app.ts`) — vale pra TODOS os uploads de
+foto/logomarca do sistema de uma vez, não só Serviço, sem precisar
+tocar em cada `*PhotoUpload.ts`/controller individualmente.
+
+`frontend/src/translate/languages/pt.js` — adicionadas traduções pras
+chaves de tipo de arquivo inválido que nunca tinham entrado em
+`backendErrors` (apareciam com a chave crua no toast antes dessa
+correção, ex. "ERR_SERVICE_INVALID_PHOTO_TYPE"):
+`ERR_SERVICE_INVALID_PHOTO_TYPE`, `ERR_COMPANY_INVALID_LOGO_TYPE`,
+`ERR_FINANCE_PRODUCT_INVALID_PHOTO_TYPE`,
+`ERR_WEAPON_ARMORY_INVALID_PHOTO_TYPE`,
+`ERR_WEAPON_DISPATCH_CLIENT_INVALID_PHOTO_TYPE` (`ERR_JOB_APPLICATION_
+INVALID_FILE_TYPE` já tinha tradução própria, não duplicada).
+
+### Verificação
+
+Backend: `tsc --noEmit` e `npm run build` limpos. Simulado em script Node
+isolado os 3 cenários do manipulador de erros — `MulterError` com
+`LIMIT_FILE_SIZE` (caso real, logo de 22MB) → `400` com mensagem clara;
+`Error("ERR_SERVICE_INVALID_PHOTO_TYPE")` (tipo de arquivo inválido) →
+`400` com a chave (traduzida no frontend); um `TypeError` genuíno e
+inesperado → continua `500`, como deve ser (não esconde bug real).
+Frontend: `eslint` e `npm run build` (produção) sem erro.
+
+**Arquivos**: `backend/src/app.ts`,
+`frontend/src/translate/languages/pt.js`.

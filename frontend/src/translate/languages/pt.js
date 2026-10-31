@@ -1878,6 +1878,14 @@ const messages = {
         },
       },
       backendErrors: {
+        // Tipo de arquivo inválido ao enviar foto/logomarca (v2.3.227) —
+        // junto com o fix em app.ts que para de devolver "Internal server
+        // error" genérico pra esse caso (ver comentário lá).
+        ERR_SERVICE_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
+        ERR_COMPANY_INVALID_LOGO_TYPE: "Tipo de arquivo não permitido — envie uma imagem JPG, PNG ou WEBP.",
+        ERR_FINANCE_PRODUCT_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
+        ERR_WEAPON_ARMORY_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
+        ERR_WEAPON_DISPATCH_CLIENT_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
         ERR_COMPANY_PLAN_REQUIRED: "Selecione um plano para vincular à empresa.",
         ERR_SALE_REQUIRES_ITEMS: "Adicione pelo menos um item à venda.",
         ERR_SALE_NOT_EDITABLE: "Não é possível editar uma venda cancelada.",
