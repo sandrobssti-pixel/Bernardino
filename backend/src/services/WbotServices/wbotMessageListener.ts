@@ -5473,6 +5473,19 @@ const handleMessage = async (
       whatsappId: whatsapp?.id
     });
 
+    // [DIAG_IA] log temporário de diagnóstico (v2.3.230) — bem cedo no
+    // fluxo, antes de qualquer `return` precoce (NPS/rating), pra
+    // confirmar se a execução chega até aqui pros 2 contatos de teste
+    // que não receberam resposta nenhuma da IA.
+    if (!msg.key.fromMe && !isGroup) {
+      console.log("[DIAG_IA] chegou no ticketTraking", {
+        ticketId: ticket.id,
+        ticketStatus: ticket.status,
+        hasTicketTraking: !!ticketTraking,
+        ratingWillTrigger: !!(ticketTraking !== null && verifyRating(ticketTraking))
+      });
+    }
+
     let useLGPD = false;
 
     try {

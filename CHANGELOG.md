@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.231] — Log temporário de diagnóstico: NPS/avaliação pode estar barrando a IA antes do gate — 2026-10-31
+
+### Diagnóstico (temporário, remover depois de achar a causa)
+- O log `[DIAG_IA]` do gate geral (v2.3.230) nunca apareceu pros
+  contatos de teste sem resposta nenhuma — confirma que a execução para
+  ANTES mesmo de chegar nesse ponto. Achado um candidato forte no
+  código: fluxo de avaliação (NPS/rating, `handleRating`) com `return`
+  antecipado que mata o resto do processamento da mensagem (inclusive a
+  IA) silenciosamente, mais um comentário já existente (v2.3.203) sobre
+  ticket preso em `status === "nps"` impedindo os gatilhos de IA de
+  dispararem de novo. Log `[DIAG_IA]` religado bem mais cedo (logo após
+  `ticketTraking`, antes de qualquer `return` precoce), mostrando
+  `ticket.status`, se existe `ticketTraking` e se o rating vai disparar.
+
 ## [2.3.230] — Log temporário de diagnóstico religado: gate geral da IA — 2026-10-31
 
 ### Diagnóstico (temporário, remover depois de achar a causa)
