@@ -1629,6 +1629,7 @@ Rules:
 - Keep each message concise and direct.
 - End with a clear question to advance the conversation when not transferring.
 ${fileCatalog.length ? '- "send_file" must always include a "fileId" that exists in the catalog below and at least one message in "messages" as the file caption. Never use "send_file" if no catalog file matches the request.' : ""}
+${fileCatalog.length ? '- PRIORITY: when a catalog file below is about the same topic the customer is asking about, you MUST choose "send_file" with that file INSTEAD of writing out the full explanation yourself in "messages" — even if the specific instructions below also cover that topic. The catalog file contains the complete material (cards, videos, text) and should be the answer whenever it applies; do not improvise a text-only answer that duplicates what a catalog file already covers. Only fall back to a plain text answer ("none") when no catalog file relates to what the customer asked.' : ""}
 
 Transfer to human ONLY when the customer explicitly says (e.g.): "falar com atendente", "quero atendimento humano", "me transfira", "falar com humano", "quero falar com uma pessoa". Never transfer for any other reason.
 

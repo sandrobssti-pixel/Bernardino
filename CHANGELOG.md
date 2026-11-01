@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.235] — IA prioriza arquivo do catálogo em vez de responder só em texto — 2026-11-01
+
+### Alterado
+- Cliente reportou que, ao perguntar sobre valor do processo de CR/CAC
+  atirador desportivo, a IA respondia só com texto a partir do prompt
+  geral/instruções específicas, em vez de mandar o item correspondente
+  de "Arquivos da IA" (que tem o material completo — cards, vídeos,
+  textos). Reforçada a instrução de sistema em `OpenAiService.ts`: quando
+  existir um item do catálogo sobre o mesmo assunto perguntado, a IA
+  agora é instruída a SEMPRE priorizar `send_file` com esse item em vez
+  de escrever a explicação ela mesma em texto — mesmo que as instruções
+  específicas também cubram o assunto. Só volta a responder em texto
+  puro quando nenhum item do catálogo é relacionado à pergunta.
+- Importante: a IA decide o item certo pelo `name`/`description` de
+  cada item em "Arquivos da IA" — pra essa priorização funcionar bem
+  pra "CR/CAC atirador desportivo", o item correspondente no catálogo
+  precisa ter esses termos na descrição (editável na própria tela de
+  Arquivos da IA).
+
 ## [2.3.234] — Log temporário de diagnóstico: "Arquivos da IA" não dispara send_file — 2026-11-01
 
 ### Diagnóstico (temporário, remover depois de achar a causa)
