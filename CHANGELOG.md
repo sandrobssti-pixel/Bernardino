@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.238] — Fix: texto digitado no Chat Interno ficava invisível — 2026-11-01
+
+### Corrigido
+- Cliente reportou que, ao digitar uma mensagem privada pro Chat
+  Interno (conversa com outro usuário/atendente), o texto digitado não
+  aparecia — ficava "invisível". Causa: o campo de digitação
+  (`ChatMessages.js`) usa o `Input` do Material-UI sem nenhuma cor de
+  texto própria, herdando a cor do elemento pai — em certas combinações
+  de tema, o texto ficava com a mesma cor do fundo.
+- Cor do texto digitado fixada em vermelho (`#dc2626`), garantindo
+  contraste tanto no tema claro quanto no escuro.
+
 ## [2.3.237] — Campo "Resposta" em Arquivos da IA — texto que acompanha o arquivo — 2026-11-01
 
 ### Adicionado

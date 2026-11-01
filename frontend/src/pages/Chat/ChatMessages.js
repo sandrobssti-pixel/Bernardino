@@ -116,6 +116,14 @@ const useStyles = makeStyles((theme) => ({
   input: {
     padding: "11px 14px",
     fontSize: "0.86rem",
+    // v2.3.238 — sem cor própria, o texto digitado herdava a cor do
+    // elemento pai e ficava ilegível em certas combinações de tema
+    // (texto na mesma cor do fundo). Cor fixa em vermelho garante
+    // contraste tanto no tema claro quanto no escuro.
+    "& .MuiInputBase-input": {
+      color: "#dc2626 !important",
+      caretColor: "#dc2626",
+    },
   },
   buttonSend: {
     margin: theme.spacing(0.2, 0.4),
