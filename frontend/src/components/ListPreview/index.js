@@ -157,7 +157,7 @@ const ListPreview = ({ titulo, descricao, textoBotao, secoes, rodape, ticketId }
             }}
           >
             <InputBase
-              style={{ padding: "10px", flex: 1 }}
+              style={{ padding: "10px", flex: 1, color: "#1f2937" }}
               value={tituloSelecionado}
               onChange={(e) => setTituloSelecionado(e.target.value)} 
               placeholder="Título Selecionado"

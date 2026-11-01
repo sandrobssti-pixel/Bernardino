@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.239] — Fix: campo "Título Selecionado" (lista de botões) com o mesmo risco de texto invisível — 2026-11-01
+
+### Corrigido
+- Auditoria pedida pelo cliente após o fix do Chat Interno (v2.3.238):
+  varredura em todo componente que usa `InputBase`/`Input` do
+  Material-UI direto (mesmo padrão do bug original) procurando o mesmo
+  risco — fundo fixo (não acompanha o tema) sem cor de texto própria.
+  Achado 1 caso real: `ListPreview/index.js`, campo "Título
+  Selecionado" (modal de lista de botões), com fundo cinza-claro fixo
+  e sem cor de texto definida — mesmo risco de ficar ilegível no tema
+  escuro. Corrigido com cor de texto fixa e legível.
+- Os demais campos que usam `InputBase` no sistema já seguem o padrão
+  correto (cor/fundo vindos do tema de forma consistente, incluindo o
+  token `background.paper`), sem o mesmo risco — não foram alterados.
+
 ## [2.3.238] — Fix: texto digitado no Chat Interno ficava invisível — 2026-11-01
 
 ### Corrigido
