@@ -5625,6 +5625,30 @@ const handleMessage = async (
       currentSchedule = await VerifyCurrentSchedule(companyId, 0, whatsapp.id);
     }
 
+    // [DIAG_IA] log temporário de diagnóstico (v2.3.232) — testa a
+    // hipótese de que o bloco de "fora de expediente" abaixo está dando
+    // `return` silencioso (sem mensagem) pra tickets NOVOS (status
+    // "pending"), já que ele só pula essa checagem se ticket.status for
+    // "open"/"group" — um contato que já tem atendimento aberto não cai
+    // aqui, mas um contato novo de teste sim.
+    if (!msg.key.fromMe && !isGroup) {
+      console.log("[DIAG_IA] antes do bloco horario-de-expediente", {
+        ticketId: ticket.id,
+        ticketStatus: ticket.status,
+        scheduleType: settings.scheduleType,
+        currentScheduleInActivity: currentSchedule?.inActivity,
+        amountUsedBotQueues: ticket.amountUsedBotQueues,
+        maxUseBotQueues: whatsapp.maxUseBotQueues,
+        outOfHoursMessageConfigured: !!String(
+          currentSchedule?.message || whatsapp.outOfHoursMessage || ""
+        ).trim(),
+        willEnterScheduleBlock:
+          !!settings.scheduleType &&
+          (!ticket.isGroup || whatsapp.groupAsTicket === "enabled") &&
+          !["open", "group"].includes(ticket.status)
+      });
+    }
+
     try {
   if (
     !msg.key.fromMe &&

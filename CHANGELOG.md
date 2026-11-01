@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.232] — Log temporário de diagnóstico: horário de expediente pode estar barrando a IA pra tickets novos — 2026-11-01
+
+### Diagnóstico (temporário, remover depois de achar a causa)
+- Log `[DIAG_IA]` do v2.3.231 confirmou: `ticketStatus: 'pending'` e
+  `ratingWillTrigger: false` — descarta a hipótese de NPS/avaliação
+  (ticket não estava preso em `status === "nps"` e nenhuma avaliação
+  ia disparar). A execução passa por esse ponto normalmente mas ainda
+  não chega no gate geral da IA (log do v2.3.230 continua sem aparecer).
+- Novo candidato encontrado no código, mais adiante no mesmo fluxo: o
+  bloco de "fora de expediente" (`settings.scheduleType` configurado)
+  só PULA a checagem se `ticket.status` já for `"open"` ou `"group"`.
+  Um contato com atendimento já aberto (ex.: "clube") não passa por
+  essa checagem — mas um ticket NOVO (status `"pending"`, caso dos
+  celulares de teste) passa, e se estiver fora do horário configurado
+  e sem `outOfHoursMessage` cadastrada na conexão, o código só faz
+  `return` sem mandar nada — exatamente o sintoma relatado. Testado
+  num domingo, o que reforça a suspeita se o expediente da empresa não
+  cobrir esse dia. Log `[DIAG_IA]` adicionado logo antes desse bloco,
+  mostrando `scheduleType`, `currentScheduleInActivity`,
+  `amountUsedBotQueues` e se há mensagem de fora de expediente
+  configurada.
+
 ## [2.3.231] — Log temporário de diagnóstico: NPS/avaliação pode estar barrando a IA antes do gate — 2026-10-31
 
 ### Diagnóstico (temporário, remover depois de achar a causa)
