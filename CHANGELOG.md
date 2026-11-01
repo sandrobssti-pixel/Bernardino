@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.230] — Log temporário de diagnóstico religado: gate geral da IA — 2026-10-31
+
+### Diagnóstico (temporário, remover depois de achar a causa)
+- Achado novo: 2 contatos de teste, na MESMA conexão onde a IA
+  responde normalmente pra outros contatos, não receberam NENHUMA
+  resposta (nem texto genérico) — descartado número bloqueado (conferido
+  em Números sem IA). Isso aponta pro "gate" geral de
+  `wbotMessageListener.ts` (`!ticket.queue && !ticket.userId && ...`),
+  não pro mecanismo de envio de arquivo — religado o log `[DIAG_IA]`
+  que mostra o valor de cada condição desse gate por ticket (suspeita
+  principal: `ticket.userId` pré-atribuído na criação do ticket pela
+  "Carteira de Clientes", `DirectTicketsToWallets`).
+
 ## [2.3.229] — Log temporário de diagnóstico: por que "Arquivos da IA" não dispara em alguns casos — 2026-10-31
 
 ### Diagnóstico (temporário, remover depois de achar a causa)

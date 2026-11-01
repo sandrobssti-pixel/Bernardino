@@ -5977,6 +5977,32 @@ const handleMessage = async (
 
 
 
+    // [DIAG_IA] log temporário de diagnóstico (v2.3.230) — religado:
+    // 2 contatos novos testados no mesmo número/conexão não receberam
+    // NENHUMA resposta da IA (nem o catálogo de arquivos chegou a ser
+    // carregado), diferente de outro contato que funciona normal na
+    // mesma conexão — precisa ver qual condição abaixo está diferente
+    // entre os dois casos (suspeita: `ticket.userId` pré-atribuído por
+    // Carteira de Clientes, `DirectTicketsToWallets`).
+    if (!msg.key.fromMe && !isGroup) {
+      console.log("[DIAG_IA] gate openai-na-conexao", {
+        ticketId: ticket.id,
+        contactNumber: contact?.number,
+        hasQueue: !!ticket.queue,
+        queueId: ticket.queueId,
+        userId: ticket.userId,
+        whatsappId: whatsapp.id,
+        whatsappPromptId: whatsapp.promptId,
+        numberBlockedForAI,
+        willCallAI:
+          !ticket.queue &&
+          !isGroup &&
+          !ticket.userId &&
+          !isNil(whatsapp.promptId) &&
+          !numberBlockedForAI
+      });
+    }
+
     //openai na conexao
     if (
       !ticket.queue &&
