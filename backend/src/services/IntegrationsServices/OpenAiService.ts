@@ -1024,6 +1024,16 @@ const processResponse = async (
 ): Promise<void> => {
   const maxResponseMessages = resolveAutoResponseMessageLimit();
   const structured = parseStructuredAiOutput(stripReasoningFromRawResponse(responseText || ""), maxResponseMessages);
+  // [DIAG_IA] log temporário (v2.3.234) — tira depois de confirmar por
+  // que "Arquivos da IA" não dispara send_file mesmo com a IA
+  // respondendo normalmente em texto (bug do horário de expediente já
+  // corrigido na v2.3.233, este é outro problema).
+  console.log("[DIAG_IA] ação decidida pela IA", {
+    ticketId: ticket.id,
+    action: structured.action,
+    fileId: (structured as any).fileId,
+    rawResponsePreview: (responseText || "").slice(0, 400)
+  });
   const rawMessages = structured.messages
     .map(message => normalizeText(message))
     .filter(Boolean);
@@ -1584,6 +1594,14 @@ export const handleOpenAi = async (
   } catch (err) {
     console.error("Falha ao buscar catálogo de arquivos da IA:", err);
   }
+  // [DIAG_IA] log temporário (v2.3.234) — mesmo propósito do log acima.
+  console.log("[DIAG_IA] catálogo carregado", {
+    ticketId: ticket.id,
+    companyId: ticket.companyId,
+    totalItens: fileCatalog.length,
+    itens: fileCatalog.map(f => ({ id: f.id, name: f.name, aiEnabled: f.aiEnabled }))
+  });
+
   const fileCatalogText = fileCatalog.length
     ? `\nArquivos disponíveis para envio (use "send_file" com o "fileId" exato quando o cliente pedir ou quando fizer sentido; NUNCA invente um fileId que não esteja nesta lista):\n${JSON.stringify(
         fileCatalog.map(f => ({ fileId: f.id, name: f.name, description: f.description }))

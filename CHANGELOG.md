@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.234] — Log temporário de diagnóstico: "Arquivos da IA" não dispara send_file — 2026-11-01
+
+### Diagnóstico (temporário, remover depois de achar a causa)
+- Com o bug do horário de expediente corrigido (v2.3.233), a IA já
+  responde em texto normalmente, mas o cliente reportou que ainda não
+  busca/manda as mensagens rápidas cadastradas em "Arquivos da IA".
+  Religados os logs `[DIAG_IA]` em `OpenAiService.ts`: um mostrando o
+  catálogo carregado pra cada ticket (quantos itens, nome e
+  `aiEnabled` de cada um) e outro mostrando a ação que a IA decidiu
+  (`action`, `fileId`, preview da resposta bruta) — pra ver se o
+  catálogo está vazio, se o item está com `aiEnabled: false`, ou se a
+  IA está decidindo "none" mesmo com o item disponível.
+
 ## [2.3.233] — Fix: IA liberada pra responder fora do horário de expediente — 2026-11-01
 
 ### Corrigido
