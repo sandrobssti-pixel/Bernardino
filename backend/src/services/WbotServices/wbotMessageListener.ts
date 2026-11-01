@@ -5473,19 +5473,6 @@ const handleMessage = async (
       whatsappId: whatsapp?.id
     });
 
-    // [DIAG_IA] log temporário de diagnóstico (v2.3.230) — bem cedo no
-    // fluxo, antes de qualquer `return` precoce (NPS/rating), pra
-    // confirmar se a execução chega até aqui pros 2 contatos de teste
-    // que não receberam resposta nenhuma da IA.
-    if (!msg.key.fromMe && !isGroup) {
-      console.log("[DIAG_IA] chegou no ticketTraking", {
-        ticketId: ticket.id,
-        ticketStatus: ticket.status,
-        hasTicketTraking: !!ticketTraking,
-        ratingWillTrigger: !!(ticketTraking !== null && verifyRating(ticketTraking))
-      });
-    }
-
     let useLGPD = false;
 
     try {
@@ -5625,36 +5612,68 @@ const handleMessage = async (
       currentSchedule = await VerifyCurrentSchedule(companyId, 0, whatsapp.id);
     }
 
-    // [DIAG_IA] log temporário de diagnóstico (v2.3.232) — testa a
-    // hipótese de que o bloco de "fora de expediente" abaixo está dando
-    // `return` silencioso (sem mensagem) pra tickets NOVOS (status
-    // "pending"), já que ele só pula essa checagem se ticket.status for
-    // "open"/"group" — um contato que já tem atendimento aberto não cai
-    // aqui, mas um contato novo de teste sim.
-    if (!msg.key.fromMe && !isGroup) {
-      console.log("[DIAG_IA] antes do bloco horario-de-expediente", {
-        ticketId: ticket.id,
-        ticketStatus: ticket.status,
-        scheduleType: settings.scheduleType,
-        currentScheduleInActivity: currentSchedule?.inActivity,
-        amountUsedBotQueues: ticket.amountUsedBotQueues,
-        maxUseBotQueues: whatsapp.maxUseBotQueues,
-        outOfHoursMessageConfigured: !!String(
-          currentSchedule?.message || whatsapp.outOfHoursMessage || ""
-        ).trim(),
-        willEnterScheduleBlock:
-          !!settings.scheduleType &&
-          (!ticket.isGroup || whatsapp.groupAsTicket === "enabled") &&
-          !["open", "group"].includes(ticket.status)
-      });
+    // v2.3.233 — calculado aqui (antes do bloco de fora de expediente) pra
+    // decidir se a IA deve responder mesmo fora do horário configurado.
+    // Diferente de um atendente humano, a IA não depende de ninguém estar
+    // de plantão, então o bloqueio de horário não deve silenciar ela —
+    // só continua valendo pro roteamento pra fila/atendente humano.
+    const flow = await FlowBuilderModel.findOne({
+      where: {
+        id: ticket.flowStopped
+      }
+    });
+
+    let isMenu = false;
+    let isOpenai = false;
+    let isQuestion = false;
+    let isTypebotNode = false;
+
+    if (flow) {
+      isMenu =
+        flow.flow["nodes"].find(
+          (node: any) => String(node.id) === String(ticket.lastFlowId)
+        )
+          ?.type === "menu";
+      isOpenai =
+        flow.flow["nodes"].find(
+          (node: any) => String(node.id) === String(ticket.lastFlowId)
+        )
+          ?.type === "openai";
+      isQuestion =
+        flow.flow["nodes"].find(
+          (node: any) => String(node.id) === String(ticket.lastFlowId)
+        )
+          ?.type === "question";
+      isTypebotNode =
+        flow.flow["nodes"].find(
+          (node: any) => String(node.id) === String(ticket.lastFlowId)
+        )
+          ?.type === "typebot";
     }
+
+    // "Números sem IA" (PromptBlockedNumber) — checado uma vez só, reusado
+    // nos dois gatilhos de IA (nó do Flowbuilder e IA na conexão) e aqui,
+    // pra decidir se o bloqueio de horário deve ser pulado pra IA.
+    const numberBlockedForAI = await IsNumberBlockedService(
+      ticket.companyId,
+      contact?.number
+    );
+
+    const aiWillHandleTicket =
+      (isOpenai && !isNil(flow) && !ticket.queueId && !numberBlockedForAI) ||
+      (!ticket.queue &&
+        !isGroup &&
+        !ticket.userId &&
+        !isNil(whatsapp.promptId) &&
+        !numberBlockedForAI);
 
     try {
   if (
     !msg.key.fromMe &&
     settings.scheduleType &&
     (!ticket.isGroup || whatsapp.groupAsTicket === "enabled") &&
-    !["open", "group"].includes(ticket.status)
+    !["open", "group"].includes(ticket.status) &&
+    !aiWillHandleTicket
   ) {
     /**
      * Tratamento para envio de mensagem quando a empresa está fora do expediente
@@ -5756,12 +5775,6 @@ const handleMessage = async (
   console.log(e);
 }
 
-    const flow = await FlowBuilderModel.findOne({
-      where: {
-        id: ticket.flowStopped
-      }
-    });
-
     if (flow && !flow.active) {
       await ticket.update({
         flowStopped: null,
@@ -5774,34 +5787,6 @@ const handleMessage = async (
         typebotSessionTime: null
       });
       return;
-    }
-
-    let isMenu = false;
-    let isOpenai = false;
-    let isQuestion = false;
-    let isTypebotNode = false;
-
-    if (flow) {
-      isMenu =
-        flow.flow["nodes"].find(
-          (node: any) => String(node.id) === String(ticket.lastFlowId)
-        )
-          ?.type === "menu";
-      isOpenai =
-        flow.flow["nodes"].find(
-          (node: any) => String(node.id) === String(ticket.lastFlowId)
-        )
-          ?.type === "openai";
-      isQuestion =
-        flow.flow["nodes"].find(
-          (node: any) => String(node.id) === String(ticket.lastFlowId)
-        )
-          ?.type === "question";
-      isTypebotNode =
-        flow.flow["nodes"].find(
-          (node: any) => String(node.id) === String(ticket.lastFlowId)
-        )
-          ?.type === "typebot";
     }
 
     if (!isNil(flow) && isQuestion && !msg.key.fromMe) {
@@ -5940,13 +5925,6 @@ const handleMessage = async (
     }
 
     
-    // "Números sem IA" (PromptBlockedNumber) — checado uma vez só, reusado
-    // nos dois gatilhos de IA abaixo (nó do Flowbuilder e IA na conexão).
-    const numberBlockedForAI = await IsNumberBlockedService(
-      ticket.companyId,
-      contact?.number
-    );
-
     if (isOpenai && !isNil(flow) && !ticket.queueId && !numberBlockedForAI) {
       const nodeSelected = flow.flow["nodes"].find(
         (node: any) => node.id === ticket.lastFlowId
@@ -6009,35 +5987,6 @@ const handleMessage = async (
       );
 
       return;
-    }
-
-
-
-
-    // [DIAG_IA] log temporário de diagnóstico (v2.3.230) — religado:
-    // 2 contatos novos testados no mesmo número/conexão não receberam
-    // NENHUMA resposta da IA (nem o catálogo de arquivos chegou a ser
-    // carregado), diferente de outro contato que funciona normal na
-    // mesma conexão — precisa ver qual condição abaixo está diferente
-    // entre os dois casos (suspeita: `ticket.userId` pré-atribuído por
-    // Carteira de Clientes, `DirectTicketsToWallets`).
-    if (!msg.key.fromMe && !isGroup) {
-      console.log("[DIAG_IA] gate openai-na-conexao", {
-        ticketId: ticket.id,
-        contactNumber: contact?.number,
-        hasQueue: !!ticket.queue,
-        queueId: ticket.queueId,
-        userId: ticket.userId,
-        whatsappId: whatsapp.id,
-        whatsappPromptId: whatsapp.promptId,
-        numberBlockedForAI,
-        willCallAI:
-          !ticket.queue &&
-          !isGroup &&
-          !ticket.userId &&
-          !isNil(whatsapp.promptId) &&
-          !numberBlockedForAI
-      });
     }
 
     //openai na conexao

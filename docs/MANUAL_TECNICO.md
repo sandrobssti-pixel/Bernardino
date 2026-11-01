@@ -15079,3 +15079,77 @@ build` (produção) sem erro.
 `backend/src/routes/promptFilesRoutes.ts`,
 `backend/src/services/IntegrationsServices/OpenAiService.ts`,
 `frontend/src/components/PromptModal/PromptFilesTab.js`.
+
+## 210. IA não respondia fora do horário de atendimento configurado (v2.3.233)
+
+### Pedido
+
+Cliente reportou que a IA não respondia NADA (nem texto genérico) pra
+contatos novos testados numa conexão onde ela funciona normalmente pra
+outros contatos. Investigação em várias rodadas, com log de diagnóstico
+temporário (`[DIAG_IA]`, v2.3.229 a v2.3.232) movido cada vez mais pra
+cedo no fluxo de `wbotMessageListener.ts`, descartou nessa ordem: nó
+Flowbuilder "openai" mal configurado, conexão sem Assistente de IA
+vinculado (`whatsapp.promptId`), ticket já preso em fila/atendente,
+número na lista "Números sem IA", e ticket preso em `status === "nps"`
+(fluxo de avaliação) — até o log confirmar que a execução nunca
+alcançava o gate geral da IA.
+
+### Causa raiz
+
+O bloco de "fora de expediente" (`settings.scheduleType` configurado em
+Configurações da empresa ou da conexão) só pula a checagem de horário
+se `ticket.status` já for `"open"` ou `"group"`. Um ticket NOVO nasce
+com status `"pending"` — então todo contato testando por primeira vez
+caía nesse bloco. Se a empresa estava fora do horário configurado
+(testado num domingo) e a conexão não tinha "Mensagem de fora de
+expediente" cadastrada, o código fazia `return` em silêncio — sem
+mandar nada, sem deixar a IA responder. Um contato que já tinha
+atendimento aberto (ex.: ticket em `status === "open"`) escapava dessa
+checagem e por isso a IA respondia normalmente pra ele, mascarando o
+problema como "intermitente".
+
+Esse bloqueio fazia sentido pra um atendente humano (não tem como
+atender fora do expediente), mas não pra IA — ela não depende de
+ninguém estar de plantão.
+
+### Solução
+
+`wbotMessageListener.ts`: a busca do nó Flowbuilder ativo (`flow`,
+`isOpenai` etc.) e a checagem de "Números sem IA"
+(`numberBlockedForAI`) foram adiantadas pra ANTES do bloco de horário
+de expediente (eram calculadas só depois, mais abaixo — continuam
+sendo reaproveitadas nos mesmos pontos de antes, sem duplicar a
+consulta). Com isso calcula-se `aiWillHandleTicket` — verdadeiro se o
+ticket vai cair no nó OpenAI do Flowbuilder OU no Assistente de IA
+direto da conexão — e essa flag entra como mais uma condição pra
+PULAR o bloco de horário de expediente:
+
+```ts
+if (
+  !msg.key.fromMe &&
+  settings.scheduleType &&
+  (!ticket.isGroup || whatsapp.groupAsTicket === "enabled") &&
+  !["open", "group"].includes(ticket.status) &&
+  !aiWillHandleTicket   // <- novo: não bloqueia quem a IA vai atender
+) {
+  // ...mensagem de fora de expediente + return, igual antes...
+}
+```
+
+O roteamento pra fila/atendente humano continua bloqueado fora do
+expediente, exatamente como antes — a mudança só libera a IA. Todos os
+logs `[DIAG_IA]` temporários (v2.3.229 a v2.3.232), em
+`wbotMessageListener.ts` e `OpenAiService.ts`, foram removidos nesta
+mesma entrega.
+
+### Verificação
+
+`tsc --noEmit` e `npm run build` limpos após a reordenação. Confirmado
+em produção, nos logs reais do cliente, que antes da correção
+`willEnterScheduleBlock: true` com `currentScheduleInActivity: false`
+e `outOfHoursMessageConfigured: false` explicava exatamente o `return`
+silencioso.
+
+**Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`,
+`backend/src/services/IntegrationsServices/OpenAiService.ts`.

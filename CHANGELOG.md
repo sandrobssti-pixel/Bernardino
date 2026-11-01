@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.233] — Fix: IA liberada pra responder fora do horário de expediente — 2026-11-01
+
+### Corrigido
+- Causa raiz confirmada: o bloco de "fora de expediente" só pulava a
+  checagem de horário pra tickets já `"open"`/`"group"` — um ticket
+  NOVO (status `"pending"`, caso de qualquer contato testando por
+  primeira vez) caía nele, e se a empresa estivesse fora do horário
+  configurado e sem "Mensagem de fora de expediente" cadastrada, o
+  código fazia `return` silencioso — sem deixar a IA responder.
+- `wbotMessageListener.ts`: adiantada a checagem de "Números sem IA" e
+  de nó Flowbuilder OpenAI ativo pra calcular `aiWillHandleTicket`
+  ANTES do bloco de horário — esse bloco agora é pulado quando a IA (do
+  Flowbuilder ou do Assistente direto da conexão) for responder,
+  mantendo o bloqueio de horário só pro roteamento pra fila/atendente
+  humano (que continua precisando de alguém de plantão).
+- Removidos todos os logs `[DIAG_IA]` temporários desta investigação
+  (v2.3.229 a v2.3.232), em `wbotMessageListener.ts` e
+  `OpenAiService.ts`.
+- Ver seção 210 do `docs/MANUAL_TECNICO.md` para o relato completo da
+  investigação (hipóteses descartadas em ordem) e da correção.
+
 ## [2.3.232] — Log temporário de diagnóstico: horário de expediente pode estar barrando a IA pra tickets novos — 2026-11-01
 
 ### Diagnóstico (temporário, remover depois de achar a causa)
