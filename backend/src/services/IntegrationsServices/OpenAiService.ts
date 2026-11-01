@@ -1024,6 +1024,14 @@ const processResponse = async (
 ): Promise<void> => {
   const maxResponseMessages = resolveAutoResponseMessageLimit();
   const structured = parseStructuredAiOutput(stripReasoningFromRawResponse(responseText || ""), maxResponseMessages);
+  // [DIAG_IA] log temporário (v2.3.228) — tira depois de confirmar por
+  // que "Arquivos da IA" não dispara pra algumas perguntas (ex.: GT).
+  console.log("[DIAG_IA] ação decidida pela IA", {
+    ticketId: ticket.id,
+    action: structured.action,
+    fileId: (structured as any).fileId,
+    rawResponsePreview: (responseText || "").slice(0, 300)
+  });
   const rawMessages = structured.messages
     .map(message => normalizeText(message))
     .filter(Boolean);
@@ -1584,6 +1592,15 @@ export const handleOpenAi = async (
   } catch (err) {
     console.error("Falha ao buscar catálogo de arquivos da IA:", err);
   }
+  // [DIAG_IA] log temporário (v2.3.228) — tira depois de confirmar por
+  // que "Arquivos da IA" não dispara pra algumas perguntas (ex.: GT)
+  // mesmo a IA respondendo normalmente em texto.
+  console.log("[DIAG_IA] catálogo carregado", {
+    ticketId: ticket.id,
+    companyId: ticket.companyId,
+    totalItens: fileCatalog.length,
+    itens: fileCatalog.map(f => ({ id: f.id, name: f.name, aiEnabled: f.aiEnabled }))
+  });
 
   const fileCatalogText = fileCatalog.length
     ? `\nArquivos disponíveis para envio (use "send_file" com o "fileId" exato quando o cliente pedir ou quando fizer sentido; NUNCA invente um fileId que não esteja nesta lista):\n${JSON.stringify(

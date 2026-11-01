@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.229] — Log temporário de diagnóstico: por que "Arquivos da IA" não dispara em alguns casos — 2026-10-31
+
+### Diagnóstico (temporário, remover depois de achar a causa)
+- Cliente reportou que as respostas da IA em texto chegam normal, mas o
+  envio automático de arquivo do catálogo (ex.: pergunta sobre GT) não
+  dispara. Como a conversa geral funciona, já descarta causas que
+  bloqueariam a IA inteira (fila/atendente já atribuído, número
+  bloqueado, conexão sem Assistente de IA) — o problema é específico do
+  mecanismo `send_file`. Adicionados 2 logs `[DIAG_IA]` em
+  `OpenAiService.ts`: 1) catálogo carregado pra IA (quantos itens, quais,
+  cada um com `aiEnabled`) — confirma se o item da GT está realmente
+  chegando até o prompt da IA; 2) ação decidida pela IA (`action`/
+  `fileId`/prévia da resposta bruta) — confirma se a IA está escolhendo
+  `send_file` ou não pra essa pergunta. Com os dois, dá pra saber se o
+  item nunca chega até a IA (bug de catálogo/filtro) ou se chega mas a
+  IA não escolhe usar (comportamento do modelo/prompt).
+
 ## [2.3.228] — Botão dedicado pra ligar/desligar envio automático de cada item em Arquivos da IA — 2026-10-31
 
 ### Adicionado
