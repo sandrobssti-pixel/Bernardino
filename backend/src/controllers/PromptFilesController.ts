@@ -16,7 +16,7 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 };
 
 export const store = async (req: Request, res: Response): Promise<Response> => {
-  const { name, description } = req.body;
+  const { name, description, textContent } = req.body;
   const { companyId } = req.user;
 
   const uploadedFile = req.file as Express.Multer.File;
@@ -30,7 +30,8 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     name,
     description,
     path: uploadedFile.filename.replace("/", "-"),
-    mediaType: uploadedFile.mimetype
+    mediaType: uploadedFile.mimetype,
+    textContent: typeof textContent === "string" ? textContent : undefined
   });
 
   return res.status(200).json(promptFile);
@@ -50,7 +51,7 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
     description,
     newPath: uploadedFile ? uploadedFile.filename.replace("/", "-") : undefined,
     newMediaType: uploadedFile ? uploadedFile.mimetype : undefined,
-    newTextContent: !uploadedFile && typeof textContent === "string" ? textContent : undefined
+    textContent: typeof textContent === "string" ? textContent : undefined
   });
 
   return res.status(200).json(promptFile);

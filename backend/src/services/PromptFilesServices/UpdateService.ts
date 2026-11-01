@@ -14,8 +14,13 @@ interface Request {
   // novo arquivo (substitui o atual) — opcional, só quando o usuário troca o anexo
   newPath?: string;
   newMediaType?: string;
-  // novo texto — opcional, só pra item de texto (mediaType "text")
-  newTextContent?: string;
+  // "Resposta" (v2.3.237) — texto enviado JUNTO com o arquivo (legenda),
+  // igual Mensagem Rápida com anexo. Independente de newPath: se o item
+  // já tem (ou está ganhando) um arquivo, o texto acompanha o arquivo;
+  // se o item não tem arquivo nenhum (nem antes, nem agora), vira/
+  // permanece um item "só texto" (mediaType "text", path null) — mesmo
+  // comportamento de sempre pra esse caso.
+  textContent?: string;
 }
 
 const removeFile = (companyId: number, fileName: string): void => {
@@ -48,7 +53,7 @@ const UpdateService = async ({
   description,
   newPath,
   newMediaType,
-  newTextContent
+  textContent
 }: Request): Promise<PromptFiles> => {
   const schema = Yup.object().shape({
     name: Yup.string().required().min(3),
@@ -72,16 +77,22 @@ const UpdateService = async ({
   let contentChanged = false;
 
   if (newPath) {
+    // trocou o arquivo anexado
     if (promptFile.path) removeFile(companyId, promptFile.path);
     updateData.path = newPath;
     updateData.mediaType = newMediaType;
-    updateData.textContent = null;
     contentChanged = true;
-  } else if (typeof newTextContent === "string") {
-    if (promptFile.path) removeFile(companyId, promptFile.path);
-    updateData.path = null;
-    updateData.mediaType = TEXT_MEDIA_TYPE;
-    updateData.textContent = newTextContent.trim();
+  }
+
+  if (typeof textContent === "string") {
+    const trimmed = textContent.trim();
+    updateData.textContent = trimmed || null;
+    // sem arquivo nenhum (nem o que já tinha, nem um novo sendo
+    // anexado agora) — item "só texto", igual sempre foi.
+    if (!newPath && !promptFile.path) {
+      updateData.mediaType = TEXT_MEDIA_TYPE;
+      updateData.path = null;
+    }
     contentChanged = true;
   }
 

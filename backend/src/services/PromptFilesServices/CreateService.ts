@@ -9,6 +9,9 @@ interface Request {
   description: string;
   path: string;
   mediaType: string;
+  // "Resposta" (v2.3.237) — texto enviado JUNTO com o arquivo (legenda),
+  // igual ao comportamento de Mensagem Rápida com anexo. Opcional.
+  textContent?: string;
 }
 
 const CreateService = async ({
@@ -16,7 +19,8 @@ const CreateService = async ({
   name,
   description,
   path,
-  mediaType
+  mediaType,
+  textContent
 }: Request): Promise<PromptFiles> => {
   const schema = Yup.object().shape({
     name: Yup.string().required().min(3),
@@ -35,7 +39,11 @@ const CreateService = async ({
     name,
     description,
     path,
-    mediaType
+    mediaType,
+    textContent:
+      typeof textContent === "string" && textContent.trim()
+        ? textContent.trim()
+        : null
   });
 
   return promptFile;

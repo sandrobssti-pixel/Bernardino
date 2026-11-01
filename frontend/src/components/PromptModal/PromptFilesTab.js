@@ -134,7 +134,7 @@ const PromptFilesTab = () => {
     setName(file.name || "");
     setDescription(file.description || "");
     setSelectedFile(null);
-    setTextContent(file.mediaType === "text" ? file.textContent || "" : "");
+    setTextContent(file.textContent || "");
   };
 
   const handleAdd = async () => {
@@ -148,6 +148,9 @@ const PromptFilesTab = () => {
     formData.append("name", name.trim());
     formData.append("description", description.trim());
     formData.append("file", selectedFile);
+    if (textContent.trim()) {
+      formData.append("textContent", textContent.trim());
+    }
 
     setUploading(true);
     try {
@@ -176,9 +179,8 @@ const PromptFilesTab = () => {
     formData.append("description", description.trim());
     if (selectedFile) {
       formData.append("file", selectedFile);
-    } else if (editingFile.mediaType === "text") {
-      formData.append("textContent", textContent.trim());
     }
+    formData.append("textContent", textContent.trim());
 
     setUploading(true);
     try {
@@ -230,7 +232,10 @@ const PromptFilesTab = () => {
       <div className={classes.helpText}>
         Cadastre imagens e documentos que a IA pode enviar durante o atendimento.
         Descreva claramente quando cada arquivo deve ser enviado — a IA usa essa
-        descrição para decidir o momento certo. Este catálogo é único para a
+        descrição para decidir o momento certo. Use o campo "Resposta" pra
+        cadastrar o texto que vai JUNTO com o arquivo (legenda), igual uma
+        Mensagem Rápida com anexo — é opcional, mas sem ele a IA manda só o
+        arquivo puro. Este catálogo é único para a
         empresa e fica disponível tanto para o assistente geral de IA quanto
         para qualquer nó de IA usado no flowbuilder. O envio desses arquivos
         funciona com qualquer provedor (OpenAI, Gemini, DeepSeek ou Groq); já a
@@ -266,20 +271,18 @@ const PromptFilesTab = () => {
           multiline
           minRows={2}
         />
-        {editingFile && editingFile.mediaType === "text" && !selectedFile && (
-          <TextField
-            label="Texto"
-            value={textContent}
-            onChange={e => setTextContent(e.target.value)}
-            variant="outlined"
-            margin="dense"
-            size="small"
-            fullWidth
-            multiline
-            minRows={2}
-            helperText="Ou selecione um arquivo abaixo para trocar este item por um arquivo."
-          />
-        )}
+        <TextField
+          label="Resposta"
+          value={textContent}
+          onChange={e => setTextContent(e.target.value)}
+          variant="outlined"
+          margin="dense"
+          size="small"
+          fullWidth
+          multiline
+          minRows={2}
+          helperText="Texto enviado JUNTO com o arquivo (legenda) quando a IA mandar, igual Mensagem Rápida com anexo. Opcional."
+        />
         <div className={classes.fileRow}>
           <Button
             variant="outlined"

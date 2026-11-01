@@ -15222,3 +15222,63 @@ trazer informação nova.
 **Arquivos**: `backend/src/services/PromptFilesServices/SyncFromQuickMessageService.ts`,
 `backend/src/services/IntegrationsServices/OpenAiService.ts`,
 `backend/src/database/migrations/20261101140000-backfill-prompt-files-text-content.ts`.
+
+## 212. Campo "Resposta" em Arquivos da IA — texto que acompanha o arquivo (v2.3.237)
+
+### Pedido
+
+Depois da correção da v2.3.236 (que resolveu o caso de itens
+sincronizados de Mensagem Rápida), cliente pediu o mesmo recurso pra
+itens cadastrados MANUALMENTE direto em "Arquivos da IA": um campo
+"Resposta", logo abaixo de "Quando a IA deve enviar este arquivo", que
+manda junto com o arquivo quando a IA enviar — igual Mensagem Rápida.
+
+### Causa raiz do pedido
+
+O formulário de "Arquivos da IA" (`PromptFilesTab.js`) só tinha um
+campo de texto livre ("Texto") pra itens SEM nenhum arquivo anexado —
+visível só quando `mediaType === "text"`, com a própria label
+avisando "Ou selecione um arquivo abaixo para trocar este item por um
+arquivo" (ou seja, texto e arquivo eram tratados como MUTUAMENTE
+EXCLUSIVOS nesta tela). Não existia nenhum jeito de cadastrar/editar
+um item que tivesse os dois ao mesmo tempo — exatamente o gap que
+cruzou com o bug da v2.3.236 (lá o problema era na sincronização
+automática; aqui é a ausência do campo pro cadastro manual).
+
+### Solução
+
+- `PromptFilesServices/CreateService.ts` — aceita `textContent`
+  opcional, gravado junto com `path`/`mediaType` do arquivo enviado
+  (antes só existiam `name`/`description`/`path`/`mediaType`, sem
+  nenhum campo de texto no create).
+- `PromptFilesServices/UpdateService.ts` — reestruturado pra tratar
+  `textContent` como campo INDEPENDENTE da troca de arquivo (antes
+  `newTextContent` só existia dentro do fluxo "virar item só-texto",
+  sempre zerando `path`/`mediaType`). Agora: editar só a Resposta
+  preserva o arquivo já anexado; trocar o arquivo (`newPath`) mantém o
+  texto enviado no mesmo request; um item sem arquivo nenhum (nem
+  antes, nem depois) continua virando/permanecendo item "só texto"
+  (`mediaType: "text"`, `path: null`), exatamente como já funcionava.
+- `PromptFilesController.ts` — `store` e `update` repassam
+  `textContent` do body pras services.
+- `PromptFilesTab.js` — campo "Resposta" agora aparece SEMPRE (não só
+  pra item sem arquivo), logo abaixo de "Quando a IA deve enviar este
+  arquivo", tanto no formulário de adicionar quanto no de editar.
+  Texto de ajuda do topo da aba atualizado explicando o campo.
+
+### Verificação
+
+Backend: `tsc --noEmit` limpo. Script Node isolado contra os serviços
+REAIS compilados (`CreateService`/`UpdateService`), contra Postgres
+local (`atendeflow_test`) — 9 asserts, todos passaram: criar com
+arquivo+texto juntos; editar só o texto preserva o arquivo; trocar o
+arquivo mantendo o texto enviado no mesmo request; limpar o texto
+(string vazia) sem afetar o arquivo; item só-texto (sem arquivo nunca)
+continua se comportando exatamente como antes, tanto na criação quanto
+na edição. Frontend: `eslint` limpo, `npm run build` (produção) sem
+erro.
+
+**Arquivos**: `backend/src/services/PromptFilesServices/CreateService.ts`,
+`backend/src/services/PromptFilesServices/UpdateService.ts`,
+`backend/src/controllers/PromptFilesController.ts`,
+`frontend/src/components/PromptModal/PromptFilesTab.js`.

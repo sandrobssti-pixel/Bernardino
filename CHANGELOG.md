@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.237] — Campo "Resposta" em Arquivos da IA — texto que acompanha o arquivo — 2026-11-01
+
+### Adicionado
+- Tela "Arquivos da IA" ganhou um campo novo, "Resposta", logo abaixo
+  de "Quando a IA deve enviar este arquivo" — texto opcional que é
+  mandado JUNTO com o arquivo quando a IA enviar (igual Mensagem
+  Rápida com anexo, que sempre manda o texto como legenda da mesma
+  mensagem). Antes esse campo só existia (como "Texto") pra itens
+  cadastrados SEM nenhum arquivo — agora funciona pra qualquer item,
+  com ou sem anexo, tanto no cadastro quanto na edição.
+- Backend: `CreateService`/`UpdateService` de `PromptFiles` passam a
+  aceitar `textContent` desacoplado da troca de arquivo — editar só a
+  Resposta não mexe no arquivo já anexado, e trocar o arquivo não
+  apaga a Resposta (os dois viajam juntos no mesmo request quando
+  fizer sentido). Item sem arquivo nenhum continua funcionando como
+  item "só texto", igual antes.
+- Ver seção 212 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.236] — Fix: texto da Mensagem Rápida não chegava junto com o arquivo mandado pela IA — 2026-11-01
 
 ### Corrigido
