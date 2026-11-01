@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Formik, Form, FieldArray, Field } from "formik";
 import { toast } from "react-toastify";
+import NumberFormat from "react-number-format";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Button from "@material-ui/core/Button";
@@ -704,14 +705,22 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                             />
                           </Grid>
                           <Grid item xs={4} sm={2}>
-                            <Field
-                              as={TextField}
+                            <NumberFormat
+                              customInput={TextField}
                               fullWidth
                               variant="outlined"
                               size="small"
-                              type="number"
                               label="Valor unit. (R$)"
-                              name={`items.${index}.unitPrice`}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="R$ "
+                              decimalScale={2}
+                              fixedDecimalScale
+                              allowNegative={false}
+                              value={item.unitPrice ?? ""}
+                              onValueChange={({ floatValue }) =>
+                                setFieldValue(`items.${index}.unitPrice`, floatValue ?? "")
+                              }
                             />
                           </Grid>
                           <Grid item xs={4} sm={1} style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1043,39 +1052,60 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                   {values.paymentMethod === "mixed" && (
                     <>
                       <Grid item xs={12} sm={4}>
-                        <Field
-                          as={TextField}
-                          type="number"
-                          inputProps={{ step: "0.01", min: "0" }}
+                        <NumberFormat
+                          customInput={TextField}
                           fullWidth
                           variant="outlined"
                           size="small"
                           label="Valor em dinheiro"
-                          name="paymentCashValue"
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          decimalScale={2}
+                          fixedDecimalScale
+                          allowNegative={false}
+                          value={values.paymentCashValue ?? ""}
+                          onValueChange={({ floatValue }) =>
+                            setFieldValue("paymentCashValue", floatValue ?? "")
+                          }
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <Field
-                          as={TextField}
-                          type="number"
-                          inputProps={{ step: "0.01", min: "0" }}
+                        <NumberFormat
+                          customInput={TextField}
                           fullWidth
                           variant="outlined"
                           size="small"
                           label="Valor no PIX"
-                          name="paymentPixValue"
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          decimalScale={2}
+                          fixedDecimalScale
+                          allowNegative={false}
+                          value={values.paymentPixValue ?? ""}
+                          onValueChange={({ floatValue }) =>
+                            setFieldValue("paymentPixValue", floatValue ?? "")
+                          }
                         />
                       </Grid>
                       <Grid item xs={12} sm={4}>
-                        <Field
-                          as={TextField}
-                          type="number"
-                          inputProps={{ step: "0.01", min: "0" }}
+                        <NumberFormat
+                          customInput={TextField}
                           fullWidth
                           variant="outlined"
                           size="small"
                           label="Valor no cartão"
-                          name="paymentCardValue"
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          decimalScale={2}
+                          fixedDecimalScale
+                          allowNegative={false}
+                          value={values.paymentCardValue ?? ""}
+                          onValueChange={({ floatValue }) =>
+                            setFieldValue("paymentCardValue", floatValue ?? "")
+                          }
                         />
                       </Grid>
                       {(() => {

@@ -15282,3 +15282,95 @@ erro.
 `backend/src/services/PromptFilesServices/UpdateService.ts`,
 `backend/src/controllers/PromptFilesController.ts`,
 `frontend/src/components/PromptModal/PromptFilesTab.js`.
+
+## 213. Campo "Título Selecionado" com o mesmo risco de texto invisível (v2.3.239) + máscara de moeda em todo campo de preço (v2.3.240)
+
+### Pedido
+
+Depois do fix do Chat Interno (v2.3.238), cliente pediu duas coisas
+numa tacada: (1) aplicar a mesma correção de visibilidade em qualquer
+outro campo do sistema com o mesmo bug; (2) todo campo onde se digita
+preço deve formatar como moeda nacional (ex.: "R$ 600,00"). Perguntado
+o escopo antes de mexer (ver `AskUserQuestion` da sessão): cliente
+confirmou (1) só corrigir onde achar o mesmo bug de verdade — não
+pintar toda busca/pesquisa do sistema de vermelho — e (2) máscara
+enquanto digita (tipo caixa eletrônico), não só formatação na exibição
+depois de salvo.
+
+### v2.3.239 — auditoria de texto invisível
+
+Varredura em todo componente que usa `InputBase`/`Input` do
+Material-UI DIRETO (mesmo padrão do bug do Chat Interno — campos que
+usam `TextField`/`Field as={TextField}` não entram nessa categoria,
+pois o MUI já cuida da cor de texto neles via tema). Resultado: 6
+arquivos usam `InputBase`, a maioria com fundo E cor de texto vindos do
+tema de forma consistente (inclusive um usando o token
+`theme.palette.background.paper`, o jeito mais seguro de todos) — sem
+risco. Um caso real encontrado: `ListPreview/index.js`, campo "Título
+Selecionado" (modal de lista de botões), com fundo cinza-claro FIXO
+(não muda com o tema) e NENHUMA cor de texto própria — mesmo padrão de
+falha do Chat Interno. Corrigido com `color: "#1f2937"` fixo (o fundo
+também é fixo, então uma cor fixa contrastante resolve em qualquer
+tema).
+
+### v2.3.240 — máscara de moeda em todos os campos de preço
+
+Delegado a um subagente (fork) o levantamento sistemático: grep por
+`type="number"` em todo o frontend (26 arquivos candidatos), filtrando
+manualmente os que são realmente campo de DINHEIRO dos que são
+SLA/minutos/intervalo de fluxo/quantidade/percentual/porta (não
+mexidos). Usado o padrão JÁ validado em produção em
+`pages/Kanban/index.js` (`NumberFormat` de `react-number-format` +
+`customInput={TextField}`, `thousandSeparator="."`,
+`decimalSeparator=","`, `prefix="R$ "`, `decimalScale={2}`,
+`fixedDecimalScale`, `allowNegative={false}`) — NÃO o componente
+`components/CurrencyInput/index.js`, que é código morto (depende de
+`react-text-mask`/`text-mask-addons`, não instalados; usá-lo quebraria
+o build).
+
+Campos convertidos (valor continua sendo armazenado/enviado como
+número/float — só a camada de digitação ganhou máscara):
+- `pages/Financeiro/financeConfig.js` (config consumida pelo renderer
+  genérico `FinanceRecordModal`, usado por Produtos, Serviços, Contas
+  a Pagar e Contas a Receber): `price`, `costPrice`, `priceTable2-5`,
+  `icmsDesoneration` (fornecedor e produto), `value` (despesa e
+  recebível) — `type: "number"` → `type: "currency"`.
+- `components/FinanceRecordModal/index.js` — novo branch de
+  renderização pro `field.type === "currency"`.
+- `pages/Services/servicesConfig.js` — `value` (preço do Serviço).
+- `components/SaleModal/index.js` — `unitPrice` por item da venda,
+  `paymentCashValue`/`paymentPixValue`/`paymentCardValue` (venda
+  mista).
+- `components/WeaponDispatchClientModal/index.js` — `value` por
+  serviço no Despachante Bélico.
+- `components/PlansManager/index.js` — `amount` (valor do Plano).
+  Único caso decidido pelo próprio subagente além do pedido original
+  (campo já existia como texto livre sem máscara nenhuma) — reaproveitou
+  o parser já existente `normalizeCurrencyValue` só pra normalizar o
+  valor vindo do backend (número OU string legada "R$ 1.234,56") antes
+  de entregar pro `NumberFormat`.
+
+Abertos e deliberadamente NÃO alterados por não serem dinheiro:
+`WeaponArmoryServiceModal` (quantidade de carregadores),
+`FinancePaymentConfigPanel` (minutos de expiração do Pix),
+`FinancePainel`/`HRPainel` (eixo de gráfico, não é input), e por
+amostragem `FiscalConfigPanel`, `PromptModal`, `GlobalConfig`,
+`Dashboard/Chart.js`, `WebchatConnectionModal`,
+`SupervisorSlaRulesPanel`, `TagModal`, `TicketsManagerTabs`,
+`Settings/Options.js`, os 4 `FlowBuilder*Modal` de SLA/intervalo,
+`CompaniesModal`, `BirthdaySettings` — todos confirmados como
+SLA/minutos/intervalo/quantidade/porta.
+
+### Verificação
+
+`eslint` limpo (reconferido independentemente em todos os 6 arquivos
+tocados) e `npm run build` (produção) com `Compiled successfully` /
+exit code 0.
+
+**Arquivos**: `frontend/src/components/ListPreview/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/pages/Services/servicesConfig.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/WeaponDispatchClientModal/index.js`,
+`frontend/src/components/PlansManager/index.js`.

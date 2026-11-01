@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Formik, Form, FieldArray, Field } from "formik";
 import { toast } from "react-toastify";
+import NumberFormat from "react-number-format";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Button from "@material-ui/core/Button";
@@ -450,15 +451,23 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                             />
                           </Grid>
                           <Grid item xs={6} sm={2}>
-                            <Field
-                              as={TextField}
+                            <NumberFormat
+                              customInput={TextField}
                               fullWidth
                               variant="outlined"
                               size="small"
-                              type="number"
                               label="Valor do serviço (R$)"
-                              name={`services.${index}.value`}
+                              thousandSeparator="."
+                              decimalSeparator=","
+                              prefix="R$ "
+                              decimalScale={2}
+                              fixedDecimalScale
+                              allowNegative={false}
                               disabled={!service.serviceId}
+                              value={service.value ?? ""}
+                              onValueChange={({ floatValue }) =>
+                                setFieldValue(`services.${index}.value`, floatValue ?? "")
+                              }
                             />
                           </Grid>
                           <Grid item xs={6} sm={3}>

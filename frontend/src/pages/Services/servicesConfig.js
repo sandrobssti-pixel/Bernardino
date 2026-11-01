@@ -28,7 +28,7 @@ export const serviceFields = [
   { name: "photoUrl", type: "photo", gridSize: 12 },
   { name: "code", label: "Código do serviço", gridSize: 4 },
   { name: "name", label: "Nome do serviço", gridSize: 8 },
-  { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "paymentTerms", label: "Condições de pagamento", gridSize: 6 },
   { name: "description", label: "Descrição do serviço", type: "textarea", gridSize: 12 },
   { name: "active", label: "Serviço ativo", type: "switch", defaultValue: true, gridSize: 6 },

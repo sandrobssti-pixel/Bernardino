@@ -311,7 +311,7 @@ financeSupplierFields.push(
   { name: "icmsRate", label: "ICMS (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, disabledWhen: supplierIcmsExemptOn },
   { name: "icmsStRate", label: "ICMS ST (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, disabledWhen: supplierIcmsSubstitutionOff },
   { name: "icmsStMva", label: "IVA - ST (MVA %)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, disabledWhen: supplierIcmsSubstitutionOff },
-  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "ibptRate", label: "Alíquota aprox. tributos - IBPT (%)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
   { name: "ibptSource", label: "Fonte IBPT (código da tabela)", gridSize: 6 }
 );
@@ -347,8 +347,8 @@ export const financeProductFields = [
   { name: "sku", label: "SKU / Código", gridSize: 4 },
   { name: "unit", label: "Unidade (UN, KG, H...)", defaultValue: "UN", gridSize: 4 },
   { name: "ncm", label: "NCM (uso futuro fiscal)", gridSize: 4, visibleWhen: isNotService },
-  { name: "price", label: "Preço de venda (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
-  { name: "costPrice", label: "Preço de custo (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "price", label: "Preço de venda (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "costPrice", label: "Preço de custo (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6 },
   {
     name: "taxRate",
     label: "Alíquota de imposto (%) — usada no dashboard de lucro",
@@ -435,10 +435,10 @@ export const financeProductFields = [
   { name: "packaging", label: "Embalagem", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "productFamily", label: "Família", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "storageLocation", label: "Local no Estoque/Armazenagem", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
-  { name: "priceTable2", label: "Tabela 2 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
-  { name: "priceTable3", label: "Tabela 3 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
-  { name: "priceTable4", label: "Tabela 4 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
-  { name: "priceTable5", label: "Tabela 5 (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable2", label: "Tabela 2 (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable3", label: "Tabela 3 (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable4", label: "Tabela 4 (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
+  { name: "priceTable5", label: "Tabela 5 (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "reservedStock", label: "Estoq. Reserv.", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
   { name: "idealStock", label: "Estoq. Ideal", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
   { name: "stockByLot", label: "Por Lote", type: "number", defaultValue: 0, gridSize: 4, visibleWhen: hasStockControlAndNotWeaponAmmo },
@@ -546,7 +546,7 @@ export const financeProductFields = [
   // Focus NFe; reaproveitado como VALOR (R$), que é o que a Sefaz espera
   // (vICMSDeson) — "desoneração" não é uma alíquota, é um valor fixo
   // abatido. Ver FocusNFeService.buildItemIcms.
-  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
+  { name: "icmsDesoneration", label: "Valor ICMS Desonerado (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 4, visibleWhen: isNotService },
   { name: "taxableUnit", label: "Un. Medida Trib.", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "cfopPrincipal", label: "CFOP Principal (venda interna)", defaultValue: "5102", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
   { name: "cfopOutState", label: "CFOP Fora UF (interestadual)", defaultValue: "6102", gridSize: 4, visibleWhen: isNotServiceAndNotWeaponAmmo },
@@ -684,7 +684,7 @@ export const financeExpenseFields = [
   { name: "description", label: "Descrição", gridSize: 8 },
   { name: "category", label: "Categoria", defaultValue: "Outros", gridSize: 4 },
   { name: "costType", label: "Tipo de custo", type: "select", options: COST_TYPE_OPTIONS, defaultValue: "variable", gridSize: 4 },
-  { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4 },
+  { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: EXPENSE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "paymentDate", label: "Data de pagamento", type: "date", gridSize: 6 },
@@ -722,7 +722,7 @@ export const financeReceivableFields = [
     gridSize: 12,
   },
   { name: "description", label: "Descrição", gridSize: 8 },
-  { name: "value", label: "Valor (R$)", type: "number", step: "0.01", defaultValue: "0", gridSize: 4 },
+  { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: RECEIVABLE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "receivedDate", label: "Data de recebimento", type: "date", gridSize: 6 },

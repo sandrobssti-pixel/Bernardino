@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.240] — Máscara de moeda (R$ 0.000,00) em todos os campos de preço do sistema — 2026-11-01
+
+### Alterado
+- Todo campo de digitação de preço/valor em dinheiro do sistema agora
+  formata como moeda nacional EM TEMPO REAL enquanto o usuário digita
+  (ex.: "R$ 600,00"), no mesmo padrão já usado em Kanban
+  (`react-number-format` + `TextField`) — ponto como separador de
+  milhar, vírgula como separador decimal, 2 casas decimais, sem
+  negativo. O valor enviado pro backend continua sendo um número
+  (float) normal, só a digitação ficou mascarada.
+- Campos cobertos: Preço de venda, Preço de custo e Tabelas 2-5 de
+  Produtos; Valor ICMS Desonerado (fornecedor e produto); Valor de
+  Serviço; Valor em Contas a Pagar e Contas a Receber; Valor unitário
+  e valores de pagamento misto (dinheiro/PIX/cartão) em Vendas; Valor
+  do serviço no Despachante Bélico; Valor do Plano.
+- Ver seção 213 do `docs/MANUAL_TECNICO.md` pra lista completa de
+  arquivos e o que foi deliberadamente deixado de fora (campos que não
+  são dinheiro — SLA, intervalos, quantidades, percentuais etc.).
+
 ## [2.3.239] — Fix: campo "Título Selecionado" (lista de botões) com o mesmo risco de texto invisível — 2026-11-01
 
 ### Corrigido

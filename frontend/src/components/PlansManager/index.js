@@ -27,6 +27,7 @@ import {
   useTheme,
 } from "@material-ui/core";
 import { Formik, Form, Field } from "formik";
+import NumberFormat from "react-number-format";
 import ButtonWithSpinner from "../ButtonWithSpinner";
 import ConfirmationModal from "../ConfirmationModal";
 
@@ -655,14 +656,22 @@ export function PlanManagerForm(props) {
                 </FormControl>
               </Grid>
               <Grid xs={6} sm={4} md={2} item>
-                <Field
-                  as={TextField}
+                <NumberFormat
+                  customInput={TextField}
                   label="Valor (R$)"
-                  name="amount"
                   variant="outlined"
                   size="small"
                   className={`${classes.fullWidth} ${classes.inputField}`}
-                  type="text"
+                  thousandSeparator="."
+                  decimalSeparator=","
+                  prefix="R$ "
+                  decimalScale={2}
+                  fixedDecimalScale
+                  allowNegative={false}
+                  value={normalizeCurrencyValue(values.amount)}
+                  onValueChange={({ floatValue }) =>
+                    setFieldValue("amount", floatValue ?? 0)
+                  }
                 />
               </Grid>
               <Grid xs={4} sm={4} md={1} item>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useContext } from "react";
 import * as Yup from "yup";
 import { Formik, Form, Field } from "formik";
 import { toast } from "react-toastify";
+import NumberFormat from "react-number-format";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useFiscal from "../../hooks/useFiscal";
@@ -725,6 +726,38 @@ const FinanceRecordModal = ({
                           name={field.name}
                           label={field.label}
                           InputLabelProps={{ shrink: true }}
+                        />
+                      </Grid>
+                    );
+                  }
+
+                  // Campo de dinheiro — máscara R$ 0.000,00 ao digitar
+                  // (padrão nacional), igual ao já usado em Kanban.
+                  if (field.type === "currency") {
+                    return (
+                      <Grid item xs={12} sm={gridSize} key={field.name}>
+                        <NumberFormat
+                          customInput={TextField}
+                          fullWidth
+                          variant="outlined"
+                          size="small"
+                          label={field.label}
+                          thousandSeparator="."
+                          decimalSeparator=","
+                          prefix="R$ "
+                          decimalScale={2}
+                          fixedDecimalScale
+                          allowNegative={false}
+                          disabled={isDisabled}
+                          value={values[field.name] ?? ""}
+                          onValueChange={({ floatValue }) =>
+                            setFieldValue(field.name, floatValue ?? "")
+                          }
+                          error={touched[field.name] && Boolean(errors[field.name])}
+                          helperText={
+                            (touched[field.name] && errors[field.name]) ||
+                            (isDisabled ? field.disabledHelperText : undefined)
+                          }
                         />
                       </Grid>
                     );
