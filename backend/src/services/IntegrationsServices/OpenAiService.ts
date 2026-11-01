@@ -1166,7 +1166,12 @@ const processResponse = async (
           path: path.resolve(folder, promptFile.path)
         } as Express.Multer.File;
 
-        fileCaptionUsed = rawMessages[0] || promptFile.name;
+        // v2.3.236 — prioriza o texto ORIGINAL da mensagem rápida
+        // (preço, condições etc., ver SyncFromQuickMessageService) como
+        // legenda — igual ao envio manual (mídia + texto na mesma
+        // mensagem). Só cai pra legenda da IA/nome do arquivo se o item
+        // não tiver texto nenhum associado.
+        fileCaptionUsed = promptFile.textContent || rawMessages[0] || promptFile.name;
 
         await sleep(randomInt(DEFAULT_AI_DELAY_MIN_SECONDS, DEFAULT_AI_DELAY_MAX_SECONDS) * 1000);
         await SendWhatsAppMedia({
@@ -1602,9 +1607,18 @@ export const handleOpenAi = async (
     itens: fileCatalog.map(f => ({ id: f.id, name: f.name, aiEnabled: f.aiEnabled }))
   });
 
+  // v2.3.236 — inclui um preview do texto original (quando existir, ver
+  // SyncFromQuickMessageService) além de name/description — ajuda a IA
+  // a casar a pergunta do cliente com o item certo do catálogo, já que
+  // name/description sozinhos vêm só do atalho da Mensagem Rápida.
   const fileCatalogText = fileCatalog.length
     ? `\nArquivos disponíveis para envio (use "send_file" com o "fileId" exato quando o cliente pedir ou quando fizer sentido; NUNCA invente um fileId que não esteja nesta lista):\n${JSON.stringify(
-        fileCatalog.map(f => ({ fileId: f.id, name: f.name, description: f.description }))
+        fileCatalog.map(f => ({
+          fileId: f.id,
+          name: f.name,
+          description: f.description,
+          ...(f.textContent ? { contentPreview: f.textContent.slice(0, 300) } : {})
+        }))
       )}\n`
     : "";
 

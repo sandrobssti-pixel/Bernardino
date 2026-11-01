@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.236] — Fix: texto da Mensagem Rápida não chegava junto com o arquivo mandado pela IA — 2026-11-01
+
+### Corrigido
+- Causa raiz: `SyncFromQuickMessageService` descartava o texto
+  (`textContent: null`) sempre que a Mensagem Rápida também tinha
+  mídia anexada — mesmo tendo preço, condições de pagamento etc.
+  escritos junto. A IA mandava só o arquivo puro, sem essa informação,
+  diferente do envio manual (atendente clicando na resposta rápida),
+  que sempre manda mídia + texto como legenda da MESMA mensagem.
+- `SyncFromQuickMessageService.ts`: agora guarda `path` (arquivo) E
+  `textContent` (texto) juntos, igual ao manual.
+- `OpenAiService.ts`: ao mandar um arquivo do catálogo, a legenda
+  agora prioriza o `textContent` original da mensagem rápida — só cai
+  pra legenda improvisada da IA/nome do arquivo se o item não tiver
+  texto nenhum associado. Catálogo passado pra IA também ganhou um
+  preview do texto (`contentPreview`, até 300 caracteres) além de
+  nome/descrição, pra ajudar a casar a pergunta do cliente com o item
+  certo.
+- Migration de dados `20261101140000-backfill-prompt-files-text-content.ts`
+  recupera o texto perdido nos itens já sincronizados antes desta
+  correção, puxando da Mensagem Rápida de origem (idempotente, só
+  mexe em quem ainda está com texto vazio).
+- Ver seção 211 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.235] — IA prioriza arquivo do catálogo em vez de responder só em texto — 2026-11-01
 
 ### Alterado

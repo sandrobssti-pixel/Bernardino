@@ -15153,3 +15153,72 @@ silencioso.
 
 **Arquivos**: `backend/src/services/WbotServices/wbotMessageListener.ts`,
 `backend/src/services/IntegrationsServices/OpenAiService.ts`.
+
+## 211. Texto da Mensagem Rápida não chegava junto com o arquivo mandado pela IA (v2.3.236)
+
+### Pedido
+
+Com a IA já priorizando o catálogo "Arquivos da IA" sobre texto solto
+(v2.3.235), cliente testou perguntando o valor do processo de CR/CAC
+atirador desportivo: o card chegou, mas sem o texto discriminando o
+valor parcelado no cartão. Na pergunta seguinte ("condições de
+pagamento"), a IA repetiu o MESMO card puro, sem nenhuma informação
+nova. Cliente observou que, em Respostas Rápidas manuais, o texto
+sempre vai JUNTO com o anexo (foto/vídeo/planilha) numa coisa só.
+
+### Causa raiz
+
+`SyncFromQuickMessageService.ts` — o espelhamento de uma Mensagem
+Rápida pro catálogo da IA tinha um `if (hasMedia) { ...; return; }`
+que SEMPRE gravava `textContent: null` quando havia mídia anexada,
+mesmo que a mensagem rápida tivesse texto escrito junto (preço,
+condições etc.). O ramo "só texto" (sem mídia) é o único que
+preservava `textContent` — por isso um item com `path` (arquivo)
+nunca carregava texto nenhum. Confirmado com o fluxo de envio MANUAL
+(`MessageInput/index.js`, `handleUploadQuickMessageMedia`): o
+atendente humano sempre manda mídia + texto como legenda da MESMA
+mensagem (`formData.append("body", message)`) — a sincronização pra
+IA não replicava esse comportamento.
+
+Consequência em cascata: como a IA (`OpenAiService.ts`) nunca recebia
+esse texto nem no catálogo nem na hora de montar a legenda do arquivo
+enviado, ela não tinha como saber o que já estava coberto ali — daí
+repetir o mesmo card puro numa pergunta de acompanhamento em vez de
+trazer informação nova.
+
+### Solução
+
+- `SyncFromQuickMessageService.ts`: passa a gravar `path` (arquivo) E
+  `textContent` (texto original da mensagem rápida) juntos sempre que
+  ambos existirem — nunca mais zera o texto só por ter mídia.
+- `OpenAiService.ts`:
+  - No envio do arquivo (`send_file`), a legenda agora prioriza
+    `promptFile.textContent` (texto original, igual ao manual) sobre
+    a legenda que a própria IA inventaria ou o nome cru do arquivo.
+  - O catálogo passado no prompt ganhou `contentPreview` (até 300
+    caracteres do `textContent`, quando existir) além de
+    `name`/`description`, pra IA casar melhor a pergunta do cliente
+    com o item certo.
+- Migration de dados
+  `20261101140000-backfill-prompt-files-text-content.ts` — recupera
+  o texto perdido nos itens JÁ sincronizados antes desta correção,
+  puxando da Mensagem Rápida de origem (ainda existe, só o espelho em
+  Arquivos da IA ficou sem o texto). Idempotente: só mexe em quem
+  ainda está com `textContent` nulo e tem `path` preenchido.
+
+### Verificação
+
+`tsc --noEmit` e `npm run build` limpos. Testado contra Postgres local
+(`atendeflow_test`):
+- Query de backfill isolada: linha simulando o bug (`path` preenchido,
+  `textContent` nulo) → após a query, `textContent` recuperado
+  corretamente a partir da `QuickMessage` de origem.
+- Script Node isolado contra o serviço REAL compilado
+  (`SyncFromQuickMessageService`), com arquivo físico de teste em
+  disco: criar `QuickMessage` com texto + mídia → `PromptFiles`
+  resultante tem `path` E `textContent` preenchidos ao mesmo tempo —
+  assert bateu.
+
+**Arquivos**: `backend/src/services/PromptFilesServices/SyncFromQuickMessageService.ts`,
+`backend/src/services/IntegrationsServices/OpenAiService.ts`,
+`backend/src/database/migrations/20261101140000-backfill-prompt-files-text-content.ts`.

@@ -90,9 +90,16 @@ const SyncFromQuickMessageService = async (
     }
 
     const mediaType = inferMimeTypeFromFilename(rawMediaPath);
+    // v2.3.236 — mantém o texto da mensagem rápida junto com o arquivo
+    // (igual ao envio manual, que manda mídia + texto como legenda da
+    // MESMA mensagem). Antes disso o texto era descartado (`null`)
+    // sempre que havia mídia anexada, e a IA mandava só o arquivo puro,
+    // sem nenhuma informação (ex.: preço, condições) que o operador
+    // tinha escrito junto.
+    const mirroredTextContent = hasText ? quickMessage.message!.trim() : null;
 
     if (existing) {
-      await existing.update({ path: destFileName, mediaType, textContent: null });
+      await existing.update({ path: destFileName, mediaType, textContent: mirroredTextContent });
     } else {
       await PromptFiles.create({
         companyId: quickMessage.companyId,
@@ -101,7 +108,7 @@ const SyncFromQuickMessageService = async (
         description: buildSyncedDescription(quickMessage),
         path: destFileName,
         mediaType,
-        textContent: null
+        textContent: mirroredTextContent
       });
     }
     return;
