@@ -457,6 +457,7 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
                               variant="outlined"
                               size="small"
                               label="Valor do serviço (R$)"
+                              InputLabelProps={{ shrink: true }}
                               thousandSeparator="."
                               decimalSeparator=","
                               prefix="R$ "

@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.241] — Fix: labels sobrepondo campos no cadastro de Produto (Dados Fiscais) — 2026-11-02
+
+### Corrigido
+- Cliente reportou (com print) dois problemas visuais no modal de
+  Produto, seção "Dados Fiscais": (1) o campo "Valor ICMS Desonerado"
+  mostrava o label por cima do valor "R$ 0,00" em vez de subir pra
+  borda — regressão da v2.3.240 (bug conhecido de `react-number-format`
+  + `customInput` do MUI quando o campo já abre preenchido); (2) o
+  label comprido "Modalidade de determinação da BC do ICMS-ST" quebrava
+  linha e sobrepunha a caixa do select.
+- Corrigido (1) com `InputLabelProps={{ shrink: true }}` em TODOS os
+  campos de moeda criados na v2.3.240 (`FinanceRecordModal`,
+  `SaleModal` ×4, `WeaponDispatchClientModal`, `PlansManager`), não só
+  o ICMS Desonerado — mesmo padrão, mesmo risco.
+- Corrigido (2) com truncamento ("...") em vez de quebra de linha nos
+  labels de select e dos campos genéricos de texto do
+  `FinanceRecordModal` — resolve esse caso e qualquer outro label
+  comprido futuro no mesmo formulário.
+
 ## [2.3.240] — Máscara de moeda (R$ 0.000,00) em todos os campos de preço do sistema — 2026-11-01
 
 ### Alterado

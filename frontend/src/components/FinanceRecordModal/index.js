@@ -41,6 +41,17 @@ const useStyles = makeStyles((theme) => ({
       width: "calc(100% - 32px)",
     },
   },
+  // v2.3.241 — label comprido demais pra largura do campo (ex.:
+  // "Modalidade de determinação da BC do ICMS-ST") quebrava linha e
+  // sobrepunha a caixa do select/input. Trunca com "..." em vez de
+  // quebrar — mantém o texto completo acessível via title (tooltip
+  // nativo do navegador).
+  longFieldLabel: {
+    maxWidth: "calc(133% - 32px)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
   dialogTitle: {
     fontSize: "1rem",
     fontWeight: 700,
@@ -572,6 +583,11 @@ const FinanceRecordModal = ({
                           name={field.name}
                           label={field.label}
                           disabled={isDisabled}
+                          // v2.3.241 — label comprido (ex.: "Modalidade de
+                          // determinação da BC do ICMS-ST") quebrava linha e
+                          // sobrepunha a caixa do select; trunca com "..."
+                          // em vez de quebrar.
+                          InputLabelProps={{ className: classes.longFieldLabel }}
                         >
                           {field.options.map((opt) => (
                             <MenuItem key={opt.value} value={opt.value}>
@@ -742,6 +758,12 @@ const FinanceRecordModal = ({
                           variant="outlined"
                           size="small"
                           label={field.label}
+                          // v2.3.241 — sem isso, quando o campo já abre
+                          // preenchido (editando um registro existente), o
+                          // label fica "parado" sobre o valor em vez de
+                          // subir pra borda — bug conhecido de
+                          // react-number-format com customInput do MUI.
+                          InputLabelProps={{ shrink: true, className: classes.longFieldLabel }}
                           thousandSeparator="."
                           decimalSeparator=","
                           prefix="R$ "
@@ -772,6 +794,7 @@ const FinanceRecordModal = ({
                         size="small"
                         name={field.name}
                         label={field.label}
+                        InputLabelProps={{ className: classes.longFieldLabel }}
                         multiline={field.type === "textarea"}
                         minRows={field.type === "textarea" ? 3 : undefined}
                         type={field.type === "number" ? "number" : "text"}

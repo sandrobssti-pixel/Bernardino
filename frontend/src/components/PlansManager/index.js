@@ -659,6 +659,7 @@ export function PlanManagerForm(props) {
                 <NumberFormat
                   customInput={TextField}
                   label="Valor (R$)"
+                  InputLabelProps={{ shrink: true }}
                   variant="outlined"
                   size="small"
                   className={`${classes.fullWidth} ${classes.inputField}`}

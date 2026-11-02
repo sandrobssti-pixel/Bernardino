@@ -15374,3 +15374,66 @@ exit code 0.
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/WeaponDispatchClientModal/index.js`,
 `frontend/src/components/PlansManager/index.js`.
+
+## 214. Labels sobrepondo campos no cadastro de Produto — Dados Fiscais (v2.3.241)
+
+### Pedido
+
+Cliente mandou print do modal de Produto, seção "Dados Fiscais",
+pedindo pra alinhar visualmente os campos. Dois problemas distintos no
+mesmo print:
+1. Campo "Valor ICMS Desonerado (R$)" com o label "Valor ICMS
+   Desonerado (R$)" sobreposto em cima do valor já digitado "R$ 0,00"
+   — nunca sobe pra posição de "borda" como um campo normal.
+2. Campo select "Modalidade de determinação da BC do ICMS-ST" com o
+   label quebrando em 2 linhas e a segunda linha sobrepondo a caixa.
+
+### Causa raiz
+
+(1) É regressão direta da v2.3.240 (máscara de moeda). Bug conhecido
+de `react-number-format` quando usado via `customInput={TextField}`
+do Material-UI: se o campo já ABRE com um valor preenchido (caso de
+qualquer edição de registro existente — inclusive `0`, que também
+conta como "preenchido"), o MUI não detecta automaticamente que o
+campo tem conteúdo na hora de decidir se o label deve ficar
+"encolhido" na borda ou "grande" por cima do valor — ele fica preso na
+posição grande, sobrepondo o texto digitado. O campo de referência
+copiado do Kanban (`pages/Kanban/index.js:747`) nunca mostrou esse bug
+porque lá o diálogo sempre abre com o campo VAZIO (preenche só depois
+que o usuário digita) — nunca expôs o problema. Como os 6 campos de
+moeda criados na v2.3.240 abrem quase sempre já preenchidos (editando
+Produto/Serviço/Venda/Despachante/Plano existente), TODOS tinham o
+mesmo risco, não só o ICMS Desonerado.
+
+(2) É um bug pré-existente, não relacionado à v2.3.240: o
+`InputLabel` do Material-UI não trunca texto comprido por padrão — se
+o label não cabe na largura do campo, ele quebra linha, e como o
+cálculo do "recorte" (notch) da borda do campo `outlined` é feito pra
+texto numa linha só, a segunda linha do label sobra por cima da caixa.
+
+### Solução
+
+- Em TODOS os 6 campos de moeda da v2.3.240 (`FinanceRecordModal`
+  campo tipo `"currency"`, `SaleModal` ×4, `WeaponDispatchClientModal`,
+  `PlansManager`): adicionado `InputLabelProps={{ shrink: true }}` —
+  força o label a sempre ficar na posição "pequena/borda", nunca por
+  cima do valor, independente de quando/como o valor é preenchido.
+- No `FinanceRecordModal` (campos `type: "select"` e o fallback
+  genérico de texto): novo `classes.longFieldLabel` (`overflow:
+  hidden`, `textOverflow: "ellipsis"`, `whiteSpace: "nowrap"`,
+  `maxWidth: "calc(133% - 32px)"`) aplicado via `InputLabelProps` —
+  label comprido trunca com "..." em vez de quebrar linha e sobrepor a
+  caixa. Resolve esse caso específico e qualquer outro label comprido
+  futuro nesses dois tipos de campo do mesmo formulário.
+
+### Verificação
+
+`eslint` limpo nos 4 arquivos tocados (um erro de sintaxe JSX
+introduzido durante a edição — fechamento `>` do `<Field>` removido
+sem querer — encontrado pelo próprio lint e corrigido antes do build).
+`npm run build` (produção) com `Compiled successfully` / exit code 0.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/WeaponDispatchClientModal/index.js`,
+`frontend/src/components/PlansManager/index.js`.
