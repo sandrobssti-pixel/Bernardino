@@ -79,6 +79,7 @@ import FiscalDocumentEmailLog from "../models/FiscalDocumentEmailLog";
 import FiscalNumberingInvalidation from "../models/FiscalNumberingInvalidation";
 import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
+import Employee from "../models/Employee";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
 import WeaponDispatchClient from "../models/WeaponDispatchClient";
@@ -175,6 +176,7 @@ const models = [
   FiscalNumberingInvalidation,
   JobPosting,
   JobApplication,
+  Employee,
   SlaRule,
   Notification,
   WeaponDispatchClient,

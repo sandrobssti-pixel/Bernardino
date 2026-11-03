@@ -11,6 +11,7 @@ import useHR from "../../hooks/useHR";
 import HRPainel from "../../components/HRPainel";
 import JobPostingList from "../../components/JobPostingList";
 import JobApplicationsPanel from "../../components/JobApplicationsPanel";
+import Employees from "../Employees";
 
 const useStyles = makeStyles((theme) => ({
   pageRoot: {
@@ -139,12 +140,14 @@ const RH = () => {
           className={classes.sideTabs}
         >
           <Tab className={classes.sideTab} value="painel" label="Painel RH" />
+          <Tab className={classes.sideTab} value="employees" label="Funcionários" />
           <Tab className={classes.sideTab} value="jobPostings" label="Vagas" />
           <Tab className={classes.sideTab} value="applications" label="Candidaturas" />
         </Tabs>
 
         <div className={classes.content}>
           {tab === "painel" && <HRPainel hr={hr} />}
+          {tab === "employees" && <Employees />}
           {tab === "jobPostings" && <JobPostingList hr={hr} companyId={user.companyId} />}
           {tab === "applications" && <JobApplicationsPanel hr={hr} />}
         </div>

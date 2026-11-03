@@ -3,6 +3,38 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.242] — Cadastro de Funcionários no módulo RH (Fase 1 de 3) — 2026-11-03
+
+### Adicionado
+- Nova aba "Funcionários" no módulo RH (mesma trava `useHR`/`hrAccess`
+  já usada por Vagas/Candidaturas — quem já tem RH habilitado ganha
+  Funcionários automaticamente, sem nova flag de plano). Cadastro
+  completo com foto, documentos (CPF/RG/PIS-PASEP/Título de Eleitor),
+  contato, endereço, dados bancários, regime de trabalho (CLT, PJ,
+  Estagiário, Menor Aprendiz) e status do contrato (Ativo/Afastado/
+  Desligado) — com campos específicos por regime, mostrados só quando
+  fazem sentido: CTPS/admissão/salário/cargo/jornada/vale-transporte/
+  vale-refeição (CLT e Menor Aprendiz); razão social/CNPJ/inscrição
+  municipal/valor do contrato/escopo (PJ); instituição de
+  ensino/curso/bolsa-auxílio/auxílio-transporte/seguro de vida
+  (Estagiário). Campos de valor usam a máscara de moeda nacional já
+  padronizada no sistema.
+- Funcionário NÃO tem login nem acesso ao AtendeFlow — é só um
+  registro de dados de RH, tabela própria sem nenhum vínculo com
+  `Users`.
+- Cada funcionário tem um "Gestor/Supervisor responsável" (`managerId`,
+  um usuário do AtendeFlow) — usado também como Supervisor de Estágio.
+  Preparação pra Fase 3 (painel de desempenho), que vai restringir a
+  visualização de avaliações a só Admin/Master + o gestor daquele
+  funcionário.
+- Corrigido um gap existente desde antes desta sessão: o campo
+  `User.hrAccess` existia no banco e era checado no backend, mas não
+  tinha toggle nenhum na tela de editar usuário — Admin não tinha
+  como conceder acesso ao RH pra ninguém além de si mesmo. Agora tem
+  toggle "Módulo RH" em Usuários, mesmo padrão do "Módulo Financeiro"
+  já existente.
+- Ver seção 215 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.241] — Fix: labels sobrepondo campos no cadastro de Produto (Dados Fiscais) — 2026-11-02
 
 ### Corrigido

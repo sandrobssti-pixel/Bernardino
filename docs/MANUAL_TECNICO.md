@@ -15437,3 +15437,167 @@ sem querer — encontrado pelo próprio lint e corrigido antes do build).
 `frontend/src/components/SaleModal/index.js`,
 `frontend/src/components/WeaponDispatchClientModal/index.js`,
 `frontend/src/components/PlansManager/index.js`.
+
+## 215. Cadastro de Funcionários no módulo RH — Fase 1 de 3 (v2.3.242)
+
+### Pedido
+
+Cliente pediu pra deixar o módulo RH mais completo, com base num
+roteiro técnico próprio (cadastro de funcionário por regime de
+trabalho, cálculos trabalhistas brasileiros, e um painel de
+desempenho restrito a gestor/RH — premissa crítica: o funcionário NÃO
+tem acesso ao sistema). Dado o tamanho e a sensibilidade (cálculo
+trabalhista tem consequência legal/financeira real), foi combinado
+construir em 3 fases, cada uma testada e no ar antes da próxima:
+**Fase 1 — Cadastro de Funcionários** (esta entrega), Fase 2 —
+cálculos trabalhistas (INSS/IRRF/FGTS), Fase 3 — painel de
+desempenho (avaliações do gestor, OKRs, feedback 1:1, matriz de
+prontidão pra promoção).
+
+Três decisões de arquitetura foram fechadas com o cliente antes de
+codar:
+1. Construção por fases, não tudo de uma vez.
+2. O Painel de Desempenho (Fase 3) só vai ser visível pra Admin/Master
+   e pro Gestor daquele funcionário específico — não pra qualquer um
+   com acesso ao RH. Isso definiu já nesta Fase 1 a necessidade de um
+   campo "Gestor responsável" por funcionário.
+3. Não é um módulo novo — estende o `useHR` que já existe (mesma trava
+   de Vagas/Candidaturas). Quem já tem RH habilitado ganha Funcionários
+   automaticamente, sem precisar de nova liberação de plano.
+
+### Modelagem de dados
+
+Tabela `Employees` (migration
+`20261103100000-create-employees.ts`, model `Employee.ts`) —
+**funcionário NÃO é um `User`**: não tem login, não tem senha, não
+acessa o AtendeFlow. É só um registro de dados de RH, com
+`companyId` (FK `Companies`, `CASCADE`) pro isolamento multi-tenant
+padrão do projeto.
+
+Tabela larga (mesmo padrão já usado em Produto/Serviço — ver
+`financeConfig.js`): todos os campos de todos os regimes convivem na
+mesma tabela, a maioria `allowNull: true`, e o formulário decide o
+que mostrar conforme `workRegime` (`"clt" | "pj" | "intern" |
+"young_apprentice"`). Evitou normalizar em tabelas por regime
+(join a mais, sem ganho real pra um cadastro que troca de regime
+raramente) — decisão de implementação, não architetural crítica,
+consistente com o resto do sistema.
+
+Campos comuns: `name`, `photoUrl`, `cpf`, `rg`, `pisPasep`,
+`voterTitle`, `email`, `phone`, endereço completo
+(`zipCode`/`street`/`number`/`complement`/`neighborhood`/`city`/`state`
+— mesma nomenclatura já usada em Cliente/Venda), dados bancários
+(`bankName`/`bankAgency`/`bankAccount`/`bankAccountType`/`pixKey`),
+`workRegime`, `contractStatus` (`"active" | "leave" | "terminated"`).
+
+`managerId` (FK `Users`, `SET NULL`) — "Gestor/Supervisor
+responsável". Reaproveita o MESMO campo pro "Supervisor de Estágio"
+pedido originalmente pro regime Estagiário (não duplicado — um
+funcionário só tem um responsável, seja chamado de gestor ou
+supervisor). Vai ser a base da restrição de acesso da Fase 3.
+
+Campos específicos CLT/Menor Aprendiz: `ctps`, `ctpsSeries`,
+`admissionDate`, `terminationDate`, `grossSalary` (moeda),
+`role`, `weeklyHours`, `transportVoucher`, `mealVoucher`.
+
+Campos específicos PJ: `companyName` (razão social), `cnpj`,
+`municipalRegistration`, `monthlyContractValue` (moeda),
+`contractStartDate`, `contractEndDate`, `contractScope` (TEXT).
+
+Campos específicos Estagiário: `school`, `course`, `stipendValue`
+(moeda), `transportAidValue` (moeda), `internshipStartDate`,
+`internshipEndDate`, `lifeInsurancePolicy`.
+
+### Backend
+
+- `backend/src/services/EmployeeService/EmployeeService.ts` —
+  `list`/`show`/`create`/`update`/`remove`, sempre filtrado por
+  `companyId` (isolamento multi-tenant). Validação Yup leve (só
+  `name` e `workRegime` obrigatórios, resto livre — mesmo nível do
+  resto do sistema, não trava cadastro incompleto).
+- **Bug real encontrado e corrigido durante o desenvolvimento**: o
+  formulário genérico (`FinanceRecordModal`) manda `""` (string
+  vazia) pra todo campo que ficou escondido ao trocar de regime (ex.:
+  CLT → PJ limpa `admissionDate`/`grossSalary`) — Postgres rejeita
+  `""` em coluna `DATE`/`DECIMAL` (`invalid input syntax for type
+  date`). Até criar um funcionário novo SEM data de admissão (campo
+  opcional) quebrava. Corrigido com `sanitizeEmployeeData()` no
+  service, que converte `""` → `null` nos campos de data/número antes
+  de salvar.
+- `backend/src/controllers/EmployeeController.ts` — todo endpoint
+  autenticado chama `EnsureHRAccess` (reaproveitado de
+  `HRService/EnsureHRAccess.ts`, mesma trava de Vagas/Candidaturas).
+  Upload de foto (`backend/src/config/employeePhotoUpload.ts`) segue
+  o mesmo padrão de `servicePhotoUpload.ts` (rota autenticada,
+  `req.user.companyId` define a pasta).
+- **Gap corrigido**: `User.hrAccess` já existia na tabela `Users` e
+  já era checado em `EnsureHRAccess`, mas nunca tinha sido exposto
+  pra edição — `CreateUserService`/`UpdateUserService`/
+  `UserController` não aceitavam esse campo no payload. Corrigido
+  espelhando EXATAMENTE o padrão já usado por `financialAccess` nesses
+  3 arquivos.
+
+### Frontend
+
+- Reaproveitado o par genérico `FinanceRecordList`/`FinanceRecordModal`
+  (já usado por Produtos/Serviços/Contas) em vez de construir
+  componentes do zero — `frontend/src/pages/Employees/employeeConfig.js`
+  declara os campos (com `visibleWhen` condicionado ao `workRegime`) e
+  `frontend/src/pages/Employees/index.js` monta a tela. Zero
+  componente de UI novo nesse ponto; ganho de graça: busca, paginação,
+  impressão/Excel, upload de foto. Campos de moeda usam
+  `type: "currency"` (mesmo `NumberFormat` + `InputLabelProps={{
+  shrink: true }}` corrigido na v2.3.241 — essencial nesse caso
+  também, já que o formulário abre preenchido ao editar).
+- O seletor de "Gestor/Supervisor responsável" (`managerId`, tipo
+  `asyncSelect`) busca em `/users/list` — empacotado num objeto no
+  formato que `FinanceRecordModal` espera do prop `finance`
+  (`finance.users.list({searchParam}) => {records}`), sem precisar
+  de um hook `useFinance` de verdade pra isso.
+- `frontend/src/components/UserModal/index.js` — novo toggle "Módulo
+  RH" (mesmo padrão visual/estrutural do "Módulo Financeiro" já
+  existente), só visível se o plano da empresa incluir `useHR`.
+- Nova aba "Funcionários" em `frontend/src/pages/RH/index.js`, ao
+  lado de Painel RH / Vagas / Candidaturas.
+
+### O que esta fase NÃO inclui (fica pras próximas)
+
+Nenhum cálculo trabalhista (INSS/IRRF/FGTS/13º/férias) — Fase 2.
+Nenhuma avaliação de desempenho/OKR/feedback 1:1/matriz de
+prontidão — Fase 3. O campo `managerId` já existe nesta fase
+justamente pra servir de base pra essa restrição de acesso futura.
+
+### Verificação
+
+Revisão linha a linha de todo o diff (migration, model, service,
+controller, rotas, hooks, config de campos, integração na tela RH)
+antes de subir. `tsc --noEmit` e `eslint` limpos (reconferidos
+independentemente). Migration rodada contra Postgres local
+(`atendeflow_test`) — tabela e FKs (`companyId→Companies CASCADE`,
+`managerId→Users SET NULL`) conferidas via `\d "Employees"`. Script
+Node isolado contra o `EmployeeService` REAL compilado, 17 asserts
+próprios (além dos já rodados durante o desenvolvimento): criação nos
+4 regimes com os campos certos preenchidos e os de outros regimes
+nulos; sanitização de string vazia em data/número; validação rejeita
+`workRegime` inválido e nome ausente; **isolamento multi-tenant**
+(empresa B não consegue acessar funcionário da empresa A); troca de
+regime num `update` limpa campos do regime anterior e salva os
+novos; `remove` apaga de verdade — todos passaram. `npm run build`
+de produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261103100000-create-employees.ts`,
+`backend/src/models/Employee.ts`,
+`backend/src/services/EmployeeService/EmployeeService.ts`,
+`backend/src/controllers/EmployeeController.ts`,
+`backend/src/config/employeePhotoUpload.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/UserServices/CreateUserService.ts`,
+`backend/src/services/UserServices/UpdateUserService.ts`,
+`backend/src/controllers/UserController.ts`,
+`frontend/src/hooks/useEmployees/index.js`,
+`frontend/src/pages/Employees/index.js`,
+`frontend/src/pages/Employees/employeeConfig.js`,
+`frontend/src/pages/RH/index.js`,
+`frontend/src/components/UserModal/index.js`,
+`frontend/src/translate/languages/pt.js`.

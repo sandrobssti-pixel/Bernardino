@@ -36,6 +36,7 @@ interface UserData {
   language?: string; // Adicionado para garantir que o idioma seja atualizado
   canViewAllContacts?: boolean;
   financialAccess?: boolean;
+  hrAccess?: boolean;
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
   super?: boolean;
@@ -131,6 +132,10 @@ const UpdateUserService = async ({
     dataToUpdate.financialAccess = !!userData.financialAccess;
   }
 
+  if (userData.hrAccess !== undefined) {
+    dataToUpdate.hrAccess = !!userData.hrAccess;
+  }
+
   if (userData.blockMultipleLogins !== undefined) {
     dataToUpdate.blockMultipleLogins = !!userData.blockMultipleLogins;
   }
@@ -202,6 +207,7 @@ const UpdateUserService = async ({
     // >>> IMPORTANTE: devolver para o front persistir o estado do select
     canViewAllContacts: !!user.canViewAllContacts,
     financialAccess: !!user.financialAccess,
+    hrAccess: !!user.hrAccess,
     blockMultipleLogins: !!user.blockMultipleLogins,
     super: !!user.super
   };

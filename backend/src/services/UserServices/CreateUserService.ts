@@ -33,6 +33,7 @@ interface CreateUserRequest {
   allowExport?: string;
   canViewAllContacts?: boolean; // << adicionado
   financialAccess?: boolean;
+  hrAccess?: boolean;
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
   super?: boolean; // << Master (somente honrado se o solicitante já for super)
@@ -82,6 +83,7 @@ const CreateUserService = async ({
   allowExport,
   canViewAllContacts,
   financialAccess,
+  hrAccess,
   blockMultipleLogins = true,
   birthDate,
   super: isSuperUser = false
@@ -172,6 +174,7 @@ const CreateUserService = async ({
       allowExport,
       canViewAllContacts: !!canViewAllContacts, // << persistência do novo campo
       financialAccess: !!financialAccess,
+      hrAccess: !!hrAccess,
       blockMultipleLogins: !!blockMultipleLogins,
       birthDate: parsedBirthDate,
       super: !!isSuperUser

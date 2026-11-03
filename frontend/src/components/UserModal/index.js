@@ -28,6 +28,7 @@ import QueueSelect from "../QueueSelect";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useWhatsApps from "../../hooks/useWhatsApps";
 import useFinance from "../../hooks/useFinance";
+import useHR from "../../hooks/useHR";
 
 import { Can } from "../Can";
 import { Grid, Paper, Tab, Tabs } from "@material-ui/core";
@@ -303,12 +304,17 @@ const UserModal = ({ open, onClose, userId }) => {
 		// Acesso ao módulo Financeiro (add-on liberado pelo Master via plano) —
 		// concedido usuário a usuário pelo Admin da empresa.
 		financialAccess: false,
+		// Acesso ao módulo de RH (Funcionários/Vagas/Candidaturas) — mesmo
+		// padrão do financialAccess, add-on liberado pelo Master via plano
+		// (Plan.useHR), concedido usuário a usuário pelo Admin.
+		hrAccess: false,
 		blockMultipleLogins: true,
 		birthDate: "",
 	};
 
 	const { user: loggedInUser } = useContext(AuthContext);
 	const { getAccess: getFinanceAccess } = useFinance();
+	const { getAccess: getHRAccess } = useHR();
 
 	const [user, setUser] = useState(initialState);
 	const [selectedQueueIds, setSelectedQueueIds] = useState([]);
@@ -320,6 +326,10 @@ const UserModal = ({ open, onClose, userId }) => {
 	// A checagem real de acesso continua no backend (EnsureFinancialAccess);
 	// isto é só pra não deixar a opção "aberta" na UI.
 	const [financeModuleAvailable, setFinanceModuleAvailable] = useState(false);
+	// Mesma lógica do financeModuleAvailable: só mostra a permissão "Módulo
+	// RH" se o PLANO da empresa incluir o add-on (Plan.useHR) — a checagem
+	// real de acesso continua no backend (EnsureHRAccess).
+	const [hrModuleAvailable, setHRModuleAvailable] = useState(false);
 	const [tab, setTab] = useState("general");
 	const [avatar, setAvatar] = useState(null);
 	const startWorkRef = useRef();
@@ -343,6 +353,7 @@ const UserModal = ({ open, onClose, userId }) => {
 						canDeleteTickets: data?.canDeleteTickets ?? "disabled",
 						canViewAllContacts: !!data.canViewAllContacts,
 						financialAccess: !!data.financialAccess,
+						hrAccess: !!data.hrAccess,
 						super: !!data?.super,
 						blockMultipleLogins: data?.blockMultipleLogins !== false,
 						birthDate: data?.birthDate ? String(data.birthDate).split("T")[0] : ""
@@ -374,6 +385,20 @@ const UserModal = ({ open, onClose, userId }) => {
 			}
 		};
 		fetchFinanceAccess();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open]);
+
+	useEffect(() => {
+		if (!open) return;
+		const fetchHRAccess = async () => {
+			try {
+				const { planHasModule } = await getHRAccess();
+				setHRModuleAvailable(!!planHasModule);
+			} catch (err) {
+				setHRModuleAvailable(false);
+			}
+		};
+		fetchHRAccess();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open]);
 
@@ -440,7 +465,7 @@ const UserModal = ({ open, onClose, userId }) => {
 	  };
 
 	const isPermissionEnabled = (values, fieldName) => {
-		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess") {
+		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess" || fieldName === "hrAccess") {
 			return !!values[fieldName];
 		}
 		if (fieldName === "allTicket") {
@@ -450,7 +475,7 @@ const UserModal = ({ open, onClose, userId }) => {
 	};
 
 	const togglePermission = (fieldName, checked, setFieldValue) => {
-		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess") {
+		if (fieldName === "allowGroup" || fieldName === "canViewAllContacts" || fieldName === "financialAccess" || fieldName === "hrAccess") {
 			setFieldValue(fieldName, checked);
 			return;
 		}
@@ -469,6 +494,10 @@ const UserModal = ({ open, onClose, userId }) => {
 		financialAccess: {
 			label: "Módulo Financeiro",
 			description: "Acessa cadastros de clientes, fornecedores, produtos, contas a pagar/receber e relatórios.",
+		},
+		hrAccess: {
+			label: "Módulo RH",
+			description: "Acessa Funcionários, Vagas e Candidaturas. Se o usuário for designado como Gestor de algum funcionário, também vê o Painel de Desempenho dessa equipe.",
 		},
 		allTicket: {
 			label: "Tickets sem fila",
@@ -975,6 +1004,17 @@ const UserModal = ({ open, onClose, userId }) => {
 																fieldName: "financialAccess",
 																label: permissionContent.financialAccess.label,
 																description: permissionContent.financialAccess.description,
+																values,
+																setFieldValue
+															})}
+														</Grid>
+													)}
+													{hrModuleAvailable && (
+														<Grid item xs={12} md={6}>
+															{renderPermissionButtonField({
+																fieldName: "hrAccess",
+																label: permissionContent.hrAccess.label,
+																description: permissionContent.hrAccess.description,
 																values,
 																setFieldValue
 															})}
