@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.250] — Painel de Desempenho (RH — Fase 3 de 3) — 2026-11-04
+
+### Adicionado
+- Nova aba "Painel de Desempenho" no módulo RH — completa o roteiro de
+  3 fases combinado com o cliente desde a Fase 1 (Cadastro de
+  Funcionários → Fase 2, cálculos trabalhistas → Fase 3, aqui).
+- **Acesso restrito por funcionário, premissa fechada desde a Fase 1**:
+  só Admin/Master ou o gestor responsável (`managerId`) daquele
+  funcionário específico enxerga seus registros de desempenho — não
+  qualquer usuário com acesso geral ao RH. O seletor de funcionário só
+  lista quem o usuário logado pode gerenciar.
+- 4 tipos de registro, numa mesma tabela (mesmo padrão de "tabela
+  larga" já usado em Funcionários pros 4 regimes de trabalho):
+  **Avaliação de Desempenho** (nota geral 1-5, pontos fortes, pontos
+  de melhoria, metas); **OKR** (objetivo + até 3 resultados-chave com
+  progresso individual, progresso geral); **Feedback 1:1** (assuntos
+  conversados, combinados, próxima conversa); **Matriz de Prontidão
+  pra Promoção** (cargo-alvo, notas de competência
+  técnica/liderança/comunicação/resultados, nível de prontidão).
+- Ver seção 223 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.249] — INSS/IRRF do Pró-labore dos Sócios (RH) — 2026-11-04
 
 ### Adicionado

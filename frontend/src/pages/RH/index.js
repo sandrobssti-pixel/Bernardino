@@ -14,6 +14,7 @@ import JobApplicationsPanel from "../../components/JobApplicationsPanel";
 import Employees from "../Employees";
 import CompanyPartners from "../CompanyPartners";
 import PayrollPanel from "../../components/PayrollPanel";
+import PerformancePanel from "../PerformancePanel";
 
 const useStyles = makeStyles((theme) => ({
   pageRoot: {
@@ -145,6 +146,7 @@ const RH = () => {
           <Tab className={classes.sideTab} value="employees" label="Funcionários" />
           <Tab className={classes.sideTab} value="companyPartners" label="Sócios" />
           <Tab className={classes.sideTab} value="payroll" label="Folha de Pagamento" />
+          <Tab className={classes.sideTab} value="performance" label="Painel de Desempenho" />
           <Tab className={classes.sideTab} value="jobPostings" label="Vagas" />
           <Tab className={classes.sideTab} value="applications" label="Candidaturas" />
         </Tabs>
@@ -154,6 +156,7 @@ const RH = () => {
           {tab === "employees" && <Employees />}
           {tab === "companyPartners" && <CompanyPartners />}
           {tab === "payroll" && <PayrollPanel />}
+          {tab === "performance" && <PerformancePanel />}
           {tab === "jobPostings" && <JobPostingList hr={hr} companyId={user.companyId} />}
           {tab === "applications" && <JobApplicationsPanel hr={hr} />}
         </div>

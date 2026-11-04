@@ -16,6 +16,7 @@ import * as PayrollPartnerEntryController from "../controllers/PayrollPartnerEnt
 import * as PayrollExpenseController from "../controllers/PayrollExpenseController";
 import * as PayrollTableController from "../controllers/PayrollTableController";
 import * as CompanyPartnerController from "../controllers/CompanyPartnerController";
+import * as PerformanceRecordController from "../controllers/PerformanceRecordController";
 
 const hrRoutes = Router();
 const resumeUpload = multer(resumeUploadConfig);
@@ -105,6 +106,16 @@ hrRoutes.post(
   companyPartnerPhotoUpload.single("photo"),
   CompanyPartnerController.uploadPhoto
 );
+
+// Admin/RH — Painel de Desempenho (Fase 3): avaliações, OKRs, feedback
+// 1:1, matriz de prontidão pra promoção. Acesso restrito por
+// funcionário (Admin/Master ou `managerId`) dentro do service — ver
+// PerformanceAccessService.ts.
+hrRoutes.get("/performance-records/employees", isAuth, PerformanceRecordController.indexEmployees);
+hrRoutes.get("/performance-records", isAuth, PerformanceRecordController.index);
+hrRoutes.post("/performance-records", isAuth, PerformanceRecordController.store);
+hrRoutes.put("/performance-records/:id", isAuth, PerformanceRecordController.update);
+hrRoutes.delete("/performance-records/:id", isAuth, PerformanceRecordController.remove);
 
 // Público (sem login) — página de vagas da empresa e envio de candidatura.
 hrRoutes.get("/public/job-postings/:companyId", JobPostingController.publicIndex);

@@ -16461,3 +16461,124 @@ build` de produção (frontend) com `Compiled successfully` / exit 0.
 `frontend/src/hooks/usePayroll/index.js`,
 `frontend/src/components/PayrollPanel/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 223. Painel de Desempenho — RH Fase 3 de 3 (v2.3.250)
+
+### Pedido
+
+"Terminar o módulo RH" — fechar o roteiro de 3 fases combinado com o
+cliente já na Fase 1 (seção 215): Fase 1 — Cadastro de Funcionários
+(pronto); Fase 2 — cálculos trabalhistas (pronto); **Fase 3 — Painel
+de Desempenho** (avaliações do gestor, OKRs, feedback 1:1, matriz de
+prontidão pra promoção). Junto com essa pergunta, retomadas também as
+2 pendências adiadas das entregas anteriores (Lançamento em Contas a
+Pagar, seção 221; INSS/IRRF do pró-labore dos Sócios, seção 222).
+
+### Premissa de acesso (fechada desde a Fase 1, nunca mudou)
+
+"O Painel de Desempenho (Fase 3) só vai ser visível pra Admin/Master e
+pro Gestor daquele funcionário específico — não pra qualquer um com
+acesso ao RH." O campo `managerId` em `Employee` já existia desde a
+Fase 1 EXATAMENTE pra servir de base dessa restrição (seção 215: "O
+campo `managerId` já existe nesta fase justamente pra servir de base
+pra essa restrição de acesso futura").
+
+### Modelagem de dados: tabela única pros 4 tipos
+
+Nova tabela `PerformanceRecords` (migration
+`20261104230000-create-performance-records.ts`, model
+`PerformanceRecord.ts`) — um `recordType` discrimina entre
+`"evaluation"` | `"okr"` | `"feedback_1_1"` | `"promotion_readiness"`,
+com os campos específicos de cada tipo todos `allowNull: true` na
+mesma linha. MESMO RACIOCÍNIO já usado em `Employees` (tabela larga
+por regime de trabalho, seção 215) — decisão de implementação, não
+arquitetural crítica: os 4 tipos são "um momento de acompanhamento de
+desempenho" do mesmo funcionário, não têm relações/queries
+independentes entre si que justifiquem 4 tabelas (e 4x o número de
+migrations/models/services/controllers) separadas.
+
+Campos comuns: `employeeId`, `companyId`, `recordDate`,
+`createdByUserId` (quem registrou), `notes` (observação livre, visível
+em qualquer tipo). Por tipo: **Avaliação** — `overallRating` (1-5),
+`strengths`, `improvementAreas`, `goals`. **OKR** — `objective` + até
+3 pares `keyResultN`/`krNProgress` (limite fixo de 3 — evita UI de
+lista aberta num painel interno, cobre a prática comum de 2-4 key
+results por objetivo) + `overallProgress`. **Feedback 1:1** —
+`topics`, `actionItems`, `nextMeetingDate`. **Matriz de prontidão** —
+`targetRole`, 4 notas 1-5 (`technicalSkillScore`/`leadershipScore`/
+`communicationScore`/`resultsScore`), `readinessLevel`
+(`"not_ready"|"developing"|"ready_soon"|"ready_now"`).
+
+### Backend — a trava de acesso pessoal
+
+`PerformanceAccessService.canAccessEmployeePerformance(user, employee)`
+— `true` se `user.super`, `user.profile === "admin"`, OU
+`employee.managerId === user.id`; `false` em qualquer outro caso.
+Aplicada em TODO método de `PerformanceRecordService.ts`
+(`listManageableEmployees`/`list`/`create`/`update`/`remove`) — nunca
+confiada só ao frontend. Camadas de acesso EM CIMA uma da outra, não
+uma no lugar da outra: `PerformanceRecordController.ensureAccess`
+continua exigindo `EnsureHRAccess` (a mesma porta de entrada do resto
+do RH) — só depois disso o service decide, registro por registro, se
+ESTE usuário pode ver ESTE funcionário. Satisfaz literalmente a
+premissa da Fase 1: ter `hrAccess` não basta sozinho.
+
+`listManageableEmployees(user, companyId)` — Admin/Master vê todos os
+funcionários ativos da empresa; qualquer outro usuário (mesmo com
+`hrAccess`) só vê os que ele é `managerId`. Alimenta o seletor de
+funcionário da tela — um usuário nunca vê na lista alguém que não
+deveria gerenciar.
+
+Mesmo bug/fix "" → null já corrigido em Employee/CompanyPartner
+(`sanitizeRecordData`, `DATE_FIELDS`/`NUMERIC_FIELDS`) — campos
+escondidos pelo `visibleWhen` (ex.: `nextMeetingDate` quando o tipo é
+"evaluation") chegam como `""`, Postgres rejeitaria em coluna
+DATE/INTEGER.
+
+### Frontend
+
+Nova aba "Painel de Desempenho" em `pages/RH/index.js`. Página própria
+`pages/PerformancePanel/index.js` — busca
+`GET /performance-records/employees` (já filtrado pelo backend),
+seletor de funcionário, e só depois de escolher um funcionário monta o
+`FinanceRecordList` genérico (mesmo par já usado em
+Funcionários/Produtos/Serviços/Sócios) com um `resource` que FECHA o
+`employeeId` escolhido sobre `list`/`save`/`update` — mesmo padrão já
+usado em `EmployeeDependentsModal`, aqui aplicado ao componente
+genérico em vez de um modal feito à mão (válido porque os 4 tipos têm
+campos drasticamente diferentes, mas o `visibleWhen` já resolve isso
+de graça). `performanceRecordConfig.js` declara os 4 grupos de campos
+condicionados por `recordType`, igual `employeeConfig.js` condiciona
+por `workRegime`.
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Migration rodada contra Postgres
+local, tabela/índice/FKs conferidos via `psql \d`. Script Node isolado
+contra `PerformanceRecordService`/`PerformanceAccessService` reais
+(banco local, Users/Employees/Company de teste criados de verdade —
+18 asserts): a função pura `canAccessEmployeePerformance` testada
+isoladamente pros 4 perfis (gestor do próprio funcionário, gestor de
+OUTRO funcionário, admin, master); `listManageableEmployees` confirma
+que um gestor comum só vê quem gerencia (e nunca um funcionário
+inativo) enquanto admin vê todos os ativos; `create`/`list`/`update`/
+`remove` testados cada um nos dois sentidos — o gestor CERTO consegue,
+o gestor ERRADO (de outro funcionário) é recusado com
+`ERR_NO_PERFORMANCE_ACCESS` em TODOS os 4; tipo de registro inválido
+recusado; sanitização de campo de data vazio confirmada num registro
+de Feedback 1:1 de verdade; isolamento multi-tenant confirmado
+(`employeeId` de outra empresa não é encontrado). Dados de teste
+(empresa, 4 usuários, funcionários, registros) removidos ao final,
+confirmado via `psql` que o banco voltou ao estado original. `npm run
+build` de produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104230000-create-performance-records.ts`,
+`backend/src/models/PerformanceRecord.ts`,
+`backend/src/services/HRService/{PerformanceAccessService,PerformanceRecordService}.ts`,
+`backend/src/controllers/PerformanceRecordController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePerformanceRecords/index.js`,
+`frontend/src/pages/PerformancePanel/{index,performanceRecordConfig}.js`,
+`frontend/src/pages/RH/index.js`,
+`frontend/src/translate/languages/pt.js`.
