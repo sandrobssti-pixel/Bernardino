@@ -15886,3 +15886,105 @@ exit 0.
 `frontend/src/pages/{PayrollTables,Employees,RH}/index.js`,
 `frontend/src/routes/index.js`,
 `frontend/src/layout/MainListItems.js`.
+
+## 218. Cadastro de Sócios no módulo RH (v2.3.245)
+
+### Pedido
+
+"Coloque sócios para cadastrar o mesmo e colocar os valores do
+prolabore, mesma coisa de funcionário só muda que são sócios" — pedido
+pra resolver antes do ponto da Lei 15.270/2025 (ver seção 217).
+
+### Decisão: só cadastro, sem entrar no cálculo de folha
+
+Apesar do pedido comparar a sócio a funcionário, a tributação de
+pró-labore é estruturalmente DIFERENTE da de CLT: o sócio que recebe
+pró-labore é "contribuinte individual" perante o INSS, com alíquota
+própria (historicamente 11% ou 20% dependendo do regime, não a tabela
+progressiva de 7,5%-14% usada pra CLT), e NÃO tem FGTS (FGTS é
+exclusivo de vínculo empregatício CLT/Aprendiz). Reaproveitar
+`PayrollCalculationService.calculatePayroll` pra sócio produziria um
+valor ERRADO. Mesma cautela já aplicada ao INSS/IRRF de CLT (seção
+217): em vez de adivinhar a alíquota de contribuinte individual,
+implementei SÓ o cadastro do valor do pró-labore agora — o cálculo
+fica pra quando essa regra for pesquisada e confirmada contra fonte
+oficial, igual foi feito pro INSS/IRRF de CLT.
+
+### Incidente evitado: colisão de nome com model já existente
+
+Ao criar o model `Partner.ts`, o `tsc --noEmit` acusou
+`TS2300: Duplicate identifier 'Partner'` — já existia um model
+`Partner`/tabela `Partners` no projeto (`backend/src/models/Partner.ts`,
+campos `commission`/`typeCommission`/`walletId`), usado por
+`apiCompanyRoutes.ts` pra um conceito de "parceiro de
+indicação/comissão" completamente diferente (afiliado que ganha
+comissão, nada a ver com sócio de empresa). Minha primeira tentativa
+de `Write` tinha SOBRESCRITO esse arquivo existente sem eu perceber —
+detectado pelo erro do compilador antes de qualquer commit,
+`git checkout -- backend/src/models/Partner.ts` restaurou o original
+imediatamente, e todo o novo cadastro foi recriado com nomes que não
+colidem: model `CompanyPartner`, tabela `CompanyPartners`, rota
+`/company-partners` (em vez de `/partners`, que já existe em
+`apiCompanyRoutes.ts` pro outro conceito), service
+`CompanyPartnerService`. Nenhum dado ou código do sistema de comissão
+existente foi afetado — confirmado via `git status`/`git diff` (sem
+nenhuma mudança nesses arquivos) e via `\d "Partners"` no Postgres
+(estrutura da tabela original intacta).
+
+### Modelagem de dados
+
+Tabela `CompanyPartners` (migration
+`20261104180000-create-company-partners.ts`, model
+`CompanyPartner.ts`) — mesma estrutura de
+identificação/contato/endereço/dados bancários do Funcionário
+(`name`, `photoUrl`, `cpf`, `rg`, `email`, `phone`, endereço completo,
+dados bancários), `companyId` (FK `Companies`, `CASCADE`). Sócio NÃO
+tem `workRegime` (não é CLT/PJ/Estagiário/Aprendiz). Campos próprios:
+`partnershipStartDate`/`partnershipEndDate`, `ownershipPercentage`
+(% de participação), `isAdministrator` (sócio-administrador vs.
+só-capital), `prolaboreValue` (moeda, só cadastro), `partnerStatus`
+(`"active" | "withdrawn"`).
+
+### Backend/Frontend
+
+Mesmo padrão enxuto de validação (`CompanyPartnerService.ts`, só
+`name` obrigatório) e mesmo sanitizador de string vazia → null em
+campos de data/número (`sanitizePartnerData`, idêntico ao bug já
+corrigido em `EmployeeService.ts`). Controller/rotas seguem
+`EnsureHRAccess`, mesma trava do resto do RH. Upload de foto
+(`companyPartnerPhotoUpload.ts`) mesmo padrão de
+`employeePhotoUpload.ts`, salva em
+`public/company{id}/company-partner-photos/`.
+
+Frontend: nova aba "Sócios" reaproveitando o par genérico
+`FinanceRecordList`/`FinanceRecordModal` (mesmo usado por
+Funcionários/Produtos/Serviços) — `pages/CompanyPartners/` +
+`hooks/useCompanyPartners`. Campo de pró-labore usa `type: "currency"`
+(máscara de moeda já padronizada no sistema).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos (2 warnings pré-existentes em
+`pt.js`, linhas não relacionadas a esta entrega, confirmado via
+`git diff`). Migration rodada contra Postgres local, tabela e FK
+conferidas via `psql`. Script Node isolado contra o
+`CompanyPartnerService` real: 11 asserts — criação com pró-labore e
+sem pró-labore (sócio só-capital); sanitização de string vazia em
+data/número; update de saída de sociedade; validação rejeita nome
+ausente; isolamento multi-tenant confirmado; list/remove corretos.
+Confirmado explicitamente, via `psql \d "Partners"`, que a tabela do
+sistema de comissão original permanece com a estrutura original
+intacta. `npm run build` de produção (frontend) com `Compiled
+successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104180000-create-company-partners.ts`,
+`backend/src/models/CompanyPartner.ts`,
+`backend/src/services/CompanyPartnerService/CompanyPartnerService.ts`,
+`backend/src/controllers/CompanyPartnerController.ts`,
+`backend/src/config/companyPartnerPhotoUpload.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/useCompanyPartners/index.js`,
+`frontend/src/pages/CompanyPartners/{index,companyPartnerConfig}.js`,
+`frontend/src/pages/RH/index.js`,
+`frontend/src/translate/languages/pt.js`.

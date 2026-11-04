@@ -86,6 +86,7 @@ import PayrollInssBracket from "../models/PayrollInssBracket";
 import PayrollIrrfTable from "../models/PayrollIrrfTable";
 import PayrollIrrfBracket from "../models/PayrollIrrfBracket";
 import PayrollEntry from "../models/PayrollEntry";
+import CompanyPartner from "../models/CompanyPartner";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
 import WeaponDispatchClient from "../models/WeaponDispatchClient";
@@ -189,6 +190,7 @@ const models = [
   PayrollIrrfTable,
   PayrollIrrfBracket,
   PayrollEntry,
+  CompanyPartner,
   SlaRule,
   Notification,
   WeaponDispatchClient,

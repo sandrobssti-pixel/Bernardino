@@ -12,6 +12,7 @@ import HRPainel from "../../components/HRPainel";
 import JobPostingList from "../../components/JobPostingList";
 import JobApplicationsPanel from "../../components/JobApplicationsPanel";
 import Employees from "../Employees";
+import CompanyPartners from "../CompanyPartners";
 import PayrollPanel from "../../components/PayrollPanel";
 
 const useStyles = makeStyles((theme) => ({
@@ -142,6 +143,7 @@ const RH = () => {
         >
           <Tab className={classes.sideTab} value="painel" label="Painel RH" />
           <Tab className={classes.sideTab} value="employees" label="Funcionários" />
+          <Tab className={classes.sideTab} value="companyPartners" label="Sócios" />
           <Tab className={classes.sideTab} value="payroll" label="Folha de Pagamento" />
           <Tab className={classes.sideTab} value="jobPostings" label="Vagas" />
           <Tab className={classes.sideTab} value="applications" label="Candidaturas" />
@@ -150,6 +152,7 @@ const RH = () => {
         <div className={classes.content}>
           {tab === "painel" && <HRPainel hr={hr} />}
           {tab === "employees" && <Employees />}
+          {tab === "companyPartners" && <CompanyPartners />}
           {tab === "payroll" && <PayrollPanel />}
           {tab === "jobPostings" && <JobPostingList hr={hr} companyId={user.companyId} />}
           {tab === "applications" && <JobApplicationsPanel hr={hr} />}

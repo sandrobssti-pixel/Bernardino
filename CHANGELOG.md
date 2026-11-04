@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.245] — Cadastro de Sócios no módulo RH — 2026-11-04
+
+### Adicionado
+- Nova aba "Sócios" no RH — cadastro completo (foto, documentos,
+  contato, endereço, dados bancários), com campos próprios de
+  sociedade: data de entrada/saída, percentual de participação,
+  sócio-administrador (sim/não), status (ativo/retirado da sociedade)
+  e o valor do Pró-labore (em formato de moeda).
+- Sócio NÃO é Funcionário — não tem regime CLT/PJ/Estagiário/Menor
+  Aprendiz, não é um registro de vínculo empregatício.
+- **O valor do Pró-labore é só cadastro nesta entrega — NÃO entra no
+  motor de cálculo de folha (Folha Mensal).** Pró-labore tem
+  tributação de INSS diferente da CLT (o sócio que recebe pró-labore é
+  "contribuinte individual" perante o INSS, com alíquota própria — não
+  a tabela progressiva de 7,5%-14% usada pra CLT) — essa regra ainda
+  não foi pesquisada/confirmada contra fonte oficial, mesma cautela já
+  adotada pro cálculo de INSS/IRRF de CLT.
+- **Incidente evitado durante o desenvolvimento**: já existia no
+  projeto um model/tabela `Partner`/`Partners` com outro propósito
+  (parceiro de indicação/comissão, nada a ver com sócio de empresa).
+  A tentativa inicial de nomear o novo cadastro como `Partner` teria
+  sobrescrito esse arquivo existente — detectado pelo `tsc` (erro de
+  identificador duplicado) antes de qualquer coisa ser commitada,
+  restaurado o arquivo original e tudo recriado como `CompanyPartner`
+  (rota `/company-partners`, tabela `CompanyPartners`), sem nenhum
+  risco ao sistema de comissão já existente.
+- Ver seção 218 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.244] — Motor de cálculo de folha: INSS/IRRF/FGTS + Folha Mensal + Dependentes (RH — Fase 2 de 3) — 2026-11-04
 
 ### Adicionado

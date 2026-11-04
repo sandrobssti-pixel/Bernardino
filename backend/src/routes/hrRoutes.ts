@@ -3,6 +3,7 @@ import multer from "multer";
 import isAuth from "../middleware/isAuth";
 import resumeUploadConfig from "../config/resumeUpload";
 import employeePhotoUploadConfig from "../config/employeePhotoUpload";
+import companyPartnerPhotoUploadConfig from "../config/companyPartnerPhotoUpload";
 
 import * as JobPostingController from "../controllers/JobPostingController";
 import * as JobApplicationController from "../controllers/JobApplicationController";
@@ -12,10 +13,12 @@ import * as EmployeeController from "../controllers/EmployeeController";
 import * as EmployeeDependentController from "../controllers/EmployeeDependentController";
 import * as PayrollEntryController from "../controllers/PayrollEntryController";
 import * as PayrollTableController from "../controllers/PayrollTableController";
+import * as CompanyPartnerController from "../controllers/CompanyPartnerController";
 
 const hrRoutes = Router();
 const resumeUpload = multer(resumeUploadConfig);
 const employeePhotoUpload = multer(employeePhotoUploadConfig);
+const companyPartnerPhotoUpload = multer(companyPartnerPhotoUploadConfig);
 
 // Fase 5 — Módulo de RH/recrutamento (vagas, candidaturas, efetivação). Ver
 // docs/MANUAL_TECNICO.md, seção 6.2.
@@ -68,6 +71,25 @@ hrRoutes.get("/payroll/inss-tables", isAuth, PayrollTableController.indexInss);
 hrRoutes.post("/payroll/inss-tables", isAuth, PayrollTableController.storeInss);
 hrRoutes.get("/payroll/irrf-tables", isAuth, PayrollTableController.indexIrrf);
 hrRoutes.post("/payroll/irrf-tables", isAuth, PayrollTableController.storeIrrf);
+
+// Admin/RH — Cadastro de Sócios. Rota "/company-partners" (não
+// "/partners") pra não colidir/confundir com o model `Partner` já
+// existente no projeto (parceiro de indicação/comissão, ver
+// apiCompanyRoutes.ts — outro conceito totalmente diferente). NÃO é
+// Funcionário (sem regime CLT/PJ/Estagiário/Aprendiz) — ver
+// docs/MANUAL_TECNICO.md. `prolaboreValue` é só cadastro por enquanto,
+// não entra no motor de cálculo de folha.
+hrRoutes.get("/company-partners", isAuth, CompanyPartnerController.index);
+hrRoutes.get("/company-partners/:id", isAuth, CompanyPartnerController.show);
+hrRoutes.post("/company-partners", isAuth, CompanyPartnerController.store);
+hrRoutes.put("/company-partners/:id", isAuth, CompanyPartnerController.update);
+hrRoutes.delete("/company-partners/:id", isAuth, CompanyPartnerController.remove);
+hrRoutes.post(
+  "/company-partners/:id/photo-upload",
+  isAuth,
+  companyPartnerPhotoUpload.single("photo"),
+  CompanyPartnerController.uploadPhoto
+);
 
 // Público (sem login) — página de vagas da empresa e envio de candidatura.
 hrRoutes.get("/public/job-postings/:companyId", JobPostingController.publicIndex);
