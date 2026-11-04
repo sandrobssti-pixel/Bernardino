@@ -17237,3 +17237,100 @@ successfully` / exit 0.
 `frontend/src/components/PayrollVacationModal/index.js`,
 `frontend/src/pages/Employees/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 228. Correções de alinhamento e rolagem dupla nos modais de formulário (v2.3.255)
+
+### Pedido
+
+Cliente mandou uma captura de tela do formulário "Novo(a)
+Funcionário" apontando dois problemas: palavras "fora de alinhamento"
+e duas barras de rolagem na lateral do modal. Pedido com bug
+reproduzível a partir da própria imagem — não precisou de
+questionário, só investigar e corrigir (seguindo a mesma distinção já
+estabelecida na instrução permanente deste repositório entre pedido
+ambíguo, que pede pergunta antes, e bug já reproduzido com clareza,
+que não pede). No meio da investigação, o cliente mandou mais um
+detalhe em texto ("quando coloca banco de horas remunerados saldo
+atual fica descentralizado também"), que levou a um TERCEIRO bug
+relacionado, pego só ao reproduzir o fluxo específico ("Banco de horas
+remunerado") num navegador real.
+
+### Investigação
+
+`FinanceRecordModal` é o modal GENÉRICO de formulário reaproveitado
+por praticamente todo cadastro do sistema (Funcionário, Produtos,
+Serviços, Clientes, Fornecedores, Sócios etc.) — qualquer correção
+aqui vale pra todos eles, não só RH. Três causas raiz distintas,
+achadas lendo o componente e confirmadas visualmente rodando o app
+localmente (backend + frontend + Postgres + Redis locais, login com o
+usuário `master@atendeflow.com` dos seeds padrão, Playwright
+controlando um Chromium real — não só leitura de código):
+
+1. **Duas barras de rolagem**: `App.js` tem um override global de tema
+   pra `MuiDialog.paperScrollPaper`, ativo só em telas baixas (`@media
+   (max-height:820px)`), que transforma o `Paper` do modal num
+   flex-column com `maxHeight: calc(100vh - 16px)` — pensado pra
+   manter o título/rodapé fixos e só o conteúdo rolando. Faltava
+   `overflow: hidden` nesse `Paper`: sem isso, o próprio `Paper` podia
+   ficar com sua própria região de rolagem ativa AO MESMO TEMPO que o
+   `MuiDialogContent` (que já tem `overflow-y: auto` nativo do MUI),
+   resultando em duas barras visíveis lado a lado. Confirmado
+   reproduzindo com `viewport: {height: 790}` (abaixo do breakpoint de
+   820px) via Playwright — a screenshot ANTES do fix mostrava a
+   rolagem dupla, DEPOIS do fix só uma.
+2. **Switch desalinhado** ("Vale Transporte"/"Vale Refeição"/"Plano de
+   Saúde" na mesma linha da grade): o `<Grid container spacing={2}>`
+   que envolve TODOS os campos do formulário não tinha `alignItems`
+   definido (default do CSS flexbox é `stretch`). Quando um rótulo de
+   switch é mais longo (ex.: "Vale Transporte", quebra em 2 linhas) e
+   o vizinho é mais curto (ex.: "Vale Refeição", 1 linha só), cada
+   `FormControlLabel` (que por padrão do MUI centraliza o switch em
+   relação ao PRÓPRIO conteúdo, `align-items: center`) acaba com o
+   switch numa altura diferente do vizinho, porque a altura do
+   conteúdo em si é diferente entre eles. Corrigido com
+   `alignItems="center"` no `Grid container` — passa a centralizar os
+   ITENS da grade entre si na mesma linha (não mais apenas dentro de
+   cada um isoladamente), o que resolve o desalinhamento sem precisar
+   mexer no `FormControlLabel` em si. Campos de texto/select não são
+   afetados (já têm altura fixa entre si, centralizar não muda nada).
+3. **Campo de dinheiro sempre com o rótulo flutuando, mesmo vazio**
+   (achado ao reproduzir o fluxo "Banco de horas remunerado", que
+   revela os campos "Valor da hora extra" — tipo `currency` — e
+   "Saldo atual do banco de horas" — tipo `number` — lado a lado na
+   mesma linha): o tipo `currency` (usa `NumberFormat` como
+   `customInput` do MUI `TextField`) tinha `InputLabelProps={{shrink:
+   true}}` FIXO desde a v2.3.241, pra corrigir um bug conhecido do
+   `react-number-format` em que o rótulo não subia pra borda quando o
+   campo já ABRIA preenchido (editando um registro existente). Esse
+   fix, porém, forçava o rótulo flutuando SEMPRE — inclusive num
+   registro NOVO com o campo vazio — diferente do comportamento padrão
+   dos campos de texto/número vizinhos (que só sobem o rótulo ao focar
+   ou preencher). Resultado: dois campos na mesma linha com alturas de
+   caixa visualmente diferentes (um com espaço reservado acima pro
+   rótulo flutuante, outro não), parecendo desalinhados. Corrigido
+   calculando `shrink` condicionalmente — só força `true` quando
+   `values[field.name]` tem um valor de fato (cobre o caso original de
+   edição, onde o Formik já inicializa `values` com o valor do
+   registro); quando vazio, OMITE a prop inteiramente, deixando o
+   próprio MUI decidir (comportamento padrão de foco/preenchimento,
+   igual aos demais campos). Confirmado em 3 capturas via Playwright:
+   campo vazio (rótulo dentro da caixa, igual ao vizinho "Saldo
+   atual"), digitando um valor (rótulo sobe imediatamente), e depois
+   de perder o foco com valor preenchido (rótulo continua em cima —
+   prova que o bug original de 2026-11-04/v2.3.241 não voltou).
+
+### Verificação
+
+`eslint` limpo nos 2 arquivos tocados (`App.js`,
+`FinanceRecordModal/index.js`). Sem mudança de backend, então sem
+teste de banco — só frontend. Verificado em NAVEGADOR REAL (não só
+leitura de código): backend (`npm start`) + frontend (`npm start`) +
+Postgres + Redis locais, login via seed padrão
+(`master@atendeflow.com`/`123456`, usuário `super`), Playwright
+abrindo o modal "Novo(a) Funcionário" em duas alturas de janela (790px
+— aciona a media query de tela baixa — e 1080px — não aciona, fluxo
+normal) e no fluxo "Banco de horas remunerado". `npm run build` de
+produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `frontend/src/App.js`,
+`frontend/src/components/FinanceRecordModal/index.js`.

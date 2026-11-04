@@ -283,6 +283,11 @@ const App = () => {
                   maxHeight: "calc(100vh - 16px)",
                   display: "flex",
                   flexDirection: "column",
+                  // v2.3.255 — sem isso, o Paper do modal podia rolar por
+                  // conta própria AO MESMO TEMPO que o MuiDialogContent
+                  // (ambos com overflow ativo), mostrando duas barras de
+                  // rolagem lado a lado. Só o DialogContent deve rolar.
+                  overflow: "hidden",
                 },
               },
             },

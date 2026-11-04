@@ -474,7 +474,13 @@ const FinanceRecordModal = ({
           return (
           <Form>
             <DialogContent dividers={false} className={classes.dialogContent}>
-              <Grid container spacing={2}>
+              {/* v2.3.255 — alignItems="center" evita que um switch de
+                  label de 2 linhas (ex.: "Vale Transporte") fique
+                  desalinhado verticalmente do switch vizinho de label de
+                  1 linha (ex.: "Vale Refeição") na mesma linha da grade —
+                  sem afetar os campos de texto/select (mesma altura fixa
+                  entre si, então centralizar não muda nada neles). */}
+              <Grid container spacing={2} alignItems="center">
                 {fields.map((field) => {
                   if (field.visibleWhen && !field.visibleWhen(values)) {
                     return null;
@@ -750,6 +756,23 @@ const FinanceRecordModal = ({
                   // Campo de dinheiro — máscara R$ 0.000,00 ao digitar
                   // (padrão nacional), igual ao já usado em Kanban.
                   if (field.type === "currency") {
+                    // v2.3.241 — sem o `shrink` fixo, quando o campo já
+                    // abre preenchido (editando um registro existente), o
+                    // label ficava "parado" sobre o valor em vez de subir
+                    // pra borda — bug conhecido de react-number-format com
+                    // customInput do MUI. MAS forçar `shrink: true` SEMPRE
+                    // (mesmo campo novo/vazio) deixava o label sempre
+                    // flutuando acima da caixa, diferente dos campos
+                    // vizinhos de texto/número (que só sobem o label ao
+                    // focar/preencher) — numa mesma linha da grade (ex.:
+                    // "Valor da hora extra" ao lado de "Saldo atual do
+                    // banco de horas"), um campo ficava com a caixa mais
+                    // alta que o outro, parecendo desalinhado (v2.3.255).
+                    // Correção: só força o `shrink` quando HÁ valor (cobre
+                    // o caso de edição que motivou o fix original);
+                    // vazio deixa o próprio MUI decidir (foco/sem foco),
+                    // igual aos demais campos.
+                    const hasCurrencyValue = values[field.name] !== undefined && values[field.name] !== null && values[field.name] !== "";
                     return (
                       <Grid item xs={12} sm={gridSize} key={field.name}>
                         <NumberFormat
@@ -758,12 +781,10 @@ const FinanceRecordModal = ({
                           variant="outlined"
                           size="small"
                           label={field.label}
-                          // v2.3.241 — sem isso, quando o campo já abre
-                          // preenchido (editando um registro existente), o
-                          // label fica "parado" sobre o valor em vez de
-                          // subir pra borda — bug conhecido de
-                          // react-number-format com customInput do MUI.
-                          InputLabelProps={{ shrink: true, className: classes.longFieldLabel }}
+                          InputLabelProps={{
+                            ...(hasCurrencyValue ? { shrink: true } : {}),
+                            className: classes.longFieldLabel,
+                          }}
                           thousandSeparator="."
                           decimalSeparator=","
                           prefix="R$ "

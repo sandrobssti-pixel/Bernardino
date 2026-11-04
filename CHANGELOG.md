@@ -3,6 +3,44 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.255] — Correções de alinhamento e rolagem dupla nos modais de formulário — 2026-11-04
+
+### Corrigido
+- **Duas barras de rolagem** no modal genérico de formulário
+  (`FinanceRecordModal`, usado por Funcionário e por quase todo
+  cadastro do sistema): em telas mais baixas (altura ≤ 820px), o
+  `Paper` do modal podia rolar por conta própria AO MESMO TEMPO que o
+  conteúdo interno (`MuiDialogContent`), mostrando duas barras lado a
+  lado. Corrigido com `overflow: hidden` no `Paper`, deixando só o
+  conteúdo interno rolar.
+- **Switch desalinhado** quando um campo de "liga/desliga" (ex.: "Vale
+  Transporte") tinha o rótulo mais longo que o do campo vizinho na
+  mesma linha (ex.: "Vale Refeição") — o rótulo mais longo quebrava em
+  2 linhas, e cada switch ficava centralizado em relação ao PRÓPRIO
+  rótulo (de altura diferente), em vez de alinhado com os vizinhos.
+  Corrigido com `alignItems="center"` na grade de campos do modal, que
+  passa a centralizar os campos entre si na mesma linha.
+- **Campo de valor em dinheiro sempre com o rótulo "flutuando"**
+  mesmo vazio (ex.: "Valor da hora extra"), diferente dos campos de
+  texto/número vizinhos na mesma linha (ex.: "Saldo atual do banco de
+  horas", que só sobe o rótulo ao focar/preencher) — fazia os dois
+  campos parecerem desalinhados um do outro. Era um efeito colateral
+  de um fix anterior (v2.3.241) que forçava o rótulo sempre flutuando
+  pra corrigir um bug conhecido do `react-number-format` ao ABRIR um
+  registro já preenchido. Corrigido: agora só força o rótulo flutuando
+  quando o campo TEM valor (cobre o caso original), deixando o próprio
+  MUI decidir quando está vazio — igual aos campos de texto/número.
+- Encontrado pelo cliente numa captura de tela do formulário de
+  Funcionário (RH); confirmado em navegador real (login local,
+  Playwright) com altura de janela reduzida (abaixo de 820px) pra
+  reproduzir a rolagem dupla, e no fluxo "Banco de horas remunerado"
+  (que mostra "Valor da hora extra" + "Saldo atual" lado a lado) pra
+  reproduzir o desalinhamento do campo de dinheiro.
+- Como `FinanceRecordModal` é o modal genérico usado por praticamente
+  todo cadastro do sistema (Produtos, Serviços, Clientes, Fornecedores
+  etc., não só Funcionário), as 3 correções valem pra todos eles.
+- Ver seção 228 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.254] — Férias Gozadas (RH) — 2026-11-04
 
 ### Adicionado
