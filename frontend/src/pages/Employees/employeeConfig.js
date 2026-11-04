@@ -28,12 +28,32 @@ const BANK_ACCOUNT_TYPE_OPTIONS = [
   { value: "savings", label: "Poupança" },
 ];
 
+// Banco de horas — pedido do cliente: a política decide se o saldo de
+// horas é remunerado em dinheiro, viram folga (sem dinheiro envolvido),
+// ou se nem existe banco e a empresa paga a hora extra direto.
+export const OVERTIME_POLICY_OPTIONS = [
+  { value: "hour_bank_paid", label: "Banco de horas remunerado" },
+  { value: "hour_bank_time_off", label: "Banco de horas por folga (não remunerado)" },
+  { value: "paid_overtime", label: "Pagar hora extra diretamente (sem banco)" },
+];
+
 const WORK_REGIME_LABELS = Object.fromEntries(WORK_REGIME_OPTIONS.map((o) => [o.value, o.label]));
 const CONTRACT_STATUS_COLORS = { active: "primary", leave: "default", terminated: "default" };
 
 const isCltOrApprentice = (values) => values.workRegime === "clt" || values.workRegime === "young_apprentice";
 const isPj = (values) => values.workRegime === "pj";
 const isIntern = (values) => values.workRegime === "intern";
+// Valor em dinheiro só faz sentido quando a política envolve pagamento
+// (banco remunerado ou hora extra paga direto) — folga não remunerada não
+// tem valor, só saldo de horas.
+const hasOvertimeValue = (values) =>
+  isCltOrApprentice(values) &&
+  (values.overtimePolicy === "hour_bank_paid" || values.overtimePolicy === "paid_overtime");
+// Saldo de horas só faz sentido quando existe banco de horas de verdade
+// (remunerado ou por folga) — "pagar hora extra direto" não acumula saldo.
+const hasOvertimeBalance = (values) =>
+  isCltOrApprentice(values) &&
+  (values.overtimePolicy === "hour_bank_paid" || values.overtimePolicy === "hour_bank_time_off");
 
 export const employeeColumns = [
   {
@@ -121,6 +141,56 @@ export const employeeFields = [
   { name: "weeklyHours", label: "Jornada Semanal (horas)", type: "number", step: "0.5", gridSize: 4, visibleWhen: isCltOrApprentice },
   { name: "transportVoucher", label: "Vale Transporte", type: "switch", defaultValue: false, gridSize: 4, visibleWhen: isCltOrApprentice },
   { name: "mealVoucher", label: "Vale Refeição", type: "switch", defaultValue: false, gridSize: 4, visibleWhen: isCltOrApprentice },
+  {
+    name: "mealVoucherValue",
+    label: "Valor do Vale Refeição (R$)",
+    type: "currency",
+    gridSize: 4,
+    visibleWhen: (values) => isCltOrApprentice(values) && !!values.mealVoucher,
+  },
+
+  // --- Benefícios (CLT / Menor Aprendiz) ---
+  { name: "healthInsurance", label: "Plano de Saúde", type: "switch", defaultValue: false, gridSize: 4, visibleWhen: isCltOrApprentice },
+  {
+    name: "healthInsuranceValue",
+    label: "Valor do Plano de Saúde (R$)",
+    type: "currency",
+    gridSize: 4,
+    visibleWhen: (values) => isCltOrApprentice(values) && !!values.healthInsurance,
+  },
+  { name: "foodVoucher", label: "Vale Alimentação", type: "switch", defaultValue: false, gridSize: 4, visibleWhen: isCltOrApprentice },
+  {
+    name: "foodVoucherValue",
+    label: "Valor do Vale Alimentação (R$)",
+    type: "currency",
+    gridSize: 4,
+    visibleWhen: (values) => isCltOrApprentice(values) && !!values.foodVoucher,
+  },
+
+  // --- Banco de horas (CLT / Menor Aprendiz) ---
+  {
+    name: "overtimePolicy",
+    label: "Banco de horas / hora extra",
+    type: "select",
+    options: OVERTIME_POLICY_OPTIONS,
+    gridSize: 6,
+    visibleWhen: isCltOrApprentice,
+  },
+  {
+    name: "overtimeHourValue",
+    label: "Valor da hora extra (R$)",
+    type: "currency",
+    gridSize: 3,
+    visibleWhen: hasOvertimeValue,
+  },
+  {
+    name: "overtimeHoursBalance",
+    label: "Saldo atual do banco de horas",
+    type: "number",
+    step: "0.5",
+    gridSize: 3,
+    visibleWhen: hasOvertimeBalance,
+  },
 
   // --- PJ ---
   { name: "companyName", label: "Razão Social", gridSize: 6, visibleWhen: isPj },

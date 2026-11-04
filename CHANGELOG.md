@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.243] — Benefícios e banco de horas no Cadastro de Funcionários — 2026-11-04
+
+### Adicionado
+- Cadastro de Funcionário (CLT/Menor Aprendiz) ganhou campos de
+  benefício, cada um com um botão liga/desliga ("tem direito?") e,
+  quando ligado, o valor correspondente: Plano de Saúde, Vale
+  Alimentação, e o valor do Vale Refeição (o botão já existia, só
+  faltava o valor).
+- Novo campo "Banco de horas / hora extra" com 3 políticas: banco de
+  horas remunerado, banco de horas por folga (sem dinheiro envolvido),
+  ou pagar hora extra direto sem banco. Conforme a política escolhida,
+  aparece o campo certo: valor da hora extra (políticas com dinheiro)
+  e/ou saldo atual do banco de horas (políticas com banco de verdade).
+- Combinado com o cliente: o lançamento automático desses valores em
+  Contas a Pagar como custo fixo mensal fica pra quando a Fase 2
+  (cálculo de INSS/IRRF/FGTS) estiver pronta — sem isso, o desconto de
+  imposto do lançamento ficaria sem cálculo de verdade. Por enquanto é
+  só cadastro.
+- Ver seção 216 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.242] — Cadastro de Funcionários no módulo RH (Fase 1 de 3) — 2026-11-03
 
 ### Adicionado

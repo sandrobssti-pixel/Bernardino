@@ -15601,3 +15601,102 @@ de produção (frontend) com `Compiled successfully` / exit 0.
 `frontend/src/pages/RH/index.js`,
 `frontend/src/components/UserModal/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 216. Benefícios e banco de horas no Cadastro de Funcionários (v2.3.243)
+
+### Pedido
+
+Depois da Fase 1 (cadastro básico, v2.3.242), cliente pediu pra
+incluir benefícios (Plano de Saúde, Vale Alimentação, Vale Refeição)
+com opção de ligar/desligar conforme o funcionário tenha direito, e
+banco de horas (remunerado, por folga não remunerada, ou pagar hora
+extra direto) já com o valor. Também pediu que, ao "lançar" esses
+valores, eles virassem Contas a Pagar automaticamente como custo
+fixo.
+
+Antes de implementar, 4 perguntas foram fechadas com o cliente (ver
+`AskUserQuestion` da sessão):
+1. Benefícios só pra CLT/Menor Aprendiz (não PJ/Estagiário, que já
+   têm seus próprios campos de valor — contrato mensal, bolsa-auxílio).
+2. Banco de horas é campo FIXO do cadastro (política + saldo atual,
+   atualizado manualmente), não um lançamento mês a mês — isso fica
+   pra uma eventual extensão futura, não confundir com Fase 2.
+3. O lançamento em Contas a Pagar seria disparado por um botão manual
+   "Lançar folha do mês" (não automático) — guardado pra quando for
+   implementado.
+4. **O lançamento em Contas a Pagar FICA PRA DEPOIS**: o desconto de
+   impostos trabalhistas (INSS/IRRF/FGTS) depende do motor de cálculo
+   da Fase 2, que ainda não existe. Implementar o lançamento agora
+   significaria ou pular o desconto (errado) ou pedir pro RH digitar
+   o desconto na mão (gambiarra que teria que ser desfeita depois).
+   Cliente preferiu esperar a Fase 2 ficar pronta. **Esta entrega é
+   só cadastro** — nenhuma integração com Contas a Pagar.
+
+### Modelagem de dados
+
+Migration `20261104120000-add-benefits-overtime-to-employees.ts` —
+`ADD COLUMN` em `Employees` (idempotente via `describeTable`), todas
+`allowNull: true`:
+
+- `healthInsurance` (boolean) + `healthInsuranceValue` (decimal 12,2)
+- `foodVoucher` (boolean) + `foodVoucherValue` (decimal 12,2)
+- `mealVoucherValue` (decimal 12,2) — pareia com o `mealVoucher`
+  boolean que já existia desde a v2.3.242 (só o valor é novo)
+- `overtimePolicy` (string — `"hour_bank_paid" | "hour_bank_time_off"
+  | "paid_overtime"`)
+- `overtimeHourValue` (decimal 12,2) — valor da hora extra, quando a
+  política envolve dinheiro
+- `overtimeHoursBalance` (decimal 7,2) — saldo atual em horas, quando
+  a política é um banco de horas de verdade (remunerado ou por folga)
+
+### Backend
+
+`EmployeeService.ts` — os 5 campos numéricos novos
+(`healthInsuranceValue`, `foodVoucherValue`, `mealVoucherValue`,
+`overtimeHourValue`, `overtimeHoursBalance`) entraram em
+`NUMERIC_FIELDS`, reaproveitando o sanitizador de string vazia → null
+já corrigido na Fase 1 (`sanitizeEmployeeData`) — sem isso, desligar
+um benefício (campo de valor some do formulário, chega `""` no
+backend) quebraria o `UPDATE` com "invalid input syntax" na coluna
+`DECIMAL`, mesmo bug de antes, campos diferentes.
+
+### Frontend
+
+`employeeConfig.js` — cada par benefício (ex.: `healthInsurance` +
+`healthInsuranceValue`) usa `visibleWhen` em cascata: o campo de VALOR
+só aparece quando o REGIME é CLT/Aprendiz **E** o toggle do benefício
+está ligado (`(values) => isCltOrApprentice(values) &&
+!!values.healthInsurance`) — evita mostrar "Valor do Plano de Saúde"
+pra quem nem tem o benefício marcado. O campo "Banco de horas / hora
+extra" (select, 3 opções) controla a visibilidade dos outros dois:
+`overtimeHourValue` aparece só em políticas com dinheiro envolvido
+(`hour_bank_paid`/`paid_overtime`), `overtimeHoursBalance` só em
+políticas com banco de horas de verdade
+(`hour_bank_paid`/`hour_bank_time_off`) — `paid_overtime` não tem
+saldo, paga e acabou.
+
+### O que esta entrega NÃO inclui
+
+Nenhuma integração com Contas a Pagar — ver decisão 4 acima. Quando a
+Fase 2 (cálculo trabalhista) estiver pronta, aí sim entra o
+lançamento manual ("Lançar folha do mês") que cria contas a pagar de
+salário + benefícios + desconto calculado de verdade, com uma
+revisão do módulo Contas a Pagar se precisar pra acomodar essa
+relação (ex.: campo de origem/referência ligando a conta a pagar ao
+funcionário/período).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Migration rodada contra Postgres
+local (`atendeflow_test`), colunas conferidas via `\d "Employees"`.
+Script Node isolado contra o `EmployeeService` real: 12 asserts —
+criação com todos os benefícios e banco de horas preenchidos;
+`update` simulando o formulário mandando `""` pros campos de valor ao
+desligar um benefício (não quebra, vira `null`); funcionário PJ sem
+nenhum desses campos continua criando normal. `npm run build` de
+produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104120000-add-benefits-overtime-to-employees.ts`,
+`backend/src/models/Employee.ts`,
+`backend/src/services/EmployeeService/EmployeeService.ts`,
+`frontend/src/pages/Employees/employeeConfig.js`.

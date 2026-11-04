@@ -54,6 +54,14 @@ interface EmployeeData {
   weeklyHours?: number | string | null;
   transportVoucher?: boolean;
   mealVoucher?: boolean;
+  healthInsurance?: boolean;
+  healthInsuranceValue?: number | string | null;
+  foodVoucher?: boolean;
+  foodVoucherValue?: number | string | null;
+  mealVoucherValue?: number | string | null;
+  overtimePolicy?: string | null;
+  overtimeHourValue?: number | string | null;
+  overtimeHoursBalance?: number | string | null;
   companyName?: string;
   cnpj?: string;
   municipalRegistration?: string;
@@ -85,7 +93,18 @@ const DATE_FIELDS = [
   "internshipStartDate",
   "internshipEndDate"
 ];
-const NUMERIC_FIELDS = ["grossSalary", "weeklyHours", "monthlyContractValue", "stipendValue", "transportAidValue"];
+const NUMERIC_FIELDS = [
+  "grossSalary",
+  "weeklyHours",
+  "monthlyContractValue",
+  "stipendValue",
+  "transportAidValue",
+  "healthInsuranceValue",
+  "foodVoucherValue",
+  "mealVoucherValue",
+  "overtimeHourValue",
+  "overtimeHoursBalance"
+];
 
 const sanitizeEmployeeData = (data: EmployeeData): EmployeeData => {
   const sanitized: Record<string, unknown> = { ...data };

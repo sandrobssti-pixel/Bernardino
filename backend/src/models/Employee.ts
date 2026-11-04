@@ -149,6 +149,33 @@ class Employee extends Model<Employee> {
   @Column
   mealVoucher: boolean;
 
+  // --- Benefícios (CLT/Menor Aprendiz) ---
+  @Column
+  healthInsurance: boolean;
+
+  @Column(DataType.DECIMAL(12, 2))
+  healthInsuranceValue: number;
+
+  @Column
+  foodVoucher: boolean;
+
+  @Column(DataType.DECIMAL(12, 2))
+  foodVoucherValue: number;
+
+  @Column(DataType.DECIMAL(12, 2))
+  mealVoucherValue: number;
+
+  // --- Banco de horas (CLT/Menor Aprendiz) ---
+  // "hour_bank_paid" | "hour_bank_time_off" | "paid_overtime"
+  @Column
+  overtimePolicy: string;
+
+  @Column(DataType.DECIMAL(12, 2))
+  overtimeHourValue: number;
+
+  @Column(DataType.DECIMAL(7, 2))
+  overtimeHoursBalance: number;
+
   // --- PJ ---
   @Column
   companyName: string;
