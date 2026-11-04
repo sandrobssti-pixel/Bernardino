@@ -13,6 +13,7 @@ import * as EmployeeController from "../controllers/EmployeeController";
 import * as EmployeeDependentController from "../controllers/EmployeeDependentController";
 import * as PayrollEntryController from "../controllers/PayrollEntryController";
 import * as PayrollPartnerEntryController from "../controllers/PayrollPartnerEntryController";
+import * as Payroll13thSalaryController from "../controllers/Payroll13thSalaryController";
 import * as PayrollExpenseController from "../controllers/PayrollExpenseController";
 import * as PayrollTableController from "../controllers/PayrollTableController";
 import * as CompanyPartnerController from "../controllers/CompanyPartnerController";
@@ -80,6 +81,14 @@ hrRoutes.get("/payroll-partner-entries", isAuth, PayrollPartnerEntryController.i
 hrRoutes.post("/payroll-partner-entries/calculate", isAuth, PayrollPartnerEntryController.calculate);
 hrRoutes.post("/payroll-partner-entries/calculate-all", isAuth, PayrollPartnerEntryController.calculateAll);
 hrRoutes.delete("/payroll-partner-entries/:id", isAuth, PayrollPartnerEntryController.remove);
+
+// Admin/RH — 13º Salário. ANUAL (não mensal) — INSS/IRRF sobre o valor
+// integral, separado do salário mensal (ver
+// PayrollCalculationService.calculate13thSalary).
+hrRoutes.get("/payroll-13th-salaries", isAuth, Payroll13thSalaryController.index);
+hrRoutes.post("/payroll-13th-salaries/calculate", isAuth, Payroll13thSalaryController.calculate);
+hrRoutes.post("/payroll-13th-salaries/calculate-all", isAuth, Payroll13thSalaryController.calculateAll);
+hrRoutes.delete("/payroll-13th-salaries/:id", isAuth, Payroll13thSalaryController.remove);
 
 // Master — administração das tabelas de INSS/IRRF (Fase 2). Nunca edita
 // uma versão existente, só cadastra uma nova (ver PayrollTableService).

@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.252] — 13º Salário (RH) — 2026-11-04
+
+### Adicionado
+- Nova seção "13º Salário" no painel Folha de Pagamento — ANUAL (não
+  mensal), botão "Calcular 13º do ano" calcula e grava o 13º de todos
+  os funcionários CLT/Menor Aprendiz elegíveis.
+- **Avos proporcionais** aos meses trabalhados no ano — fração ≥ 15
+  dias no mês conta como mês integral (CLT art. 487 §1º/Lei 4.090/1962),
+  vale tanto pra admissão quanto pra desligamento durante o ano.
+  Funcionário desligado (sem justa causa) ainda recebe o 13º
+  proporcional daquele ano — não é descartado automaticamente.
+- **1ª parcela** (até 30/11): metade do valor bruto, SEM desconto.
+  **2ª parcela** (até 20/12): o restante, COM INSS e IRRF descontados.
+- **INSS e IRRF incidem sobre o valor INTEGRAL do 13º**, calculados
+  SEPARADO do salário mensal normal daquele mês — tributação
+  exclusiva na fonte, mesma tabela progressiva mensal já usada pro
+  salário de CLT. **O redutor da Lei 15.270/2025 se aplica
+  igualmente** (confirmado em comunicado oficial da Receita Federal).
+- FGTS (8% CLT / 2% Menor Aprendiz) sobre o valor integral. PJ e
+  Estagiário não têm 13º.
+- Pesquisado via WebSearch extended antes de implementar, mesma
+  disciplina já usada pra Lei 15.270/2025 e pró-labore dos Sócios.
+- Ver seção 225 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.251] — Relatório de Vendas reformulado para Relatório de Notas Fiscais — 2026-11-04
 
 ### Corrigido/Alterado

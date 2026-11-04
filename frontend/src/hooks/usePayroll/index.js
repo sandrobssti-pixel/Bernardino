@@ -79,6 +79,28 @@ const usePayroll = () => {
     },
   };
 
+  // 13º Salário — ANUAL (não mensal). INSS/IRRF sobre o valor integral,
+  // separado do salário mensal. Ver Payroll13thSalaryService.ts no
+  // backend.
+  const thirteenthSalary = {
+    list: async (params) => {
+      const { data } = await api.get("/payroll-13th-salaries", { params });
+      return data;
+    },
+    calculate: async ({ employeeId, year }) => {
+      const { data } = await api.post("/payroll-13th-salaries/calculate", { employeeId, year });
+      return data;
+    },
+    calculateAll: async ({ year }) => {
+      const { data } = await api.post("/payroll-13th-salaries/calculate-all", { year });
+      return data;
+    },
+    remove: async (id) => {
+      const { data } = await api.delete(`/payroll-13th-salaries/${id}`);
+      return data;
+    },
+  };
+
   // Administração das tabelas de INSS/IRRF — só Master (`user.super`).
   // Nunca edita uma versão existente, só cadastra uma nova.
   const tables = {
@@ -100,7 +122,7 @@ const usePayroll = () => {
     },
   };
 
-  return { list, calculate, calculateAll, remove, expenseLaunch, partners, tables };
+  return { list, calculate, calculateAll, remove, expenseLaunch, partners, thirteenthSalary, tables };
 };
 
 export default usePayroll;

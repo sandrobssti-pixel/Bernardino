@@ -16688,23 +16688,141 @@ sob `src/` via asset module padrão).
 `frontend/src/components/SaleList/index.js`,
 `frontend/src/assets/federacao-baiana-logo.webp`.
 
-### Próximos passos registrados pro módulo RH (não iniciados)
+### Próximos passos registrados pro módulo RH
 
 Perguntado explicitamente ao cliente se havia algo a mais a acrescentar
-no módulo RH antes de considerar o roteiro fechado — resposta: deixar
-registrado como próximo passo, sem implementar agora.
+no módulo RH antes de considerar o roteiro fechado. Resposta inicial:
+deixar registrado como próximo passo. Na sequência, o cliente pediu
+pra começar pelo 13º salário — ver seção 225 (implementado).
 
-- **13º salário** — 2 parcelas (1ª até 30/11, só adiantamento, sem
-  desconto; 2ª até 20/12, com INSS/IRRF calculados separado do salário
-  do mês, nunca somado), proporcional aos meses trabalhados no ano,
-  FGTS 8% sobre as duas parcelas. Reaproveitaria quase toda a
-  infraestrutura já pronta (tabelas de INSS/IRRF, `calculateInss`/
-  `calculateIrrf`) — escopo mais simples dos dois.
+- ~~**13º salário**~~ — implementado, ver seção 225.
 - **Férias** — salário-base + 1/3 constitucional, proporcional ao
   período aquisitivo, INSS/IRRF sobre o valor, opção de abono
   pecuniário (vender 1/3 dos dias). Exige controle novo que ainda não
   existe no sistema (período aquisitivo/concessivo, dias gozados vs.
   vendidos) — escopo maior, mais próximo do tamanho da Fase 2 inteira.
+  Não pesquisado nem implementado — fica pra quando o cliente pedir
+  explicitamente.
 
-Nenhum dos dois foi pesquisado (fonte oficial/regras atuais) nem
-implementado — ambos ficam pra quando o cliente pedir explicitamente.
+## 225. 13º Salário (RH, v2.3.252)
+
+### Pedido
+
+Depois de fechado o roteiro das 3 fases + as pendências retomadas
+(seções 221-224), perguntei explicitamente se havia mais algo a
+acrescentar no módulo RH. Resposta: considerar 13º salário e férias
+como possíveis próximos passos. Dei minha avaliação de escopo de cada
+um (13º reaproveita quase toda a infraestrutura já pronta; férias
+exige controle novo que não existe) e perguntei qual prioridade — o
+cliente pediu pra começar pelo 13º.
+
+### Pesquisa (WebSearch extended, mesma disciplina da Lei 15.270/2025 e do pró-labore)
+
+1. **Parcelas**: confirmado pelo Ministério do Trabalho e Emprego — 1ª
+   parcela até 30/11, correspondente à METADE da remuneração (não é
+   "um adiantamento livre", é especificamente metade), SEM nenhum
+   desconto; 2ª parcela até 20/12, com INSS/IRRF descontados.
+   Confiança alta.
+2. **Avos**: fração ≥ 15 dias trabalhados no mês conta como mês
+   integral (CLT art. 487 §1º/Lei 4.090/1962) — vale tanto pra
+   admissão quanto pra desligamento dentro do ano civil. Confiança
+   alta.
+3. **INSS sobre o 13º**: incide sobre o valor TOTAL/INTEGRAL (não
+   fracionado entre parcelas), descontado só na 2ª parcela, mesma
+   tabela progressiva mensal do INSS de CLT, calculado SEPARADO do
+   INSS do salário normal do mês. Um exemplo encontrado na pesquisa
+   (13º bruto R$3.000 → INSS R$248,60) bate EXATAMENTE com o que
+   `calculateInss` já calcula pra um salário de R$3.000 — confirma que
+   a mecânica é idêntica à já implementada, só aplicada ao valor do
+   13º. Confiança alta.
+4. **IRRF sobre o 13º**: tributação EXCLUSIVA NA FONTE (não soma ao
+   salário do mês, não entra no ajuste anual — é definitiva), mesma
+   tabela progressiva mensal, base = 13º bruto − INSS do 13º − dedução
+   por dependente. Confiança alta.
+5. **Lei 15.270/2025 aplicada ao 13º**: CONFIRMADO EM FONTE OFICIAL —
+   comunicado da Receita Federal afirma explicitamente que a redução
+   também se aplica ao "imposto cobrado exclusivamente na fonte no
+   pagamento do décimo terceiro salário", mesma mecânica já
+   implementada (`calculateLei15270Reduction`). Confiança alta.
+6. **FGTS**: 8%/2% sobre o valor INTEGRAL do 13º. Confiança alta
+   (os prazos/mecânica exata de recolhimento ao governo são
+   irrelevantes pro sistema, que só precisa do valor devido).
+7. **Quem tem direito**: Menor Aprendiz tem direito igual CLT (vínculo
+   empregatício formal). Estagiário não (decorre da Lei 11.788/2008 —
+   estágio não é vínculo empregatício, premissa que o sistema já usa).
+8. **Desligamento**: 13º proporcional é devido na rescisão SEM justa
+   causa (art. 3º da Lei 4.090/1962, jurisprudência do TST) — dispensa
+   POR justa causa perde o direito. O sistema não distingue
+   `contractStatus: "terminated"` por justa causa ou não — decisão: por
+   segurança, assume sempre devido quando há avos > 0 (nunca descarta
+   automaticamente um funcionário desligado), em vez de tentar
+   adivinhar a distinção sem o campo existir.
+
+### Implementação
+
+`PayrollCalculationService.ts` ganhou: `calculateMonthsWorkedInYear`
+(avos, por comparação direta de componentes ano/mês/dia — nunca via
+`new Date(string)`, que interpretaria uma data DATEONLY como UTC e
+poderia desalinhar 1 dia dependendo do fuso do servidor) e
+`calculate13thSalary(employee, dependentsCount, year, referenceDate)`
+— REAPROVEITA sem alteração `calculateInss`/`calculateIrrf`/
+`calculateLei15270Reduction` (já testadas), aplicadas ao valor do 13º
+em vez do salário mensal. Simplificação deliberada: a 1ª parcela usa
+METADE do salário BRUTO CADASTRADO (não a "remuneração do mês
+anterior" que a lei pede pra quem tem parte variável — o sistema não
+rastreia salário variável mês a mês, mesma simplificação já aceita
+pra VT/outros cálculos).
+
+**Modelagem de dados**: nova tabela `Payroll13thSalaries` (migration
+`20261104240000-create-payroll-13th-salaries.ts`, model
+`Payroll13thSalary.ts`) — registro ANUAL (não mensal, diferente de
+`PayrollEntries`), índice único `employeeId+year`. Guarda snapshot do
+salário/avos usados, as 2 parcelas, e INSS/IRRF/FGTS/líquido.
+
+`Payroll13thSalaryService.calculateAndSaveAll` NÃO filtra por
+`contractStatus` (diferente da folha mensal) — pré-filtra por avos > 0
+(função pura, sem acesso ao banco) antes de chamar
+`calculateAndSave`, pra não poluir a lista de resultados com todo
+funcionário desligado em anos anteriores (que sempre teria 0 avos
+naquele ano) nem gerar um "skip" de erro pra eles — eles simplesmente
+não aparecem, sem erro.
+
+### Frontend
+
+Terceira seção em `PayrollPanel.js` ("13º Salário"), com seletor de
+ANO próprio (independente do mês da Folha de Funcionários/Sócios
+acima) — botão "Calcular 13º do ano" + tabela (Funcionário, Avos,
+13º Bruto, INSS, IRRF, Redução Lei 15.270, 1ª Parcela, 2ª Parcela,
+Líquido).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Migration rodada contra Postgres
+local, tabela/índice único/FKs conferidos via `psql \d`. Script Node
+isolado testando `calculateMonthsWorkedInYear` com 10 casos de
+fronteira (admissão/desligamento exatamente no dia 15, no dia 14, no
+dia 17, ano futuro, ano passado, ano inteiro, período curto dentro do
+mesmo ano) — todos batendo com a regra pesquisada. Segundo bloco do
+mesmo script recalculando à mão (reaproveitando as funções puras já
+testadas) o 13º de um salário de R$3.000 com avos cheios (bate
+EXATAMENTE com o exemplo numérico encontrado na pesquisa: INSS
+R$248,60) e com 6/12 avos. Terceiro script, end-to-end contra
+`Payroll13thSalaryService` real (banco local) — 14 asserts: cálculo
+individual correto; recalcular não duplica (upsert); PJ recusado;
+`calculateAndSaveAll` calcula só os elegíveis (CLT ano inteiro +
+CLT admitido em julho com 6 avos corretos + Menor Aprendiz com FGTS
+2%), pula PJ e NÃO gera erro/skip pro funcionário desligado há 2 anos
+(0 avos, pré-filtrado silenciosamente, sem registro criado). Dados de
+teste removidos ao final, confirmado via `psql` que o banco voltou ao
+estado original. `npm run build` de produção (frontend) com `Compiled
+successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104240000-create-payroll-13th-salaries.ts`,
+`backend/src/models/Payroll13thSalary.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,Payroll13thSalaryService}.ts`,
+`backend/src/controllers/Payroll13thSalaryController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePayroll/index.js`,
+`frontend/src/components/PayrollPanel/index.js`,
+`frontend/src/translate/languages/pt.js`.

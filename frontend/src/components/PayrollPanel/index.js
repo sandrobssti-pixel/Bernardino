@@ -63,6 +63,10 @@ const YEAR_OPTIONS = [currentYear - 1, currentYear, currentYear + 1];
 // visível se a empresa tiver o módulo Financeiro (add-on independente
 // do RH). Pró-labore dos Sócios calculado numa seção separada abaixo —
 // INSS de contribuinte individual (11% fixo), não a tabela de CLT.
+// 13º Salário numa terceira seção, ANUAL (não mensal, seletor de ano
+// próprio) — INSS/IRRF sobre o valor integral do 13º, separado do
+// salário mensal (tributação exclusiva na fonte), só CLT/Menor
+// Aprendiz.
 const PayrollPanel = () => {
   const classes = useStyles();
   const payroll = usePayroll();
@@ -86,6 +90,13 @@ const PayrollPanel = () => {
   const [loadingPartners, setLoadingPartners] = useState(false);
   const [calculatingPartners, setCalculatingPartners] = useState(false);
   const [skippedPartners, setSkippedPartners] = useState([]);
+  // 13º Salário — ANUAL (não mensal, usa só o seletor de Ano acima,
+  // independente do mês escolhido). Tabela própria (Payroll13thSalary).
+  const [thirteenthYear, setThirteenthYear] = useState(currentYear);
+  const [thirteenthEntries, setThirteenthEntries] = useState([]);
+  const [loadingThirteenth, setLoadingThirteenth] = useState(false);
+  const [calculatingThirteenth, setCalculatingThirteenth] = useState(false);
+  const [skippedThirteenth, setSkippedThirteenth] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -139,6 +150,23 @@ const PayrollPanel = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, year, financialAccess]);
 
+  const fetchThirteenthEntries = async (y) => {
+    setLoadingThirteenth(true);
+    try {
+      const data = await payroll.thirteenthSalary.list({ year: y });
+      setThirteenthEntries(data.records || []);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setLoadingThirteenth(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchThirteenthEntries(thirteenthYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thirteenthYear]);
+
   const handleLaunchExpense = async () => {
     setLaunching(true);
     try {
@@ -168,6 +196,25 @@ const PayrollPanel = () => {
       toastError(err);
     } finally {
       setCalculatingPartners(false);
+    }
+  };
+
+  const handleCalculateThirteenthAll = async () => {
+    setCalculatingThirteenth(true);
+    setSkippedThirteenth([]);
+    try {
+      const result = await payroll.thirteenthSalary.calculateAll({ year: thirteenthYear });
+      setSkippedThirteenth(result.skipped || []);
+      toast.success(
+        `13º calculado: ${result.entries.length} funcionário(s)${
+          result.skipped.length ? `, ${result.skipped.length} pulado(s)` : ""
+        }.`
+      );
+      fetchThirteenthEntries(thirteenthYear);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setCalculatingThirteenth(false);
     }
   };
 
@@ -444,6 +491,127 @@ const PayrollPanel = () => {
                       <TableCell align="right">{formatToCurrency(entry.inssValue || 0)}</TableCell>
                       <TableCell align="right">{formatToCurrency(entry.irrfValue || 0)}</TableCell>
                       <TableCell align="right">{formatToCurrency(entry.irrfReductionValue || 0)}</TableCell>
+                      <TableCell align="right">
+                        <strong>{formatToCurrency(entry.netValue || 0)}</strong>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </Paper>
+      </Box>
+
+      <Box mt={4} mb={2}>
+        <Typography variant="h6" gutterBottom>
+          13º Salário
+        </Typography>
+        <Typography variant="caption" color="textSecondary" paragraph>
+          Calcula o 13º de todos os funcionários CLT/Menor Aprendiz
+          elegíveis no ano escolhido (avos proporcionais aos meses
+          trabalhados — fração ≥ 15 dias conta como mês integral,
+          inclusive pra quem foi admitido ou desligado durante o ano).
+          INSS e IRRF incidem sobre o valor INTEGRAL do 13º, calculados
+          separado do salário mensal normal (tributação exclusiva na
+          fonte) — 1ª parcela (até 30/11) é metade do valor, sem
+          desconto; 2ª parcela (até 20/12) traz o restante, já com
+          INSS/IRRF descontados.
+        </Typography>
+        <Box className={classes.toolbar}>
+          <FormControl variant="outlined" size="small" style={{ minWidth: 100 }}>
+            <InputLabel>Ano</InputLabel>
+            <Select value={thirteenthYear} onChange={(e) => setThirteenthYear(e.target.value)} label="Ano">
+              {YEAR_OPTIONS.map((y) => (
+                <MenuItem key={y} value={y}>
+                  {y}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleCalculateThirteenthAll}
+            disabled={calculatingThirteenth}
+          >
+            {calculatingThirteenth ? <CircularProgress size={20} /> : "Calcular 13º do ano"}
+          </Button>
+        </Box>
+
+        {skippedThirteenth.length > 0 && (
+          <Box mb={2}>
+            <Typography variant="body2" color="error">
+              {skippedThirteenth.length} funcionário(s) não puderam ser calculados:
+            </Typography>
+            {skippedThirteenth.map((s) => (
+              <Chip
+                key={s.employeeId}
+                size="small"
+                icon={<Warning fontSize="small" />}
+                label={`${s.name}: ${s.reason}`}
+                color="secondary"
+                variant="outlined"
+                style={{ margin: 4 }}
+              />
+            ))}
+          </Box>
+        )}
+
+        <Paper className={classes.tablePaper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Funcionário</TableCell>
+                <TableCell align="right">Avos</TableCell>
+                <TableCell align="right">13º Bruto</TableCell>
+                <TableCell align="right">INSS</TableCell>
+                <TableCell align="right">IRRF</TableCell>
+                <TableCell align="right">Redução Lei 15.270</TableCell>
+                <TableCell align="right">1ª Parcela</TableCell>
+                <TableCell align="right">2ª Parcela</TableCell>
+                <TableCell align="right">Líquido</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loadingThirteenth ? (
+                <TableRow>
+                  <TableCell colSpan={9} align="center">
+                    <CircularProgress size={24} />
+                  </TableCell>
+                </TableRow>
+              ) : thirteenthEntries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} align="center">
+                    <Typography variant="body2" color="textSecondary">
+                      Nenhum 13º calculado pra esse ano ainda.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                thirteenthEntries.map((entry) => {
+                  const missingSalary = !entry.grossSalarySnapshot;
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        {entry.employee?.name || "—"}
+                        {missingSalary && (
+                          <Tooltip title="Funcionário sem Salário Bruto cadastrado — valores zerados">
+                            <Warning
+                              fontSize="small"
+                              color="error"
+                              style={{ marginLeft: 6, verticalAlign: "middle" }}
+                            />
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">{entry.monthsWorked}/12</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.grossValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.inssValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.irrfValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.irrfReductionValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.firstInstallmentValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.secondInstallmentValue || 0)}</TableCell>
                       <TableCell align="right">
                         <strong>{formatToCurrency(entry.netValue || 0)}</strong>
                       </TableCell>

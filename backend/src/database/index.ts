@@ -89,6 +89,7 @@ import PayrollEntry from "../models/PayrollEntry";
 import PayrollExpenseLaunch from "../models/PayrollExpenseLaunch";
 import PayrollPartnerEntry from "../models/PayrollPartnerEntry";
 import PerformanceRecord from "../models/PerformanceRecord";
+import Payroll13thSalary from "../models/Payroll13thSalary";
 import CompanyPartner from "../models/CompanyPartner";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
@@ -196,6 +197,7 @@ const models = [
   PayrollExpenseLaunch,
   PayrollPartnerEntry,
   PerformanceRecord,
+  Payroll13thSalary,
   CompanyPartner,
   SlaRule,
   Notification,

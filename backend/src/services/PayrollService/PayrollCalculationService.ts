@@ -364,3 +364,160 @@ export const calculatePartnerPayroll = async (
     netValue
   };
 };
+
+// 13º Salário — pesquisado via WebSearch extended (ver
+// docs/MANUAL_TECNICO.md seção 225 pra pesquisa completa e fontes).
+// Mecanismo confirmado:
+// - Avos: fração >= 15 dias trabalhados no mês conta como mês integral
+//   (CLT art. 487 §1º / Lei 4.090/1962) — vale tanto pra admissão
+//   quanto pra desligamento dentro do ano-base.
+// - 1ª parcela (até 30/11): METADE do valor bruto do 13º, SEM nenhum
+//   desconto (simplificação: usa o salário bruto CADASTRADO, não a
+//   "remuneração do mês anterior" que a lei pede pra quem tem parte
+//   variável — o sistema não rastreia salário variável mês a mês).
+// - 2ª parcela (até 20/12): o restante, COM INSS e IRRF descontados.
+// - INSS e IRRF incidem sobre o valor INTEGRAL do 13º (nunca
+//   fracionado entre as parcelas), usando a MESMA tabela progressiva
+//   mensal já usada pro salário de CLT, calculados de forma SEPARADA/
+//   INDEPENDENTE do INSS/IRRF do salário mensal normal daquele mês —
+//   "tributação exclusiva na fonte" (não soma, não entra no ajuste
+//   anual).
+// - Lei 15.270/2025 se aplica igualmente (confirmado em comunicado
+//   oficial da Receita Federal), mesma mecânica, base = 13º bruto.
+// - FGTS (8% CLT / 2% Menor Aprendiz) incide sobre o valor INTEGRAL.
+// - Só CLT/Menor Aprendiz têm direito — PJ/Estagiário não.
+// - Funcionário desligado no ano (`contractStatus: "terminated"`)
+//   ainda pode ter 13º proporcional a calcular daquele ano (só perde o
+//   direito em caso de justa causa, distinção que o sistema não
+//   rastreia hoje — por segurança, assume sempre devido quando há
+//   avos > 0, em vez de tentar adivinhar).
+
+// Dias de um mês — mesma lógica já usada em
+// `PayrollExpenseService.lastDayOfCompetency`, local (sem parsing de
+// string, sem ambiguidade de fuso horário).
+const daysInMonthOf = (year: number, month: number): number => new Date(year, month, 0).getDate();
+
+const parseDateOnlyParts = (value: string | null | undefined): { year: number; month: number; day: number } | null => {
+  if (!value) return null;
+  const [y, m, d] = String(value).slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return { year: y, month: m, day: d };
+};
+
+// Meses trabalhados no ano (avos), considerando admissão E
+// desligamento dentro do ano-base — sempre por comparação direta de
+// componentes (ano/mês/dia), nunca via `new Date(string)` (evita
+// ambiguidade de fuso horário ao interpretar uma data DATEONLY como
+// UTC).
+export const calculateMonthsWorkedInYear = (
+  year: number,
+  admissionDate: string | null | undefined,
+  terminationDate: string | null | undefined
+): number => {
+  const admission = parseDateOnlyParts(admissionDate);
+  const termination = parseDateOnlyParts(terminationDate);
+
+  let months = 0;
+  for (let month = 1; month <= 12; month++) {
+    let workStartDay = 1;
+    let workEndDay = daysInMonthOf(year, month);
+
+    if (admission) {
+      if (admission.year > year || (admission.year === year && admission.month > month)) continue;
+      if (admission.year === year && admission.month === month) workStartDay = admission.day;
+    }
+
+    if (termination) {
+      if (termination.year < year || (termination.year === year && termination.month < month)) continue;
+      if (termination.year === year && termination.month === month) workEndDay = termination.day;
+    }
+
+    const daysWorked = workEndDay - workStartDay + 1;
+    if (daysWorked >= 15) months += 1;
+  }
+
+  return months;
+};
+
+export interface Thirteenth13thSalaryResult {
+  monthsWorked: number;
+  grossSalary: number | null;
+  grossValue: number;
+  firstInstallmentValue: number;
+  secondInstallmentValue: number;
+  inssBase: number | null;
+  inssValue: number;
+  inssTableId: number | null;
+  irrfBase: number | null;
+  irrfValue: number;
+  irrfReductionValue: number;
+  irrfTableId: number | null;
+  fgtsValue: number;
+  netValue: number;
+}
+
+export const calculate13thSalary = async (
+  employee: Employee,
+  dependentsCount: number,
+  year: number,
+  referenceDate: string
+): Promise<Thirteenth13thSalaryResult> => {
+  if (employee.workRegime !== "clt" && employee.workRegime !== "young_apprentice") {
+    throw new AppError("ERR_PAYROLL_13TH_NOT_SUPPORTED_FOR_WORK_REGIME", 400);
+  }
+
+  const monthsWorked = calculateMonthsWorkedInYear(year, employee.admissionDate, employee.terminationDate);
+  const grossSalary = Number(employee.grossSalary) || 0;
+  const grossValue = round2((grossSalary / 12) * monthsWorked);
+
+  if (grossValue <= 0) {
+    return {
+      monthsWorked,
+      grossSalary: employee.grossSalary ?? null,
+      grossValue: 0,
+      firstInstallmentValue: 0,
+      secondInstallmentValue: 0,
+      inssBase: null,
+      inssValue: 0,
+      inssTableId: null,
+      irrfBase: null,
+      irrfValue: 0,
+      irrfReductionValue: 0,
+      irrfTableId: null,
+      fgtsValue: 0,
+      netValue: 0
+    };
+  }
+
+  const inssTable = await getInssTableForDate(referenceDate);
+  const irrfTable = await getIrrfTableForDate(referenceDate);
+
+  const inss = calculateInss(grossValue, inssTable);
+  const irrf = calculateIrrf(grossValue, inss.value, dependentsCount, irrfTable);
+  const irrfReduction = calculateLei15270Reduction(grossValue, irrf.value, irrfTable);
+  const finalIrrfValue = round2(Math.max(irrf.value - irrfReduction, 0));
+
+  const fgtsRate = employee.workRegime === "young_apprentice" ? 0.02 : 0.08;
+  const fgtsValue = round2(grossValue * fgtsRate);
+
+  const firstInstallmentValue = round2(grossValue / 2);
+  const netValue = round2(grossValue - inss.value - finalIrrfValue);
+  const secondInstallmentValue = round2(netValue - firstInstallmentValue);
+
+  return {
+    monthsWorked,
+    grossSalary: employee.grossSalary ?? null,
+    grossValue,
+    firstInstallmentValue,
+    secondInstallmentValue,
+    inssBase: inss.base,
+    inssValue: inss.value,
+    inssTableId: inssTable.id,
+    irrfBase: irrf.base,
+    irrfValue: finalIrrfValue,
+    irrfReductionValue: irrfReduction,
+    irrfTableId: irrfTable.id,
+    fgtsValue,
+    netValue
+  };
+};
