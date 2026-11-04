@@ -16109,3 +16109,113 @@ successfully` / exit 0.
 `backend/src/services/PayrollService/{PayrollCalculationService,PayrollEntryService,PayrollTableService}.ts`,
 `frontend/src/pages/PayrollTables/index.js`,
 `frontend/src/components/PayrollPanel/index.js`.
+
+## 220. Relatório de Vendas por Período (módulo Vendas, v2.3.247)
+
+### Pedido
+
+"No módulo vendas gerar modelo de relatório conforme arquivo
+anexado. Na coluna CNPJ colocar CNPJ/CPF, o restante tudo igual." —
+arquivo anexado: Ficha Cadastral Resumida da Prefeitura Municipal de
+Salvador (documento de cadastro de Pessoa Jurídica, não um relatório
+tabular de vendas).
+
+### Desambiguação (2 rodadas de pergunta antes de codar)
+
+O arquivo anexado é um documento de cadastro municipal (campos únicos
+de uma empresa: Razão Social, CNPJ, endereço, Inscrição Municipal,
+Natureza Jurídica, lista de Atividades/CNAE) — estruturalmente
+diferente de um relatório de vendas (linhas por venda). Antes de
+implementar, confirmado com o cliente, em 2 rodadas:
+
+1. O arquivo é mesmo o modelo de referência (confirmado: sim).
+2. O que o relatório realmente deveria mostrar — resposta do cliente:
+   **"um relatório resumido que o usuário do sistema faz para
+   verificar todas as vendas por período, exatamente como está no
+   arquivo [...] completar os campos que ainda não tem com os dados
+   da empresa e colocar a logomarca no canto superior direito".**
+
+Reconciliação: o cliente queria o ESTILO/FORMATO do documento oficial
+(cabeçalho formal, data de emissão, logomarca, tabela com borda) —
+não os campos cadastrais de pessoa jurídica (Inscrição Municipal,
+CNAE etc., que não existem em lugar nenhum do sistema e foram
+descartados por decisão explícita do cliente: "deixar em branco por
+enquanto" quando perguntado). Aplicado a um relatório de TODAS as
+vendas de um período (não um cadastro por cliente), já que é isso que
+"verificar todas as vendas por período" pede.
+
+### Decisão de design: reaproveitar o padrão de impressão já existente
+
+O sistema já tinha exatamente esse padrão implementado — Termo de
+Cautela do Serviço Armaria (`WeaponArmoryServiceModal.js`): área
+escondida (`display: none`) que vira visível só dentro de
+`@media print`, logomarca da empresa (`Company.logoUrl`, já existe,
+sem upload novo), rodapé com endereço do emitente
+(`buildEmitterAddressLine`, utilitário compartilhado). Reaproveitado
+tal e qual, aplicado à lista de Vendas (`SaleList.js`) em vez de criar
+um componente novo — o relatório já nasce consistente com o resto do
+sistema (mesma fonte de logomarca, mesmo rodapé, mesmo mecanismo de
+impressão via `window.print()`).
+
+### Dados: todas as vendas do período, não só a página atual
+
+A tela de Vendas já tinha filtro de período (Hoje/Semana/Mês/
+Personalizado, `resolvePeriodRange`), mas a listagem é paginada (20
+por página, `SaleService.list`) — o relatório precisa de TODAS as
+vendas do período numa página só. Nova função
+`SaleService.listForReport` (sem `limit`/`offset`), nova rota
+`GET /sales/report` (precisa vir ANTES de `GET /sales/:id` nas rotas —
+senão o Express casaria "report" como se fosse o `:id`), mesmo
+`includeOptions` da listagem normal (traz `customer.document`/
+`documentType` — a coluna CNPJ/CPF do relatório — e `fiscalDocuments`,
+pro status "Autorizada"/"Processando NF" bater com o que a tela já
+mostra).
+
+### Coluna "CNPJ/CPF"
+
+Pedido explícito do cliente. Observação: o resto do sistema usa
+"CPF/CNPJ" (ordem CPF primeiro — ver `financeConfig.js`) — aqui ficou
+"CNPJ/CPF" (CNPJ primeiro) por ser exatamente o que o cliente pediu,
+na mesma ordem do rótulo "CNPJ:" do documento de referência.
+
+### Backend
+
+`SaleService.listForReport({ companyId, startDate, endDate, status })`
+— mesmo filtro de `saleDate` da listagem normal, ordenado por data
+CRESCENTE (ordem natural de um relatório de período, diferente da
+tela, que lista mais recente primeiro). `SaleController.report` +
+rota `GET /sales/report`, mesmo `EnsureFiscalAccess` das outras rotas
+de Vendas.
+
+### Frontend
+
+`SaleList.js` ganhou: botão "Relatório do período" (ícone de
+impressora, ao lado de "Baixar notas do período"); estado
+`reportSnapshot` (só existe durante o `window.print()`, mesmo padrão
+do Termo de Cautela — os dados somem da tela assim que a impressão é
+disparada); área de impressão com cabeçalho (nome/CNPJ da empresa,
+"RELATÓRIO DE VENDAS POR PERÍODO", período, data de emissão, logo no
+canto superior direito), tabela (Nº Venda/Data/Cliente/CNPJ-CPF/
+Total/Status) com linha de total geral no rodapé, e rodapé com
+endereço/telefone/e-mail do emitente.
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Script Node isolado contra
+`SaleService.listForReport` real (banco local, não mock): 8 asserts —
+filtro de período traz só as vendas no intervalo (exclui venda fora
+do período); ordenação cronológica crescente confirmada; isolamento
+multi-tenant confirmado (venda de outra empresa não aparece);
+`customer.document`/`documentType` vêm junto pra CNPJ e CPF; sem
+filtro de data, traz todas as vendas da empresa. Dados de teste
+(vendas, clientes, empresa auxiliar) criados e removidos ao final,
+confirmado via `psql` que o banco voltou ao estado original. Rota
+`GET /sales/report` conferida no `dist/` compilado — vem antes de
+`GET /sales/:id`, não é interceptada por ela. `npm run build` de
+produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
+`backend/src/routes/fiscalRoutes.ts`,
+`frontend/src/hooks/useFiscal/index.js`,
+`frontend/src/components/SaleList/index.js`.

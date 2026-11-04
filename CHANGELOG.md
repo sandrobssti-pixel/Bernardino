@@ -3,6 +3,31 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.247] — Relatório de Vendas por Período (módulo Vendas) — 2026-11-04
+
+### Adicionado
+- Novo botão "Relatório do período" na lista de Vendas (ao lado de
+  "Baixar notas do período") — gera um relatório resumido, impresso
+  pelo navegador, com TODAS as vendas do período escolhido no filtro
+  (Hoje/Semana/Mês/Personalizado), não só as 20 da página atual.
+- Layout formal, baseado no modelo de referência enviado pelo cliente
+  (Ficha Cadastral da Prefeitura de Salvador): cabeçalho com nome e
+  CNPJ/CPF da empresa, data de emissão, **logomarca da empresa no
+  canto superior direito** (mesmo campo `logoUrl` já usado no Termo de
+  Cautela do Serviço Armaria — sem upload novo, reaproveita a logo já
+  cadastrada), e uma tabela com uma linha por venda.
+- Colunas da tabela: Nº Venda, Data, Cliente, **CNPJ/CPF**, Total,
+  Status — mais uma linha de total geral do período no rodapé.
+  **"CNPJ/CPF" em vez de só "CNPJ"** (pedido explícito do cliente) —
+  mostra o documento do cliente (`FinanceCustomer.document`) seja ele
+  pessoa física ou jurídica.
+- Rodapé com endereço/telefone/e-mail do emitente — mesmo componente
+  já usado nos outros relatórios impressos do sistema
+  (`buildEmitterAddressLine`).
+- Busca TODAS as vendas do período numa chamada só (endpoint novo,
+  sem paginação) — diferente da tela, que só traz 20 por vez.
+- Ver seção 220 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.246] — Redutor de IRRF da Lei 15.270/2025 — 2026-11-04
 
 ### Adicionado

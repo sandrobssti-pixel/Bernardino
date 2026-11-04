@@ -37,6 +37,12 @@ const useFiscal = () => {
       const { data } = await api.get("/sales", { params });
       return data;
     },
+    // Relatório de Vendas por Período (v2.3.247) — TODAS as vendas do
+    // período, sem paginação (ver SaleService.listForReport).
+    report: async (params) => {
+      const { data } = await api.get("/sales/report", { params });
+      return data;
+    },
     show: async (id) => {
       const { data } = await api.get(`/sales/${id}`);
       return data;

@@ -27,6 +27,20 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json(result);
 };
 
+// Relatório de Vendas por Período — ver SaleService.listForReport.
+export const report = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { status, startDate, endDate } = req.query as {
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  };
+
+  const records = await SaleService.listForReport({ companyId, status, startDate, endDate });
+  return res.status(200).json(records);
+};
+
 export const show = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;

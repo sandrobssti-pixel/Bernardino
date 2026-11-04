@@ -356,6 +356,46 @@ export const list = async ({
   return { records, count, hasMore: count > offset + records.length };
 };
 
+// Relatório de Vendas por Período (v2.3.247) — pedido do cliente: "um
+// relatório resumido para verificar todas as vendas por período". Igual
+// a `list`, mas SEM paginação — o relatório impresso precisa de TODAS as
+// vendas do período numa página só, não só as 20 da tela. Mesmo filtro de
+// `saleDate` e mesmo include de `customer` (traz `document`/`documentType`
+// pro CNPJ/CPF do relatório). Ordenado por data crescente (ordem natural
+// de um relatório de período, diferente da tela — que lista mais recente
+// primeiro).
+interface ReportRequest {
+  companyId: number;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+}
+
+export const listForReport = async ({
+  companyId,
+  startDate,
+  endDate,
+  status
+}: ReportRequest): Promise<Sale[]> => {
+  const whereCondition: any = { companyId };
+
+  if (status) {
+    whereCondition.status = status;
+  }
+
+  if (startDate || endDate) {
+    whereCondition.saleDate = {};
+    if (startDate) whereCondition.saleDate[Op.gte] = startDate;
+    if (endDate) whereCondition.saleDate[Op.lte] = endDate;
+  }
+
+  return Sale.findAll({
+    where: whereCondition,
+    order: [["saleDate", "ASC"], ["id", "ASC"]],
+    include: includeOptions
+  });
+};
+
 export const show = async (id: string | number, companyId: number): Promise<Sale> => {
   const record = await Sale.findOne({
     where: { id, companyId },

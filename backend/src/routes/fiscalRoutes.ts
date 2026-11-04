@@ -32,6 +32,9 @@ fiscalRoutes.post("/fiscal/config/resend-test", isAuth, FiscalConfigController.t
 fiscalRoutes.post("/sales/import", isAuth, upload.array("file"), SaleImportController.importSales);
 
 fiscalRoutes.get("/sales", isAuth, SaleController.index);
+// Precisa vir ANTES de "/sales/:id" — senão o Express casa "report" como
+// se fosse o :id.
+fiscalRoutes.get("/sales/report", isAuth, SaleController.report);
 fiscalRoutes.get("/sales/:id", isAuth, SaleController.show);
 fiscalRoutes.post("/sales", isAuth, SaleController.store);
 fiscalRoutes.put("/sales/:id", isAuth, SaleController.update);

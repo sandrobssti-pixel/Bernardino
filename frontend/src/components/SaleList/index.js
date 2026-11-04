@@ -32,13 +32,14 @@ import VisibilityIcon from "@material-ui/icons/Visibility";
 import ReceiptIcon from "@material-ui/icons/Receipt";
 import PublishIcon from "@material-ui/icons/Publish";
 import GetAppIcon from "@material-ui/icons/GetApp";
+import PrintIcon from "@material-ui/icons/Print";
 
 import TableRowSkeleton from "../TableRowSkeleton";
 import ConfirmationModal from "../ConfirmationModal";
 import SaleModal from "../SaleModal";
 import SaleDetailModal from "../SaleDetailModal";
 import toastError from "../../errors/toastError";
-import { money, formatDateBR } from "../../utils/financeFormat";
+import { money, formatDateBR, buildEmitterAddressLine } from "../../utils/financeFormat";
 
 const useStyles = makeStyles((theme) => ({
   root: { width: "100%" },
@@ -51,6 +52,34 @@ const useStyles = makeStyles((theme) => ({
   tablePaper: {
     borderRadius: 12,
     overflowX: "auto",
+  },
+  // Relatório de Vendas por Período (v2.3.247) — mesmo padrão de
+  // impressão já usado no Termo de Cautela do Serviço Armaria
+  // (WeaponArmoryServiceModal.js): área escondida na tela, só visível
+  // dentro de `@media print`.
+  printArea: {
+    display: "none",
+  },
+  printLogo: {
+    maxHeight: 70,
+    maxWidth: 160,
+  },
+  "@global": {
+    "@media print": {
+      "body *": {
+        visibility: "hidden",
+      },
+      "#sale-period-report-print-area, #sale-period-report-print-area *": {
+        visibility: "visible",
+      },
+      "#sale-period-report-print-area": {
+        display: "block",
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+      },
+    },
   },
 }));
 
@@ -136,6 +165,19 @@ const statusChip = (sale) => {
   return <Chip size="small" label="Rascunho" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />;
 };
 
+// Mesma lógica de `statusChip`, só que em texto puro — usado no Relatório
+// de Vendas por Período impresso (v2.3.247), onde um Chip colorido não
+// faz sentido (impressão P&B, texto corrido).
+const statusLabel = (sale) => {
+  if (sale.status === "confirmed") {
+    if (hasDocumentWithStatus(sale, "authorized")) return "Autorizada";
+    if (hasDocumentWithStatus(sale, "processing")) return "Processando NF";
+    return "Confirmada";
+  }
+  if (sale.status === "cancelled") return "Cancelada";
+  return "Rascunho";
+};
+
 // Lista de vendas (Fase 3 — módulo fiscal, ver docs/MANUAL_TECNICO.md, seção
 // 6.2). Diferente do FinanceRecordList genérico (Fases 1/2) porque uma venda
 // tem itens dinâmicos e um ciclo de vida com mais estados (rascunho ->
@@ -181,6 +223,33 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [exportingPeriod, setExportingPeriod] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Relatório de Vendas por Período (v2.3.247, pedido do cliente: "um
+  // relatório resumido para verificar todas as vendas por período",
+  // modelo de referência enviado pelo cliente: Ficha Cadastral da
+  // Prefeitura de Salvador — layout formal, logomarca da empresa no
+  // cabeçalho, data de emissão). `reportSnapshot` só existe durante o
+  // `window.print()` (mesmo padrão do Termo de Cautela do Serviço
+  // Armaria, WeaponArmoryServiceModal.js) — os dados somem da tela
+  // assim que a impressão é disparada, não ficam guardados à toa.
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [reportSnapshot, setReportSnapshot] = useState(null);
+  const [emitterFooter, setEmitterFooter] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const config = await fiscal.config.show();
+        setEmitterFooter({
+          address: buildEmitterAddressLine(config),
+          phone: config.emitterPhone,
+          email: config.emitterEmail,
+        });
+      } catch (err) {
+        setEmitterFooter(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchSales = useCallback(async () => {
     setLoading(true);
     try {
@@ -205,6 +274,27 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   useEffect(() => {
     setPageNumber(1);
   }, [periodPreset, customStart, customEnd]);
+
+  // Busca TODAS as vendas do período filtrado (sem paginação — a tela só
+  // tem as 20 da página atual) e dispara a impressão. Mesmo
+  // `resolvePeriodRange` do filtro da tela — "Todo o período" (preset "")
+  // imprime o histórico inteiro, sem limite de data.
+  const handlePrintPeriodReport = async () => {
+    setGeneratingReport(true);
+    try {
+      const { startDate, endDate } = resolvePeriodRange(periodPreset, customStart, customEnd);
+      const records = await fiscal.sales.report({ startDate, endDate });
+      const total = (records || []).reduce((sum, sale) => sum + (Number(sale.totalValue) || 0), 0);
+      setReportSnapshot({ sales: records || [], startDate, endDate, total, generatedAt: new Date() });
+      setTimeout(() => {
+        window.print();
+        setReportSnapshot(null);
+      }, 150);
+    } catch (err) {
+      toastError(err);
+    }
+    setGeneratingReport(false);
+  };
 
   const handleOpenNew = () => {
     setSelectedSale(null);
@@ -623,6 +713,19 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               </Button>
             </span>
           </Tooltip>
+          <Tooltip title="Relatório resumido com todas as vendas do período escolhido acima (número, data, cliente, CNPJ/CPF, total e status)">
+            <span>
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PrintIcon />}
+                onClick={handlePrintPeriodReport}
+                disabled={generatingReport}
+              >
+                {generatingReport ? "Gerando relatório..." : "Relatório do período"}
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
           {canImport && (
@@ -883,6 +986,91 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
           labelDisplayedRows={({ from, to, count: total }) => `${from}–${to} de ${total}`}
         />
       </Paper>
+
+      {reportSnapshot && (
+        <div id="sale-period-report-print-area" className={classes.printArea}>
+          <table width="100%" style={{ marginBottom: 12 }}>
+            <tbody>
+              <tr>
+                <td>
+                  {user?.company?.name && <div style={{ fontWeight: 700 }}>{user.company.name}</div>}
+                  {user?.company?.document && <div>CNPJ/CPF: {user.company.document}</div>}
+                  <div style={{ fontSize: "1.1rem", fontWeight: 700, marginTop: 4 }}>
+                    RELATÓRIO DE VENDAS POR PERÍODO
+                  </div>
+                  <div>
+                    Período:{" "}
+                    {reportSnapshot.startDate ? formatDateBR(reportSnapshot.startDate) : "início"}
+                    {" até "}
+                    {reportSnapshot.endDate ? formatDateBR(reportSnapshot.endDate) : "hoje"}
+                  </div>
+                  <div>Emissão: {moment(reportSnapshot.generatedAt).format("DD/MM/YYYY HH:mm")}</div>
+                </td>
+                <td style={{ width: 160, textAlign: "right", verticalAlign: "top" }}>
+                  {user?.company?.logoUrl && (
+                    <img src={user.company.logoUrl} alt="logo" className={classes.printLogo} />
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Nº Venda</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Data</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Cliente</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>CNPJ/CPF</th>
+                <th style={{ textAlign: "right", borderBottom: "1px solid #000" }}>Total</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportSnapshot.sales.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: "center", padding: 12 }}>
+                    Nenhuma venda nesse período.
+                  </td>
+                </tr>
+              ) : (
+                reportSnapshot.sales.map((sale) => (
+                  <tr key={sale.id}>
+                    <td>{sale.saleNumber || sale.id}</td>
+                    <td>{formatDateBR(sale.saleDate)}</td>
+                    <td>{sale.customer?.name || "Consumidor não identificado"}</td>
+                    <td>{sale.customer?.document || "—"}</td>
+                    <td style={{ textAlign: "right" }}>{money(sale.totalValue)}</td>
+                    <td>{statusLabel(sale)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {reportSnapshot.sales.length > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={4} style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
+                    Total do período ({reportSnapshot.sales.length} venda
+                    {reportSnapshot.sales.length === 1 ? "" : "s"}):
+                  </td>
+                  <td style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
+                    {money(reportSnapshot.total)}
+                  </td>
+                  <td style={{ borderTop: "1px solid #000" }} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+
+          {emitterFooter && (
+            <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 16 }}>
+              {emitterFooter.address && <div>{emitterFooter.address}</div>}
+              {emitterFooter.phone && <div>Fone: {emitterFooter.phone}</div>}
+              {emitterFooter.email && <div>{emitterFooter.email}</div>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
