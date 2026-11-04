@@ -40,6 +40,8 @@ import SaleModal from "../SaleModal";
 import SaleDetailModal from "../SaleDetailModal";
 import toastError from "../../errors/toastError";
 import { money, formatDateBR, buildEmitterAddressLine } from "../../utils/financeFormat";
+import { SALE_ISSUANCE_PURPOSE_OPTIONS } from "../../pages/Financeiro/financeConfig";
+import federacaoBaianaLogo from "../../assets/federacao-baiana-logo.webp";
 
 const useStyles = makeStyles((theme) => ({
   root: { width: "100%" },
@@ -60,9 +62,13 @@ const useStyles = makeStyles((theme) => ({
   printArea: {
     display: "none",
   },
+  // "pequeno" (pedido explícito do cliente) — bem menor que o logo do
+  // Termo de Cautela (WeaponArmoryServiceModal.js, maxHeight 70/maxWidth
+  // 160), que é um documento de página única sem tabela grande disputando
+  // espaço.
   printLogo: {
-    maxHeight: 70,
-    maxWidth: 160,
+    maxHeight: 44,
+    maxWidth: 60,
   },
   "@global": {
     "@media print": {
@@ -78,6 +84,12 @@ const useStyles = makeStyles((theme) => ({
         left: 0,
         top: 0,
         width: "100%",
+      },
+      // Paisagem — a tabela tem 10 colunas (modelo de referência do
+      // cliente: Nº NF/Data/Cliente/CNPJ/Status/Finalidade/CFOP/
+      // Natureza/Produtos/Total), não cabe legível em retrato.
+      "@page": {
+        size: "landscape",
       },
     },
   },
@@ -165,17 +177,22 @@ const statusChip = (sale) => {
   return <Chip size="small" label="Rascunho" style={{ backgroundColor: "#f59e0b", color: "#fff" }} />;
 };
 
-// Mesma lógica de `statusChip`, só que em texto puro — usado no Relatório
-// de Vendas por Período impresso (v2.3.247), onde um Chip colorido não
-// faz sentido (impressão P&B, texto corrido).
-const statusLabel = (sale) => {
-  if (sale.status === "confirmed") {
-    if (hasDocumentWithStatus(sale, "authorized")) return "Autorizada";
-    if (hasDocumentWithStatus(sale, "processing")) return "Processando NF";
-    return "Confirmada";
-  }
-  if (sale.status === "cancelled") return "Cancelada";
-  return "Rascunho";
+// Relatório de Notas Fiscais - Resumido (v2.3.247, reformulado em
+// v2.3.251) — rótulo do status do DOCUMENTO FISCAL (não mais da
+// venda), mesma nomenclatura do modelo de referência que o cliente
+// mandou (sistema anterior dele): "Aprovada"/"NF-e Rejeitado", não
+// "Autorizada"/"Erro" (nomenclatura já usada no resto do AtendeFlow,
+// ver `statusChip` acima — deliberadamente diferente aqui, só nesse
+// relatório, pra bater com o que a contabilidade do cliente já está
+// acostumada a ver).
+const ISSUANCE_PURPOSE_LABELS = Object.fromEntries(SALE_ISSUANCE_PURPOSE_OPTIONS.map((o) => [o.value, o.label]));
+
+const fiscalDocumentStatusLabel = (doc) => {
+  if (doc.status === "authorized") return "Aprovada";
+  if (doc.status === "error") return "NF-e Rejeitado";
+  if (doc.status === "cancelled") return "Cancelada";
+  if (doc.status === "pending_correction") return "Pendente de correção";
+  return "Processando";
 };
 
 // Lista de vendas (Fase 3 — módulo fiscal, ver docs/MANUAL_TECNICO.md, seção
@@ -223,14 +240,18 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [exportingPeriod, setExportingPeriod] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Relatório de Vendas por Período (v2.3.247, pedido do cliente: "um
-  // relatório resumido para verificar todas as vendas por período",
-  // modelo de referência enviado pelo cliente: Ficha Cadastral da
-  // Prefeitura de Salvador — layout formal, logomarca da empresa no
-  // cabeçalho, data de emissão). `reportSnapshot` só existe durante o
-  // `window.print()` (mesmo padrão do Termo de Cautela do Serviço
-  // Armaria, WeaponArmoryServiceModal.js) — os dados somem da tela
-  // assim que a impressão é disparada, não ficam guardados à toa.
+  // Relatório de Notas Fiscais - Resumido (v2.3.247, reformulado em
+  // v2.3.251) — pedido original: "um relatório resumido para verificar
+  // todas as vendas por período". Modelo de referência final (o
+  // primeiro arquivo enviado, uma Ficha Cadastral da Prefeitura de
+  // Salvador, era o arquivo errado): o "Relatório de Notas Fiscais -
+  // Resumido" do sistema anterior do cliente — layout com logomarca
+  // FIXA da Federação Baiana (não o `Company.logoUrl` dinâmico usado no
+  // resto do sistema, pedido explícito do cliente), uma linha por nota
+  // fiscal emitida. `reportSnapshot` só existe durante o `window.print()`
+  // (mesmo padrão do Termo de Cautela do Serviço Armaria,
+  // WeaponArmoryServiceModal.js) — os dados somem da tela assim que a
+  // impressão é disparada, não ficam guardados à toa.
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportSnapshot, setReportSnapshot] = useState(null);
   const [emitterFooter, setEmitterFooter] = useState(null);
@@ -284,8 +305,8 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     try {
       const { startDate, endDate } = resolvePeriodRange(periodPreset, customStart, customEnd);
       const records = await fiscal.sales.report({ startDate, endDate });
-      const total = (records || []).reduce((sum, sale) => sum + (Number(sale.totalValue) || 0), 0);
-      setReportSnapshot({ sales: records || [], startDate, endDate, total, generatedAt: new Date() });
+      const total = (records || []).reduce((sum, doc) => sum + (Number(doc.sale?.totalValue) || 0), 0);
+      setReportSnapshot({ documents: records || [], startDate, endDate, total, generatedAt: new Date() });
       setTimeout(() => {
         window.print();
         setReportSnapshot(null);
@@ -713,7 +734,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               </Button>
             </span>
           </Tooltip>
-          <Tooltip title="Relatório resumido com todas as vendas do período escolhido acima (número, data, cliente, CNPJ/CPF, total e status)">
+          <Tooltip title="Relatório de Notas Fiscais - Resumido do período escolhido acima (uma linha por nota fiscal: número, data, cliente, CNPJ, status, finalidade, CFOP, natureza da operação e valor)">
             <span>
               <Button
                 variant="outlined"
@@ -722,7 +743,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 onClick={handlePrintPeriodReport}
                 disabled={generatingReport}
               >
-                {generatingReport ? "Gerando relatório..." : "Relatório do período"}
+                {generatingReport ? "Gerando relatório..." : "Relatório de NFs do período"}
               </Button>
             </span>
           </Tooltip>
@@ -989,78 +1010,95 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
       {reportSnapshot && (
         <div id="sale-period-report-print-area" className={classes.printArea}>
-          <table width="100%" style={{ marginBottom: 12 }}>
+          {/* Logomarca pequena no canto superior esquerdo, nome da
+              Federação fixo (pedido explícito do cliente: "não colocar
+              CT Confiança nem Cactus Clube de Tiro, só deixar Federação
+              Baiana mesmo") — diferente do resto do sistema, que sempre
+              usa o nome/logo dinâmico da empresa logada
+              (`user.company.name`/`logoUrl`). Aqui é fixo de propósito. */}
+          <table width="100%" style={{ marginBottom: 8 }}>
             <tbody>
               <tr>
-                <td>
-                  {user?.company?.name && <div style={{ fontWeight: 700 }}>{user.company.name}</div>}
-                  {user?.company?.document && <div>CNPJ/CPF: {user.company.document}</div>}
-                  <div style={{ fontSize: "1.1rem", fontWeight: 700, marginTop: 4 }}>
-                    RELATÓRIO DE VENDAS POR PERÍODO
+                <td style={{ width: 70, verticalAlign: "top" }}>
+                  <img src={federacaoBaianaLogo} alt="logo" className={classes.printLogo} />
+                </td>
+                <td style={{ verticalAlign: "top" }}>
+                  <div style={{ fontSize: "1.05rem", fontWeight: 700 }}>
+                    FEDERAÇÃO BAIANA DE TIRO DEFENSIVO &amp; OLIMPICO LTDA
                   </div>
-                  <div>
-                    Período:{" "}
+                  <div style={{ fontSize: "1rem", fontWeight: 700, marginTop: 2 }}>
+                    Relatório de Notas Fiscais - Resumido
+                  </div>
+                  <div style={{ fontStyle: "italic" }}>
+                    Período de{" "}
                     {reportSnapshot.startDate ? formatDateBR(reportSnapshot.startDate) : "início"}
                     {" até "}
                     {reportSnapshot.endDate ? formatDateBR(reportSnapshot.endDate) : "hoje"}
                   </div>
-                  <div>Emissão: {moment(reportSnapshot.generatedAt).format("DD/MM/YYYY HH:mm")}</div>
-                </td>
-                <td style={{ width: 160, textAlign: "right", verticalAlign: "top" }}>
-                  {user?.company?.logoUrl && (
-                    <img src={user.company.logoUrl} alt="logo" className={classes.printLogo} />
-                  )}
                 </td>
               </tr>
             </tbody>
           </table>
 
-          <table width="100%" cellPadding={4} style={{ borderCollapse: "collapse" }}>
+          <table width="100%" cellPadding={3} style={{ borderCollapse: "collapse", fontSize: "0.75rem" }}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Nº Venda</th>
-                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Data</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Nº NF</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Dt. NF.</th>
                 <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Cliente</th>
-                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>CNPJ/CPF</th>
-                <th style={{ textAlign: "right", borderBottom: "1px solid #000" }}>Total</th>
-                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Status</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>CNPJ</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Status NF-e</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Finalidade</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>C.F.O.P.</th>
+                <th style={{ textAlign: "left", borderBottom: "1px solid #000" }}>Natureza Operação</th>
+                <th style={{ textAlign: "right", borderBottom: "1px solid #000" }}>Produtos</th>
+                <th style={{ textAlign: "right", borderBottom: "1px solid #000" }}>Total da NF</th>
               </tr>
             </thead>
             <tbody>
-              {reportSnapshot.sales.length === 0 ? (
+              {reportSnapshot.documents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: 12 }}>
-                    Nenhuma venda nesse período.
+                  <td colSpan={10} style={{ textAlign: "center", padding: 12 }}>
+                    Nenhuma nota fiscal nesse período.
                   </td>
                 </tr>
               ) : (
-                reportSnapshot.sales.map((sale) => (
-                  <tr key={sale.id}>
-                    <td>{sale.saleNumber || sale.id}</td>
-                    <td>{formatDateBR(sale.saleDate)}</td>
-                    <td>{sale.customer?.name || "Consumidor não identificado"}</td>
-                    <td>{sale.customer?.document || "—"}</td>
-                    <td style={{ textAlign: "right" }}>{money(sale.totalValue)}</td>
-                    <td>{statusLabel(sale)}</td>
+                reportSnapshot.documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>{doc.number || "—"}</td>
+                    <td>{doc.issuedAt ? formatDateBR(doc.issuedAt) : "—"}</td>
+                    <td>{doc.sale?.customer?.name || "Consumidor não identificado"}</td>
+                    <td>{doc.sale?.customer?.document || "—"}</td>
+                    <td>{fiscalDocumentStatusLabel(doc)}</td>
+                    <td>{ISSUANCE_PURPOSE_LABELS[doc.sale?.issuancePurpose] || doc.sale?.issuancePurpose || "—"}</td>
+                    <td>{doc.sale?.items?.[0]?.cfop || "—"}</td>
+                    <td>{doc.sale?.operationNature || "—"}</td>
+                    <td style={{ textAlign: "right" }}>{money(doc.sale?.totalValue)}</td>
+                    <td style={{ textAlign: "right" }}>{money(doc.sale?.totalValue)}</td>
                   </tr>
                 ))
               )}
             </tbody>
-            {reportSnapshot.sales.length > 0 && (
+            {reportSnapshot.documents.length > 0 && (
               <tfoot>
                 <tr>
-                  <td colSpan={4} style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
-                    Total do período ({reportSnapshot.sales.length} venda
-                    {reportSnapshot.sales.length === 1 ? "" : "s"}):
+                  <td colSpan={8} style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
+                    Qtde.: {reportSnapshot.documents.length} &nbsp;&nbsp; Totais:
                   </td>
                   <td style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
                     {money(reportSnapshot.total)}
                   </td>
-                  <td style={{ borderTop: "1px solid #000" }} />
+                  <td style={{ textAlign: "right", fontWeight: 700, borderTop: "1px solid #000" }}>
+                    {money(reportSnapshot.total)}
+                  </td>
                 </tr>
               </tfoot>
             )}
           </table>
+
+          <div style={{ fontSize: "0.7rem", marginTop: 8 }}>
+            Emissão: {moment(reportSnapshot.generatedAt).format("DD/MM/YYYY")}
+          </div>
 
           {emitterFooter && (
             <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 16 }}>

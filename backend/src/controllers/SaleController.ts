@@ -31,13 +31,12 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 export const report = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;
-  const { status, startDate, endDate } = req.query as {
-    status?: string;
+  const { startDate, endDate } = req.query as {
     startDate?: string;
     endDate?: string;
   };
 
-  const records = await SaleService.listForReport({ companyId, status, startDate, endDate });
+  const records = await SaleService.listForReport({ companyId, startDate, endDate });
   return res.status(200).json(records);
 };
 

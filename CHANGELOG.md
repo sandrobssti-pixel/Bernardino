@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.251] — Relatório de Vendas reformulado para Relatório de Notas Fiscais — 2026-11-04
+
+### Corrigido/Alterado
+- O "Relatório do período" (módulo Vendas, v2.3.247) foi reformulado
+  pra bater com o modelo de referência correto enviado pelo cliente
+  (o arquivo original, enviado antes, era o errado — uma Ficha
+  Cadastral da Prefeitura de Salvador). O modelo certo é o
+  **"Relatório de Notas Fiscais - Resumido"** do sistema anterior do
+  cliente: agora **uma linha por NOTA FISCAL emitida** (não por
+  venda) — uma venda reemitida depois de rejeitada pela Sefaz aparece
+  como duas linhas, uma por tentativa, igual no modelo de referência.
+- Colunas: Nº NF, Data da NF, Cliente, CNPJ, Status NF-e (Aprovada/
+  NF-e Rejeitado/Cancelada/Pendente de correção/Processando —
+  nomenclatura do sistema anterior do cliente, diferente da usada no
+  resto do AtendeFlow, só pra bater com o que a contabilidade dele já
+  está acostumada), Finalidade (Normal/Devolução/etc.), C.F.O.P.,
+  Natureza da Operação, Produtos e Total da NF. Impressão em paisagem
+  (10 colunas não cabem legíveis em retrato).
+- **Logomarca fixa da Federação Baiana de Tiro Defensivo e Olímpico**
+  no canto superior esquerdo, pequena — pedido explícito do cliente:
+  "não colocar CT Confiança nem Cactus Clube de Tiro, só deixar
+  Federação Baiana mesmo". Diferente do resto do sistema (que sempre
+  usa o nome/logo dinâmico da empresa logada,
+  `Company.name`/`logoUrl`) — aqui é fixo de propósito, só nesse
+  relatório, sem afetar o Termo de Cautela do Serviço Armaria nem
+  nenhum outro documento impresso do sistema.
+- Ver seção 224 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.250] — Painel de Desempenho (RH — Fase 3 de 3) — 2026-11-04
 
 ### Adicionado

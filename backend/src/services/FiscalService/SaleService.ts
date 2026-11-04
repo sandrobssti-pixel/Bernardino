@@ -356,43 +356,52 @@ export const list = async ({
   return { records, count, hasMore: count > offset + records.length };
 };
 
-// Relatório de Vendas por Período (v2.3.247) — pedido do cliente: "um
-// relatório resumido para verificar todas as vendas por período". Igual
-// a `list`, mas SEM paginação — o relatório impresso precisa de TODAS as
-// vendas do período numa página só, não só as 20 da tela. Mesmo filtro de
-// `saleDate` e mesmo include de `customer` (traz `document`/`documentType`
-// pro CNPJ/CPF do relatório). Ordenado por data crescente (ordem natural
-// de um relatório de período, diferente da tela — que lista mais recente
-// primeiro).
+// Relatório de Notas Fiscais - Resumido (v2.3.247, reformulado em
+// v2.3.251) — pedido original do cliente: "um relatório resumido para
+// verificar todas as vendas por período". O primeiro modelo de
+// referência enviado (v2.3.247) era um documento de cadastro de pessoa
+// jurídica — o cliente mandou o arquivo errado. O modelo CERTO,
+// enviado depois, é o "Relatório de Notas Fiscais - Resumido" do
+// sistema anterior dele: uma linha por NOTA FISCAL emitida (não por
+// venda) — por isso a base agora é `FiscalDocument`, não `Sale`. Uma
+// venda reemitida (ex.: rejeitada pela Sefaz e corrigida) aparece como
+// DUAS linhas no relatório, uma por tentativa — exatamente como no
+// modelo de referência (Nº NF 000498 "NF-e Rejeitado" seguido do Nº NF
+// 000499 "Aprovada", mesmo cliente, mesmo valor). SEM paginação — o
+// relatório impresso precisa de TODOS os documentos do período numa
+// página só. Filtrado por `issuedAt` (data da emissão da nota, não a
+// data da venda) — documento ainda não emitido (`status: "processing"`,
+// `issuedAt` nulo) não aparece, consistente com ser um relatório DE
+// NOTAS FISCAIS. Ordenado por data crescente.
 interface ReportRequest {
   companyId: number;
   startDate?: string;
   endDate?: string;
-  status?: string;
 }
 
-export const listForReport = async ({
-  companyId,
-  startDate,
-  endDate,
-  status
-}: ReportRequest): Promise<Sale[]> => {
+export const listForReport = async ({ companyId, startDate, endDate }: ReportRequest): Promise<FiscalDocument[]> => {
   const whereCondition: any = { companyId };
 
-  if (status) {
-    whereCondition.status = status;
-  }
-
   if (startDate || endDate) {
-    whereCondition.saleDate = {};
-    if (startDate) whereCondition.saleDate[Op.gte] = startDate;
-    if (endDate) whereCondition.saleDate[Op.lte] = endDate;
+    whereCondition.issuedAt = {};
+    if (startDate) whereCondition.issuedAt[Op.gte] = new Date(`${startDate}T00:00:00`);
+    if (endDate) whereCondition.issuedAt[Op.lte] = new Date(`${endDate}T23:59:59`);
   }
 
-  return Sale.findAll({
+  return FiscalDocument.findAll({
     where: whereCondition,
-    order: [["saleDate", "ASC"], ["id", "ASC"]],
-    include: includeOptions
+    order: [["issuedAt", "ASC"], ["id", "ASC"]],
+    include: [
+      {
+        model: Sale,
+        as: "sale",
+        attributes: ["id", "saleNumber", "totalValue", "issuancePurpose", "operationNature"],
+        include: [
+          { model: FinanceCustomer, as: "customer", attributes: ["id", "name", "document", "documentType"] },
+          { model: SaleItem, as: "items", attributes: ["id", "cfop"] }
+        ]
+      }
+    ]
   });
 };
 

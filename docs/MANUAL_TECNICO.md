@@ -16582,3 +16582,129 @@ build` de produção (frontend) com `Compiled successfully` / exit 0.
 `frontend/src/pages/PerformancePanel/{index,performanceRecordConfig}.js`,
 `frontend/src/pages/RH/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 224. Relatório de Vendas reformulado para Relatório de Notas Fiscais (v2.3.251)
+
+### Pedido
+
+Depois da seção 220 (v2.3.247), o cliente mandou o arquivo CORRETO de
+referência pro relatório: "no relatorio de vendas colocar a logomarca
+da federação baiana de tiro defensivo e olimpico no canto superior
+esquerdo pequeno [...] não colocar CT confiança nem cactus clube de
+tiro so deixar federação baiana mesmo, eu mandei o arquivo errado a
+planilha é essa agora". O arquivo novo: um PDF real do sistema
+anterior do cliente, "Relatório de Notas Fiscais - Resumido —
+FEDERAÇÃO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA", com 52 linhas de
+dados reais (incluindo um caso de NF rejeitada e reemitida com sucesso
+em seguida — Nº NF 000498 "NF-e Rejeitado" seguido do 000499
+"Aprovada", mesmo cliente, mesmo valor).
+
+### Por que a seção 220 errou o modelo
+
+O arquivo originalmente anexado (seção 220) era uma Ficha Cadastral de
+Pessoa Jurídica da Prefeitura de Salvador — um documento de CADASTRO
+de empresa, não um relatório de vendas. Eu tinha perguntado 2 vezes
+antes de implementar (ver seção 220) porque o arquivo não parecia um
+relatório de vendas; o cliente confirmou que era o arquivo certo
+naquele momento. Só depois, ao pedir a logomarca, ele percebeu e
+mandou o arquivo correto. Mantido registrado aqui porque é um caso
+real de "até perguntar duas vezes não garante que o arquivo certo
+chegou" — a implementação da seção 220 não estava tecnicamente errada
+dado o que foi confirmado na hora, só não era o que o cliente
+realmente queria.
+
+### Mudança estrutural: de Venda para Nota Fiscal
+
+O modelo de referência mostra UMA LINHA POR NOTA FISCAL emitida, não
+por venda — uma venda reemitida (rejeitada pela Sefaz e corrigida)
+aparece como DUAS linhas. Isso muda a base de dados do relatório:
+`SaleService.listForReport` foi reescrita de `Sale.findAll` (filtrado
+por `saleDate`) pra `FiscalDocument.findAll` (filtrado por
+`issuedAt` — a data de emissão da nota, não a data da venda), incluindo
+`Sale` → `customer`/`items` pra trazer cliente, CNPJ/CPF, CFOP (do
+primeiro item) e os campos de venda (`totalValue`,
+`issuancePurpose`, `operationNature`). Documento ainda não emitido
+(`status: "processing"`, sem `issuedAt`) não aparece — consistente
+com ser um relatório DE NOTAS FISCAIS, não de vendas em geral. Mesma
+rota (`GET /sales/report`), mesmo hook (`fiscal.sales.report`) — só o
+`status` (filtro que não existia no modelo de referência) foi
+removido do endpoint.
+
+Colunas finais, mapeadas 1:1 pro modelo de referência: Nº NF
+(`FiscalDocument.number`), Dt. NF. (`issuedAt`), Cliente
+(`sale.customer.name`), CNPJ (`sale.customer.document`), Status NF-e
+(rótulo PRÓPRIO desse relatório — "Aprovada"/"NF-e Rejeitado"/
+"Cancelada"/"Pendente de correção"/"Processando", DIFERENTE da
+nomenclatura já usada no resto do sistema, `statusChip`/`SaleDetailModal`
+— "Autorizada"/"Erro" —, porque o modelo de referência usa essas
+palavras e é o que a contabilidade do cliente já está acostumada a
+ver), Finalidade (`sale.issuancePurpose`, mesmas opções/rótulos já
+usados em `SaleModal.js` via `SALE_ISSUANCE_PURPOSE_OPTIONS`, ex.:
+"Devolução" bate exatamente com o modelo de referência), C.F.O.P.
+(`sale.items[0].cfop`), Natureza Operação (`sale.operationNature`,
+texto livre), Produtos e Total da NF (`sale.totalValue`, repetido nas
+duas colunas — o sistema não separa frete/desconto do total, igual o
+modelo de referência mostra os dois iguais em toda linha).
+
+### Logomarca fixa, não dinâmica
+
+Diferente de TODO outro documento impresso do sistema (Termo de
+Cautela do Serviço Armaria, por exemplo), que usa
+`user.company.logoUrl`/`user.company.name` — o nome/logo da empresa
+LOGADA, dinâmico, multi-tenant correto — este relatório usa uma
+imagem ESTÁTICA embutida (`frontend/src/assets/federacao-baiana-logo.webp`,
+enviada pelo cliente) e o texto "FEDERAÇÃO BAIANA DE TIRO DEFENSIVO &
+OLIMPICO LTDA" FIXO no código, por pedido explícito: "não colocar CT
+Confiança nem Cactus Clube de Tiro, só deixar Federação Baiana mesmo".
+Decisão deliberada de escopo: isolado a ESTE relatório só — não mexe
+em `Company.logoUrl` (que continua controlando o Termo de Cautela e
+qualquer outro uso futuro do logo dinâmico da empresa), e não hardcoda
+nada no componente genérico `WeaponArmoryServiceModal.js`. Logo
+pequeno (`maxHeight: 44/maxWidth: 60`, bem menor que os 70/160 do
+Termo de Cautela — "pequeno" foi pedido explícito), canto superior
+ESQUERDO (diferente do canto superior DIREITO da primeira versão,
+seção 220 — mudança de posição também pedida nesta rodada).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Script Node isolado contra
+`SaleService.listForReport` real (banco local, não mock) — 16 asserts,
+reproduzindo o cenário exato do modelo de referência: venda com NF
+rejeitada seguida de reemissão aprovada vira 2 linhas (mesmo `saleId`,
+2 `FiscalDocument` diferentes, números/status corretos); venda de
+devolução traz finalidade/natureza/CFOP corretos
+("Devolução"/"DEVOLUÇÃO DE COMPRA"/"5202"); filtro por período usa
+`issuedAt` (documento fora do período excluído); isolamento
+multi-tenant confirmado. Dados de teste removidos ao final, confirmado
+via `psql` que o banco voltou ao estado original (as 4 vendas
+pré-existentes da seed de testes anteriores continuam intactas). `npm
+run build` de produção (frontend) com `Compiled successfully` / exit
+0 — confirma que o import do `.webp` como asset do webpack funciona
+sem configuração adicional (CRA já trata qualquer extensão de imagem
+sob `src/` via asset module padrão).
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/controllers/SaleController.ts`,
+`frontend/src/components/SaleList/index.js`,
+`frontend/src/assets/federacao-baiana-logo.webp`.
+
+### Próximos passos registrados pro módulo RH (não iniciados)
+
+Perguntado explicitamente ao cliente se havia algo a mais a acrescentar
+no módulo RH antes de considerar o roteiro fechado — resposta: deixar
+registrado como próximo passo, sem implementar agora.
+
+- **13º salário** — 2 parcelas (1ª até 30/11, só adiantamento, sem
+  desconto; 2ª até 20/12, com INSS/IRRF calculados separado do salário
+  do mês, nunca somado), proporcional aos meses trabalhados no ano,
+  FGTS 8% sobre as duas parcelas. Reaproveitaria quase toda a
+  infraestrutura já pronta (tabelas de INSS/IRRF, `calculateInss`/
+  `calculateIrrf`) — escopo mais simples dos dois.
+- **Férias** — salário-base + 1/3 constitucional, proporcional ao
+  período aquisitivo, INSS/IRRF sobre o valor, opção de abono
+  pecuniário (vender 1/3 dos dias). Exige controle novo que ainda não
+  existe no sistema (período aquisitivo/concessivo, dias gozados vs.
+  vendidos) — escopo maior, mais próximo do tamanho da Fase 2 inteira.
+
+Nenhum dos dois foi pesquisado (fonte oficial/regras atuais) nem
+implementado — ambos ficam pra quando o cliente pedir explicitamente.
