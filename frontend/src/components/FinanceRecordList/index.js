@@ -116,6 +116,12 @@ const FinanceRecordList = ({
   context = {},
   enablePayments = false,
   enablePhotoUpload = false,
+  // Slot opcional pra ação extra por linha (RH — Fase 2, ver
+  // pages/Employees/index.js: botão "Dependentes"). Função
+  // `(record) => ReactNode` renderizada ANTES de Editar/Excluir — não
+  // mexe em nada quando não for passada, mantém Produtos/Serviços/Contas
+  // exatamente como estavam.
+  rowActions,
 }) => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
@@ -615,6 +621,7 @@ const FinanceRecordList = ({
                   </TableCell>
                 ))}
                 <TableCell align="right">
+                  {rowActions && rowActions(record)}
                   <Tooltip title="Editar">
                     <IconButton size="small" onClick={() => handleEdit(record)}>
                       <EditIcon fontSize="small" />

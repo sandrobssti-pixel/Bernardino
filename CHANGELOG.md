@@ -3,6 +3,45 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.244] — Motor de cálculo de folha: INSS/IRRF/FGTS + Folha Mensal + Dependentes (RH — Fase 2 de 3) — 2026-11-04
+
+### Adicionado
+- Nova aba "Folha de Pagamento" no módulo RH — botão manual "Calcular
+  folha deste mês" (sem geração automática, revisão humana antes de
+  qualquer valor ser gravado) calcula e grava, por competência
+  (mês/ano), o INSS, IRRF, FGTS e desconto de Vale Transporte de cada
+  funcionário CLT/Menor Aprendiz ativo, e o líquido do Estagiário (sem
+  desconto nenhum, direto da bolsa-auxílio). PJ não entra no cálculo
+  (retenção por nota fiscal é outra lógica, fica para outra entrega).
+  Recalcular a mesma competência atualiza o valor salvo, não duplica.
+- Cadastro completo de Dependentes por funcionário (nome, CPF, data de
+  nascimento) — botão dedicado na lista de Funcionários — usado pra
+  calcular o desconto de IRRF (R$ por dependente).
+- **As tabelas de INSS e IRRF são dado configurável, versionado por
+  data de vigência, guardado no banco — nunca escrito direto no
+  código.** Cadastradas com os valores oficiais vigentes desde
+  janeiro/2026 (INSS: Portaria Interministerial MPS/MF nº 13, de
+  09/01/2026; IRRF: tabela de incidência mensal da Receita Federal +
+  dedução por dependente da Lei 9.250/1995). Nova tela exclusiva do
+  Master (`/payroll-tables`) permite cadastrar uma NOVA versão da
+  tabela sempre que a Receita Federal/Previdência atualizar os
+  valores (normalmente todo início de ano) — sem precisar de deploy,
+  sem mexer em nenhuma linha de código. Versões antigas nunca são
+  apagadas/editadas, preservando o cálculo correto de folhas já
+  fechadas no passado.
+- **Limitação conhecida, documentada no código**: o cálculo de IRRF
+  ainda NÃO inclui o redutor adicional criado pela Lei 15.270/2025
+  (isenção efetiva até R$5.000/mês, redução decrescente até
+  R$7.350/mês, em vigor desde janeiro/2026) — a pesquisa encontrou
+  divergência entre fontes sobre a base de cálculo exata da fórmula, e
+  não foi possível confirmar contra o texto oficial da lei (acesso
+  bloqueado pela política de rede deste ambiente). Até esse redutor
+  ser confirmado e implementado, o IRRF calculado fica um pouco ACIMA
+  do valor legalmente devido pra quem ganha até R$7.350/mês.
+- Ver seção 217 do `docs/MANUAL_TECNICO.md` para a modelagem completa,
+  os 6 exemplos de referência conferidos (cálculo manual + script de
+  teste independente) e a decisão sobre a Lei 15.270/2025.
+
 ## [2.3.243] — Benefícios e banco de horas no Cadastro de Funcionários — 2026-11-04
 
 ### Adicionado

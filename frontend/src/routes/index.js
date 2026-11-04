@@ -11,6 +11,7 @@ import Connections from "../pages/Connections";
 import SettingsCustom from "../pages/SettingsCustom";
 import Financeiro from "../pages/Financeiro";
 import RH from "../pages/RH";
+import PayrollTables from "../pages/PayrollTables";
 import WeaponDispatch from "../pages/WeaponDispatch";
 import Services from "../pages/Services";
 import WeaponArmory from "../pages/WeaponArmory";
@@ -185,6 +186,12 @@ const Routes = () => {
                   exact
                   path="/announcements"
                   component={Annoucements}
+                  isPrivate
+                />
+                <Route
+                  exact
+                  path="/payroll-tables"
+                  component={PayrollTables}
                   isPrivate
                 />
                 <Route

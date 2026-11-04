@@ -43,7 +43,28 @@ const useEmployees = () => {
     return data;
   };
 
-  return { list, show, save, update, remove, uploadPhoto };
+  // Dependentes do Funcionário (RH — Fase 2) — usados pra dedução do
+  // IRRF na Folha Mensal (ver usePayroll).
+  const dependents = {
+    list: async (employeeId) => {
+      const { data } = await api.get(`/employees/${employeeId}/dependents`);
+      return data;
+    },
+    save: async (employeeId, payload) => {
+      const { data } = await api.post(`/employees/${employeeId}/dependents`, payload);
+      return data;
+    },
+    update: async (employeeId, id, payload) => {
+      const { data } = await api.put(`/employees/${employeeId}/dependents/${id}`, payload);
+      return data;
+    },
+    remove: async (employeeId, id) => {
+      const { data } = await api.delete(`/employees/${employeeId}/dependents/${id}`);
+      return data;
+    },
+  };
+
+  return { list, show, save, update, remove, uploadPhoto, dependents };
 };
 
 export default useEmployees;

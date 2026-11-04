@@ -80,6 +80,12 @@ import FiscalNumberingInvalidation from "../models/FiscalNumberingInvalidation";
 import JobPosting from "../models/JobPosting";
 import JobApplication from "../models/JobApplication";
 import Employee from "../models/Employee";
+import EmployeeDependent from "../models/EmployeeDependent";
+import PayrollInssTable from "../models/PayrollInssTable";
+import PayrollInssBracket from "../models/PayrollInssBracket";
+import PayrollIrrfTable from "../models/PayrollIrrfTable";
+import PayrollIrrfBracket from "../models/PayrollIrrfBracket";
+import PayrollEntry from "../models/PayrollEntry";
 import SlaRule from "../models/SlaRule";
 import Notification from "../models/Notification";
 import WeaponDispatchClient from "../models/WeaponDispatchClient";
@@ -177,6 +183,12 @@ const models = [
   JobPosting,
   JobApplication,
   Employee,
+  EmployeeDependent,
+  PayrollInssTable,
+  PayrollInssBracket,
+  PayrollIrrfTable,
+  PayrollIrrfBracket,
+  PayrollEntry,
   SlaRule,
   Notification,
   WeaponDispatchClient,

@@ -9,6 +9,9 @@ import * as JobApplicationController from "../controllers/JobApplicationControll
 import * as HRAccessController from "../controllers/HRAccessController";
 import * as HRReportController from "../controllers/HRReportController";
 import * as EmployeeController from "../controllers/EmployeeController";
+import * as EmployeeDependentController from "../controllers/EmployeeDependentController";
+import * as PayrollEntryController from "../controllers/PayrollEntryController";
+import * as PayrollTableController from "../controllers/PayrollTableController";
 
 const hrRoutes = Router();
 const resumeUpload = multer(resumeUploadConfig);
@@ -46,6 +49,25 @@ hrRoutes.post(
   employeePhotoUpload.single("photo"),
   EmployeeController.uploadPhoto
 );
+
+// Admin/RH — Dependentes do Funcionário (Fase 2).
+hrRoutes.get("/employees/:employeeId/dependents", isAuth, EmployeeDependentController.index);
+hrRoutes.post("/employees/:employeeId/dependents", isAuth, EmployeeDependentController.store);
+hrRoutes.put("/employees/:employeeId/dependents/:id", isAuth, EmployeeDependentController.update);
+hrRoutes.delete("/employees/:employeeId/dependents/:id", isAuth, EmployeeDependentController.remove);
+
+// Admin/RH — Folha Mensal (Fase 2): cálculo de INSS/IRRF/FGTS/VT.
+hrRoutes.get("/payroll-entries", isAuth, PayrollEntryController.index);
+hrRoutes.post("/payroll-entries/calculate", isAuth, PayrollEntryController.calculate);
+hrRoutes.post("/payroll-entries/calculate-all", isAuth, PayrollEntryController.calculateAll);
+hrRoutes.delete("/payroll-entries/:id", isAuth, PayrollEntryController.remove);
+
+// Master — administração das tabelas de INSS/IRRF (Fase 2). Nunca edita
+// uma versão existente, só cadastra uma nova (ver PayrollTableService).
+hrRoutes.get("/payroll/inss-tables", isAuth, PayrollTableController.indexInss);
+hrRoutes.post("/payroll/inss-tables", isAuth, PayrollTableController.storeInss);
+hrRoutes.get("/payroll/irrf-tables", isAuth, PayrollTableController.indexIrrf);
+hrRoutes.post("/payroll/irrf-tables", isAuth, PayrollTableController.storeIrrf);
 
 // Público (sem login) — página de vagas da empresa e envio de candidatura.
 hrRoutes.get("/public/job-postings/:companyId", JobPostingController.publicIndex);

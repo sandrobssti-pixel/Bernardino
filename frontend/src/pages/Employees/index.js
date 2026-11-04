@@ -1,9 +1,12 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { makeStyles } from "@material-ui/core/styles";
+import { IconButton, Tooltip } from "@material-ui/core";
+import { PeopleAlt } from "@material-ui/icons";
 
 import api from "../../services/api";
 import useEmployees from "../../hooks/useEmployees";
 import FinanceRecordList from "../../components/FinanceRecordList";
+import EmployeeDependentsModal from "../../components/EmployeeDependentsModal";
 import { employeeColumns, employeeFields, WORK_REGIME_OPTIONS, CONTRACT_STATUS_OPTIONS } from "./employeeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -36,6 +39,7 @@ const useStyles = makeStyles((theme) => ({
 const Employees = () => {
   const classes = useStyles();
   const employees = useEmployees();
+  const [dependentsTarget, setDependentsTarget] = useState(null);
 
   const userPickerResource = useMemo(
     () => ({
@@ -66,7 +70,23 @@ const Employees = () => {
         ]}
         finance={userPickerResource}
         enablePhotoUpload
+        // Dependentes (RH — Fase 2) — usados no cálculo de IRRF da Folha
+        // Mensal (ver components/PayrollPanel).
+        rowActions={(record) => (
+          <Tooltip title="Dependentes (IRRF)">
+            <IconButton size="small" onClick={() => setDependentsTarget(record)}>
+              <PeopleAlt fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
       />
+      {dependentsTarget && (
+        <EmployeeDependentsModal
+          open={!!dependentsTarget}
+          employee={dependentsTarget}
+          onClose={() => setDependentsTarget(null)}
+        />
+      )}
     </div>
   );
 };

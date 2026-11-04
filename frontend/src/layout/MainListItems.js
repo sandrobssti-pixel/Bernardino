@@ -36,6 +36,7 @@ import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
 import PeopleIcon from "@material-ui/icons/People";
 import ListIcon from "@material-ui/icons/ListAlt";
 import AnnouncementIcon from "@material-ui/icons/Announcement";
+import AccountBalanceWalletIcon from "@material-ui/icons/AccountBalanceWallet";
 import CakeIcon from "@material-ui/icons/Cake";
 import ForumIcon from "@material-ui/icons/Forum";
 import LocalAtmIcon from "@material-ui/icons/LocalAtm";
@@ -1259,6 +1260,16 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 )}
                 icon={<AnnouncementIcon />}
                 iconKey="announcements"
+                tooltip={collapsed}
+              />
+            )}
+
+            {user.super && (
+              <ListItemLink
+                to="/payroll-tables"
+                primary="Tabelas INSS/IRRF"
+                icon={<AccountBalanceWalletIcon />}
+                iconKey="payrollTables"
                 tooltip={collapsed}
               />
             )}

@@ -15700,3 +15700,189 @@ produção (frontend) com `Compiled successfully` / exit 0.
 `backend/src/models/Employee.ts`,
 `backend/src/services/EmployeeService/EmployeeService.ts`,
 `frontend/src/pages/Employees/employeeConfig.js`.
+
+## 217. Motor de cálculo de folha: INSS/IRRF/FGTS + Folha Mensal + Dependentes — RH Fase 2 de 3 (v2.3.244)
+
+### Pedido
+
+"Vamos pra fase 2, cálculo de INSS/IRRF/FGTS." Antes de codar, 2
+decisões de escopo foram fechadas com o cliente (ver
+`AskUserQuestion` da sessão): (1) esta fase já entrega a **Folha
+Mensal persistida** (histórico por funcionário/competência), não só
+uma função de cálculo efêmera; (2) **cadastro completo de
+Dependentes** (nome, CPF, nascimento), não só um contador.
+
+### Pesquisa dos valores oficiais (antes de qualquer código)
+
+Dado legal/financeiro real, usado por um cliente de verdade — não dava
+pra confiar em memória de treinamento (pode estar desatualizada; as
+tabelas mudam quase todo ano). Delegado a um fork de pesquisa (WebSearch
+modo extended) buscando fontes oficiais (gov.br) e, na falta delas,
+múltiplas fontes secundárias convergentes citando a Portaria/Instrução
+Normativa de origem.
+
+**INSS** (Portaria Interministerial MPS/MF nº 13, de 09/01/2026,
+vigente desde jan/2026) — progressivo por faixa, desconto = salário ×
+alíquota − parcela a deduzir, capado no teto:
+
+| Faixa | Salário | Alíquota | Parcela a deduzir |
+|---|---|---|---|
+| 1 | até 1.621,00 | 7,5% | 0,00 |
+| 2 | 1.621,01–2.902,84 | 9% | 24,32 |
+| 3 | 2.902,85–4.354,27 | 12% | 111,40 |
+| 4 | 4.354,28–8.475,55 | 14% | 198,49 |
+
+Teto de contribuição: R$8.475,55 → desconto máximo R$988,09.
+
+**IRRF** (Receita Federal, tabela de incidência mensal vigente desde
+jan/2026) — mesma lógica progressiva, base = salário − INSS −
+(dedução por dependente × nº de dependentes):
+
+| Faixa | Base | Alíquota | Parcela a deduzir |
+|---|---|---|---|
+| 1 | até 2.428,80 | isento | — |
+| 2 | 2.428,81–2.826,65 | 7,5% | 182,16 |
+| 3 | 2.826,66–3.751,05 | 15% | 394,16 |
+| 4 | 3.751,06–4.664,68 | 22,5% | 675,49 |
+| 5 | acima de 4.664,68 | 27,5% | 908,73 |
+
+Dedução por dependente: R$189,59/mês (Lei 9.250/1995, art. 4º, III).
+
+**FGTS**: 8% CLT, 2% Menor Aprendiz, isento Estagiário — percentual
+fixo, não é tabela progressiva, estável há décadas (mantido como
+constante no código, não versionado como INSS/IRRF).
+
+**Desconto de VT**: 6% do salário bruto se `transportVoucher: true` —
+simplificação já usada no pedido original do cliente (não modela
+"custo real do VT menor que 6%", que exigiria um dado que o sistema
+não guarda).
+
+**Limitação conhecida, deliberadamente NÃO implementada**: a Lei
+15.270/2025 criou um redutor adicional de IRRF pra quem ganha até
+R$7.350/mês (isenção efetiva até R$5.000, redução decrescente até
+R$7.350), em vigor desde jan/2026. A pesquisa encontrou **divergência
+real entre fontes** sobre a base de cálculo exata da fórmula
+(rendimento bruto do mês vs. base já líquida de INSS) — tentei
+acessar o texto oficial da lei (planalto.gov.br e um espelho em
+progep.ufms.br) diretamente via `WebFetch`, mas ambos os domínios
+estão fora da política de rede permitida deste ambiente de
+desenvolvimento (`getaddrinfo ENOTFOUND`). Decisão: NÃO adivinhar o
+comportamento em cima de uma lei tributária real — o cálculo usa só a
+tabela progressiva tradicional, documentado como limitação explícita
+em 3 lugares (comentário na migration de criação da tabela de IRRF,
+no model `PayrollIrrfTable.ts`, e no `PayrollCalculationService.ts`).
+Efeito prático: o IRRF calculado fica ACIMA do valor legalmente devido
+pra quem ganha até R$7.350/mês, até esse redutor ser confirmado contra
+o texto oficial e implementado.
+
+### Modelagem de dados
+
+**`PayrollInssTables`/`PayrollInssBrackets`** e
+**`PayrollIrrfTables`/`PayrollIrrfBrackets`** — tabelas **GLOBAIS**
+(sem `companyId` — é lei federal, igual pra toda empresa do sistema),
+versionadas por `effectiveFrom`. Uma versão NUNCA é editada depois de
+criada — só se cadastra uma versão nova quando a Receita
+Federal/Previdência muda os valores oficiais, preservando o cálculo
+correto de folhas já fechadas no passado (cada `PayrollEntry` guarda
+`inssTableId`/`irrfTableId` — qual versão foi usada naquele cálculo).
+Migrations de criação já populam a versão 2026-01-01 com os valores
+acima (seed idempotente).
+
+**`EmployeeDependents`** — `employeeId` + `companyId` (FK, CASCADE),
+`name`, `cpf`, `birthDate`.
+
+**`PayrollEntries`** (Folha Mensal) — um registro por
+`employeeId`+`competencyMonth`+`competencyYear` (índice único —
+recalcular a mesma competência faz UPDATE, não duplica). Guarda
+SNAPSHOT dos dados usados no cálculo (`workRegimeSnapshot`,
+`grossSalarySnapshot`, `dependentsCountSnapshot`) — o cadastro do
+funcionário pode mudar depois (ex.: reajuste salarial) sem afetar
+folhas já calculadas.
+
+### Backend
+
+`PayrollCalculationService.ts` — funções puras e testáveis
+(`calculateInss`, `calculateIrrf`, `calculatePayroll`), sempre lendo a
+tabela vigente do banco pela data da COMPETÊNCIA sendo calculada
+(não "hoje" — recálculo de competência antiga usa a tabela que valia
+naquele mês). Regras por regime: CLT e Menor Aprendiz idênticos exceto
+FGTS (8% vs 2%); Estagiário isento de tudo, líquido = bolsa direto;
+PJ rejeitado com `ERR_PAYROLL_NOT_SUPPORTED_FOR_PJ`.
+
+**Bug real de ponto flutuante encontrado e corrigido durante o
+desenvolvimento**: `2751.40 × 0.075 − 182.16` deveria dar exatamente
+24,195 (arredonda pra 24,20), mas a aritmética do JS calcula
+24,194999999999993 — arredondar direto pra 2 casas dava 24,19 (1
+centavo errado, em dinheiro real). `round2()` corrigido pra arredondar
+em duas etapas (10 casas primeiro, eliminando o ruído, depois 2
+casas) — documentado em comentário no próprio código, não escondido.
+
+`PayrollEntryService.calculateAndSaveAll` roda a folha de TODOS os
+funcionários ativos da empresa numa competência de uma vez (botão
+"Calcular folha deste mês") — pula PJ em silêncio e pula/reporta
+funcionário que falhar individualmente, sem derrubar o lote inteiro.
+
+Administração das tabelas INSS/IRRF (`PayrollTableController.ts`) —
+só Master (`user.super`), nunca edita uma versão existente, só
+cadastra uma nova (`ERR_PAYROLL_TABLE_MASTER_ONLY` pra quem não é
+Master).
+
+### Frontend
+
+- Nova aba "Folha de Pagamento" (`PayrollPanel`) — seletor de
+  competência (mês/ano) + botão manual "Calcular folha deste mês"
+  **(pedido explícito do cliente — sem geração automática/recorrente,
+  revisão humana antes de qualquer lançamento)** + tabela com o
+  resultado, avisando visualmente funcionário CLT/Aprendiz sem
+  Salário Bruto cadastrado (calcularia tudo zerado).
+- `EmployeeDependentsModal` — modal dedicado (não encaixa no
+  `FinanceRecordModal` genérico, que não suporta sublista dentro do
+  formulário), acionado por um ícone novo na lista de Funcionários.
+  `FinanceRecordList` ganhou uma prop opcional `rowActions` pra isso —
+  zero impacto nos usos existentes (Produtos/Serviços/Contas) quando
+  não passada.
+- `/payroll-tables` — tela exclusiva do Master (gate em 3 camadas:
+  item de menu só aparece pra `user.super`, página confere de novo,
+  backend confere de novo) pra cadastrar uma nova versão das tabelas
+  quando a lei mudar — faixas coladas como JSON (textarea; um
+  formulário de grade completo seria desproporcional, já que isso só
+  é usado ~1x por ano).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos (reconferidos independentemente; os
+57 problemas que apareceram em `routes/index.js`/`MainListItems.js`
+são pré-existentes — confirmado via `git diff`, nenhuma linha tocada
+por esta entrega está envolvida). Migrations rodadas contra Postgres
+local, seed de INSS/IRRF conferido linha a linha via `psql` — bate
+exato com os valores pesquisados.
+
+**6 exemplos de referência, calculados à mão de forma independente e
+batidos contra o serviço real compilado** (script Node isolado,
+20 asserts, não reaproveitando o teste do desenvolvimento — verificação
+cega): CLT R$3.000/0 dependentes (INSS 248,60 / IRRF 24,20 / FGTS
+240,00 / líquido 2.727,20); mesmo caso com 1 dependente de verdade
+cadastrado via `EmployeeDependent` (IRRF 9,98 / líquido 2.741,42); CLT
+R$1.500 isento de IRRF (líquido 1.387,50); Menor Aprendiz R$700 (FGTS
+2%, líquido 647,50); Estagiário R$1.200 sem nenhum desconto (líquido
+exato); CLT R$3.000 com Vale Transporte (desconto 180,00, líquido
+2.547,20). PJ rejeitado corretamente; recalcular a mesma competência
+não duplica (upsert confirmado por contagem de linhas). Durante essa
+verificação, encontrado e corrigido um erro na classificação manual de
+faixa do IRRF da especificação original (caso 1/6 caem na faixa 2, não
+na 3) — recalculado à mão do zero antes de aceitar a correção.
+`npm run build` de produção (frontend) com `Compiled successfully` /
+exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104150{000,100,200,300}-*.ts`,
+`backend/src/models/{PayrollInssTable,PayrollInssBracket,PayrollIrrfTable,PayrollIrrfBracket,EmployeeDependent,PayrollEntry}.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,PayrollEntryService,PayrollTableService}.ts`,
+`backend/src/services/EmployeeService/EmployeeDependentService.ts`,
+`backend/src/controllers/{EmployeeDependentController,PayrollEntryController,PayrollTableController}.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/{usePayroll,useEmployees}/index.js`,
+`frontend/src/components/{EmployeeDependentsModal,PayrollPanel,FinanceRecordList}/index.js`,
+`frontend/src/pages/{PayrollTables,Employees,RH}/index.js`,
+`frontend/src/routes/index.js`,
+`frontend/src/layout/MainListItems.js`.
