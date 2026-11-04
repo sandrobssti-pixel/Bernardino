@@ -172,6 +172,7 @@ const PayrollPanel = () => {
               <TableCell align="right">Bruto</TableCell>
               <TableCell align="right">INSS</TableCell>
               <TableCell align="right">IRRF</TableCell>
+              <TableCell align="right">Redução Lei 15.270</TableCell>
               <TableCell align="right">FGTS</TableCell>
               <TableCell align="right">Desc. VT</TableCell>
               <TableCell align="right">Líquido</TableCell>
@@ -180,13 +181,13 @@ const PayrollPanel = () => {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={9} align="center">
                   <CircularProgress size={24} />
                 </TableCell>
               </TableRow>
             ) : entries.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={9} align="center">
                   <Typography variant="body2" color="textSecondary">
                     Nenhuma folha calculada pra essa competência ainda.
                   </Typography>
@@ -215,6 +216,7 @@ const PayrollPanel = () => {
                     <TableCell align="right">{formatToCurrency(entry.grossSalarySnapshot || 0)}</TableCell>
                     <TableCell align="right">{formatToCurrency(entry.inssValue || 0)}</TableCell>
                     <TableCell align="right">{formatToCurrency(entry.irrfValue || 0)}</TableCell>
+                    <TableCell align="right">{formatToCurrency(entry.irrfReductionValue || 0)}</TableCell>
                     <TableCell align="right">{formatToCurrency(entry.fgtsValue || 0)}</TableCell>
                     <TableCell align="right">{formatToCurrency(entry.vtDiscount || 0)}</TableCell>
                     <TableCell align="right">

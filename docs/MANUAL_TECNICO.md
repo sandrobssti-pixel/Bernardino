@@ -15988,3 +15988,124 @@ successfully` / exit 0.
 `frontend/src/pages/CompanyPartners/{index,companyPartnerConfig}.js`,
 `frontend/src/pages/RH/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 219. Redutor de IRRF da Lei 15.270/2025 (v2.3.246)
+
+### Pedido
+
+"Vamos resolver o ponto da Lei 15.270/2025" — resolver a limitação
+conhecida deixada aberta na v2.3.244 (seção 217), depois do cadastro
+de Sócios (seção 218) ter sido resolvido primeiro, por pedido
+explícito do cliente.
+
+### Pesquisa: resolvendo a divergência da seção 217
+
+A pesquisa anterior (seção 217) tinha encontrado divergência real
+entre fontes sobre a base de cálculo da fórmula do redutor —
+rendimento bruto do mês vs. base já líquida de INSS/dependentes — e
+não conseguiu confirmar contra o texto oficial (`planalto.gov.br` e um
+espelho em `progep.ufms.br` bloqueados pela política de rede deste
+ambiente, `getaddrinfo ENOTFOUND`). Delegado a um segundo fork de
+pesquisa, mais direcionado nesse ponto específico — encontrado via
+`WebSearch` (modo extended) uma citação atribuída diretamente à página
+oficial de exemplos de aplicação da Lei 15.270/2025
+(`gov.br/receitafederal`), com o próprio "ponto de atenção" da Receita
+Federal: **"se utiliza nessa tabela de redução o valor do salário
+[bruto], e não o da base de cálculo."** — resolve explicitamente a
+divergência: é o rendimento BRUTO mensal, não a base líquida de
+INSS/dependentes.
+
+Mecanismo completo, reconciliado contra um exemplo numérico da própria
+Receita Federal (que usa um desconto de INSS *simplificado*,
+R$607,20, só pra ilustrar a fórmula — não o INSS real):
+
+- Rendimento bruto ≤ R$5.000,00: redução = mín(IRRF pela tabela
+  tradicional, R$312,89).
+- R$5.000,01 ≤ rendimento bruto ≤ R$7.350,00: redução = mín(IRRF pela
+  tabela tradicional, R$978,62 − 0,133145 × rendimento bruto).
+- Rendimento bruto > R$7.350,00: sem redução.
+- IRRF final = máx(IRRF pela tabela tradicional − redução, 0).
+
+Confirmado que R$312,89 não é uma constante arbitrária: é exatamente
+o IRRF pela tabela tradicional pra um bruto de R$5.000,00 usando o
+desconto simplificado ilustrativo da própria Receita Federal
+(R$607,20): base = 5.000,00 − 607,20 = 4.392,80, cai na faixa 4 da
+seção 217 (3.751,06–4.664,68, 22,5%, parcela a deduzir R$675,49):
+4.392,80 × 0,225 − 675,49 = 988,38 − 675,49 = 312,89, exato. Esse
+exemplo foi a prova decisiva de que a fórmula usa o bruto.
+
+O redutor também se aplica ao 13º salário — fora do escopo desta
+entrega, já que o sistema ainda não tem cálculo de 13º salário
+implementado (nenhuma lógica de 13º existe hoje). Nenhuma evidência de
+regulamentação pendente (IN da Receita Federal) — a Receita já
+publicou exemplos oficiais de aplicação, indicando que está em vigor
+e operacional, não um mecanismo "travado" esperando norma complementar.
+
+### Implementação
+
+**Tabelas** (`PayrollIrrfTables`, migration
+`20261104200000-add-lei-15270-reduction-to-irrf-tables.ts`): 5 novas
+colunas — `lei15270Tier1Limit` (5.000,00), `lei15270Tier2Limit`
+(7.350,00), `lei15270MaxReduction` (312,89), `lei15270FormulaConstant`
+(978,62), `lei15270FormulaRate` (0,133145) — todas `NOT NULL` com
+`DEFAULT` igual ao valor oficial vigente, aplicado automaticamente na
+versão já cadastrada (seed 2026-01-01) sem precisar de backfill
+manual. Na MESMA tabela de IRRF (não uma tabela separada) porque o
+redutor é parte do mesmo cálculo mensal e deve ser versionado junto
+com as faixas — se a lei mudar os valores, cadastra-se uma nova versão
+de `PayrollIrrfTable` com faixas E redutor atualizados juntos.
+`PayrollTableService.createIrrfTable` aceita os 5 campos (opcionais —
+se omitidos, usa o `DEFAULT` da coluna), pra o Master poder
+sobrescrevê-los numa versão nova se a lei mudar os valores no futuro.
+
+**Cálculo** (`PayrollCalculationService.ts`): nova função
+`calculateLei15270Reduction(grossSalary, irrfTabelaValue, irrfTable)`
+— pura, lê os 5 valores sempre de `irrfTable` (nunca hardcoded).
+`calculatePayroll` chama essa função depois de `calculateIrrf`, e o
+`irrfValue` final retornado (e usado no líquido) já é o valor COM o
+abatimento aplicado — nunca mais do que o próprio IRRF tabelado (o
+redutor zera o imposto, não gera "imposto negativo"). Novo campo
+`irrfReductionValue` no resultado e em `PayrollEntry` (migration
+`20261104200100-add-irrf-reduction-to-payroll-entries.ts`) — guarda
+quanto foi abatido, só pra transparência/auditoria (o `irrfValue`
+salvo já é o valor final).
+
+### Frontend
+
+- `/payroll-tables`: formulário de cadastro de nova versão de IRRF
+  ganhou 5 campos novos pro redutor (limite da faixa de isenção plena,
+  redução máxima nessa faixa, limite da faixa decrescente, constante e
+  taxa da fórmula), com os valores oficiais vigentes já preenchidos
+  como padrão; a listagem de versões mostra um resumo do redutor
+  configurado em cada uma.
+- `PayrollPanel`: nova coluna "Redução Lei 15.270" na tabela de folha
+  calculada, ao lado do IRRF final.
+
+### Verificação
+
+`tsc --noEmit` limpo. Migrations rodadas contra Postgres local —
+colunas confirmadas via `psql \d`, com os valores `DEFAULT` corretamente
+aplicados na versão de IRRF já seedada (`5000.00`/`7350.00`/`312.89`/
+`978.62`/`0.133145`). Script Node isolado testando
+`calculateLei15270Reduction`/`calculateInss`/`calculateIrrf` direto
+(tabelas mock, sem banco) com os 6 exemplos de referência recalculados
+à mão: bruto R$3.000 (IRRF tabela R$24,20 → final R$0,00, totalmente
+zerado); R$6.000 (IRRF tabela R$564,85 → final R$385,10); R$8.000
+(acima do limite, sem redução, R$1.037,85 inalterado); R$1.500 e Menor
+Aprendiz R$700 (já isentos antes do redutor, sem efeito); fronteira
+exata R$5.000,00 com INSS REAL (não o simplificado ilustrativo da
+Receita) — IRRF tabela R$336,67 → final R$23,78, confirmando que **não
+zera totalmente** nesse caso real (diferente do exemplo oficial, que
+usa INSS fictício só pra ilustrar a fórmula). Segundo script,
+end-to-end contra `calculatePayroll` real com as tabelas buscadas do
+banco (não mock) pra um funcionário CLT de teste bruto R$6.000 — bateu
+exato com o mesmo resultado (INSS R$641,51 / IRRF final R$385,10 /
+redução R$179,75 / líquido R$4.973,39), funcionário de teste removido
+ao final. `npm run build` de produção (frontend) com `Compiled
+successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104200{000,100}-*.ts`,
+`backend/src/models/{PayrollIrrfTable,PayrollEntry}.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,PayrollEntryService,PayrollTableService}.ts`,
+`frontend/src/pages/PayrollTables/index.js`,
+`frontend/src/components/PayrollPanel/index.js`.

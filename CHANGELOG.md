@@ -3,6 +3,49 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.246] — Redutor de IRRF da Lei 15.270/2025 — 2026-11-04
+
+### Adicionado
+- O cálculo de folha (INSS/IRRF/FGTS/VT) agora aplica o redutor
+  adicional da Lei 15.270/2025 (em vigor desde janeiro/2026) sobre o
+  IRRF mensal de CLT e Menor Aprendiz: isenção efetiva (até o limite
+  de R$312,89) pra quem ganha até R$5.000,00 de rendimento bruto
+  mensal, e redução decrescente (fórmula R$978,62 − 0,133145 × bruto)
+  pra quem ganha entre R$5.000,01 e R$7.350,00. Acima de R$7.350,00,
+  sem redução — IRRF integral pela tabela tradicional.
+- **Ponto de atenção da própria Receita Federal, confirmado nesta
+  pesquisa**: a faixa/fórmula do redutor usa o rendimento BRUTO
+  mensal (antes do desconto de INSS) — não a base de cálculo do IRRF
+  já líquida de INSS/dependentes. Fonte: página oficial de exemplos de
+  aplicação da Lei 15.270/2025 (gov.br/receitafederal), que resolve a
+  divergência entre fontes encontrada na pesquisa anterior (v2.3.244).
+- Tabelas de IRRF (`/payroll-tables`, exclusivo do Master) ganharam 5
+  novos campos configuráveis pro redutor — limite da faixa de isenção
+  plena, redução máxima nessa faixa, limite da faixa decrescente, e a
+  constante/taxa da fórmula dessa faixa — versionados junto com as
+  faixas de IRRF (nunca hardcoded no código), com os valores oficiais
+  vigentes aplicados por padrão na versão já cadastrada (sem precisar
+  de recadastro manual).
+- Novo campo `irrfReductionValue` na Folha Mensal (`PayrollEntry`) —
+  guarda quanto do IRRF "cheio" (tabela tradicional) foi abatido pelo
+  redutor, só pra transparência/auditoria (o `irrfValue` salvo já é o
+  valor FINAL, depois do abatimento). Exibido como coluna extra no
+  painel "Folha de Pagamento".
+- 6 exemplos de referência recalculados à mão e confirmados por script
+  de teste independente (valores puros + fluxo completo via banco):
+  bruto R$3.000 (IRRF final R$0,00, zerado pelo redutor — era R$24,20
+  pela tabela cheia), R$6.000 (IRRF final R$385,10, era R$564,85),
+  R$8.000 (acima do limite, sem redução, IRRF R$1.037,85 inalterado),
+  R$1.500 e Menor Aprendiz R$700 (já isentos antes do redutor, sem
+  mudança), e o caso de fronteira exata R$5.000,00 com INSS real
+  (IRRF final R$23,78 — NÃO zera totalmente, diferente do exemplo
+  ilustrativo simplificado da própria Receita Federal, que usa um
+  desconto de INSS fictício só pra ilustrar a fórmula).
+- Resolve a limitação conhecida documentada na v2.3.244 (seção 217 do
+  `docs/MANUAL_TECNICO.md`) — o IRRF calculado deixa de ficar acima do
+  valor legalmente devido pra quem ganha até R$7.350,00/mês.
+- Ver seção 219 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.245] — Cadastro de Sócios no módulo RH — 2026-11-04
 
 ### Adicionado

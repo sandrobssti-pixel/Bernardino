@@ -84,6 +84,12 @@ class PayrollEntry extends Model<PayrollEntry> {
   @Column(DataType.DECIMAL(12, 2))
   irrfValue: number;
 
+  // Quanto do IRRF "cheio" (pela tabela tradicional) foi abatido pelo
+  // redutor da Lei 15.270/2025 — `irrfValue` já é o valor FINAL
+  // (depois do abatimento); este campo é só pra transparência/auditoria.
+  @Column(DataType.DECIMAL(12, 2))
+  irrfReductionValue: number;
+
   @ForeignKey(() => PayrollIrrfTable)
   @Column
   irrfTableId: number;

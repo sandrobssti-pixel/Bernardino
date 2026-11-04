@@ -85,6 +85,7 @@ export const calculateAndSave = async ({
     inssTableId: result.inssTableId,
     irrfBase: result.irrfBase,
     irrfValue: result.irrfValue,
+    irrfReductionValue: result.irrfReductionValue,
     irrfTableId: result.irrfTableId,
     fgtsValue: result.fgtsValue,
     vtDiscount: result.vtDiscount,

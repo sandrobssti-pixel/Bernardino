@@ -28,14 +28,18 @@ import PayrollIrrfBracket from "../../models/PayrollIrrfBracket";
 // esse ruído de ponto flutuante antes do arredondamento final pra 2
 // casas, sem precisar de uma lib de decimal arbitrário.
 //
-// LIMITAÇÃO CONHECIDA: o cálculo de IRRF usa só a tabela progressiva
-// tradicional — NÃO inclui o redutor adicional da Lei 15.270/2025
-// (isenção efetiva até R$5.000/mês, redução decrescente até R$7.350,
-// vigente desde jan/2026). Ver comentário completo em
-// PayrollIrrfTable.ts e na migration de criação da tabela de IRRF. Até
-// esse redutor ser confirmado contra o texto oficial da lei e
-// implementado, o IRRF calculado aqui fica ACIMA do valor legalmente
-// devido pra quem ganha até R$7.350/mês.
+// Redutor adicional da Lei 15.270/2025 (em vigor desde jan/2026) — ver
+// `calculateLei15270Reduction` abaixo. Mecanismo confirmado contra um
+// exemplo numérico atribuído diretamente à página oficial da Receita
+// Federal (gov.br/receitafederal — "exemplos de aplicação da Lei
+// 15.270/2025"), que resolve explicitamente o ponto que ficou em
+// aberto na primeira pesquisa: a faixa/fórmula do redutor usa o
+// RENDIMENTO BRUTO mensal (rendimento tributável, antes do desconto de
+// INSS) — não a base de cálculo do IRRF já líquida de INSS/dependentes.
+// Citação do "ponto de atenção" da própria Receita Federal: "se utiliza
+// nessa tabela de redução o valor do salário [bruto], e não o da base
+// de cálculo." Ver docs/MANUAL_TECNICO.md seção 219 para a pesquisa
+// completa e os exemplos de referência conferidos à mão.
 
 export const round2 = (value: number): number => {
   const denoised = Math.round(value * 1e10) / 1e10;
@@ -143,6 +147,36 @@ export const calculateIrrf = (
   return { base, value: round2(Math.max(raw, 0)) };
 };
 
+// Redutor adicional da Lei 15.270/2025 (ver comentário no topo do
+// arquivo). Recebe o IRRF JÁ calculado pela tabela tradicional
+// (`irrfTabelaValue`) e devolve quanto dele deve ser abatido — nunca
+// mais do que o próprio IRRF tabelado (o redutor zera o imposto, não
+// gera "imposto negativo"). Faixas/valores vêm sempre de `irrfTable`
+// (nunca hardcoded), pra poderem ser atualizados por uma nova versão
+// da tabela sem deploy.
+export const calculateLei15270Reduction = (
+  grossSalary: number,
+  irrfTabelaValue: number,
+  irrfTable: PayrollIrrfTable
+): number => {
+  const gross = Number(grossSalary) || 0;
+  const tier1 = Number(irrfTable.lei15270Tier1Limit);
+  const tier2 = Number(irrfTable.lei15270Tier2Limit);
+  const maxReduction = Number(irrfTable.lei15270MaxReduction);
+  const formulaConstant = Number(irrfTable.lei15270FormulaConstant);
+  const formulaRate = Number(irrfTable.lei15270FormulaRate);
+
+  let candidate = 0;
+  if (gross <= tier1) {
+    candidate = maxReduction;
+  } else if (gross <= tier2) {
+    candidate = formulaConstant - formulaRate * gross;
+  }
+  candidate = Math.max(candidate, 0);
+
+  return round2(Math.min(Number(irrfTabelaValue) || 0, candidate));
+};
+
 export interface PayrollCalculationResult {
   workRegime: string;
   grossSalary: number | null;
@@ -152,6 +186,7 @@ export interface PayrollCalculationResult {
   inssTableId: number | null;
   irrfBase: number | null;
   irrfValue: number;
+  irrfReductionValue: number;
   irrfTableId: number | null;
   fgtsValue: number;
   vtDiscount: number;
@@ -186,6 +221,7 @@ export const calculatePayroll = async (
       inssTableId: null,
       irrfBase: null,
       irrfValue: 0,
+      irrfReductionValue: 0,
       irrfTableId: null,
       fgtsValue: 0,
       vtDiscount: 0,
@@ -204,13 +240,15 @@ export const calculatePayroll = async (
 
   const inss = calculateInss(grossSalary, inssTable);
   const irrf = calculateIrrf(grossSalary, inss.value, dependentsCount, irrfTable);
+  const irrfReduction = calculateLei15270Reduction(grossSalary, irrf.value, irrfTable);
+  const finalIrrfValue = round2(Math.max(irrf.value - irrfReduction, 0));
 
   const fgtsRate = employee.workRegime === "young_apprentice" ? 0.02 : 0.08;
   const fgtsValue = round2(grossSalary * fgtsRate);
 
   const vtDiscount = employee.transportVoucher ? round2(grossSalary * 0.06) : 0;
 
-  const netSalary = round2(grossSalary - inss.value - irrf.value - vtDiscount);
+  const netSalary = round2(grossSalary - inss.value - finalIrrfValue - vtDiscount);
 
   return {
     workRegime: employee.workRegime,
@@ -220,7 +258,8 @@ export const calculatePayroll = async (
     inssValue: inss.value,
     inssTableId: inssTable.id,
     irrfBase: irrf.base,
-    irrfValue: irrf.value,
+    irrfValue: finalIrrfValue,
+    irrfReductionValue: irrfReduction,
     irrfTableId: irrfTable.id,
     fgtsValue,
     vtDiscount,

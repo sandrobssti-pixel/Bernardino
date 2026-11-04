@@ -29,6 +29,15 @@ interface CreateIrrfTableRequest {
   dependentDeductionValue: number;
   sourceReference?: string;
   brackets: BracketInput[];
+  // Redutor adicional da Lei 15.270/2025 (ver PayrollCalculationService.ts)
+  // — opcionais aqui: se omitidos, a coluna usa o DEFAULT do banco (os
+  // valores oficiais vigentes), mas uma nova versão da tabela pode
+  // sobrescrevê-los se a lei/valores mudarem no futuro.
+  lei15270Tier1Limit?: number;
+  lei15270Tier2Limit?: number;
+  lei15270MaxReduction?: number;
+  lei15270FormulaConstant?: number;
+  lei15270FormulaRate?: number;
 }
 
 const validateBrackets = (brackets: BracketInput[]): void => {
@@ -86,14 +95,24 @@ export const createIrrfTable = async ({
   effectiveFrom,
   dependentDeductionValue,
   sourceReference,
-  brackets
+  brackets,
+  lei15270Tier1Limit,
+  lei15270Tier2Limit,
+  lei15270MaxReduction,
+  lei15270FormulaConstant,
+  lei15270FormulaRate
 }: CreateIrrfTableRequest): Promise<PayrollIrrfTable> => {
   validateBrackets(brackets);
 
   const table = await PayrollIrrfTable.create({
     effectiveFrom,
     dependentDeductionValue,
-    sourceReference
+    sourceReference,
+    lei15270Tier1Limit,
+    lei15270Tier2Limit,
+    lei15270MaxReduction,
+    lei15270FormulaConstant,
+    lei15270FormulaRate
   } as any);
 
   await Promise.all(

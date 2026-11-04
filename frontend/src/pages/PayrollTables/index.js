@@ -99,6 +99,11 @@ const PayrollTables = () => {
     dependentDeductionValue: "",
     sourceReference: "",
     bracketsJson: IRRF_EXAMPLE,
+    lei15270Tier1Limit: "5000.00",
+    lei15270Tier2Limit: "7350.00",
+    lei15270MaxReduction: "312.89",
+    lei15270FormulaConstant: "978.62",
+    lei15270FormulaRate: "0.133145",
   });
   const [savingInss, setSavingInss] = useState(false);
   const [savingIrrf, setSavingIrrf] = useState(false);
@@ -185,9 +190,24 @@ const PayrollTables = () => {
         dependentDeductionValue: Number(irrfForm.dependentDeductionValue),
         sourceReference: irrfForm.sourceReference,
         brackets,
+        lei15270Tier1Limit: Number(irrfForm.lei15270Tier1Limit),
+        lei15270Tier2Limit: Number(irrfForm.lei15270Tier2Limit),
+        lei15270MaxReduction: Number(irrfForm.lei15270MaxReduction),
+        lei15270FormulaConstant: Number(irrfForm.lei15270FormulaConstant),
+        lei15270FormulaRate: Number(irrfForm.lei15270FormulaRate),
       });
       toast.success("Nova versão da tabela de IRRF cadastrada!");
-      setIrrfForm({ effectiveFrom: "", dependentDeductionValue: "", sourceReference: "", bracketsJson: IRRF_EXAMPLE });
+      setIrrfForm({
+        effectiveFrom: "",
+        dependentDeductionValue: "",
+        sourceReference: "",
+        bracketsJson: IRRF_EXAMPLE,
+        lei15270Tier1Limit: "5000.00",
+        lei15270Tier2Limit: "7350.00",
+        lei15270MaxReduction: "312.89",
+        lei15270FormulaConstant: "978.62",
+        lei15270FormulaRate: "0.133145",
+      });
       fetchTables();
     } catch (err) {
       toastError(err);
@@ -305,6 +325,7 @@ const PayrollTables = () => {
                   <TableCell>Dedução/dependente</TableCell>
                   <TableCell>Fonte</TableCell>
                   <TableCell>Faixas</TableCell>
+                  <TableCell>Redutor Lei 15.270/2025</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -314,6 +335,10 @@ const PayrollTables = () => {
                     <TableCell>{t.dependentDeductionValue}</TableCell>
                     <TableCell>{t.sourceReference || "—"}</TableCell>
                     <TableCell>{t.brackets?.length || 0}</TableCell>
+                    <TableCell>
+                      até R$ {t.lei15270Tier1Limit}: máx R$ {t.lei15270MaxReduction} · até R${" "}
+                      {t.lei15270Tier2Limit}: R$ {t.lei15270FormulaConstant} − {t.lei15270FormulaRate} × bruto
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -365,6 +390,62 @@ const PayrollTables = () => {
                   fullWidth
                   multiline
                   minRows={6}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Redutor adicional da Lei 15.270/2025 (vigente desde jan/2026) — aplicado sobre o
+                  rendimento BRUTO mensal, nunca sobre a base já líquida de INSS/dependentes.
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Limite faixa 1 — isenção plena (R$)"
+                  value={irrfForm.lei15270Tier1Limit}
+                  onChange={(e) => setIrrfForm((f) => ({ ...f, lei15270Tier1Limit: e.target.value }))}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Redução máxima na faixa 1 (R$)"
+                  value={irrfForm.lei15270MaxReduction}
+                  onChange={(e) => setIrrfForm((f) => ({ ...f, lei15270MaxReduction: e.target.value }))}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  label="Limite faixa 2 — redução decrescente (R$)"
+                  value={irrfForm.lei15270Tier2Limit}
+                  onChange={(e) => setIrrfForm((f) => ({ ...f, lei15270Tier2Limit: e.target.value }))}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Constante da fórmula (faixa 2, R$)"
+                  value={irrfForm.lei15270FormulaConstant}
+                  onChange={(e) => setIrrfForm((f) => ({ ...f, lei15270FormulaConstant: e.target.value }))}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Taxa da fórmula (faixa 2)"
+                  value={irrfForm.lei15270FormulaRate}
+                  onChange={(e) => setIrrfForm((f) => ({ ...f, lei15270FormulaRate: e.target.value }))}
+                  variant="outlined"
+                  size="small"
+                  fullWidth
                 />
               </Grid>
               <Grid item xs={12}>
