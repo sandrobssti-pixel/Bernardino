@@ -3,6 +3,46 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.254] — Férias Gozadas (RH) — 2026-11-04
+
+### Adicionado
+- Novo ícone de ação "Férias" na tela de Funcionários (RH), abrindo um
+  modal dedicado com o histórico de períodos e um formulário pra
+  calcular um novo gozo — UM registro por período aquisitivo (não por
+  ano civil), sem fracionamento nesta versão.
+- **Período aquisitivo** (12 meses contados da admissão, ciclos se
+  repetem) calculado automaticamente a partir da admissão; o sistema
+  sugere o próximo período já completo que ainda não tem registro.
+- **Cálculo da remuneração das férias**: salário correspondente aos
+  dias efetivamente gozados + 1/3 constitucional — **sofrem INSS e
+  IRRF** (diferente da férias proporcional da Rescisão, que é
+  indenizatória e isenta — a confusão comum entre os dois casos tem
+  base legal clara: STJ Tema 881 pro IRRF, STF Tema 985 pro INSS).
+- **Abono pecuniário** (venda de até 1/3 do período — 10 dias, já que
+  o sistema assume sempre 30 dias de direito): o valor vendido é
+  isento de INSS/IRRF; o 1/3 constitucional sobre o abono é isento de
+  INSS (prática majoritária, tema controverso) mas **sofre IRRF**
+  segundo a própria Receita Federal (Solução de Consulta COSIT
+  209/2021) — calculado junto com as férias, "em separado dos demais
+  rendimentos do mês" (RIR/2018 art. 682).
+- Redutor da Lei 15.270/2025 aplicado por extensão da mesma mecânica
+  já usada na Folha Mensal/13º/Rescisão (sem orientação oficial
+  específica pra férias encontrada — ver limitação na seção 227 do
+  manual técnico).
+- Pesquisado via WebSearch extended antes de implementar, mesma
+  disciplina já usada pras demais obrigações trabalhistas deste
+  módulo — inclusive uma correção de premissa própria no meio do
+  processo (abono pecuniário não é 100% isento, como eu havia
+  presumido ao perguntar o escopo: o 1/3 sobre ele sofre IRRF pela
+  posição oficial da Receita).
+- Só CLT e Menor Aprendiz (PJ não tem férias CLT; Estagiário tem um
+  "recesso" pela Lei 11.788/2008, que não é tecnicamente férias CLT —
+  fora do escopo desta entrega).
+- Ver seção 227 do `docs/MANUAL_TECNICO.md` (inclui as limitações
+  conhecidas: sem rastreio de faltas injustificadas, sem fracionamento
+  em múltiplos gozos, sem o cálculo da dobra por concessão fora do
+  período concessivo, sem médias de parcelas variáveis).
+
 ## [2.3.253] — Rescisão de Contrato / verbas rescisórias (RH) — 2026-11-04
 
 ### Adicionado

@@ -772,3 +772,162 @@ export const calculateTermination = async (
     netValue
   };
 };
+
+// Férias GOZADAS normalmente (durante o contrato ativo) — DIFERENTE
+// das férias proporcionais da Rescisão: aqui o salário correspondente
+// aos dias gozados + o 1/3 constitucional SOFREM INSS e IRRF (súmula/
+// tema do STJ confirmam — só a rescisão/indenização é isenta).
+// Pesquisado via WebSearch extended, ver docs/MANUAL_TECNICO.md.
+
+// Soma/subtrai dias de uma data DATEONLY, sempre por componentes
+// ano/mês/dia reconstruídos via `Date.UTC` (nunca por string) — seguro
+// porque construímos a partir de inteiros já conhecidos (sem a
+// ambiguidade de fuso que vem de interpretar uma STRING de data).
+const addDaysToParts = (
+  parts: { year: number; month: number; day: number },
+  days: number
+): { year: number; month: number; day: number } => {
+  const base = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  base.setUTCDate(base.getUTCDate() + days);
+  return { year: base.getUTCFullYear(), month: base.getUTCMonth() + 1, day: base.getUTCDate() };
+};
+
+const formatDateOnly = (parts: { year: number; month: number; day: number }): string =>
+  `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+
+// Início/fim do N-ésimo período aquisitivo (1-based) de um funcionário —
+// sempre contado a partir da admissão, ciclos de 12 meses (CLT art.
+// 130). `periodNumber` 1 cobre admissão até admissão+1 ano−1 dia.
+export const calculateVacationPeriodBounds = (
+  admissionDate: string | null | undefined,
+  periodNumber: number
+): { start: { year: number; month: number; day: number }; end: { year: number; month: number; day: number } } | null => {
+  const admission = parseDateOnlyParts(admissionDate);
+  if (!admission || !Number.isInteger(periodNumber) || periodNumber < 1) return null;
+
+  const start = { year: admission.year + (periodNumber - 1), month: admission.month, day: admission.day };
+  const nextAnniversary = { year: start.year + 1, month: start.month, day: start.day };
+  const end = addDaysToParts(nextAnniversary, -1);
+  return { start, end };
+};
+
+export interface VacationResult {
+  periodStart: string;
+  periodEnd: string;
+  daysEntitled: number;
+  daysTaken: number;
+  daysSold: number;
+  vacationStartDate: string;
+  vacationEndDate: string;
+  grossSalary: number | null;
+  vacationGrossValue: number;
+  vacationBonusValue: number;
+  soldValue: number;
+  soldBonusValue: number;
+  inssBase: number | null;
+  inssValue: number;
+  inssTableId: number | null;
+  irrfBase: number | null;
+  irrfValue: number;
+  irrfReductionValue: number;
+  irrfTableId: number | null;
+  netValue: number;
+}
+
+// Simplificação documentada: o sistema não rastreia faltas
+// injustificadas (CLT art. 130), então sempre assume o direito cheio
+// de 30 dias por período aquisitivo completo — nunca a escala
+// reduzida (24/18/12 dias). Por isso o abono pecuniário (venda de até
+// 1/3) tem teto fixo de 10 dias.
+const VACATION_DAYS_ENTITLED = 30;
+const VACATION_MAX_DAYS_SOLD = 10;
+
+export const calculateVacation = async (
+  employee: Employee,
+  dependentsCount: number,
+  periodNumber: number,
+  vacationStartDate: string,
+  daysSold: number
+): Promise<VacationResult> => {
+  if (employee.workRegime !== "clt" && employee.workRegime !== "young_apprentice") {
+    throw new AppError("ERR_PAYROLL_VACATION_NOT_SUPPORTED_FOR_WORK_REGIME", 400);
+  }
+
+  const start = parseDateOnlyParts(vacationStartDate);
+  if (!start) {
+    throw new AppError("ERR_PAYROLL_VACATION_INVALID_START_DATE", 400);
+  }
+
+  const sold = Number(daysSold);
+  if (!Number.isInteger(sold) || sold < 0 || sold > VACATION_MAX_DAYS_SOLD) {
+    throw new AppError("ERR_PAYROLL_VACATION_INVALID_DAYS_SOLD", 400);
+  }
+
+  const bounds = calculateVacationPeriodBounds(employee.admissionDate, periodNumber);
+  if (!bounds) {
+    throw new AppError("ERR_PAYROLL_VACATION_INVALID_PERIOD", 400);
+  }
+
+  // O período aquisitivo tem que estar COMPLETO antes do início do
+  // gozo (CLT art. 130: "após cada período de 12 meses...") — valida
+  // contra a data de início informada, não "hoje" (permite registrar
+  // períodos passados sem depender da data do servidor).
+  const completedCycles = calculateFullYearsOfService(employee.admissionDate, vacationStartDate);
+  if (completedCycles < periodNumber) {
+    throw new AppError("ERR_PAYROLL_VACATION_INVALID_PERIOD", 400);
+  }
+
+  const daysTaken = VACATION_DAYS_ENTITLED - sold;
+  const end = addDaysToParts(start, daysTaken - 1);
+  const vacationEndDate = formatDateOnly(end);
+
+  const grossSalary = Number(employee.grossSalary) || 0;
+  const inssTable = await getInssTableForDate(vacationStartDate);
+  const irrfTable = await getIrrfTableForDate(vacationStartDate);
+
+  const vacationGrossValue = round2((grossSalary / VACATION_DAYS_ENTITLED) * daysTaken);
+  const vacationBonusValue = round2(vacationGrossValue / 3);
+  const taxableBase = round2(vacationGrossValue + vacationBonusValue);
+  const inss = calculateInss(taxableBase, inssTable);
+
+  // Abono pecuniário (venda de dias): o valor vendido em si é isento
+  // de INSS/IRRF (Lei 8.212/91 art. 28 §9º "e"; Solução de Divergência
+  // COSIT 01/2009). O 1/3 constitucional SOBRE o abono é isento de
+  // INSS (prática majoritária, tema controverso — ver seção do manual
+  // técnico) mas a própria Receita Federal (Solução de Consulta COSIT
+  // 209/2021) entende que ele SOFRE IRRF — por isso entra na base do
+  // IRRF (calculado junto, "em separado dos demais rendimentos do
+  // mês", RIR/2018 art. 682) mas NÃO na base do INSS.
+  const soldValue = round2((grossSalary / VACATION_DAYS_ENTITLED) * sold);
+  const soldBonusValue = round2(soldValue / 3);
+
+  const irrfGrossForCalc = round2(taxableBase + soldBonusValue);
+  const irrf = calculateIrrf(irrfGrossForCalc, inss.value, dependentsCount, irrfTable);
+  const irrfReduction = calculateLei15270Reduction(irrfGrossForCalc, irrf.value, irrfTable);
+  const finalIrrfValue = round2(Math.max(irrf.value - irrfReduction, 0));
+
+  const netValue = round2(vacationGrossValue + vacationBonusValue - inss.value - finalIrrfValue + soldValue + soldBonusValue);
+
+  return {
+    periodStart: formatDateOnly(bounds.start),
+    periodEnd: formatDateOnly(bounds.end),
+    daysEntitled: VACATION_DAYS_ENTITLED,
+    daysTaken,
+    daysSold: sold,
+    vacationStartDate,
+    vacationEndDate,
+    grossSalary: employee.grossSalary ?? null,
+    vacationGrossValue,
+    vacationBonusValue,
+    soldValue,
+    soldBonusValue,
+    inssBase: inss.base,
+    inssValue: inss.value,
+    inssTableId: inssTable.id,
+    irrfBase: irrf.base,
+    irrfValue: finalIrrfValue,
+    irrfReductionValue: irrfReduction,
+    irrfTableId: irrfTable.id,
+    netValue
+  };
+};

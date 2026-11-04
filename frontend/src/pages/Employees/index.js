@@ -1,13 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import { IconButton, Tooltip } from "@material-ui/core";
-import { PeopleAlt, ExitToApp } from "@material-ui/icons";
+import { PeopleAlt, ExitToApp, BeachAccess } from "@material-ui/icons";
 
 import api from "../../services/api";
 import useEmployees from "../../hooks/useEmployees";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import EmployeeDependentsModal from "../../components/EmployeeDependentsModal";
 import PayrollTerminationModal from "../../components/PayrollTerminationModal";
+import PayrollVacationModal from "../../components/PayrollVacationModal";
 import { employeeColumns, employeeFields, WORK_REGIME_OPTIONS, CONTRACT_STATUS_OPTIONS } from "./employeeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -42,6 +43,7 @@ const Employees = () => {
   const employees = useEmployees();
   const [dependentsTarget, setDependentsTarget] = useState(null);
   const [terminationTarget, setTerminationTarget] = useState(null);
+  const [vacationTarget, setVacationTarget] = useState(null);
 
   const userPickerResource = useMemo(
     () => ({
@@ -81,6 +83,11 @@ const Employees = () => {
                 <PeopleAlt fontSize="small" />
               </IconButton>
             </Tooltip>
+            <Tooltip title="Férias">
+              <IconButton size="small" onClick={() => setVacationTarget(record)}>
+                <BeachAccess fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="Rescisão de Contrato">
               <IconButton size="small" onClick={() => setTerminationTarget(record)}>
                 <ExitToApp fontSize="small" />
@@ -94,6 +101,13 @@ const Employees = () => {
           open={!!dependentsTarget}
           employee={dependentsTarget}
           onClose={() => setDependentsTarget(null)}
+        />
+      )}
+      {vacationTarget && (
+        <PayrollVacationModal
+          open={!!vacationTarget}
+          employee={vacationTarget}
+          onClose={() => setVacationTarget(null)}
         />
       )}
       {terminationTarget && (

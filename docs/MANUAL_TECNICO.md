@@ -17043,3 +17043,197 @@ build` de produção (frontend) com `Compiled successfully` / exit 0.
 `frontend/src/components/PayrollTerminationModal/index.js`,
 `frontend/src/pages/Employees/{index.js,employeeConfig.js}`,
 `frontend/src/translate/languages/pt.js`.
+
+## 227. Férias Gozadas (RH, v2.3.254)
+
+### Pedido
+
+Depois de entregar a Rescisão (seção 226), o cliente pediu pra começar
+pelas Férias — o segundo item da minha recomendação anterior. Como o
+pedido abria várias decisões de escopo razoáveis (o que entra nesta
+entrega: só registro de datas, ou cálculo financeiro completo? abono
+pecuniário incluído? onde a UI vive? fracionamento em múltiplos gozos
+suportado?), segui a instrução permanente deste repositório
+(`CLAUDE.md`) e perguntei antes de implementar. Respostas: escopo
+completo (período aquisitivo/concessivo + registro de dias
+gozados/vendidos + cálculo da remuneração), abono pecuniário incluído,
+UI como ícone de ação no Funcionário (modal dedicado, mesmo padrão de
+Dependentes/Rescisão), sem fracionamento em múltiplos gozos nesta
+versão.
+
+### Pesquisa (WebSearch extended, mesma disciplina das seções anteriores)
+
+Pesquisa feita num agente em background, WebFetch bloqueado pra
+`planalto.gov.br`/outros domínios fora da rede permitida da sessão —
+os artigos da CLT citados vêm de buscas (múltiplas fontes convergentes)
+e do texto legal já conhecido, não da leitura direta na fonte oficial.
+
+1. **Período aquisitivo/concessivo** (CLT arts. 130/134/135/136):
+   direito nasce a cada 12 meses de contrato, contados da admissão
+   (ciclos se repetem); o empregador concede nos 12 meses seguintes.
+   Confiança alta.
+2. **Férias concedidas fora do prazo** (CLT art. 137, Súmulas 81/328 do
+   TST): pagamento em dobro — só os dias excedentes ao período
+   concessivo, 1/3 incluso na dobra. A Súmula 450 do TST (dobra por
+   mero atraso no PAGAMENTO, sem atraso na concessão) foi declarada
+   INCONSTITUCIONAL pelo STF na ADPF 501 (efeito vinculante,
+   2026-08-05/18). **Não implementado nesta entrega** — ver limitação
+   abaixo.
+3. **Dias de direito**: 30 dias corridos por período completo é a
+   regra padrão (CLT art. 130, I), reduzida por faltas injustificadas
+   numa escala de 24/18/12 dias (ou perda total acima de 32 faltas).
+   Confiança alta. **Simplificação documentada**: o sistema não
+   rastreia faltas, assume sempre os 30 dias cheios.
+4. **Tributação das férias GOZADAS (ponto que mais gerava confusão)**:
+   ao contrário da férias indenizada na rescisão (isenta), a
+   remuneração das férias gozadas normalmente DURANTE o contrato ativo
+   — e o 1/3 constitucional sobre ela — **sofrem INSS e IRRF**.
+   Confiança alta, com base legal específica e recente: **IRRF** — STJ
+   Tema 881 (recurso repetitivo), fixa que incide IR sobre o 1/3 de
+   férias GOZADAS, expressamente distinguindo do Tema 121/Súmula 386
+   (férias NÃO gozadas/indenizadas, isentas). **INSS** — o STF, no Tema
+   985 (RE 1.072.485), superou o entendimento anterior do STJ (Tema
+   479) e fixou que incide contribuição sobre o 1/3 de férias — com
+   modulação de efeitos a partir de 15/09/2020 (já aplicável a 2026).
+   Apuração correta, pela lei: INSS entra somado ao salário normal do
+   mês de GOZO (competência); IRRF é calculado em SEPARADO (RIR/2018
+   art. 682), no mês do PAGAMENTO (regime de caixa). **Simplificação
+   documentada**: o sistema calcula ambos de forma isolada (só sobre a
+   base das férias, sem somar ao salário do mês), mesma simplificação
+   já aceita pro 13º — nunca integra com uma competência de Folha
+   Mensal já calculada.
+5. **Abono pecuniário** (CLT art. 143 — venda de até 1/3 do período):
+   o valor vendido em si é isento de INSS (Lei 8.212/91 art. 28 §9º
+   "e") e de IRRF (Solução de Divergência COSIT 01/2009). **MAS o 1/3
+   constitucional SOBRE o abono tem tratamento diferente dos dois
+   tributos** — ponto que corrigiu uma premissa que eu mesmo levei pro
+   cliente ao perguntar o escopo ("abono isento de INSS e IRRF" não é
+   totalmente exato): no INSS, é controverso, mas a prática majoritária
+   (e a maioria dos sistemas de folha) trata como isento; no IRRF, a
+   própria Receita Federal (**Solução de Consulta COSIT 209/2021**,
+   vinculante pra fiscalização) entende que SOFRE tributação — "não há
+   qualquer dispositivo que estenda a dispensa de tributação... para o
+   terço constitucional de férias correspondente" ao abono. Implementado
+   seguindo a posição oficial da Receita (IRRF incide) + a prática
+   majoritária (INSS não incide) — a divergência fica documentada, não
+   escondida.
+6. **Prazo de pagamento**: até 2 dias antes do início do gozo (CLT art.
+   145). Informativo — não há mecanismo de alerta/prazo no sistema.
+7. **Quem tem direito**: CLT e Menor Aprendiz igual (mesmo 30
+   dias/1/3/INSS/IRRF). Estagiário tem "recesso" (Lei 11.788/2008 art.
+   13) — remunerado pela bolsa, SEM 1/3 constitucional, SEM abono, SEM
+   INSS (não há vínculo empregatício) — **não é férias CLT**, fica
+   fora do cálculo. PJ não tem férias CLT.
+
+### Implementação
+
+`PayrollCalculationService.ts` ganhou `calculateVacationPeriodBounds`
+(início/fim do N-ésimo período aquisitivo, por comparação de
+componentes ano/mês/dia) e `calculateVacation(employee,
+dependentsCount, periodNumber, vacationStartDate, daysSold)`.
+REAPROVEITA sem alteração `calculateInss`/`calculateIrrf`/
+`calculateLei15270Reduction` já testados, e `calculateFullYearsOfService`
+(já existente da Rescisão) pra validar que o período está completo
+antes do início do gozo informado.
+
+**1/3 do abono: calculado JUNTO no IRRF, mas FORA do INSS** — pra
+evitar duplicar a dedução por dependente em dois cálculos de IRRF
+separados sobre o mesmo evento de pagamento (o que a lei chama de "em
+separado dos demais rendimentos do mês", não "em separado entre si"),
+`soldBonusValue` entra na base passada pra `calculateIrrf` (somada ao
+valor principal das férias) mas NÃO entra na base passada pra
+`calculateInss` — produz UM valor de IRRF total sobre o evento de
+férias (incluindo o 1/3 do abono) com UMA única dedução por
+dependente, em vez de dois cálculos fragmentados.
+
+**Soma/subtração de dias em data DATEONLY**: usa `Date.UTC(ano,
+mês-1, dia)` com `setUTCDate`/leitura via `getUTCFullYear`/etc — SEGURO
+porque constrói a partir de INTEIROS já conhecidos (não de uma string
+ambígua, que é o caso que a disciplina "nunca `new Date(string)`" deste
+projeto evita). Testado contra o caso de borda de admissão em 29/02
+(ano bissexto) — o período seguinte termina corretamente em 28/02 do
+ano não bissexto seguinte, graças à normalização automática do próprio
+`Date.UTC` pra dia 29 de fevereiro num ano sem esse dia.
+
+**Modelagem de dados**: nova tabela `PayrollVacations` (migration
+`20261104260000-create-payroll-vacations.ts`, model
+`PayrollVacation.ts`) — UM registro POR PERÍODO AQUISITIVO (índice
+único `employeeId+periodNumber`, diferente da Rescisão que é um
+registro único pra sempre, e diferente do 13º que é por ANO CIVIL).
+Sem fracionamento: `daysTaken + daysSold` sempre soma os 30 dias de
+direito assumidos.
+
+`PayrollVacationService.showByEmployee` centraliza no backend a conta
+de "qual período está pendente de registro" (via
+`calculateFullYearsOfService(admissionDate, hoje)` menos o último
+período já registrado) — evita duplicar a lógica de datas no
+frontend, que só precisa exibir o número sugerido.
+
+### Frontend
+
+Novo ícone de ação (`BeachAccess`) na lista de Funcionários, ao lado
+dos já existentes de Dependentes e Rescisão — abre
+`PayrollVacationModal`, modal dedicado (mesmo motivo dos outros dois:
+precisa mostrar um histórico de registros, não só um formulário).
+Campos: número do período (pré-preenchido com o próximo pendente),
+data de início do gozo, dias de abono (0-10). Lista o histórico de
+períodos já calculados com opção de remover cada um (sem confirmação
+extra — ao contrário da Rescisão, calcular/remover férias não tem
+efeito colateral no cadastro do funcionário). Férias só aparece
+disponível pra CLT/Menor Aprendiz (`isCltOrApprentice`, já exportado
+desde a Rescisão).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Primeiro script Node isolado testando
+`calculateVacationPeriodBounds` — 7 asserts, incluindo o caso de borda
+de admissão em 29 de fevereiro. Segundo script, end-to-end contra
+`PayrollVacationService` real (banco local) — 27 asserts cobrindo: um
+funcionário com abono de 6 dias (férias+1/3 tributadas, abono+1/3
+calculados com a tributação mista correta, IRRF zerado pela Lei
+15.270 por estar sob o teto), um funcionário sem abono e salário mais
+alto com 1 dependente (faixa de INSS/IRRF mais alta, SEM redução da
+Lei 15.270 por estar sobre o teto — confirmado contra as alíquotas
+REAIS da tabela do banco de testes); PJ recusado; abono fora do limite
+0-10 recusado (positivo e negativo); data de início vazia recusada;
+período ainda não completo recusado; `showByEmployee` sugerindo
+corretamente o próximo período pendente (1 → 2 → null, conforme
+registra); recalcular não duplica (upsert); `list`/`remove`. Dados de
+teste removidos ao final, confirmado via `psql` que o banco voltou ao
+estado original. `npm run build` de produção (frontend) com `Compiled
+successfully` / exit 0.
+
+### Limitações conhecidas desta entrega
+
+- **Sem rastreio de faltas injustificadas** — sempre assume os 30 dias
+  de direito cheios (CLT art. 130), nunca a escala reduzida de 24/18/12
+  dias.
+- **Sem fracionamento** — um único gozo cobre o período inteiro (dias
+  gozados + vendidos somam sempre 30), não suporta dividir em até 3
+  períodos (CLT art. 134 §1º).
+- **Sem o cálculo da dobra** por concessão fora do período concessivo
+  (CLT art. 137) — regra complexa (só os dias excedentes dobram,
+  Súmula 81 do TST) que HR precisa calcular manualmente se ocorrer.
+- **Sem médias de parcelas variáveis** (horas extras, comissões etc.)
+  na base de cálculo — usa só o `grossSalary` fixo cadastrado, mesma
+  simplificação já aceita em outros cálculos deste módulo.
+- **INSS calculado isolado**, não somado à competência do salário
+  normal do mês de gozo (diferente da apuração "correta" pela lei) —
+  mesma simplificação já aplicada ao 13º.
+- **Redutor da Lei 15.270/2025 aplicado por extensão** — sem
+  orientação oficial específica da Receita Federal pro cálculo
+  separado das férias encontrada na pesquisa.
+- **1/3 sobre o abono pecuniário**: o tratamento de INSS segue a
+  prática majoritária (isento), não uma posição oficial expressa —
+  tema genuinamente controverso, documentado como tal.
+
+**Arquivos**: `backend/src/database/migrations/20261104260000-create-payroll-vacations.ts`,
+`backend/src/models/PayrollVacation.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,PayrollVacationService}.ts`,
+`backend/src/controllers/PayrollVacationController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePayroll/index.js`,
+`frontend/src/components/PayrollVacationModal/index.js`,
+`frontend/src/pages/Employees/index.js`,
+`frontend/src/translate/languages/pt.js`.

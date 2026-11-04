@@ -125,6 +125,32 @@ const usePayroll = () => {
     },
   };
 
+  // Férias Gozadas — UM registro por PERÍODO AQUISITIVO (não por ano
+  // civil). Diferente da férias proporcional da Rescisão: aqui o
+  // salário dos dias gozados + 1/3 SOFREM INSS/IRRF. Abono pecuniário
+  // (venda de até 1/3) é isento de INSS/IRRF, mas o 1/3 sobre o abono
+  // sofre IRRF (posição da Receita, Solução de Consulta COSIT
+  // 209/2021). Ver PayrollVacationService.ts no backend.
+  const vacations = {
+    showByEmployee: async (employeeId) => {
+      const { data } = await api.get(`/payroll-vacations/employee/${employeeId}`);
+      return data;
+    },
+    calculate: async ({ employeeId, periodNumber, vacationStartDate, daysSold }) => {
+      const { data } = await api.post("/payroll-vacations/calculate", {
+        employeeId,
+        periodNumber,
+        vacationStartDate,
+        daysSold,
+      });
+      return data;
+    },
+    remove: async (id) => {
+      const { data } = await api.delete(`/payroll-vacations/${id}`);
+      return data;
+    },
+  };
+
   // Administração das tabelas de INSS/IRRF — só Master (`user.super`).
   // Nunca edita uma versão existente, só cadastra uma nova.
   const tables = {
@@ -146,7 +172,7 @@ const usePayroll = () => {
     },
   };
 
-  return { list, calculate, calculateAll, remove, expenseLaunch, partners, thirteenthSalary, termination, tables };
+  return { list, calculate, calculateAll, remove, expenseLaunch, partners, thirteenthSalary, termination, vacations, tables };
 };
 
 export default usePayroll;
