@@ -1,5 +1,6 @@
 import AppError from "../../errors/AppError";
 import PayrollEntry from "../../models/PayrollEntry";
+import PayrollPartnerEntry from "../../models/PayrollPartnerEntry";
 import PayrollExpenseLaunch from "../../models/PayrollExpenseLaunch";
 import FinanceExpense from "../../models/FinanceExpense";
 import { round2 } from "./PayrollCalculationService";
@@ -14,10 +15,16 @@ import { validateCompetency } from "./PayrollEntryService";
 //   pesquisado/implementado neste sistema; inventar esse valor seria
 //   pior do que não incluir).
 // - UMA conta a pagar CONSOLIDADA por competência (não uma por
-//   funcionário) — "Folha de pagamento — MM/AAAA", igual um contador
-//   lança de verdade.
+//   funcionário/sócio) — "Folha de pagamento — MM/AAAA", igual um
+//   contador lança de verdade.
 // Botão manual (sem geração automática) — mesma filosofia de revisão
 // humana já usada em "Calcular folha deste mês".
+//
+// v2.3.249 — soma também o líquido do pró-labore dos Sócios
+// (PayrollPartnerEntry.netValue), que não existia ainda quando esta
+// função foi criada na v2.3.248. É dinheiro que a empresa paga todo
+// mês igual o salário de funcionário — faz parte do mesmo "custo de
+// folha", não um lançamento separado.
 
 interface LaunchRequest {
   companyId: number;
@@ -64,14 +71,20 @@ export const launch = async ({
   const entries = await PayrollEntry.findAll({
     where: { companyId, competencyMonth, competencyYear }
   });
+  const partnerEntries = await PayrollPartnerEntry.findAll({
+    where: { companyId, competencyMonth, competencyYear }
+  });
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && partnerEntries.length === 0) {
     throw new AppError("ERR_PAYROLL_EXPENSE_NO_ENTRIES", 400);
   }
 
-  const totalValue = round2(
-    entries.reduce((sum, entry) => sum + (Number(entry.netSalary) || 0) + (Number(entry.fgtsValue) || 0), 0)
+  const employeesTotal = entries.reduce(
+    (sum, entry) => sum + (Number(entry.netSalary) || 0) + (Number(entry.fgtsValue) || 0),
+    0
   );
+  const partnersTotal = partnerEntries.reduce((sum, entry) => sum + (Number(entry.netValue) || 0), 0);
+  const totalValue = round2(employeesTotal + partnersTotal);
 
   const description = `Folha de pagamento — ${String(competencyMonth).padStart(2, "0")}/${competencyYear}`;
 

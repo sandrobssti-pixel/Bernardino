@@ -1950,7 +1950,7 @@ const messages = {
         ERR_PAYROLL_IRRF_BRACKET_NOT_FOUND: "Nenhuma faixa de IRRF cobre a base de cálculo informada.",
         ERR_PAYROLL_TABLE_MASTER_ONLY: "Esta tela é exclusiva do Master do sistema.",
         ERR_PAYROLL_TABLE_BRACKETS_REQUIRED: "Informe ao menos uma faixa para a tabela.",
-        ERR_PAYROLL_EXPENSE_NO_ENTRIES: "Calcule a folha deste mês antes de lançar em Contas a Pagar.",
+        ERR_PAYROLL_EXPENSE_NO_ENTRIES: "Calcule a folha (ou o pró-labore dos sócios) deste mês antes de lançar em Contas a Pagar.",
         ERR_PAYROLL_EXPENSE_ALREADY_PAID: "Esta conta já foi marcada como paga — ajuste manualmente em Contas a Pagar se precisar.",
         ERR_JOB_APPLICATION_INVALID_FILE_TYPE: "Envie o currículo em PDF ou Word.",
         ERR_JOB_APPLICATION_ALREADY_HIRED: "Esta candidatura já foi efetivada.",

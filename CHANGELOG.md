@@ -3,6 +3,37 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.249] — INSS/IRRF do Pró-labore dos Sócios (RH) — 2026-11-04
+
+### Adicionado
+- Nova seção "Pró-labore dos Sócios" no painel Folha de Pagamento —
+  botão "Calcular pró-labore do mês" calcula e grava INSS e IRRF de
+  todos os sócios ativos pra uma competência, igual já funciona pros
+  funcionários.
+- **INSS do pró-labore usa regra DIFERENTE de CLT**: sócio é
+  "contribuinte individual" perante o INSS — alíquota FIXA de 11%
+  (não a tabela progressiva 7,5%-14% de CLT), sem piso/faixa isenta
+  (incide desde o primeiro real), limitada ao MESMO teto de
+  contribuição do RGPS que o INSS de CLT já usa. Pesquisado via
+  WebSearch extended, múltiplas fontes contábeis convergentes, mesma
+  base legal citada (Lei 8.212/1991) — ver seção 222 do
+  `docs/MANUAL_TECNICO.md` pro nível de confiança por item.
+- **IRRF usa a MESMA tabela progressiva mensal de CLT** (inclusive o
+  redutor da Lei 15.270/2025, que se aplica igualmente ao pró-labore)
+  — só o INSS muda. Sócio não tem FGTS (confirmado: não incide sobre
+  pró-labore por padrão) nem desconto de VT.
+- **Lançamento em Contas a Pagar (v2.3.248) estendido**: a conta
+  consolidada da competência agora soma também o líquido do
+  pró-labore de todos os sócios, não só o líquido+FGTS dos
+  funcionários — é dinheiro que a empresa paga todo mês, faz parte do
+  mesmo custo de folha.
+- **Limitação conhecida**: sócio não tem cadastro de dependentes
+  (diferente de Funcionário/EmployeeDependent) — o IRRF do pró-labore
+  não abate dedução por dependente. Sem efeito pra sócio sem
+  dependentes; pra quem tem, o IRRF calculado fica um pouco ACIMA do
+  valor real (nunca abaixo — erro sempre pro lado seguro).
+- Ver seção 222 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.248] — Lançamento da Folha em Contas a Pagar (RH) — 2026-11-04
 
 ### Adicionado

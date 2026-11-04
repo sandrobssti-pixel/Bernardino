@@ -16321,3 +16321,143 @@ estado original.
 `frontend/src/hooks/usePayroll/index.js`,
 `frontend/src/components/PayrollPanel/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 222. INSS/IRRF do Pró-labore dos Sócios (RH, v2.3.249)
+
+### Pedido
+
+Pendência deixada em aberto na v2.3.245 (seção 218: "essa regra ainda
+não foi pesquisada/confirmada contra fonte oficial"). Retomada como
+parte de "terminar o módulo RH", junto com a Fase 3 e o Lançamento em
+Contas a Pagar (seção 221).
+
+### Pesquisa (delegada a um fork — WebSearch extended)
+
+Sócio que recebe pró-labore é "contribuinte individual" perante o
+INSS (Lei 8.212/1991 art. 12, V, "f") — regime estruturalmente
+DIFERENTE do CLT. Resultado, item por item (confiança indicada por
+item, mesma disciplina já usada pra Lei 15.270/2025):
+
+1. **Alíquota INSS: 11% fixa**, retida na fonte, **limitada ao MESMO
+   teto do RGPS** já usado no INSS de CLT (R$8.475,55 em jan/2026 →
+   contribuição máxima R$932,31/mês — confirmado numericamente: a
+   fórmula 8.475,55 × 0,11 dá exatamente esse valor, batendo com o
+   valor citado pelas fontes). Base legal citada: Lei 8.212/1991 art.
+   12, V, "f" + art. 21 (alíquota-base 20%) + art. 30 §4º (mecanismo
+   que resulta nos 11% retidos quando a empresa também recolhe a cota
+   patronal). **Confiança: média-alta** — múltiplas fontes contábeis
+   convergem no valor e citam a mesma base legal, mas, diferente da
+   Lei 15.270/2025, não foi encontrada uma página oficial gov.br
+   citável diretamente — ainda assim, é um padrão de mercado
+   extremamente estabelecido, sem a divergência real que houve na Lei
+   15.270/2025 (ali, sim, havia desencontro genuíno entre fontes).
+2. **Sem piso/faixa isenta** — os 11% incidem lineares desde o
+   primeiro real (diferente da tabela progressiva de CLT, que tem
+   faixa isenta/alíquotas crescentes). **Confiança: alta.**
+3. **IRRF usa a MESMA tabela progressiva mensal e a MESMA dedução por
+   dependente** já usadas pro CLT. **Confiança: alta.**
+4. **Lei 15.270/2025 se aplica igualmente**, mesma base (rendimento
+   bruto mensal) e mesmo mecanismo de 2 faixas já implementado pro
+   CLT — a lei não distingue CLT de contribuinte individual.
+   **Confiança: alta.**
+5. **FGTS: confirmado que NÃO incide** sobre pró-labore por padrão
+   (só incide com previsão explícita em contrato social e
+   formalização — exceção, não a regra). **Confiança: alta.**
+6. Os outros 20% da alíquota-base do art. 21 são cota PATRONAL, paga
+   pela empresa, NÃO descontada do sócio — fora do escopo (mesmo gap
+   que já existe hoje pro INSS patronal de CLT, nunca calculado neste
+   sistema — ver seção 217).
+7. 13º de pró-labore não é direito automático (sem 13º/férias/aviso
+   prévio por padrão) — irrelevante pro escopo atual (sistema também
+   não calcula 13º de CLT ainda).
+
+### Implementação
+
+`PayrollCalculationService.ts` ganhou: `getInssCeilingBase(inssTable)`
+— extrai o teto (última faixa `maxSalary`) da mesma tabela de INSS já
+usada pro CLT, reaproveitado aqui em vez de duplicado;
+`calculateProlaboreInss(prolaboreValue, inssTable)` — aplica os 11%
+fixos (`PROLABORE_INSS_RATE`, constante no código — mesma categoria
+de "percentual fixo estável" já usada pro FGTS, não versionado por
+`effectiveFrom`; só o TETO usado no cálculo vem da tabela do banco,
+então uma atualização futura do teto já se propaga sozinha);
+`calculatePartnerPayroll(partner, referenceDate)` — orquestra INSS +
+`calculateIrrf` (REAPROVEITADA sem alteração) + `calculateLei15270Reduction`
+(REAPROVEITADA sem alteração) com `dependentsCount` fixo em 0 (ver
+limitação abaixo).
+
+**Modelagem de dados**: nova tabela `PayrollPartnerEntries` (migration
+`20261104220000-create-payroll-partner-entries.ts`, model
+`PayrollPartnerEntry.ts`) — TABELA PRÓPRIA, não reaproveita
+`PayrollEntries`: sócio não tem `workRegime`, FGTS nem desconto de
+VT, e o INSS usa fórmula diferente — misturar exigiria `employeeId`
+virar nullable e uma coluna a mais só pra dizer "é funcionário ou
+sócio", sem ganho real (mesma decisão já tomada de manter
+Employee/CompanyPartner em tabelas separadas, seção 218). Índice
+único `partnerId+competencyMonth+competencyYear`, mesmo mecanismo de
+upsert de `PayrollEntries`.
+
+`PayrollPartnerEntryService.ts` — `calculateAndSave`/
+`calculateAndSaveAll` (só sócios `partnerStatus: "active"`, pula
+`"withdrawn"`)/`list`/`remove`, mesmo padrão de
+`PayrollEntryService.ts`. `PayrollExpenseService.launch` (seção 221)
+foi ESTENDIDO pra somar também `PayrollPartnerEntry.netValue` na
+conta consolidada de Contas a Pagar — não existia pró-labore
+calculado ainda quando aquela função foi escrita na v2.3.248.
+
+**LIMITAÇÃO CONHECIDA, documentada no código**: sócio não tem cadastro
+de dependentes (diferente de `Employee`/`EmployeeDependent`) —
+`calculatePartnerPayroll` sempre usa `dependentsCount = 0`. Sem
+efeito pra sócio sem dependentes; pra quem tem, o IRRF calculado fica
+um pouco ACIMA do valor real (falta abater a dedução de R$189,59 por
+dependente) — erro sempre pro lado seguro (nunca subestima o imposto
+devido). Adicionar um cadastro de dependentes de sócio é trabalho
+futuro, não pedido nesta entrega.
+
+### Frontend
+
+`PayrollPanel.js` ganhou uma segunda seção "Pró-labore dos Sócios"
+abaixo da tabela de Funcionários, reaproveitando o mesmo seletor de
+mês/ano já na tela — botão "Calcular pró-labore do mês" + tabela
+(Sócio/Pró-labore/INSS/IRRF/Redução Lei 15.270/Líquido), mesmo aviso
+visual de "sem pró-labore cadastrado" (ícone de warning) já usado
+pra "sem Salário Bruto" na tabela de Funcionários.
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Migration rodada contra Postgres
+local, tabela/índice único/FKs conferidos via `psql \d`. **5 exemplos
+de referência calculados à mão** (incluindo um erro de cálculo manual
+próprio, pego e corrigido pelo próprio script de teste: o exemplo
+acima do teto usei a base CAPADA do INSS como se fosse o salário pro
+IRRF, quando na verdade a base do IRRF usa o pró-labore BRUTO real
+menos o INSS capado — exatamente como o CLT já faz pro caso
+equivalente acima do teto, código estava certo, minha conta manual
+que estava errada; recalculado do zero antes de aceitar), batidos
+contra as funções puras via script Node isolado (16 asserts): R$3.000
+(INSS R$330,00, IRRF final R$0,00, líquido R$2.670,00); R$6.000 (INSS
+R$660,00, IRRF final R$380,02, líquido R$4.959,98); R$10.000 — acima
+do teto (INSS capado R$932,31, IRRF final R$1.584,88, líquido
+R$7.482,81); R$0 — sócio só-capital (tudo zerado); fronteira exata
+R$5.000 (INSS R$550,00, IRRF final R$12,87, líquido R$4.437,13).
+Segundo script, end-to-end contra `PayrollPartnerEntryService`/
+`PayrollExpenseService` reais com banco local (8 asserts): cálculo
+individual bate com o teste isolado; recalcular não duplica (upsert);
+`calculateAndSaveAll` pula sócio "withdrawn" corretamente; integração
+com Contas a Pagar soma líquido+FGTS do funcionário com líquido do
+pró-labore do sócio (R$4.973,39 + R$480,00 + R$2.670,00 =
+R$8.123,39, conferido). Reconfirmado que o teste da v2.3.248
+(Contas a Pagar) continua passando sem regressão depois da extensão.
+Dados de teste (empresa, sócios, funcionário) removidos ao final,
+confirmado via `psql` que o banco voltou ao estado original. `npm run
+build` de produção (frontend) com `Compiled successfully` / exit 0.
+
+**Arquivos**: `backend/src/database/migrations/20261104220000-create-payroll-partner-entries.ts`,
+`backend/src/models/PayrollPartnerEntry.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,PayrollPartnerEntryService,PayrollExpenseService,PayrollEntryService}.ts`,
+`backend/src/controllers/PayrollPartnerEntryController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePayroll/index.js`,
+`frontend/src/components/PayrollPanel/index.js`,
+`frontend/src/translate/languages/pt.js`.

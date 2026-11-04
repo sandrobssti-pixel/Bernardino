@@ -58,9 +58,11 @@ const YEAR_OPTIONS = [currentYear - 1, currentYear, currentYear + 1];
 // explícito do cliente, sem geração automática/recorrente, pra manter
 // revisão humana antes de qualquer obrigação financeira ser registrada.
 // "Lançar em Contas a Pagar" — também manual, mesma filosofia — gera UMA
-// conta consolidada por competência (líquido + FGTS somados de todos os
-// funcionários), só visível se a empresa tiver o módulo Financeiro
-// (add-on independente do RH).
+// conta consolidada por competência (líquido + FGTS de todos os
+// funcionários, mais o líquido do pró-labore de todos os sócios), só
+// visível se a empresa tiver o módulo Financeiro (add-on independente
+// do RH). Pró-labore dos Sócios calculado numa seção separada abaixo —
+// INSS de contribuinte individual (11% fixo), não a tabela de CLT.
 const PayrollPanel = () => {
   const classes = useStyles();
   const payroll = usePayroll();
@@ -77,6 +79,13 @@ const PayrollPanel = () => {
   const [financialAccess, setFinancialAccess] = useState(null);
   const [launchStatus, setLaunchStatus] = useState(null);
   const [launching, setLaunching] = useState(false);
+  // Pró-labore dos Sócios — INSS de contribuinte individual (alíquota
+  // fixa 11%) + IRRF pela mesma tabela de CLT. Tabela própria
+  // (PayrollPartnerEntry), separada da Folha de Funcionários.
+  const [partnerEntries, setPartnerEntries] = useState([]);
+  const [loadingPartners, setLoadingPartners] = useState(false);
+  const [calculatingPartners, setCalculatingPartners] = useState(false);
+  const [skippedPartners, setSkippedPartners] = useState([]);
 
   useEffect(() => {
     (async () => {
@@ -111,8 +120,21 @@ const PayrollPanel = () => {
     }
   };
 
+  const fetchPartnerEntries = async (m, y) => {
+    setLoadingPartners(true);
+    try {
+      const data = await payroll.partners.list({ competencyMonth: m, competencyYear: y });
+      setPartnerEntries(data.records || []);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setLoadingPartners(false);
+    }
+  };
+
   useEffect(() => {
     fetchEntries(month, year);
+    fetchPartnerEntries(month, year);
     if (financialAccess?.hasAccess) fetchLaunchStatus(month, year);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, year, financialAccess]);
@@ -127,6 +149,25 @@ const PayrollPanel = () => {
       toastError(err);
     } finally {
       setLaunching(false);
+    }
+  };
+
+  const handleCalculatePartnersAll = async () => {
+    setCalculatingPartners(true);
+    setSkippedPartners([]);
+    try {
+      const result = await payroll.partners.calculateAll({ competencyMonth: month, competencyYear: year });
+      setSkippedPartners(result.skipped || []);
+      toast.success(
+        `Pró-labore calculado: ${result.entries.length} sócio(s)${
+          result.skipped.length ? `, ${result.skipped.length} pulado(s)` : ""
+        }.`
+      );
+      fetchPartnerEntries(month, year);
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setCalculatingPartners(false);
     }
   };
 
@@ -191,9 +232,9 @@ const PayrollPanel = () => {
         {financialAccess?.hasAccess && (
           <Tooltip
             title={
-              entries.length === 0
-                ? "Calcule a folha deste mês antes de lançar em Contas a Pagar"
-                : "Gera (ou resincroniza) UMA conta a pagar consolidada com o total de líquido + FGTS de todos os funcionários desta competência"
+              entries.length === 0 && partnerEntries.length === 0
+                ? "Calcule a folha (ou o pró-labore dos sócios) deste mês antes de lançar em Contas a Pagar"
+                : "Gera (ou resincroniza) UMA conta a pagar consolidada com o total de líquido + FGTS de funcionários e o líquido do pró-labore dos sócios desta competência"
             }
           >
             <span>
@@ -201,7 +242,7 @@ const PayrollPanel = () => {
                 variant="outlined"
                 color="primary"
                 onClick={handleLaunchExpense}
-                disabled={launching || entries.length === 0}
+                disabled={launching || (entries.length === 0 && partnerEntries.length === 0)}
               >
                 {launching
                   ? <CircularProgress size={20} />
@@ -311,6 +352,109 @@ const PayrollPanel = () => {
           </TableBody>
         </Table>
       </Paper>
+
+      <Box mt={4} mb={2}>
+        <Typography variant="h6" gutterBottom>
+          Pró-labore dos Sócios
+        </Typography>
+        <Typography variant="caption" color="textSecondary" paragraph>
+          Calcula INSS (contribuinte individual, alíquota fixa de 11% —
+          diferente da tabela progressiva de CLT) e IRRF (mesma tabela
+          mensal de CLT) sobre o pró-labore de cada sócio ativo.
+          Sócio não tem FGTS nem desconto de VT. O IRRF aqui não abate
+          dedução por dependente (sócio não tem cadastro de
+          dependentes) — fica um pouco acima do valor real só pra quem
+          tem dependentes, nunca abaixo.
+        </Typography>
+        <Box className={classes.toolbar}>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleCalculatePartnersAll}
+            disabled={calculatingPartners}
+          >
+            {calculatingPartners ? <CircularProgress size={20} /> : "Calcular pró-labore do mês"}
+          </Button>
+        </Box>
+
+        {skippedPartners.length > 0 && (
+          <Box mb={2}>
+            <Typography variant="body2" color="error">
+              {skippedPartners.length} sócio(s) não puderam ser calculados:
+            </Typography>
+            {skippedPartners.map((s) => (
+              <Chip
+                key={s.partnerId}
+                size="small"
+                icon={<Warning fontSize="small" />}
+                label={`${s.name}: ${s.reason}`}
+                color="secondary"
+                variant="outlined"
+                style={{ margin: 4 }}
+              />
+            ))}
+          </Box>
+        )}
+
+        <Paper className={classes.tablePaper} variant="outlined">
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Sócio</TableCell>
+                <TableCell align="right">Pró-labore</TableCell>
+                <TableCell align="right">INSS (11%)</TableCell>
+                <TableCell align="right">IRRF</TableCell>
+                <TableCell align="right">Redução Lei 15.270</TableCell>
+                <TableCell align="right">Líquido</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loadingPartners ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <CircularProgress size={24} />
+                  </TableCell>
+                </TableRow>
+              ) : partnerEntries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography variant="body2" color="textSecondary">
+                      Nenhum pró-labore calculado pra essa competência ainda.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                partnerEntries.map((entry) => {
+                  const missingProlabore = !entry.prolaboreSnapshot;
+                  return (
+                    <TableRow key={entry.id}>
+                      <TableCell>
+                        {entry.partner?.name || "—"}
+                        {missingProlabore && (
+                          <Tooltip title="Sócio sem Pró-labore cadastrado — valores zerados">
+                            <Warning
+                              fontSize="small"
+                              color="error"
+                              style={{ marginLeft: 6, verticalAlign: "middle" }}
+                            />
+                          </Tooltip>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.prolaboreSnapshot || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.inssValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.irrfValue || 0)}</TableCell>
+                      <TableCell align="right">{formatToCurrency(entry.irrfReductionValue || 0)}</TableCell>
+                      <TableCell align="right">
+                        <strong>{formatToCurrency(entry.netValue || 0)}</strong>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </Paper>
+      </Box>
     </Box>
   );
 };

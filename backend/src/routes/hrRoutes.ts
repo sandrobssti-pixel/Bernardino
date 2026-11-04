@@ -12,6 +12,8 @@ import * as HRReportController from "../controllers/HRReportController";
 import * as EmployeeController from "../controllers/EmployeeController";
 import * as EmployeeDependentController from "../controllers/EmployeeDependentController";
 import * as PayrollEntryController from "../controllers/PayrollEntryController";
+import * as PayrollPartnerEntryController from "../controllers/PayrollPartnerEntryController";
+import * as PayrollExpenseController from "../controllers/PayrollExpenseController";
 import * as PayrollTableController from "../controllers/PayrollTableController";
 import * as CompanyPartnerController from "../controllers/CompanyPartnerController";
 
@@ -64,6 +66,19 @@ hrRoutes.get("/payroll-entries", isAuth, PayrollEntryController.index);
 hrRoutes.post("/payroll-entries/calculate", isAuth, PayrollEntryController.calculate);
 hrRoutes.post("/payroll-entries/calculate-all", isAuth, PayrollEntryController.calculateAll);
 hrRoutes.delete("/payroll-entries/:id", isAuth, PayrollEntryController.remove);
+
+// Admin/RH + Financeiro — lançamento da Folha Mensal em Contas a Pagar,
+// UMA conta consolidada por competência (ver PayrollExpenseService).
+hrRoutes.get("/payroll-entries/expense-launch", isAuth, PayrollExpenseController.show);
+hrRoutes.post("/payroll-entries/expense-launch", isAuth, PayrollExpenseController.launch);
+
+// Admin/RH — Folha de pró-labore dos Sócios. INSS de contribuinte
+// individual (alíquota fixa 11%, não a tabela de CLT) + IRRF pela
+// mesma tabela de CLT (ver PayrollCalculationService.calculatePartnerPayroll).
+hrRoutes.get("/payroll-partner-entries", isAuth, PayrollPartnerEntryController.index);
+hrRoutes.post("/payroll-partner-entries/calculate", isAuth, PayrollPartnerEntryController.calculate);
+hrRoutes.post("/payroll-partner-entries/calculate-all", isAuth, PayrollPartnerEntryController.calculateAll);
+hrRoutes.delete("/payroll-partner-entries/:id", isAuth, PayrollPartnerEntryController.remove);
 
 // Master — administração das tabelas de INSS/IRRF (Fase 2). Nunca edita
 // uma versão existente, só cadastra uma nova (ver PayrollTableService).

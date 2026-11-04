@@ -50,6 +50,35 @@ const usePayroll = () => {
     },
   };
 
+  // Folha de pró-labore dos Sócios — INSS de contribuinte individual
+  // (alíquota fixa 11%, não a tabela de CLT) + IRRF pela mesma tabela de
+  // CLT. Ver PayrollPartnerEntryService.ts no backend.
+  const partners = {
+    list: async (params) => {
+      const { data } = await api.get("/payroll-partner-entries", { params });
+      return data;
+    },
+    calculate: async ({ partnerId, competencyMonth, competencyYear }) => {
+      const { data } = await api.post("/payroll-partner-entries/calculate", {
+        partnerId,
+        competencyMonth,
+        competencyYear,
+      });
+      return data;
+    },
+    calculateAll: async ({ competencyMonth, competencyYear }) => {
+      const { data } = await api.post("/payroll-partner-entries/calculate-all", {
+        competencyMonth,
+        competencyYear,
+      });
+      return data;
+    },
+    remove: async (id) => {
+      const { data } = await api.delete(`/payroll-partner-entries/${id}`);
+      return data;
+    },
+  };
+
   // Administração das tabelas de INSS/IRRF — só Master (`user.super`).
   // Nunca edita uma versão existente, só cadastra uma nova.
   const tables = {
@@ -71,7 +100,7 @@ const usePayroll = () => {
     },
   };
 
-  return { list, calculate, calculateAll, remove, expenseLaunch, tables };
+  return { list, calculate, calculateAll, remove, expenseLaunch, partners, tables };
 };
 
 export default usePayroll;

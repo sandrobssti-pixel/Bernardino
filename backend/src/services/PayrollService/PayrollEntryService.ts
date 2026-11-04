@@ -40,7 +40,7 @@ export const validateCompetency = (month: number, year: number): void => {
   }
 };
 
-const referenceDateFor = (month: number, year: number): string =>
+export const referenceDateFor = (month: number, year: number): string =>
   `${year}-${String(month).padStart(2, "0")}-01`;
 
 // Calcula e grava (upsert) a folha de UM funcionário numa competência.

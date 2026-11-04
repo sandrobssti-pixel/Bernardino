@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
 import AppError from "../../errors/AppError";
 import Employee from "../../models/Employee";
+import CompanyPartner from "../../models/CompanyPartner";
 import PayrollInssTable from "../../models/PayrollInssTable";
 import PayrollInssBracket from "../../models/PayrollInssBracket";
 import PayrollIrrfTable from "../../models/PayrollIrrfTable";
@@ -117,6 +118,44 @@ export const calculateInss = (grossSalary: number, inssTable: PayrollInssTable):
 
   const raw = salary * (Number(bracket.rate) / 100) - Number(bracket.deduction);
   return { base: salary, value: round2(Math.max(raw, 0)) };
+};
+
+// INSS do pró-labore de Sócio (CompanyPartner) — "contribuinte
+// individual" perante o INSS (Lei 8.212/1991 art. 12, V, "f"), regime
+// DIFERENTE do CLT: alíquota FIXA de 11% (não a tabela progressiva
+// 7,5%-14% de CLT), sem piso/faixa isenta (incide desde o primeiro
+// real), limitada ao MESMO teto de contribuição do RGPS que o INSS de
+// CLT já usa (R$8.475,55 em jan/2026 → contribuição máxima R$932,31).
+// Os 20% restantes da alíquota-base (art. 21) são cota PATRONAL, paga
+// pela empresa, não descontada do sócio — fora do escopo aqui (mesmo
+// gap que já existe hoje pro INSS patronal de CLT, nunca calculado
+// neste sistema). Pesquisado via WebSearch extended — múltiplas fontes
+// contábeis convergem no valor e citam a mesma base legal, mas, ao
+// contrário da Lei 15.270/2025, não foi encontrada uma página oficial
+// gov.br citável diretamente (só fontes secundárias, ainda que sem
+// divergência real entre si — ver docs/MANUAL_TECNICO.md seção 222).
+// 11% mantido como CONSTANTE no código (não versionado por
+// `effectiveFrom`, mesmo tratamento já dado ao FGTS) — é a alíquota em
+// si que é estável/não-tabelada; o TETO usado no cálculo continua
+// vindo da tabela de INSS do banco (reaproveita a mesma versão vigente
+// do CLT), então uma atualização futura do teto já se propaga sozinha.
+const PROLABORE_INSS_RATE = 0.11;
+
+// Teto de contribuição (último valor de `maxSalary` da última faixa) —
+// mesma lógica já usada em `calculateInss` pro caso "salário acima do
+// teto", extraída aqui pra reaproveitar no cálculo do pró-labore.
+export const getInssCeilingBase = (inssTable: PayrollInssTable): number => {
+  const brackets = inssTable.brackets || [];
+  const sorted = [...brackets].sort((a, b) => a.sortOrder - b.sortOrder);
+  const lastBracket = sorted[sorted.length - 1];
+  return lastBracket ? Number(lastBracket.maxSalary) : 0;
+};
+
+export const calculateProlaboreInss = (prolaboreValue: number, inssTable: PayrollInssTable): InssResult => {
+  const value = Number(prolaboreValue) || 0;
+  const ceilingBase = getInssCeilingBase(inssTable);
+  const base = ceilingBase > 0 ? Math.min(value, ceilingBase) : value;
+  return { base, value: round2(base * PROLABORE_INSS_RATE) };
 };
 
 export interface IrrfResult {
@@ -264,5 +303,64 @@ export const calculatePayroll = async (
     fgtsValue,
     vtDiscount,
     netSalary
+  };
+};
+
+export interface PartnerPayrollResult {
+  prolaboreValue: number | null;
+  inssBase: number | null;
+  inssValue: number;
+  inssTableId: number | null;
+  irrfBase: number | null;
+  irrfValue: number;
+  irrfReductionValue: number;
+  irrfTableId: number | null;
+  netValue: number;
+}
+
+// Pró-labore de Sócio (CompanyPartner) — ver `calculateProlaboreInss`
+// acima pro INSS (alíquota fixa 11%, não a tabela progressiva de CLT) e
+// docs/MANUAL_TECNICO.md seção 222 pra pesquisa completa. IRRF usa a
+// MESMA tabela progressiva e a MESMA lógica (inclusive o redutor da Lei
+// 15.270/2025, que a pesquisa confirmou se aplicar igualmente, mesma
+// base de rendimento bruto) já usadas pro CLT — só o INSS muda.
+//
+// LIMITAÇÃO CONHECIDA: sócio não tem cadastro de dependentes (diferente
+// de Employee/EmployeeDependent) — `dependentsCount` sempre 0 aqui. Sem
+// efeito pra quem não tem dependentes; pra quem tem, o IRRF calculado
+// fica um pouco ACIMA do valor real (falta abater a dedução por
+// dependente), nunca abaixo — erro sempre pro lado seguro (não
+// subestima o imposto devido). Se precisar ficar exato, adicionar um
+// cadastro de dependentes de sócio é trabalho futuro, fora do escopo
+// desta entrega.
+//
+// FGTS: não incide sobre pró-labore (padrão, sem previsão contratual
+// explícita) — nem calculado aqui, diferente de `calculatePayroll`.
+export const calculatePartnerPayroll = async (
+  partner: CompanyPartner,
+  referenceDate: string
+): Promise<PartnerPayrollResult> => {
+  const prolabore = Number(partner.prolaboreValue) || 0;
+
+  const inssTable = await getInssTableForDate(referenceDate);
+  const irrfTable = await getIrrfTableForDate(referenceDate);
+
+  const inss = calculateProlaboreInss(prolabore, inssTable);
+  const irrf = calculateIrrf(prolabore, inss.value, 0, irrfTable);
+  const irrfReduction = calculateLei15270Reduction(prolabore, irrf.value, irrfTable);
+  const finalIrrfValue = round2(Math.max(irrf.value - irrfReduction, 0));
+
+  const netValue = round2(prolabore - inss.value - finalIrrfValue);
+
+  return {
+    prolaboreValue: partner.prolaboreValue ?? null,
+    inssBase: inss.base,
+    inssValue: inss.value,
+    inssTableId: inssTable.id,
+    irrfBase: irrf.base,
+    irrfValue: finalIrrfValue,
+    irrfReductionValue: irrfReduction,
+    irrfTableId: irrfTable.id,
+    netValue
   };
 };
