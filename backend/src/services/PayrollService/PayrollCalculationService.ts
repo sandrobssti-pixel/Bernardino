@@ -521,3 +521,254 @@ export const calculate13thSalary = async (
     netValue
   };
 };
+
+// Rescisão de Contrato (verbas rescisórias) — pesquisado via WebSearch
+// extended (ver docs/MANUAL_TECNICO.md seção 226 pra pesquisa completa
+// e fontes). Mecanismo confirmado:
+// - Saldo de salário: dias corridos do mês até o desligamento ÷ 30 ×
+//   salário mensal, com INSS/IRRF normais (mesma tabela do salário).
+// - Aviso prévio PROPORCIONAL (Lei 12.506/2011): 30 dias + 3 dias por
+//   ano completo de serviço, teto de 90 dias — só devido pela EMPRESA
+//   em dispensa sem justa causa (integral) ou acordo/distrato (pela
+//   metade). Pedido de demissão e justa causa NÃO geram aviso prévio a
+//   pagar. Indenizado = isento de INSS e IRRF (natureza indenizatória).
+// - 13º proporcional: REAPROVEITA `calculate13thSalary` sem alteração
+//   — INSS/IRRF normais, já implementado.
+// - Férias proporcionais + 1/3: 1/12 do salário por mês completo do
+//   PERÍODO AQUISITIVO EM CURSO (não desde a admissão — reinicia a
+//   cada aniversário de admissão), mesma regra de fração >=15 dias.
+//   ISENTAS de INSS/IRRF (Súmula 386 STJ). "Férias vencidas" (período
+//   aquisitivo já completo e não gozado) NÃO são calculadas — o
+//   sistema não rastreia férias já gozadas, não dá pra saber se existe
+//   esse saldo sem esse controle (limitação documentada).
+// - Multa do FGTS: 40% (dispensa sem justa causa) ou 20% (acordo),
+//   sobre o SALDO TOTAL depositado durante todo o vínculo — o sistema
+//   só sabe com certeza o que ELE MESMO já calculou (histórico de
+//   PayrollEntry/Payroll13thSalary + o FGTS desta própria rescisão);
+//   se o saldo real no FGTS for maior (período anterior ao uso do
+//   sistema, outro vínculo, etc.), o valor sugerido fica incompleto —
+//   por isso o campo é EDITÁVEL (`fgtsBalanceOverride`), com o valor
+//   calculado pelo sistema como sugestão, nunca travado.
+
+// Anos completos de serviço — usado na fórmula do aviso prévio
+// proporcional (Lei 12.506/2011). Mesma comparação por componentes
+// ano/mês/dia já usada em `calculateMonthsWorkedInYear` (nunca via
+// `new Date(string)`).
+export const calculateFullYearsOfService = (
+  admissionDate: string | null | undefined,
+  terminationDate: string
+): number => {
+  const admission = parseDateOnlyParts(admissionDate);
+  const termination = parseDateOnlyParts(terminationDate);
+  if (!admission || !termination) return 0;
+
+  let years = termination.year - admission.year;
+  const terminationIsBeforeAnniversary =
+    termination.month < admission.month || (termination.month === admission.month && termination.day < admission.day);
+  if (terminationIsBeforeAnniversary) years -= 1;
+
+  return Math.max(years, 0);
+};
+
+// Conta meses completos (fração >=15 dias) entre duas datas
+// QUAISQUER, sem travar num ano-calendário — usado pro período
+// aquisitivo de férias (que não alinha com Jan-Dez). Diferente de
+// `calculateMonthsWorkedInYear` (que é específica do 13º, limitada ao
+// ano civil) — mantidas separadas de propósito, cada uma testada no
+// seu próprio contexto, em vez de uma generalização prematura que
+// arriscaria quebrar o 13º já em produção.
+const countFullMonthsBetweenDates = (
+  start: { year: number; month: number; day: number },
+  end: { year: number; month: number; day: number }
+): number => {
+  let months = 0;
+  let cursorYear = start.year;
+  let cursorMonth = start.month;
+
+  while (cursorYear < end.year || (cursorYear === end.year && cursorMonth <= end.month)) {
+    const monthDays = daysInMonthOf(cursorYear, cursorMonth);
+    const isStartMonth = cursorYear === start.year && cursorMonth === start.month;
+    const isEndMonth = cursorYear === end.year && cursorMonth === end.month;
+    const workStartDay = isStartMonth ? start.day : 1;
+    const workEndDay = isEndMonth ? end.day : monthDays;
+
+    if (workEndDay - workStartDay + 1 >= 15) months += 1;
+
+    cursorMonth += 1;
+    if (cursorMonth > 12) {
+      cursorMonth = 1;
+      cursorYear += 1;
+    }
+  }
+
+  return months;
+};
+
+// Início do período aquisitivo de férias EM CURSO no momento do
+// desligamento — o aniversário de admissão mais recente que seja
+// <= data de desligamento (ou a própria admissão, se ainda não
+// completou 1 ano).
+export const calculateCurrentVacationPeriodStart = (
+  admissionDate: string | null | undefined,
+  terminationDate: string
+): { year: number; month: number; day: number } | null => {
+  const admission = parseDateOnlyParts(admissionDate);
+  const termination = parseDateOnlyParts(terminationDate);
+  if (!admission || !termination) return null;
+
+  let anniversaryYear = termination.year;
+  const terminationIsBeforeAnniversaryThisYear =
+    termination.month < admission.month || (termination.month === admission.month && termination.day < admission.day);
+  if (terminationIsBeforeAnniversaryThisYear) anniversaryYear -= 1;
+
+  const anniversary = { year: anniversaryYear, month: admission.month, day: admission.day };
+
+  // Se o "aniversário" calculado ainda é anterior à própria admissão
+  // (funcionário com menos de 1 ano de casa), o período aquisitivo
+  // começa na admissão mesmo.
+  const admissionIsAfterAnniversary =
+    admission.year > anniversary.year ||
+    (admission.year === anniversary.year &&
+      (admission.month > anniversary.month || (admission.month === anniversary.month && admission.day > anniversary.day)));
+
+  return admissionIsAfterAnniversary ? admission : anniversary;
+};
+
+export interface TerminationResult {
+  yearsOfService: number;
+  balanceSalaryDays: number;
+  balanceSalaryGross: number;
+  balanceSalaryInss: number;
+  balanceSalaryIrrf: number;
+  balanceSalaryIrrfReduction: number;
+  noticeDays: number;
+  noticeValue: number;
+  thirteenthMonthsWorked: number;
+  thirteenthGrossValue: number;
+  thirteenthInssValue: number;
+  thirteenthIrrfValue: number;
+  thirteenthIrrfReductionValue: number;
+  vacationMonthsWorked: number;
+  vacationGrossValue: number;
+  vacationBonusValue: number;
+  fgtsSystemCalculatedBalance: number;
+  fgtsBalanceUsed: number;
+  fgtsFineRate: number;
+  fgtsFineValue: number;
+  netValue: number;
+}
+
+const NOTICE_BASE_DAYS = 30;
+const NOTICE_DAYS_PER_YEAR = 3;
+const NOTICE_MAX_DAYS = 90;
+
+export const calculateTermination = async (
+  employee: Employee,
+  dependentsCount: number,
+  terminationType: string,
+  terminationDate: string,
+  noticeWorked: boolean,
+  fgtsHistoricalBalance: number,
+  fgtsBalanceOverride: number | null
+): Promise<TerminationResult> => {
+  if (employee.workRegime !== "clt" && employee.workRegime !== "young_apprentice") {
+    throw new AppError("ERR_PAYROLL_TERMINATION_NOT_SUPPORTED_FOR_WORK_REGIME", 400);
+  }
+
+  const validTypes = ["resignation", "dismissal_without_cause", "dismissal_with_cause", "mutual_agreement"];
+  if (!validTypes.includes(terminationType)) {
+    throw new AppError("ERR_PAYROLL_TERMINATION_INVALID_TYPE", 400);
+  }
+
+  const termination = parseDateOnlyParts(terminationDate);
+  if (!termination) {
+    throw new AppError("ERR_PAYROLL_TERMINATION_INVALID_DATE", 400);
+  }
+
+  // `calculate13thSalary` lê `employee.terminationDate` pra limitar os
+  // avos — mas nesse ponto o funcionário ainda está ativo no banco (o
+  // `Employee.update` que registra o desligamento só acontece DEPOIS,
+  // no service, usando o resultado deste cálculo). Força aqui em
+  // memória, senão o 13º proporcional saía contando o ano inteiro.
+  employee.terminationDate = terminationDate;
+
+  const grossSalary = Number(employee.grossSalary) || 0;
+  const inssTable = await getInssTableForDate(terminationDate);
+  const irrfTable = await getIrrfTableForDate(terminationDate);
+
+  // Saldo de salário — dias corridos do mês até o desligamento ÷ 30.
+  const balanceSalaryDays = termination.day;
+  const balanceSalaryGross = round2((grossSalary / 30) * balanceSalaryDays);
+  const balanceInss = calculateInss(balanceSalaryGross, inssTable);
+  const balanceIrrf = calculateIrrf(balanceSalaryGross, balanceInss.value, dependentsCount, irrfTable);
+  const balanceIrrfReduction = calculateLei15270Reduction(balanceSalaryGross, balanceIrrf.value, irrfTable);
+  const balanceFinalIrrf = round2(Math.max(balanceIrrf.value - balanceIrrfReduction, 0));
+
+  // Aviso prévio proporcional — só devido pela empresa em dispensa sem
+  // justa causa (integral) ou acordo (pela metade). Indenizado = isento.
+  const yearsOfService = calculateFullYearsOfService(employee.admissionDate, terminationDate);
+  const fullNoticeDays = Math.min(NOTICE_BASE_DAYS + NOTICE_DAYS_PER_YEAR * yearsOfService, NOTICE_MAX_DAYS);
+
+  let noticeDays = 0;
+  if (terminationType === "dismissal_without_cause") noticeDays = fullNoticeDays;
+  else if (terminationType === "mutual_agreement") noticeDays = round2(fullNoticeDays / 2);
+
+  const noticeValue = noticeWorked ? 0 : round2((grossSalary / 30) * noticeDays);
+
+  // 13º proporcional — reaproveita calculate13thSalary sem alteração.
+  const terminationYear = termination.year;
+  const thirteenth = await calculate13thSalary(employee, dependentsCount, terminationYear, terminationDate);
+
+  // Férias proporcionais + 1/3 — período aquisitivo EM CURSO, isentas.
+  const vacationPeriodStart = calculateCurrentVacationPeriodStart(employee.admissionDate, terminationDate);
+  const vacationMonthsWorked = vacationPeriodStart ? countFullMonthsBetweenDates(vacationPeriodStart, termination) : 0;
+  const vacationGrossValue = round2((grossSalary / 12) * vacationMonthsWorked);
+  const vacationBonusValue = round2(vacationGrossValue / 3);
+
+  // Multa do FGTS — 40% (sem justa causa) ou 20% (acordo), sobre o
+  // saldo TOTAL depositado (histórico que o sistema já calculou +
+  // FGTS desta própria rescisão: saldo de salário + 13º). Editável.
+  const fgtsOnBalanceSalary = round2(balanceSalaryGross * (employee.workRegime === "young_apprentice" ? 0.02 : 0.08));
+  const fgtsSystemCalculatedBalance = round2(fgtsHistoricalBalance + fgtsOnBalanceSalary + thirteenth.fgtsValue);
+  const fgtsBalanceUsed = fgtsBalanceOverride != null ? round2(fgtsBalanceOverride) : fgtsSystemCalculatedBalance;
+
+  let fgtsFineRate = 0;
+  if (terminationType === "dismissal_without_cause") fgtsFineRate = 0.4;
+  else if (terminationType === "mutual_agreement") fgtsFineRate = 0.2;
+  const fgtsFineValue = round2(fgtsBalanceUsed * fgtsFineRate);
+
+  const netValue = round2(
+    balanceSalaryGross -
+      balanceInss.value -
+      balanceFinalIrrf +
+      noticeValue +
+      (thirteenth.grossValue - thirteenth.inssValue - thirteenth.irrfValue) +
+      vacationGrossValue +
+      vacationBonusValue +
+      fgtsFineValue
+  );
+
+  return {
+    yearsOfService,
+    balanceSalaryDays,
+    balanceSalaryGross,
+    balanceSalaryInss: balanceInss.value,
+    balanceSalaryIrrf: balanceFinalIrrf,
+    balanceSalaryIrrfReduction: balanceIrrfReduction,
+    noticeDays,
+    noticeValue,
+    thirteenthMonthsWorked: thirteenth.monthsWorked,
+    thirteenthGrossValue: thirteenth.grossValue,
+    thirteenthInssValue: thirteenth.inssValue,
+    thirteenthIrrfValue: thirteenth.irrfValue,
+    thirteenthIrrfReductionValue: thirteenth.irrfReductionValue,
+    vacationMonthsWorked,
+    vacationGrossValue,
+    vacationBonusValue,
+    fgtsSystemCalculatedBalance,
+    fgtsBalanceUsed,
+    fgtsFineRate,
+    fgtsFineValue,
+    netValue
+  };
+};

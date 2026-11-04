@@ -101,6 +101,30 @@ const usePayroll = () => {
     },
   };
 
+  // Rescisão de Contrato — UM registro por funcionário. Calcular
+  // também atualiza Employee.terminationDate/contractStatus como
+  // efeito colateral. Ver PayrollTerminationService.ts no backend.
+  const termination = {
+    show: async (employeeId) => {
+      const { data } = await api.get(`/payroll-terminations/employee/${employeeId}`);
+      return data;
+    },
+    calculate: async ({ employeeId, terminationType, terminationDate, noticeWorked, fgtsBalanceOverride }) => {
+      const { data } = await api.post("/payroll-terminations/calculate", {
+        employeeId,
+        terminationType,
+        terminationDate,
+        noticeWorked,
+        fgtsBalanceOverride,
+      });
+      return data;
+    },
+    remove: async (id) => {
+      const { data } = await api.delete(`/payroll-terminations/${id}`);
+      return data;
+    },
+  };
+
   // Administração das tabelas de INSS/IRRF — só Master (`user.super`).
   // Nunca edita uma versão existente, só cadastra uma nova.
   const tables = {
@@ -122,7 +146,7 @@ const usePayroll = () => {
     },
   };
 
-  return { list, calculate, calculateAll, remove, expenseLaunch, partners, thirteenthSalary, tables };
+  return { list, calculate, calculateAll, remove, expenseLaunch, partners, thirteenthSalary, termination, tables };
 };
 
 export default usePayroll;

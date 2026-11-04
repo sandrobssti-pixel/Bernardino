@@ -3,6 +3,43 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.253] — Rescisão de Contrato / verbas rescisórias (RH) — 2026-11-04
+
+### Adicionado
+- Novo ícone de ação "Rescisão de Contrato" na tela de Funcionários
+  (RH), abrindo um modal dedicado — calcula as verbas rescisórias de
+  um funcionário CLT/Menor Aprendiz e grava UM registro por
+  funcionário (recalcular atualiza, não duplica).
+- **Calcular a rescisão registra oficialmente o desligamento** — o
+  próprio cálculo atualiza `Employee.terminationDate` e
+  `contractStatus = "terminated"` (com confirmação explícita antes de
+  calcular, já que é um efeito colateral, não uma simulação).
+- **Verbas calculadas**: saldo de salário (dias corridos do mês até o
+  desligamento), aviso prévio proporcional (Lei 12.506/2011 — 30 + 3
+  dias por ano completo de serviço, teto de 90 dias; indenizado é
+  isento de INSS/IRRF; só devido em dispensa sem justa causa, integral,
+  ou em acordo, pela metade), 13º salário proporcional do ano da
+  rescisão (reaproveita o mesmo motor do 13º Salário), férias
+  proporcionais + 1/3 constitucional do período aquisitivo EM CURSO
+  (isentas de INSS/IRRF), e multa do FGTS (40% dispensa sem justa
+  causa / 20% acordo / 0% demissão ou justa causa).
+- **Saldo de FGTS sugerido** a partir do que o próprio sistema já
+  calculou (Folha Mensal + 13º) — nunca a verdade absoluta (o sistema
+  não tem o extrato oficial da Caixa), por isso o campo é **editável**
+  antes de calcular a multa.
+- 4 tipos de rescisão suportados: dispensa sem justa causa, pedido de
+  demissão, dispensa por justa causa, rescisão por acordo (art. 484-A
+  CLT). Rescisão só se aplica a CLT e Menor Aprendiz (PJ/Estagiário não
+  têm verbas rescisórias CLT).
+- Pesquisado via WebSearch extended antes de implementar, mesma
+  disciplina já usada pras demais obrigações trabalhistas deste
+  módulo.
+- Ver seção 226 do `docs/MANUAL_TECNICO.md` (inclui as limitações
+  conhecidas: férias vencidas não calculadas, por falta de controle de
+  férias gozadas no sistema; e a divergência jurisprudencial não
+  resolvida sobre a aplicação da multa do FGTS ao Menor Aprendiz fora
+  das hipóteses taxativas do art. 433 da CLT).
+
 ## [2.3.252] — 13º Salário (RH) — 2026-11-04
 
 ### Adicionado

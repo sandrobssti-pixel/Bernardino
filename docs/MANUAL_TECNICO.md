@@ -16826,3 +16826,220 @@ successfully` / exit 0.
 `frontend/src/hooks/usePayroll/index.js`,
 `frontend/src/components/PayrollPanel/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 226. Rescisão de Contrato / verbas rescisórias (RH, v2.3.253)
+
+### Pedido
+
+Depois de entregar o 13º Salário (seção 225), perguntei de novo se
+havia mais alguma coisa pra implantar no módulo RH. Recomendação
+própria, em ordem de prioridade: Rescisão (verbas rescisórias) primeiro
+— é a lacuna mais visível pra quem usa o RH no dia a dia, já que o
+cadastro de Funcionário tem campo `terminationDate`/`contractStatus:
+"terminated"` mas nenhum cálculo de verbas associado — depois Férias
+(módulo novo, exige controle de período concessivo/dias gozados que
+não existe), com INSS patronal como prioridade mais baixa. O cliente
+confirmou "comece" pela Rescisão.
+
+### Pesquisa (WebSearch extended, mesma disciplina das seções anteriores)
+
+Uma pesquisa em andamento bateu no limite de uso de 5 horas da conta
+(HTTP 429) e foi retomada mais tarde, no mesmo agente (não uma
+pesquisa nova) — resultado final, com fontes:
+
+1. **Tipos de rescisão × verbas devidas**: tabela clássica do direito
+   trabalhista — dispensa sem justa causa (saldo de salário + aviso
+   prévio integral + 13º proporcional + férias proporcionais+1/3 +
+   multa de 40% do FGTS + direito ao saque do FGTS + seguro-desemprego
+   fora do sistema), pedido de demissão (saldo + 13º proporcional +
+   férias proporcionais+1/3, SEM aviso da empresa, SEM multa de FGTS,
+   SEM direito ao saque), dispensa por justa causa (mesmas verbas do
+   pedido de demissão — perde aviso e multa), rescisão por acordo/art.
+   484-A CLT (saldo + 13º + férias normais + aviso prévio e multa do
+   FGTS PELA METADE, saque de até 80% do FGTS). Confiança alta.
+2. **Saldo de salário**: dias corridos do mês até a data de
+   desligamento ÷ 30 × salário bruto, com INSS/IRRF pela mesma tabela
+   mensal progressiva já implementada. Confiança alta.
+3. **Aviso prévio proporcional** (Lei 12.506/2011): 30 dias + 3 dias
+   por ano completo de serviço, teto de 90 dias. Só devido pela EMPRESA
+   em dispensa sem justa causa (integral) ou acordo (pela metade) —
+   pedido de demissão/justa causa não geram aviso da empresa (o
+   trabalhador PODE dever aviso à empresa nesses casos, mas o sistema
+   não calcula desconto nesse sentido, só o que é devido AO
+   funcionário). Indenizado (não trabalhado) é ISENTO de INSS/IRRF por
+   natureza indenizatória. Confiança alta.
+4. **Férias proporcionais na rescisão**: MESMA regra de avos (fração ≥
+   15 dias) já usada no 13º, mas aplicada ao período aquisitivo EM
+   CURSO (o aniversário de admissão mais recente anterior ao
+   desligamento), não ao ano civil. Férias proporcionais + 1/3
+   constitucional são ISENTAS de INSS/IRRF (mesma natureza
+   indenizatória do aviso). Confiança alta. **Férias VENCIDAS**
+   (período aquisitivo anterior já completo mas não gozado) teriam que
+   somar à rescisão em dobro se o empregador estivesse em mora — não
+   implementado, ver limitação abaixo.
+5. **Multa do FGTS**: 40% (dispensa sem justa causa) ou 20% (acordo)
+   sobre o saldo TOTAL depositado na conta vinculada — não só o que foi
+   depositado nesta rescisão. Confiança alta na alíquota; a BASE exata
+   (saldo total histórico) é uma limitação de dados conhecida, ver
+   abaixo.
+6. **Prazo de pagamento**: 10 dias corridos da data de desligamento
+   (art. 477 CLT) — informativo, o sistema não tem mecanismo de prazo/
+   alerta associado a essa obrigação.
+7. **Menor Aprendiz**: DIVERGÊNCIA JURISPRUDENCIAL NÃO RESOLVIDA — o
+   art. 433 da CLT lista hipóteses taxativas de extinção do contrato de
+   aprendizagem (fim do prazo, 24 anos, desempenho insuficiente,
+   falta disciplinar grave, ausência injustificada à escola, a pedido
+   do aprendiz), e há entendimento de que a multa do FGTS só seria
+   devida DENTRO dessas hipóteses — mas o sistema não modela essas
+   causas específicas de desligamento do aprendiz (só os 4 tipos
+   genéricos de rescisão usados pra qualquer CLT). Confiança baixa
+   nesse ponto específico — decisão: aplicar as mesmas regras de
+   dispensa/multa da CLT genérica uniformemente ao Menor Aprendiz
+   também, em vez de tentar modelar uma distinção que o cadastro atual
+   não suporta, documentando a divergência em vez de arriscar uma
+   implementação baseada em jurisprudência não assentada.
+
+### Implementação
+
+`PayrollCalculationService.ts` ganhou `calculateFullYearsOfService`
+(anos completos de serviço, pra fórmula do aviso prévio, por
+comparação direta de componentes ano/mês/dia), `calculateCurrentVacationPeriodStart`
+(início do período aquisitivo de férias EM CURSO — o aniversário de
+admissão mais recente ≤ data de desligamento, ou a própria admissão se
+ainda não completou 1 ano) e uma função interna nova
+`countFullMonthsBetweenDates` pra contar avos entre duas datas
+QUAISQUER (não travada no ano civil, diferente de
+`calculateMonthsWorkedInYear` do 13º) — mantidas deliberadamente
+separadas, cada uma testada no seu próprio contexto, em vez de uma
+generalização prematura que arriscaria quebrar o 13º já em produção.
+
+`calculateTermination(employee, dependentsCount, terminationType,
+terminationDate, noticeWorked, fgtsHistoricalBalance,
+fgtsBalanceOverride)` orquestra tudo, REAPROVEITANDO sem alteração
+`calculateInss`/`calculateIrrf`/`calculateLei15270Reduction`/
+`calculate13thSalary` já testados.
+
+**Bug pego e corrigido ANTES de ir pra produção** (no segundo estágio
+de teste, o end-to-end contra banco real): `calculate13thSalary` lê
+internamente `employee.terminationDate` pra limitar os avos do 13º —
+mas no momento em que `calculateTermination` roda, o funcionário AINDA
+ESTÁ ATIVO no banco (o `Employee.update` que registra oficialmente o
+desligamento só acontece DEPOIS, no service, usando o resultado deste
+cálculo). Sem correção, o 13º proporcional da rescisão saía contando o
+ANO INTEIRO (12 avos) em vez de parar na data do desligamento — no
+exemplo de referência (admissão 2024-01-10, desligamento 2026-06-20,
+R$3.000) isso inflaria o 13º de R$1.500 (6 avos corretos) pra R$3.000
+(12 avos errados), estourando o líquido total da rescisão. Corrigido
+forçando `employee.terminationDate = terminationDate` em memória logo
+no início de `calculateTermination`, antes de calcular o 13º — o
+`Employee.update` que vem depois no service persiste o mesmo valor de
+qualquer forma, então a mutação em memória é consistente com o que
+será salvo.
+
+**FGTS — saldo sugerido, nunca a verdade absoluta**: o sistema NÃO tem
+acesso ao extrato oficial da Caixa Econômica Federal (FGTS pode ter
+saldo de antes do funcionário entrar no sistema, ou de outros
+empregadores). `fgtsSystemCalculatedBalance` soma só o que o PRÓPRIO
+sistema já calculou e gravou (Folha Mensal + 13º de anos anteriores,
+via `sumHistoricalFgts` no service) + o FGTS desta própria rescisão
+(saldo de salário + 13º do ano). Sempre **editável**
+(`fgtsBalanceOverride`/`fgtsBalanceUsed`) — nunca travado como se fosse
+a verdade.
+
+**Bug de duplicação pego e corrigido ANTES de testar** (na revisão do
+próprio código recém-escrito, antes de qualquer teste): se o 13º do
+ANO DA RESCISÃO já tivesse sido calculado/salvo separadamente antes
+(botão "Calcular 13º do ano"), `sumHistoricalFgts` original somaria o
+FGTS desse registro E `calculateTermination` também somaria o FGTS do
+13º que ELE MESMO recalcula pra aquele ano — duplicando o valor.
+Corrigido com um parâmetro `excludeYear` em `sumHistoricalFgts`,
+filtrando `Payroll13thSalary.findAll` com `{ [Op.ne]: excludeYear }` no
+ano da rescisão.
+
+**Modelagem de dados**: nova tabela `PayrollTerminations` (migration
+`20261104250000-create-payroll-terminations.ts`, model
+`PayrollTermination.ts`) — UM registro por funcionário PRA SEMPRE
+(índice único em `employeeId` sozinho, diferente do 13º que é por
+ano — rescisão só acontece uma vez na vida do contrato). `noticeDays`
+é `DECIMAL(5,1)` (não inteiro, pra permitir o caso de 0,5 dia do
+acordo quando o total de dias é ímpar) e `fgtsFineRate` é
+`DECIMAL(4,2)`.
+
+**Calcular a rescisão registra oficialmente o desligamento** — ao
+contrário dos outros cálculos de folha (ler/derivar/salvar sem efeito
+colateral), `PayrollTerminationService.calculateAndSave` TAMBÉM
+atualiza `Employee.terminationDate`/`contractStatus = "terminated"`.
+Decisão deliberada: não é uma simulação separada, é o ato que
+oficializa o desligamento no sistema.
+
+### Frontend
+
+Novo ícone de ação (`ExitToApp`) na lista de Funcionários, ao lado do
+já existente de Dependentes — abre `PayrollTerminationModal`, modal
+dedicado (não encaixa no padrão genérico `FinanceRecordModal`, mesmo
+motivo do `EmployeeDependentsModal`: precisa mostrar um resultado de
+cálculo detalhado, não só um formulário). Campos: tipo de rescisão,
+data de desligamento, aviso prévio trabalhado (switch), saldo de FGTS
+(editável, pré-preenchido com a sugestão do sistema depois do primeiro
+cálculo). Botão "Calcular/Recalcular rescisão" passa por uma
+confirmação explícita (`ConfirmationModal`) avisando que isso marca o
+funcionário como Desligado — e "Remover rescisão" avisa que remover o
+registro NÃO desfaz automaticamente esse status (precisa editar o
+cadastro do funcionário à parte, se for o caso). Rescisão só aparece
+disponível pra CLT/Menor Aprendiz (`isCltOrApprentice`, reaproveitado
+de `employeeConfig.js`, agora exportado) — PJ/Estagiário veem uma
+mensagem de que não se aplica, sem chegar a tentar calcular.
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. Primeiro script Node isolado testando
+as funções puras de data (`calculateFullYearsOfService` com os casos
+de fronteira — exatamente no aniversário, um dia antes, mesmo ano de
+admissão/desligamento — e `calculateCurrentVacationPeriodStart` com
+funcionário de vários anos de casa e com menos de 1 ano) — 6 asserts,
+todos corretos. Segundo script, end-to-end contra
+`PayrollTerminationService` real (banco local) — 47 asserts cobrindo:
+o exemplo de referência calculado à mão do zero (admissão 2024-01-10,
+desligamento 2026-06-20, salário R$3.000, dispensa sem justa causa,
+aviso não trabalhado → líquido R$8.943,82, com todo intermediário
+confirmado contra as alíquotas REAIS das tabelas de INSS/IRRF do banco
+de testes, não valores inventados); aviso prévio trabalhado (zera o
+valor); pedido de demissão e dispensa por justa causa (sem aviso, sem
+multa); acordo (aviso pela metade, multa de 20%); Menor Aprendiz (FGTS
+de 2% no saldo e no 13º); PJ recusado; tipo de rescisão inválido
+recusado; data vazia recusada; `fgtsBalanceOverride` de fato substitui
+o saldo sugerido e recalcula a multa; o bug de duplicação do FGTS do
+13º confirmado corrigido (calculando o 13º avulso do ano ANTES da
+rescisão e checando que o saldo sugerido da rescisão não soma esse
+valor de novo); efeito colateral em `Employee.terminationDate`/
+`contractStatus` depois de calcular; recalcular não duplica (upsert);
+`list`/`show`/`remove` do service. Dados de teste removidos ao final,
+confirmado via `psql` que o banco voltou ao estado original. `npm run
+build` de produção (frontend) com `Compiled successfully` / exit 0.
+
+### Limitações conhecidas desta entrega
+
+- **Férias vencidas** (período aquisitivo anterior já completo mas não
+  gozado) não são calculadas — o sistema não tem controle de férias
+  gozadas/vendidas, só o período aquisitivo em curso é considerado. Faz
+  parte do escopo maior de "Férias" como módulo próprio, ainda não
+  implementado.
+- **Saldo de FGTS** é uma sugestão calculada a partir do que o próprio
+  sistema já processou, nunca o extrato oficial da Caixa — por isso
+  sempre editável antes de confirmar a multa.
+- **Menor Aprendiz**: divergência jurisprudencial não resolvida sobre
+  a aplicação da multa do FGTS fora das hipóteses do art. 433 CLT (ver
+  pesquisa, item 7) — o sistema aplica as regras genéricas de CLT
+  uniformemente, sem modelar as causas específicas de extinção do
+  contrato de aprendizagem.
+
+**Arquivos**: `backend/src/database/migrations/20261104250000-create-payroll-terminations.ts`,
+`backend/src/models/PayrollTermination.ts`,
+`backend/src/services/PayrollService/{PayrollCalculationService,PayrollTerminationService}.ts`,
+`backend/src/controllers/PayrollTerminationController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePayroll/index.js`,
+`frontend/src/components/PayrollTerminationModal/index.js`,
+`frontend/src/pages/Employees/{index.js,employeeConfig.js}`,
+`frontend/src/translate/languages/pt.js`.

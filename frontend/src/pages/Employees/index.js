@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { makeStyles } from "@material-ui/core/styles";
 import { IconButton, Tooltip } from "@material-ui/core";
-import { PeopleAlt } from "@material-ui/icons";
+import { PeopleAlt, ExitToApp } from "@material-ui/icons";
 
 import api from "../../services/api";
 import useEmployees from "../../hooks/useEmployees";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import EmployeeDependentsModal from "../../components/EmployeeDependentsModal";
+import PayrollTerminationModal from "../../components/PayrollTerminationModal";
 import { employeeColumns, employeeFields, WORK_REGIME_OPTIONS, CONTRACT_STATUS_OPTIONS } from "./employeeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -40,6 +41,7 @@ const Employees = () => {
   const classes = useStyles();
   const employees = useEmployees();
   const [dependentsTarget, setDependentsTarget] = useState(null);
+  const [terminationTarget, setTerminationTarget] = useState(null);
 
   const userPickerResource = useMemo(
     () => ({
@@ -73,11 +75,18 @@ const Employees = () => {
         // Dependentes (RH — Fase 2) — usados no cálculo de IRRF da Folha
         // Mensal (ver components/PayrollPanel).
         rowActions={(record) => (
-          <Tooltip title="Dependentes (IRRF)">
-            <IconButton size="small" onClick={() => setDependentsTarget(record)}>
-              <PeopleAlt fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <>
+            <Tooltip title="Dependentes (IRRF)">
+              <IconButton size="small" onClick={() => setDependentsTarget(record)}>
+                <PeopleAlt fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Rescisão de Contrato">
+              <IconButton size="small" onClick={() => setTerminationTarget(record)}>
+                <ExitToApp fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
         )}
       />
       {dependentsTarget && (
@@ -85,6 +94,13 @@ const Employees = () => {
           open={!!dependentsTarget}
           employee={dependentsTarget}
           onClose={() => setDependentsTarget(null)}
+        />
+      )}
+      {terminationTarget && (
+        <PayrollTerminationModal
+          open={!!terminationTarget}
+          employee={terminationTarget}
+          onClose={() => setTerminationTarget(null)}
         />
       )}
     </div>

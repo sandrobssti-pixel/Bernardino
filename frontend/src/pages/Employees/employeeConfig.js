@@ -40,7 +40,7 @@ export const OVERTIME_POLICY_OPTIONS = [
 const WORK_REGIME_LABELS = Object.fromEntries(WORK_REGIME_OPTIONS.map((o) => [o.value, o.label]));
 const CONTRACT_STATUS_COLORS = { active: "primary", leave: "default", terminated: "default" };
 
-const isCltOrApprentice = (values) => values.workRegime === "clt" || values.workRegime === "young_apprentice";
+export const isCltOrApprentice = (values) => values.workRegime === "clt" || values.workRegime === "young_apprentice";
 const isPj = (values) => values.workRegime === "pj";
 const isIntern = (values) => values.workRegime === "intern";
 // Valor em dinheiro só faz sentido quando a política envolve pagamento

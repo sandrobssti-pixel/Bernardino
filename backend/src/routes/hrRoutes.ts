@@ -14,6 +14,7 @@ import * as EmployeeDependentController from "../controllers/EmployeeDependentCo
 import * as PayrollEntryController from "../controllers/PayrollEntryController";
 import * as PayrollPartnerEntryController from "../controllers/PayrollPartnerEntryController";
 import * as Payroll13thSalaryController from "../controllers/Payroll13thSalaryController";
+import * as PayrollTerminationController from "../controllers/PayrollTerminationController";
 import * as PayrollExpenseController from "../controllers/PayrollExpenseController";
 import * as PayrollTableController from "../controllers/PayrollTableController";
 import * as CompanyPartnerController from "../controllers/CompanyPartnerController";
@@ -89,6 +90,14 @@ hrRoutes.get("/payroll-13th-salaries", isAuth, Payroll13thSalaryController.index
 hrRoutes.post("/payroll-13th-salaries/calculate", isAuth, Payroll13thSalaryController.calculate);
 hrRoutes.post("/payroll-13th-salaries/calculate-all", isAuth, Payroll13thSalaryController.calculateAll);
 hrRoutes.delete("/payroll-13th-salaries/:id", isAuth, Payroll13thSalaryController.remove);
+
+// Admin/RH — Rescisão de Contrato. UM registro por funcionário —
+// calcular também atualiza Employee.terminationDate/contractStatus
+// (ver PayrollTerminationService).
+hrRoutes.get("/payroll-terminations", isAuth, PayrollTerminationController.index);
+hrRoutes.get("/payroll-terminations/employee/:employeeId", isAuth, PayrollTerminationController.show);
+hrRoutes.post("/payroll-terminations/calculate", isAuth, PayrollTerminationController.calculate);
+hrRoutes.delete("/payroll-terminations/:id", isAuth, PayrollTerminationController.remove);
 
 // Master — administração das tabelas de INSS/IRRF (Fase 2). Nunca edita
 // uma versão existente, só cadastra uma nova (ver PayrollTableService).
