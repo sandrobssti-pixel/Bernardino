@@ -21,6 +21,7 @@ import {
 import { Warning } from "@material-ui/icons";
 import { makeStyles } from "@material-ui/core/styles";
 import usePayroll from "../../hooks/usePayroll";
+import useFinance from "../../hooks/useFinance";
 import toastError from "../../errors/toastError";
 import formatToCurrency from "../../utils/formatToCurrency";
 import { WORK_REGIME_OPTIONS } from "../../pages/Employees/employeeConfig";
@@ -55,17 +56,39 @@ const YEAR_OPTIONS = [currentYear - 1, currentYear, currentYear + 1];
 // cálculo de INSS/IRRF/FGTS/VT por competência (mês/ano), persistido
 // (Folha Mensal). Botão manual "Calcular folha deste mês" — pedido
 // explícito do cliente, sem geração automática/recorrente, pra manter
-// revisão humana antes de qualquer obrigação financeira ser registrada
-// (o lançamento em Contas a Pagar em si fica pra uma entrega futura).
+// revisão humana antes de qualquer obrigação financeira ser registrada.
+// "Lançar em Contas a Pagar" — também manual, mesma filosofia — gera UMA
+// conta consolidada por competência (líquido + FGTS somados de todos os
+// funcionários), só visível se a empresa tiver o módulo Financeiro
+// (add-on independente do RH).
 const PayrollPanel = () => {
   const classes = useStyles();
   const payroll = usePayroll();
+  const finance = useFinance();
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(currentYear);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [calculating, setCalculating] = useState(false);
   const [skipped, setSkipped] = useState([]);
+  // Lançamento em Contas a Pagar (pedido do cliente desde a Fase 2) —
+  // cruza com o módulo Financeiro, que é um add-on independente do RH
+  // (uma empresa pode ter RH sem ter Financeiro contratado).
+  const [financialAccess, setFinancialAccess] = useState(null);
+  const [launchStatus, setLaunchStatus] = useState(null);
+  const [launching, setLaunching] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const access = await finance.getAccess();
+        setFinancialAccess(access);
+      } catch (err) {
+        setFinancialAccess({ planHasModule: false, hasAccess: false });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchEntries = async (m, y) => {
     setLoading(true);
@@ -79,10 +102,33 @@ const PayrollPanel = () => {
     }
   };
 
+  const fetchLaunchStatus = async (m, y) => {
+    try {
+      const status = await payroll.expenseLaunch.show({ competencyMonth: m, competencyYear: y });
+      setLaunchStatus(status);
+    } catch (err) {
+      setLaunchStatus(null);
+    }
+  };
+
   useEffect(() => {
     fetchEntries(month, year);
+    if (financialAccess?.hasAccess) fetchLaunchStatus(month, year);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, year]);
+  }, [month, year, financialAccess]);
+
+  const handleLaunchExpense = async () => {
+    setLaunching(true);
+    try {
+      const status = await payroll.expenseLaunch.launch({ competencyMonth: month, competencyYear: year });
+      setLaunchStatus(status);
+      toast.success("Folha lançada em Contas a Pagar.");
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setLaunching(false);
+    }
+  };
 
   const handleCalculateAll = async () => {
     setCalculating(true);
@@ -142,7 +188,43 @@ const PayrollPanel = () => {
         >
           {calculating ? <CircularProgress size={20} /> : "Calcular folha deste mês"}
         </Button>
+        {financialAccess?.hasAccess && (
+          <Tooltip
+            title={
+              entries.length === 0
+                ? "Calcule a folha deste mês antes de lançar em Contas a Pagar"
+                : "Gera (ou resincroniza) UMA conta a pagar consolidada com o total de líquido + FGTS de todos os funcionários desta competência"
+            }
+          >
+            <span>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={handleLaunchExpense}
+                disabled={launching || entries.length === 0}
+              >
+                {launching
+                  ? <CircularProgress size={20} />
+                  : launchStatus
+                  ? "Resincronizar Contas a Pagar"
+                  : "Lançar em Contas a Pagar"}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
       </Box>
+
+      {financialAccess?.hasAccess && launchStatus && (
+        <Box mb={2}>
+          <Chip
+            size="small"
+            label={`Já lançado em Contas a Pagar: ${formatToCurrency(launchStatus.totalValue)}${
+              launchStatus.financeExpense?.status === "paid" ? " (pago)" : " (pendente)"
+            }`}
+            style={{ backgroundColor: "#10b981", color: "#fff" }}
+          />
+        </Box>
+      )}
 
       {skipped.length > 0 && (
         <Box mb={2}>

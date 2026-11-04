@@ -16219,3 +16219,105 @@ produção (frontend) com `Compiled successfully` / exit 0.
 `backend/src/routes/fiscalRoutes.ts`,
 `frontend/src/hooks/useFiscal/index.js`,
 `frontend/src/components/SaleList/index.js`.
+
+## 221. Lançamento da Folha em Contas a Pagar (RH, v2.3.248)
+
+### Pedido
+
+Pendência deixada em aberto desde a Fase 2 (seção 217): "quando lance
+todos os valores seja incluidos em contas a pagar como custos fixos".
+Retomado como parte de "terminar o módulo RH", junto com a Fase 3 e o
+cálculo de pró-labore dos Sócios (ver seções 222/223).
+
+### Decisões fechadas com o cliente antes de codar
+
+1. **Valor por funcionário = líquido + FGTS** — exatamente o que o
+   sistema JÁ calcula de verdade. NÃO inclui INSS patronal (encargo do
+   empregador sobre a folha) — esse cálculo nunca foi pesquisado nem
+   implementado neste sistema; inventar um valor pra ele seria pior do
+   que simplesmente não incluir (mesma cautela já usada pra Lei
+   15.270/2025 e pro pró-labore).
+2. **UMA conta a pagar CONSOLIDADA por competência**, não uma por
+   funcionário — "Folha de pagamento — MM/AAAA", igual um contador
+   lança de verdade, em vez de uma lista longa de contas individuais
+   em Contas a Pagar.
+
+### Modelagem de dados
+
+Nova tabela `PayrollExpenseLaunches` (migration
+`20261104210000-create-payroll-expense-launches.ts`, model
+`PayrollExpenseLaunch.ts`) — só RASTREIA o lançamento (não duplica os
+dados da conta): `companyId`, `competencyMonth`, `competencyYear`,
+`financeExpenseId` (FK `FinanceExpense`, `onDelete: CASCADE` — se a
+conta for excluída direto em Contas a Pagar, o rastreamento some
+junto, liberando a competência pra ser lançada de novo), `totalValue`
+(snapshot). Índice único `(companyId, competencyMonth,
+competencyYear)` — só pode haver UM lançamento por competência por
+empresa, igual o índice único de `PayrollEntries`
+(`employeeId+competencyMonth+competencyYear`) já usa o mesmo
+raciocínio de idempotência.
+
+### Backend
+
+`PayrollExpenseService.launch()` — soma `netSalary + fgtsValue` de
+todos os `PayrollEntry` da competência (`round2`, mesmo utilitário do
+motor de cálculo), cria o `FinanceExpense` (categoria "Salários",
+`costType: "fixed"`, `dueDate` default = último dia da competência,
+editável depois como qualquer Conta a Pagar) + o
+`PayrollExpenseLaunch` de rastreamento. Chamar de novo pra mesma
+competência é IDEMPOTENTE: se já existe lançamento, ATUALIZA o valor
+do `FinanceExpense` (útil se a folha for recalculada antes do
+pagamento) — mas recusa (`ERR_PAYROLL_EXPENSE_ALREADY_PAID`) se a
+conta já foi marcada como paga, pra não sobrescrever em silêncio um
+valor que a contabilidade já conferiu/pagou. Recusa lançar
+(`ERR_PAYROLL_EXPENSE_NO_ENTRIES`) se não houver nenhum
+`PayrollEntry` calculado pra competência ainda.
+
+`PayrollExpenseController.ts` — a ação cruza dois módulos (lê RH,
+escreve em Financeiro), então exige os DOIS: `EnsureHRAccess` E
+`EnsureFinancialAccess`. Importante porque RH é um add-on
+INDEPENDENTE do Financeiro (`Plan.useHR` não exige `Plan.useFinancial`
+— ver `EnsureHRAccess.ts`) — uma empresa pode ter RH sem ter
+Financeiro contratado, e nesse caso o endpoint precisa recusar, não
+criar uma Conta a Pagar "órfã" num módulo que a empresa nem tem.
+
+### Frontend
+
+`PayrollPanel.js` ganhou: busca o status de acesso ao Financeiro
+(`useFinance().getAccess()`) e só mostra o botão/seção se
+`hasAccess`; botão "Lançar em Contas a Pagar" (vira "Resincronizar
+Contas a Pagar" depois do primeiro lançamento), desabilitado se não
+há folha calculada pra competência; chip mostrando o status do
+lançamento já feito (valor + "pendente"/"pago", lido do
+`financeExpense.status` vindo junto no `GET
+/payroll-entries/expense-launch`).
+
+### Verificação
+
+`tsc --noEmit` e `eslint` limpos. **Bug real encontrado e corrigido
+durante o próprio desenvolvimento**: o model `PayrollExpenseLaunch`
+foi importado em `database/index.ts` mas esquecido na lista de models
+passada pro Sequelize (`ModelNotInitializedError` ao tentar
+usar — pego imediatamente pelo script de teste isolado, antes de
+qualquer coisa ser commitada). Migration rodada contra Postgres
+local, tabela/índice único/FKs conferidos via `psql \d`. Script Node
+isolado contra `PayrollExpenseService` real (banco local): 15 asserts
+— recusa lançar sem `PayrollEntry` calculado; soma líquido+FGTS de 2
+funcionários corretamente; cria exatamente 1 conta (não 1 por
+funcionário); descrição/categoria/custo fixo/status corretos;
+relançar depois de alterar um `PayrollEntry` ATUALIZA o valor sem
+duplicar a conta; recusa resincronizar conta já marcada como paga;
+`getLaunchStatus` reflete o estado; isolamento multi-tenant
+confirmado (outra empresa não enxerga o lançamento). Dados de teste
+removidos ao final, confirmado via `psql` que o banco voltou ao
+estado original.
+
+**Arquivos**: `backend/src/database/migrations/20261104210000-create-payroll-expense-launches.ts`,
+`backend/src/models/PayrollExpenseLaunch.ts`,
+`backend/src/services/PayrollService/{PayrollExpenseService,PayrollEntryService}.ts`,
+`backend/src/controllers/PayrollExpenseController.ts`,
+`backend/src/routes/hrRoutes.ts`,
+`backend/src/database/index.ts`,
+`frontend/src/hooks/usePayroll/index.js`,
+`frontend/src/components/PayrollPanel/index.js`,
+`frontend/src/translate/languages/pt.js`.

@@ -32,6 +32,24 @@ const usePayroll = () => {
     return data;
   };
 
+  // Lançamento da Folha Mensal em Contas a Pagar (uma conta consolidada
+  // por competência) — ver PayrollExpenseService.ts no backend.
+  const expenseLaunch = {
+    show: async ({ competencyMonth, competencyYear }) => {
+      const { data } = await api.get("/payroll-entries/expense-launch", {
+        params: { competencyMonth, competencyYear },
+      });
+      return data;
+    },
+    launch: async ({ competencyMonth, competencyYear }) => {
+      const { data } = await api.post("/payroll-entries/expense-launch", {
+        competencyMonth,
+        competencyYear,
+      });
+      return data;
+    },
+  };
+
   // Administração das tabelas de INSS/IRRF — só Master (`user.super`).
   // Nunca edita uma versão existente, só cadastra uma nova.
   const tables = {
@@ -53,7 +71,7 @@ const usePayroll = () => {
     },
   };
 
-  return { list, calculate, calculateAll, remove, tables };
+  return { list, calculate, calculateAll, remove, expenseLaunch, tables };
 };
 
 export default usePayroll;

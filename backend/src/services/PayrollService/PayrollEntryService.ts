@@ -31,7 +31,7 @@ interface ListResponse {
   hasMore: boolean;
 }
 
-const validateCompetency = (month: number, year: number): void => {
+export const validateCompetency = (month: number, year: number): void => {
   if (!Number.isInteger(month) || month < 1 || month > 12) {
     throw new AppError("ERR_PAYROLL_INVALID_COMPETENCY", 400);
   }

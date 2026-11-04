@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.248] — Lançamento da Folha em Contas a Pagar (RH) — 2026-11-04
+
+### Adicionado
+- Novo botão "Lançar em Contas a Pagar" no painel Folha de Pagamento
+  (RH) — gera (ou resincroniza) **UMA conta a pagar consolidada** por
+  competência, "Folha de pagamento — MM/AAAA", categoria "Salários",
+  custo fixo, com o total de **líquido + FGTS** de todos os
+  funcionários calculados naquele mês. Botão manual, sem geração
+  automática — mesma filosofia de revisão humana já usada em
+  "Calcular folha deste mês".
+- **Valor não inclui INSS patronal** (encargo do empregador sobre a
+  folha) — nunca foi pesquisado/implementado neste sistema; somar um
+  valor inventado seria pior do que somar só o que o sistema já
+  calcula de verdade.
+- Relançar a mesma competência depois de recalcular a folha
+  **atualiza** o valor da conta já lançada (não duplica) — recusa
+  atualizar se a conta já foi marcada como paga (`status: "paid"`),
+  nesse caso o ajuste é manual direto em Contas a Pagar.
+- Só visível se a empresa tiver o módulo Financeiro contratado (add-on
+  independente do RH — uma empresa pode ter RH sem ter Financeiro).
+- Ver seção 221 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.247] — Relatório de Vendas por Período (módulo Vendas) — 2026-11-04
 
 ### Adicionado
