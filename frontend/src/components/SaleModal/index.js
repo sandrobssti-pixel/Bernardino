@@ -102,6 +102,15 @@ const emptyItem = {
   weaponUnitId: "",
 };
 
+// v2.3.256 — `Sale.paymentCashValue/paymentPixValue/paymentCardValue`
+// são colunas DECIMAL do Postgres, que voltam do backend como STRING
+// em formato americano (ex.: "100.00"). Passar essa string direto pro
+// `value` do `NumberFormat` (que usa "." como separador de MILHAR,
+// configurado abaixo) faz a lib interpretar errado — "100.00" virava
+// R$ 10.000,00. `unitPrice` dos itens já fazia esse `Number(...)`
+// corretamente (linha abaixo); os 3 campos de pagamento não faziam.
+const toCurrencyFieldValue = (value) => (value === null || value === undefined || value === "" ? "" : Number(value));
+
 const buildInitialValues = (sale, defaultCfop) => ({
   customerId: sale?.customerId || "",
   saleDate: sale?.saleDate || new Date().toISOString().slice(0, 10),
@@ -117,9 +126,9 @@ const buildInitialValues = (sale, defaultCfop) => ({
   recipientType: sale?.recipientType || "customer",
   ieIndicator: sale?.ieIndicator || "non_contributor",
   paymentMethod: sale?.paymentMethod || "",
-  paymentCashValue: sale?.paymentCashValue || "",
-  paymentPixValue: sale?.paymentPixValue || "",
-  paymentCardValue: sale?.paymentCardValue || "",
+  paymentCashValue: toCurrencyFieldValue(sale?.paymentCashValue),
+  paymentPixValue: toCurrencyFieldValue(sale?.paymentPixValue),
+  paymentCardValue: toCurrencyFieldValue(sale?.paymentCardValue),
   // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168).
   issuancePurpose: sale?.issuancePurpose || "normal",
   volumeQuantity: sale?.volumeQuantity || 0,
@@ -230,6 +239,16 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   // Caixinhas de munição (lote + ID) do produto escolhido em cada linha
   // — v2.3.223, mesmo padrão de `weaponUnitsByIndex` acima.
   const [ammoVolumesByIndex, setAmmoVolumesByIndex] = useState({});
+  // v2.3.256 — valor exibido no autocomplete de Cliente, guardado à
+  // parte (não re-derivado de `customers`, que é a lista buscada UMA
+  // VEZ ao abrir o painel de Vendas com `searchParam: ""` — paginada,
+  // não necessariamente contém quem acabou de ser digitado/escolhido na
+  // busca ao vivo do próprio autocomplete). Sem isso, escolher um
+  // cliente que não estava nessa lista inicial fazia o nome "sumir" do
+  // campo mesmo com `customerId` certo no Formik — mesmo bug/fix já
+  // aplicado ao `asyncSelect` genérico do FinanceRecordModal (v2.3.217,
+  // `asyncSelectValues`), que esta tela própria de Venda nunca recebeu.
+  const [selectedCustomerState, setSelectedCustomerState] = useState(sale?.customer || null);
 
   const loadWeaponUnits = async (index, productId) => {
     if (!finance || !productId) return;
@@ -253,6 +272,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
 
   useEffect(() => {
     setInitialValues(buildInitialValues(sale, defaultCfop));
+    setSelectedCustomerState(sale?.customer || null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sale, open]);
 
@@ -313,6 +333,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
   // (ex.: produtor rural pessoa física com IE, ou CNPJ isento).
   const handleCustomerChange = (customer, setFieldValue) => {
     setFieldValue("customerId", customer?.id || "");
+    setSelectedCustomerState(customer || null);
     if (!customer) return;
     if (customer.documentType === "cpf") {
       setFieldValue("ieIndicator", "non_contributor");
@@ -505,9 +526,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
             0
           );
 
-          const selectedCustomer =
-            customers.find((c) => c.id === values.customerId) ||
-            (sale?.customer?.id === values.customerId ? sale.customer : null);
+          const selectedCustomer = selectedCustomerState;
           const ivaPreview = calculateIvaPreview(
             values.items,
             (productId) => products.find((p) => p.id === productId),
@@ -522,10 +541,7 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                     <FinanceAsyncAutocomplete
                       label="Cliente"
                       placeholder="Nome, CPF/CNPJ ou e-mail"
-                      value={
-                        customers.find((c) => c.id === values.customerId) ||
-                        (sale?.customer?.id === values.customerId ? sale.customer : null)
-                      }
+                      value={selectedCustomerState}
                       initialOptions={sale?.customer ? [sale.customer, ...customers] : customers}
                       getOptionLabel={(opt) => opt?.name || ""}
                       fetchOptions={fetchCustomerOptions}

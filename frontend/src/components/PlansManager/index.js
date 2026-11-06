@@ -828,18 +828,18 @@ function PublicBadge({ row, classes }) {
   );
 }
 
+// v2.3.256 — `Plan.amount` é uma coluna DECIMAL do Postgres, que volta
+// do backend como STRING EM FORMATO AMERICANO (ex.: "173.50", ponto
+// decimal) — NUNCA já formatada em BR ("173,50"). A versão anterior
+// desta função assumia o contrário (tratava qualquer string como já
+// formatada em BR, removendo "." como separador de milhar antes de
+// trocar "," por "."), o que inflava em 100x um valor como "173.50"
+// (virava 17350). `Number(...)` já entende nativamente o formato
+// americano — é o mesmo bug/fix do campo `currency` genérico do
+// FinanceRecordModal.
 function normalizeCurrencyValue(value) {
   if (value === null || value === undefined || value === "") return 0;
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-
-  const normalized = String(value)
-    .trim()
-    .replace(/\s+/g, "")
-    .replace(/^R\$\s?/, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-
-  const parsed = Number(normalized);
+  const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
@@ -1109,7 +1109,13 @@ export default function PlansManager() {
     setRecord({
       id: data.id, name: data.name || "",
       users: data.users || 0, connections: data.connections || 0, queues: data.queues || 0,
-      amount: formatCurrencyValue(data.amount),
+      // v2.3.256 — NÃO usar `formatCurrencyValue` aqui: ela devolve uma
+      // STRING já formatada em BR ("173,50"), que o `normalizeCurrencyValue`
+      // do formulário (agora simplificado pra `Number(...)`, ver comentário
+      // acima) não entende de volta (vírgula não é decimal válido pro
+      // `Number`). O valor bruto do backend (americano, "173.50") é o que
+      // `normalizeCurrencyValue`/`NumberFormat` já sabem interpretar.
+      amount: data.amount ?? 0,
       useWhatsapp: b(data.useWhatsapp), useWhatsappBaileys: b(data.useWhatsappBaileys),
       useWhatsappWuzapi: b(data.useWhatsappWuzapi), useWhatsappOficial: b(data.useWhatsappOficial),
       useWebchat: b(data.useWebchat),

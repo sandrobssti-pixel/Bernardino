@@ -17334,3 +17334,164 @@ produção (frontend) com `Compiled successfully` / exit 0.
 
 **Arquivos**: `frontend/src/App.js`,
 `frontend/src/components/FinanceRecordModal/index.js`.
+
+## 229. Correção crítica: valores monetários inflados ao editar; cliente sumindo da Venda (v2.3.256)
+
+### Pedido
+
+Cliente mandou uma captura de tela do modal "Editar Conta a receber":
+o valor real era R$ 173,50 (confirmado na listagem, que mostrava
+certo), mas o formulário de edição mostrava R$ 1.735,00 — pediu pra
+verificar TODOS os campos de valores do sistema. Na mesma mensagem,
+reportou dois outros pontos: texto invisível ao digitar em alguns
+campos no tema claro, e o nome do Cliente "sumindo" na tela de Vendas
+ao preencher outros campos depois de escolhê-lo — esse último
+descrito como recorrente ("ainda continua acontecendo").
+
+### Investigação — valores monetários inflados (bug grave, risco de corrupção de dado)
+
+Comparei a lista (`money(r.value)`, que usa `Number(value)` antes de
+formatar — SEMPRE mostrava certo) com o modal de edição (que passa o
+valor direto pro `NumberFormat` do `react-number-format`) usando o
+MESMO registro, confirmando que a divergência nascia só na formatação
+do modal, não nos dados em si.
+
+**Causa raiz, confirmada empiricamente** (script Node isolado
+renderizando `NumberFormat` via `react-dom/server`, fora do navegador):
+colunas `DECIMAL` do Postgres voltam do backend como STRING (`Sale.ts`,
+`FinanceReceivable.ts`, `Plan.ts` etc. todos declaram esses campos como
+`string` no TypeScript) — nunca como `number`. O `react-number-format`,
+quando o `value` recebido é uma STRING, usa os PRÓPRIOS separadores
+configurados no componente (`thousandSeparator="."`, pro padrão
+brasileiro) pra interpretar essa string — tratando o "." de `"173.50"`
+(ponto decimal em formato americano, como toda STRING de DECIMAL do
+Postgres/Sequelize sai) como se fosse separador de MILHAR. Resultado
+confirmado com o teste isolado:
+
+```
+value="173.50" (string) -> R$ 17.350,00   (×100)
+value="173.5"  (string) -> R$ 1.735,00    (×10, bate exatamente com a captura do cliente)
+value=173.50   (number) -> R$ 173,50      (certo)
+```
+
+`Number(...)` nessa mesma string resolve corretamente (`Number("173.50")
+=== 173.5`), porque `Number()` sempre entende ponto decimal americano,
+independente de qualquer separador configurado em outro componente.
+
+**Varredura do sistema todo** (pedido explícito do cliente: "verifique
+no sistema total") — toda ocorrência de `thousandSeparator="."` no
+frontend (5 arquivos), cada uma auditada individualmente pra ver se o
+`value` passado já vinha coagido pra `Number` ou não:
+
+1. **`FinanceRecordModal.js`** (campo `currency` genérico — usado por
+   Conta a Pagar, Conta a Receber, Produtos, Serviços, Fornecedores e
+   qualquer outro cadastro que reaproveite esse modal) — **tinha o
+   bug**. `value={values[field.name] ?? ""}` passava a string crua.
+   Corrigido coagindo com `Number(...)` (preservando `""` quando
+   vazio).
+2. **`PlansManager.js`** (valor do Plano, tela de Master) — **tinha o
+   bug, de um jeito ainda mais sério**: a função própria
+   `normalizeCurrencyValue` assumia o OPOSTO do que realmente
+   acontece — tratava qualquer string recebida como já formatada em
+   BR (`"173,50"`), removendo "." como separador de milhar antes de
+   trocar "," por "." — exatamente o erro inverso, com o mesmo
+   resultado de inflar o valor em 100x uma string americana real como
+   `"173.50"`. Pior: `handleSelect` (abrir um Plano pra editar) além
+   disso chamava `formatCurrencyValue(data.amount)`, GRAVANDO essa
+   string JÁ INFLADA formatada em BR de volta no campo do formulário
+   — se o Master reabrisse e resalvasse um Plano sem tocar no valor,
+   o valor inflado virava o novo valor REAL gravado no banco,
+   agravando o erro a cada edição (risco real de corrupção de dado
+   cumulativa). Corrigido simplificando `normalizeCurrencyValue` pra
+   só `Number(value)` (igual ao fix do `FinanceRecordModal`) e
+   removendo a pré-formatação em `handleSelect` (agora passa o valor
+   bruto do backend direto, deixando o formulário interpretar).
+3. **`SaleModal.js`** — o `unitPrice` de cada item da Venda **já
+   fazia** `Number(item.unitPrice)` corretamente ao montar os valores
+   iniciais (não tinha o bug) — mas os 3 campos de pagamento
+   (`paymentCashValue`/`paymentPixValue`/`paymentCardValue`, Venda já
+   paga em dinheiro/Pix/cartão) **tinham o bug**, sem o mesmo cuidado.
+   Corrigido com um helper local `toCurrencyFieldValue` aplicado aos
+   3.
+4. **`WeaponDispatchClientModal.js`** (valor do serviço escolhido na
+   ficha do Despachante Bélico) — **tinha o bug**, de um jeito curioso:
+   o código explicitamente fazia `String(service.value || "0")` ao
+   escolher um serviço — convertendo um valor que já podia estar certo
+   em string, SÓ PRA garantir que caísse na armadilha do
+   `NumberFormat`. Corrigido pra `Number(service.value) || 0`.
+5. **`Kanban.js`** (valor do negócio/ticket) — já fazia
+   `Number(selectedTicket.kanbanValue)` corretamente ao abrir o modal.
+   Sem bug.
+6. **`SchedulesForm.js`** — usa `NumberFormat` em modo `format="##:##"`
+   (máscara de horário, não separador de milhar/decimal) — mecanismo
+   totalmente diferente do `react-number-format`, não afetado por essa
+   classe de bug.
+
+### Investigação — nome do Cliente sumindo na tela de Vendas
+
+`SaleModal` guarda só `customerId` no Formik (não o objeto completo do
+cliente) e recalculava o valor EXIBIDO no autocomplete assim:
+
+```js
+customers.find((c) => c.id === values.customerId) ||
+  (sale?.customer?.id === values.customerId ? sale.customer : null)
+```
+
+`customers` é uma prop vinda de `FiscalSalesPanel`, que busca a lista
+UMA ÚNICA VEZ ao montar a tela (`finance.customers.list({ searchParam:
+"" })`) — paginada em 20 registros no backend
+(`FinanceCustomerService.list`). A busca AO VIVO dentro do próprio
+autocomplete (`fetchOptions`) não tem essa limitação — encontra e deixa
+escolher QUALQUER cliente, inclusive um fora dessa primeira página
+estática. Resultado: escolher um cliente além da página 1 (o mais
+comum: um cadastrado recentemente, ou numa empresa com mais de 20
+clientes) gravava o `customerId` certo no Formik, mas
+`customers.find(...)` não encontrava esse cliente na lista estática —
+e pra uma Venda NOVA (`sale` indefinido), o fallback
+`sale?.customer?.id === values.customerId` também falhava sempre —
+`selectedCustomer` virava `null`, e o campo ficava visualmente vazio
+mesmo com o valor certo por trás.
+
+**Mesmo bug, já resolvido antes em outro lugar**: o campo `asyncSelect`
+genérico do `FinanceRecordModal` tinha EXATAMENTE esse problema,
+corrigido na v2.3.217 guardando o objeto completo escolhido num estado
+à parte (`asyncSelectValues`) em vez de re-derivar da lista. O
+`SaleModal`, por ser um formulário todo escrito à mão (não reaproveita
+o `FinanceRecordModal` genérico, por causa da complexidade específica
+de Venda/NF-e), nunca tinha recebido o mesmo tratamento.
+
+**Correção**: novo estado local `selectedCustomerState` (mesmo
+espírito do `asyncSelectValues`) — inicializado de `sale?.customer`
+(editando) ou `null` (venda nova), atualizado em
+`handleCustomerChange` a cada escolha/limpeza, e resetado no mesmo
+`useEffect` que já reseta `initialValues` quando `sale`/`open` mudam.
+Os dois pontos que recalculavam `selectedCustomer`/o `value` do
+autocomplete via `customers.find(...)` agora só leem esse estado.
+
+### Verificação
+
+Confirmado em NAVEGADOR REAL (não só leitura de código) — backend +
+frontend + Postgres + Redis locais, login via seed padrão. Pra provar
+o bug do Cliente sumindo (que não reproduzia com poucos clientes de
+teste), cadastrei 25 clientes no banco de testes e reabri a tela de
+Vendas (que busca a página 1, 20 registros, ao montar) — busquei e
+escolhi "Cliente Paginacao 25" (fora da página 1) pela busca ao vivo, e
+confirmei que o nome ficava visível mesmo depois de preencher CEP e
+Descrição do item, com a correção aplicada. `eslint` limpo nos 4
+arquivos tocados. `npm run build` de produção (frontend) com `Compiled
+successfully` / exit 0. Dados de teste (25 clientes) removidos ao
+final.
+
+### Pendente
+
+**Texto invisível ao digitar em alguns campos no tema claro** —
+investigado (tela de Clientes, tela de Vendas, emulação de
+`prefers-color-scheme: dark` do navegador, auditoria do CSS do
+`MessageInput`/chat interno) sem conseguir reproduzir. Precisa de uma
+captura de tela ou indicação de qual tela/campo especificamente pra
+continuar a investigação.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/components/PlansManager/index.js`,
+`frontend/src/components/SaleModal/index.js`,
+`frontend/src/components/WeaponDispatchClientModal/index.js`.

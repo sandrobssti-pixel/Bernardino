@@ -47,7 +47,7 @@ const PAYMENT_METHOD_LABELS = PAYMENT_METHOD_OPTIONS.reduce((acc, opt) => {
 const emptyService = {
   serviceId: "",
   name: "",
-  value: "0",
+  value: 0,
   paymentMethod: "",
 };
 
@@ -166,7 +166,13 @@ const WeaponDispatchClientModal = ({ open, onClose, onSave, record, weaponDispat
   const handleServiceProductChange = (index, service, setFieldValue) => {
     setFieldValue(`services.${index}.serviceId`, service?.id || "");
     setFieldValue(`services.${index}.name`, service?.name || "");
-    setFieldValue(`services.${index}.value`, service ? String(service.value || "0") : "0");
+    // v2.3.256 — `Service.value` é uma coluna DECIMAL do Postgres (volta
+    // do backend como STRING, ex.: "50.00"). `String(...)` aqui só
+    // garantia reforçar o tipo errado — o `NumberFormat` do campo (linha
+    // ~468, `thousandSeparator="."`) interpreta esse "." como separador
+    // de milhar, não decimal, inflando o valor (mesmo bug do
+    // FinanceRecordModal/SaleModal/PlansManager). `Number(...)` corrige.
+    setFieldValue(`services.${index}.value`, service ? Number(service.value) || 0 : 0);
   };
 
   const fetchServiceOptions = async (searchParam) => {

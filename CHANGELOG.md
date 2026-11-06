@@ -3,6 +3,55 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.256] — Correção crítica: valores monetários multiplicados ao editar; cliente sumindo da Venda — 2026-11-06
+
+### Corrigido
+- **BUG GRAVE — valores em dinheiro inflados (x10/x100) ao abrir pra editar**:
+  qualquer campo monetário (`type: "currency"`) que já abria preenchido
+  (Conta a Receber, Conta a Pagar, Plano, item de Venda, serviço do
+  Despachante Bélico etc.) podia mostrar um valor MUITO maior que o
+  real — ex.: R$ 173,50 salvo no banco aparecia como R$ 1.735,00 (ou
+  R$ 17.350,00 em outros casos) ao abrir o formulário de edição.
+  Reportado pelo cliente com captura de tela de uma Conta a Receber.
+  **Causa raiz**: colunas `DECIMAL` do Postgres voltam do backend como
+  STRING (ex.: `"173.50"`), nunca como number. O componente de
+  formatação monetária (`react-number-format`) usa os PRÓPRIOS
+  separadores configurados (`thousandSeparator="."`) pra interpretar
+  uma string recebida — tratando o "." de `"173.50"` como separador de
+  MILHAR em vez de ponto decimal americano, inflando o valor. Corrigido
+  convertendo sempre pra `Number(...)` antes de passar o valor pro
+  componente — em **5 lugares diferentes** que tinham o mesmo problema
+  de forma independente (nenhum reaproveitava código do outro):
+  `FinanceRecordModal` (campo `currency` genérico — usado por Conta a
+  Pagar/Receber, Produtos, Serviços, Fornecedores etc.), `PlansManager`
+  (tinha sua própria função `normalizeCurrencyValue` com a suposição
+  OPOSTA errada — tratava a string já como formatada em BR), `SaleModal`
+  (campos de pagamento `paymentCashValue`/`paymentPixValue`/
+  `paymentCardValue`), e `WeaponDispatchClientModal` (valor do serviço
+  escolhido, que chegava a ser explicitamente forçado pra STRING antes
+  de piorar o bug). **Risco real de perda de dados**: no `PlansManager`,
+  reabrir e resalvar um Plano sem tocar no campo de valor gravava o
+  valor JÁ INFLADO de volta no banco, perpetuando/agravando o erro a
+  cada edição.
+- **BUG — nome do Cliente "sumindo" na tela de Vendas** ao preencher
+  outros campos depois de escolher o cliente na busca. Reportado pelo
+  cliente como recorrente ("ainda continua"). **Causa raiz**: a lista
+  de clientes usada pra EXIBIR o selecionado (`customers.find(...)`)
+  era buscada só UMA VEZ, com página limitada (20 registros), ao abrir
+  a tela de Vendas — qualquer cliente fora dessa primeira página (os
+  mais recentes, ou além do limite) podia ser ENCONTRADO e ESCOLHIDO
+  normalmente pela busca ao vivo do próprio campo, mas não aparecia
+  mais depois, porque a exibição dependia dessa lista estática
+  incompleta. O `customerId` continuava certo no formulário — só a
+  exibição visual sumia. Mesmo bug (e mesmo fix) já corrigido no campo
+  `asyncSelect` genérico do `FinanceRecordModal` lá na v2.3.217, mas
+  que o campo de Cliente PRÓPRIO da tela de Vendas (`SaleModal`, um
+  componente à parte) nunca tinha recebido.
+- Ambos corrigidos e verificados em navegador real (não só leitura de
+  código) — o segundo exigiu simular um cenário com mais clientes do
+  que o limite de uma página pra reproduzir e confirmar a correção.
+- Ver seção 229 do `docs/MANUAL_TECNICO.md`.
+
 ## [2.3.255] — Correções de alinhamento e rolagem dupla nos modais de formulário — 2026-11-04
 
 ### Corrigido

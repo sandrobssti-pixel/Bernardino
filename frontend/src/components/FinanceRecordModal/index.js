@@ -792,7 +792,19 @@ const FinanceRecordModal = ({
                           fixedDecimalScale
                           allowNegative={false}
                           disabled={isDisabled}
-                          value={values[field.name] ?? ""}
+                          // v2.3.256 — colunas DECIMAL do Postgres voltam do
+                          // backend como STRING (ex.: "173.50"), nunca como
+                          // number. Passar essa string direto pro `value` do
+                          // NumberFormat é um bug sério: a lib usa os
+                          // PRÓPRIOS separadores configurados (thousandSeparator
+                          // ".") pra interpretar a string, tratando o "." do
+                          // "173.50" como separador de milhar em vez de ponto
+                          // decimal — "173.50" virava R$ 17.350,00, "173.5"
+                          // virava R$ 1.735,00 (o x10 relatado pelo cliente).
+                          // `Number(...)` corrige, igual já é feito no `money()`
+                          // da lista (que é por isso que a lista sempre mostrou
+                          // o valor certo enquanto o formulário de edição não).
+                          value={values[field.name] === "" || values[field.name] === null || values[field.name] === undefined ? "" : Number(values[field.name])}
                           onValueChange={({ floatValue }) =>
                             setFieldValue(field.name, floatValue ?? "")
                           }
