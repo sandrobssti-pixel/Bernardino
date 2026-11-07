@@ -3,6 +3,7 @@ import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
+import { findEntityIdsByNameOrDocument } from "../../utils/findEntityIdsByNameOrDocument";
 
 interface ListRequest {
   companyId: number;
@@ -55,12 +56,16 @@ export const list = async ({
   const whereCondition: any = { companyId };
 
   if (searchParam) {
+    // v2.3.262 — pedido do cliente: buscar também pelo nome/CPF-CNPJ do
+    // cliente ligado à conta, não só pela descrição.
+    const customerIds = await findEntityIdsByNameOrDocument(FinanceCustomer, companyId, searchParam);
     whereCondition[Op.or] = [
       Sequelize.where(
         Sequelize.fn("LOWER", Sequelize.col("FinanceReceivable.description")),
         "LIKE",
         `%${searchParam.toLowerCase().trim()}%`
-      )
+      ),
+      ...(customerIds.length ? [{ customerId: { [Op.in]: customerIds } }] : [])
     ];
   }
 

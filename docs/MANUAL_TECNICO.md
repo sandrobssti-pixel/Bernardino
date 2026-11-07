@@ -18032,3 +18032,84 @@ sem erro. Dados de teste removidos ao final.
 
 **Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/layout/MainListItems.js`.
+
+## 235. Busca por cliente/fornecedor (nome ou CPF/CNPJ) em Contas a Pagar, Contas a Receber e Vendas (v2.3.262)
+
+### Pedido do cliente
+
+> "quando for pesquisar nos modulos de contas a pagar e contas a
+> receber ou vendas tem que pesquisar pelo nome do cliente ou nome da
+> empresa, ou cpf ou cnpj"
+
+### Achado ao investigar: Vendas não tinha busca NENHUMA
+
+Contas a Pagar/Receber (`FinanceRecordList`) já tinham campo de busca,
+só limitado à descrição (Contas a Pagar também buscava por categoria).
+**Vendas (`SaleList`) nunca teve campo de busca nenhum** — só o filtro
+de Período (v2.3.247) — confirmado grepando o arquivo inteiro por
+`searchParam`, zero ocorrências. O backend (`SaleService.list`) já
+aceitava e usava o parâmetro `searchParam` desde sempre (buscava só em
+`notes`), mas o frontend nunca mandava esse campo porque não existia
+UI pra digitar nada. Pedido do cliente serviu também pra descobrir essa
+lacuna, não só estender uma busca já existente.
+
+### Implementação
+
+**Helper compartilhado** `backend/src/utils/findEntityIdsByNameOrDocument.ts`
+— recebe um Model Sequelize (`FinanceCustomer` ou `FinanceSupplier`),
+`companyId` e o termo digitado; devolve os `id`s que batem por `name`
+(LOWER+LIKE) OU `document` (LIKE cru, sem normalizar pontuação — mesma
+técnica já usada em `FinanceCustomerService.list`, puramente pra manter
+consistência; não resolve buscar com formatação diferente da que foi
+digitada no cadastro, mesma limitação que a busca de Clientes já tinha
+e ninguém reclamou). Reaproveitado nos 3 lugares:
+
+- `FinanceReceivableService.list` — busca em `description` OU
+  `customerId IN (ids que batem por nome/CPF-CNPJ do CLIENTE)`.
+- `FinanceExpenseService.list` — busca em `description`/`category` OU
+  `supplierId IN (ids que batem por nome/CNPJ do FORNECEDOR)`. Conta a
+  Pagar não tem cliente, tem fornecedor — "nome da empresa" do pedido
+  mapeado pra essa entidade, única que faz sentido pra esse cadastro.
+- `SaleService.list` — busca em `notes` OU `customerId IN (ids que
+  batem por nome/CPF-CNPJ do CLIENTE)`.
+
+Técnica escolhida (buscar IDs primeiro, depois `Op.in` no `Op.or` de
+fora) em vez de `$customer.name$`/`$customer.document$` direto na
+query principal — essa segunda forma exigiria o `include` do
+relacionamento virar JOIN obrigatório (`required: true`) só pro ramo da
+busca, o que quebraria a semântica de OR com os outros campos
+(description/notes) pra registro SEM cliente vinculado. Duas queries
+simples é mais previsível que um JOIN condicional.
+
+**Frontend — Vendas ganhou o campo que nunca teve**:
+`frontend/src/components/SaleList/index.js` — novo estado
+`searchParam`, `TextField` com ícone de busca (mesmo visual do
+`FinanceRecordList`) antes do dropdown "Período", debounce de 400ms
+(mesmo padrão já usado no Financeiro genérico — sem isso, cada letra
+digitada dispararia uma requisição), e reset de página ao buscar.
+Contas a Pagar/Receber (`FinanceRecordList`) não precisaram de nada
+novo no frontend — o campo de busca já existia, só o backend passou a
+olhar mais colunas pro mesmo termo digitado.
+
+### Verificação
+
+Teste HTTP direto (login real + querystring, não só leitura de
+código): seedei 1 Cliente (CPF), 1 Fornecedor (CNPJ), 1 Conta a
+Receber ligada ao cliente, 1 Conta a Pagar ligada ao fornecedor, 1
+Venda ligada ao cliente — bati nos 3 endpoints buscando por sobrenome,
+por CPF completo (com pontuação) e por CNPJ completo (com pontuação),
+e um termo que não bate com nada: todos os 7 cenários corretos.
+Confirmado em navegador real: o novo campo de busca aparece na tela de
+Vendas e encontra a venda certa buscando por "Silva" (sobrenome) e por
+"123.456.789-00" (CPF completo). `tsc --noEmit` limpo no backend
+(`eslint` do backend tem o bug de config pré-existente documentado na
+skill `atendeflow-dev`, seção 9 — não é algo pra corrigir de
+passagem), `eslint` limpo no frontend, `npx craco build` de produção
+(cache limpo antes) compilou sem erro. Dados de teste removidos ao
+final.
+
+**Arquivos**: `backend/src/utils/findEntityIdsByNameOrDocument.ts`
+(novo), `backend/src/services/FinanceService/
+FinanceReceivableService.ts`, `backend/src/services/FinanceService/
+FinanceExpenseService.ts`, `backend/src/services/FiscalService/
+SaleService.ts`, `frontend/src/components/SaleList/index.js`.

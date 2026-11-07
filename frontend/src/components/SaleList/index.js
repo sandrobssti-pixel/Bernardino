@@ -19,11 +19,13 @@ import Box from "@material-ui/core/Box";
 import Tooltip from "@material-ui/core/Tooltip";
 import TablePagination from "@material-ui/core/TablePagination";
 import TextField from "@material-ui/core/TextField";
+import InputAdornment from "@material-ui/core/InputAdornment";
 import MenuItem from "@material-ui/core/MenuItem";
 import Checkbox from "@material-ui/core/Checkbox";
 import FormControlLabel from "@material-ui/core/FormControlLabel";
 import Typography from "@material-ui/core/Typography";
 
+import SearchIcon from "@material-ui/icons/Search";
 import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
@@ -180,6 +182,11 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   const [sales, setSales] = useState([]);
   const [count, setCount] = useState(0);
   const [pageNumber, setPageNumber] = useState(1);
+  // v2.3.262 — pedido do cliente: buscar venda pelo nome/CPF-CNPJ do
+  // cliente (além do número/observações). Essa tela nunca teve campo de
+  // busca nenhum até aqui (só filtro de Período) — `searchParam` já era
+  // aceito pelo backend (`SaleService.list`), só nunca foi mandado daqui.
+  const [searchParam, setSearchParam] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailFocusFiscal, setDetailFocusFiscal] = useState(false);
@@ -241,7 +248,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
     setLoading(true);
     try {
       const { startDate, endDate } = resolvePeriodRange(periodPreset, customStart, customEnd);
-      const data = await fiscal.sales.list({ pageNumber, startDate, endDate });
+      const data = await fiscal.sales.list({ pageNumber, startDate, endDate, searchParam });
       setSales(data.records || []);
       setCount(data.count || 0);
       setSelectedIds([]);
@@ -249,18 +256,23 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       toastError(err);
     }
     setLoading(false);
-  }, [fiscal, pageNumber, periodPreset, customStart, customEnd]);
+  }, [fiscal, pageNumber, periodPreset, customStart, customEnd, searchParam]);
 
+  // Debounce (mesmo padrão do FinanceRecordList.js) — sem isso, digitar no
+  // campo de busca dispararia uma requisição a cada letra.
   useEffect(() => {
-    fetchSales();
+    const timer = setTimeout(() => {
+      fetchSales();
+    }, 400);
+    return () => clearTimeout(timer);
   }, [fetchSales]);
 
-  // Troca de filtro de período sempre volta pra página 1 — senão uma busca
-  // nova pode abrir numa página sem resultado nenhum (mesmo padrão já usado
-  // no Financeiro genérico, ver FinanceRecordList.js).
+  // Troca de busca/filtro de período sempre volta pra página 1 — senão uma
+  // busca nova pode abrir numa página sem resultado nenhum (mesmo padrão já
+  // usado no Financeiro genérico, ver FinanceRecordList.js).
   useEffect(() => {
     setPageNumber(1);
-  }, [periodPreset, customStart, customEnd]);
+  }, [searchParam, periodPreset, customStart, customEnd]);
 
   // Busca TODAS as vendas do período filtrado (sem paginação — a tela só
   // tem as 20 da página atual) e dispara a impressão. Mesmo
@@ -619,6 +631,21 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
 
       <Box className={classes.mainHeader}>
         <Box display="flex" alignItems="center" style={{ gap: 8 }}>
+          <TextField
+            placeholder="Pesquisar venda, cliente, CPF/CNPJ..."
+            variant="outlined"
+            size="small"
+            style={{ minWidth: 260 }}
+            value={searchParam}
+            onChange={(e) => setSearchParam(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+          />
           <TextField
             select
             variant="outlined"

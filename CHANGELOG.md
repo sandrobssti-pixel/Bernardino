@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.262] — Busca por cliente/fornecedor (nome ou CPF/CNPJ) em Contas a Pagar, Contas a Receber e Vendas — 2026-11-07
+
+### Adicionado
+- **Busca por nome ou CPF/CNPJ do cliente** em Contas a Receber e em
+  Vendas (além da descrição/observações já buscadas antes).
+- **Busca por nome ou CNPJ/CPF do fornecedor** em Contas a Pagar (além
+  da descrição/categoria já buscadas antes).
+- **Vendas ganhou campo de busca pela primeira vez** — a tela nunca
+  teve nenhum campo de pesquisa até agora, só o filtro de Período; o
+  backend já aceitava `searchParam`, mas o frontend nunca mandava.
+
+### Verificado
+- Teste HTTP direto (login real + querystring) nas 3 telas: busca por
+  sobrenome do cliente/fornecedor, por CPF, por CNPJ, e um termo que não
+  bate com nada (0 resultados) — todos corretos.
+- Confirmado em navegador real: campo de busca na tela de Vendas
+  encontra a venda certa buscando pelo nome e pelo CPF do cliente.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 235.
+
 ## [2.3.261] — Removido "Serviço" do cadastro de Produtos (redundante com Serviços Adms.) — 2026-11-07
 
 ### Removido

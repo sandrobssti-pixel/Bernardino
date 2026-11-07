@@ -14,6 +14,7 @@ import * as Iva2027Service from "./Iva2027Service";
 import * as FinanceWeaponUnitService from "../FinanceService/FinanceWeaponUnitService";
 import * as FinanceAmmoVolumeService from "../FinanceService/FinanceAmmoVolumeService";
 import { isProductionActive } from "./FiscalConfigService";
+import { findEntityIdsByNameOrDocument } from "../../utils/findEntityIdsByNameOrDocument";
 
 interface ListRequest {
   companyId: number;
@@ -331,7 +332,13 @@ export const list = async ({
   const whereCondition: any = { companyId };
 
   if (searchParam) {
-    whereCondition[Op.or] = [{ notes: { [Op.iLike]: `%${searchParam.trim()}%` } }];
+    // v2.3.262 — pedido do cliente: buscar também pelo nome/CPF-CNPJ do
+    // cliente ligado à venda, não só pelas observações.
+    const customerIds = await findEntityIdsByNameOrDocument(FinanceCustomer, companyId, searchParam);
+    whereCondition[Op.or] = [
+      { notes: { [Op.iLike]: `%${searchParam.trim()}%` } },
+      ...(customerIds.length ? [{ customerId: { [Op.in]: customerIds } }] : [])
+    ];
   }
 
   if (status) {
