@@ -68,15 +68,26 @@ export const list = async ({
     whereCondition.status = status;
   }
 
-  // Filtro de Período (Hoje/Semana/Mês/Personalizado, v2.3.258) — mesmo
-  // padrão já usado em `SaleService.list`, filtrando pelo Vencimento
-  // (`dueDate`), que é a data que a tela já usa pra ordenar/exibir a lista.
-  if (startDate && endDate) {
-    whereCondition.dueDate = { [Op.between]: [startDate, endDate] };
-  } else if (startDate) {
-    whereCondition.dueDate = { [Op.gte]: startDate };
-  } else if (endDate) {
-    whereCondition.dueDate = { [Op.lte]: endDate };
+  // Filtro de Período (Hoje/Semana/Mês/Personalizado, v2.3.258/259) —
+  // filtra pela DATA DE LANÇAMENTO (`createdAt`, quando o registro foi
+  // cadastrado), não pelo Vencimento: a primeira versão filtrava por
+  // `dueDate` e o cliente reportou que lançar 14 contas num dia só
+  // mostrava 3 no filtro "Hoje" — a maioria tinha vencimento em data
+  // futura (prazo/parcelamento), mesmo lançada no mesmo dia. Confirmado
+  // com o cliente que o esperado é ver o que foi LANÇADO no período,
+  // independente de quando vence. `createdAt` é timestamp (não
+  // DATEONLY como `dueDate`), por isso o range cobre o dia inteiro.
+  if (startDate) {
+    whereCondition.createdAt = {
+      ...(whereCondition.createdAt || {}),
+      [Op.gte]: `${startDate} 00:00:00`
+    };
+  }
+  if (endDate) {
+    whereCondition.createdAt = {
+      ...(whereCondition.createdAt || {}),
+      [Op.lte]: `${endDate} 23:59:59.999`
+    };
   }
 
   const { count, rows: records } = await FinanceReceivable.findAndCountAll({

@@ -17775,3 +17775,74 @@ de lá), `frontend/src/components/FinanceRecordList/index.js`,
 `backend/src/services/FinanceService/FinanceExpenseService.ts`,
 `backend/src/controllers/FinanceReceivableController.ts`,
 `backend/src/controllers/FinanceExpenseController.ts`.
+
+## 232. Correção: filtro de Período filtrava Vencimento, não Lançamento (v2.3.259)
+
+### Relato do cliente
+
+> "revise o filtro de contas a receber e contas a pagar pois não esta
+> puxando todos os registros corretamente, fiz um teste e hoje teve 14
+> registros de entrada e quando fui fazer o filtro por periodo só
+> vinheram 3 registro"
+
+### Causa raiz (não era bug de lógica — era o campo errado)
+
+A versão anterior (seção 231) filtrava `dueDate` (Vencimento) — e o
+`Op.between`/`Op.gte`/`Op.lte` em cima dele funcionava corretamente
+(confirmado por teste antes de entregar). O problema era semântico: o
+cliente lançou 14 Contas a Receber no mesmo dia, mas a maioria delas
+tinha `dueDate` numa data FUTURA (prazo de pagamento, parcelamento) —
+só 3 por coincidência venciam no mesmo dia em que foram lançadas.
+Filtrar "Período = Hoje" por Vencimento, nesse caso, nunca poderia
+devolver as 14 — ele respondia corretamente a uma pergunta diferente
+("o que vence hoje?") da que o cliente queria fazer ("o que eu lancei
+hoje?").
+
+Como as duas leituras (filtrar por Vencimento vs. por Lançamento) são
+igualmente válidas e o pedido original não especificava qual (regra do
+`CLAUDE.md`/seção 0 desta skill), perguntei direto ao cliente antes de
+corrigir — resposta: filtrar por **data de lançamento**.
+
+### Correção
+
+Trocado `whereCondition.dueDate` por `whereCondition.createdAt` em
+`FinanceReceivableService.list`/`FinanceExpenseService.list`. Diferença
+importante: `dueDate` é `DATEONLY` (só data, sem hora — comparação de
+string "YYYY-MM-DD" direto funciona), mas `createdAt` é um
+TIMESTAMP de verdade (hora exata do cadastro) — comparar só com
+"YYYY-MM-DD" faria o `Op.lte` do `endDate` excluir qualquer registro
+cadastrado depois da meia-noite daquele dia. Por isso o range usa
+`"${startDate} 00:00:00"`/`"${endDate} 23:59:59.999"`, cobrindo o dia
+inteiro. Confirmado que `config/database.ts` já define
+`timezone: 'America/Sao_Paulo'` pra conexão com o Postgres — a string
+sem offset é interpretada nesse fuso, batendo com o "hoje" do cliente.
+
+Label do dropdown no frontend também mudou, de "Período (Vencimento)"
+pra "Período (Lançamento)" — `periodDateLabel` default em
+`FinanceRecordList` e os dois usos em `Financeiro/index.js`.
+
+**Esse comportamento (filtrar por Vencimento) pode voltar a ser
+pedido no futuro** — ex.: "quero ver o que vence essa semana, pra
+saber o que vou pagar/receber" é um caso de uso legítimo e diferente
+do de hoje. Se isso for pedido, a forma certa é um segundo controle
+(seletor Vencimento/Lançamento) do lado do dropdown de Período, não
+trocar de volta — os dois casos de uso coexistem e o cliente só
+confirmou qual dos dois queria PRIMEIRO, não que o outro nunca serve.
+
+### Verificação
+
+Reproduzido o cenário exato relatado num banco de testes: 14 Contas a
+Receber criadas "agora" (3 com `dueDate` = hoje, 11 com `dueDate` no
+mês seguinte) + 1 criada com `createdAt` forçado pra "ontem" (via SQL
+direto — `.update()` do Sequelize não sobrescreve `createdAt` por
+padrão, então o ajuste de data de teste teve que ser feito com
+`UPDATE` puro). Filtro "Hoje" (via HTTP real, login + querystring)
+devolveu exatamente as 14 lançadas hoje, excluindo a de ontem.
+Repetido em Contas a Pagar (7 lançadas, vencimentos espalhados,
+filtro "Hoje" devolveu as 7). `tsc --noEmit` e `eslint` limpos. Dados
+de teste removidos ao final.
+
+**Arquivos**: `backend/src/services/FinanceService/
+FinanceReceivableService.ts`, `backend/src/services/FinanceService/
+FinanceExpenseService.ts`, `frontend/src/components/
+FinanceRecordList/index.js`, `frontend/src/pages/Financeiro/index.js`.

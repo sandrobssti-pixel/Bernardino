@@ -111,11 +111,14 @@ const FinanceRecordList = ({
   initialFilterValues = {},
   // Filtro de Período (Hoje/Semana/Mês/Personalizado), mesmo padrão já
   // usado no módulo Vendas (`SaleList`, ver `utils/periodFilter.js`) —
-  // pedido do cliente pra Contas a Pagar/Receber. `periodDateLabel` é só
-  // pra UX (nome do campo de data filtrado, ex. "Vencimento"), o backend
-  // de cada recurso decide qual coluna de fato usa pro filtro.
+  // pedido do cliente pra Contas a Pagar/Receber. Filtra pela DATA DE
+  // LANÇAMENTO (`createdAt`), não pelo Vencimento — confirmado com o
+  // cliente depois de a 1ª versão (filtrando por Vencimento) mostrar só
+  // 3 de 14 contas lançadas no mesmo dia (a maioria vencia em data
+  // futura). `periodDateLabel` é só pra UX (nome do campo de data
+  // filtrado), o backend de cada recurso decide a coluna de fato.
   enablePeriodFilter = false,
-  periodDateLabel = "Vencimento",
+  periodDateLabel = "Lançamento",
   finance,
   services,
   allowImport = false,

@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.259] — Correção: filtro de Período em Contas a Pagar/Receber filtrava o campo errado — 2026-11-07
+
+### Corrigido
+- **O filtro de Período (v2.3.258) filtrava pela data de Vencimento
+  (`dueDate`), não pela data em que o registro foi lançado no
+  sistema.** Reportado pelo cliente: lançou 14 contas num dia e o
+  filtro "Hoje" mostrou só 3 — a maioria das 14 tinha vencimento em
+  data futura (prazo/parcelamento), mesmo lançada no mesmo dia.
+  Confirmado com o cliente que o esperado é filtrar pela **data de
+  lançamento** (`createdAt`, quando o registro foi cadastrado),
+  independente de quando vence — mesmo comportamento nas duas telas
+  (Contas a Pagar e Contas a Receber).
+
+### Verificado
+- Reproduzido o cenário exato do relato (14 contas lançadas "hoje",
+  só 3 com vencimento pra hoje, 1 lançada "ontem") num banco de
+  testes — filtro "Hoje" agora devolve exatamente as 14 lançadas hoje,
+  excluindo a de ontem. Confirmado nas duas telas.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 232.
+
 ## [2.3.258] — Filtro de Período em Contas a Pagar/Receber — 2026-11-07
 
 ### Adicionado
