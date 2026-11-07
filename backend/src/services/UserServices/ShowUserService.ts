@@ -42,6 +42,13 @@ const ShowUserService = async (id: string | number, companyId: string | number):
         "language",
         "canViewAllContacts", // <<== ADICIONADO AQUI
         "financialAccess",
+        // v2.3.257 — "hrAccess" nunca tinha sido listado aqui: ao editar
+        // um usuário, o checkbox "Módulo RH" sempre voltava desmarcado
+        // (mesmo quando salvo como true), porque esta lista restringe os
+        // atributos devolvidos. "salesAccess" é novo (módulo Vendas,
+        // independente do Financeiro).
+        "hrAccess",
+        "salesAccess",
         "blockMultipleLogins"
         ,
         "birthDate"

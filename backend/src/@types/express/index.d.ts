@@ -13,6 +13,8 @@ declare global {
         canDeleteTickets?: string;
         allowConnections?: string;
         financialAccess?: boolean;
+        hrAccess?: boolean;
+        salesAccess?: boolean;
       };
     }
   }

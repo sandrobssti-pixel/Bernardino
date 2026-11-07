@@ -3,6 +3,81 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.257] — Módulo Vendas independente do Financeiro; permissões por usuário corrigidas — 2026-11-07
+
+### Adicionado
+- **Módulo Vendas separado do Financeiro**, com rota própria `/vendas`
+  e item de menu próprio (fora do submenu do Financeiro). Antes, Vendas
+  (emissão de nota fiscal) só existia como aba dentro da tela
+  Financeiro — um funcionário comum só conseguia acessar Vendas se
+  tivesse o módulo Financeiro INTEIRO liberado (contas a pagar/receber,
+  relatórios etc.), mesmo quando só precisava emitir nota fiscal de
+  venda. Pedido do cliente: "um usuario comum pode ter acesso ao modulo
+  vendas mas não terar acesso ao modulo financeiro".
+- Novo flag por usuário `salesAccess` (banco, model, criação/edição de
+  usuário, serializer de login) — concede acesso independente ao módulo
+  Vendas sem precisar de `financialAccess`. **Compatibilidade mantida**:
+  quem já tinha `financialAccess=true` continua enxergando Vendas
+  normalmente (decisão confirmada com o cliente), `salesAccess` é só um
+  caminho adicional de liberação.
+- Checkbox "Módulo Vendas" na aba Permissões do cadastro de usuário,
+  ao lado dos já existentes Módulo Financeiro/Módulo RH.
+
+### Corrigido
+- **BUG GRAVE — permissão por módulo não funcionava pra nenhum usuário
+  "user"**, mesmo com o flag certo marcado pelo admin. Reportado pelo
+  cliente: "quando estou colocando a permissão de usuario user... não
+  aparece o finaceiro mesmo que eu habiliti". Dois bugs empilhados:
+  1. No menu lateral (`MainListItems.js`), o item do Financeiro (e
+     agora Vendas/RH) usava `<Can perform="dashboard:view">` — uma
+     regra ESTÁTICA que o perfil `"user"` nunca tem
+     (`rules.js`: `user: { static: [] }`). Não importava o valor do
+     flag no banco, o item nunca passava a checagem. Trocado pra
+     checar o acesso de verdade (`financialAccess`/`hrAccess`/
+     `salesAccess`), igual a regra já usada no backend
+     (`Ensure*Access`).
+  2. Mesmo depois da correção acima, o item continuava escondido:
+     a seção inteira "Administração" do menu (onde Financeiro/Vendas/
+     RH vivem) está dentro de OUTRO `<Can perform="dashboard:view">`
+     mais externo, que só deixa a seção renderizar pra `role==="admin"`
+     (com uma única exceção já existente pra `allowConnections`). Um
+     usuário "user" nunca chegava nem a entrar nessa seção pra as
+     checagens de `financialAccess`/`hrAccess`/`salesAccess` serem
+     avaliadas. Corrigido reaproveitando o mesmo padrão de coerção de
+     role que já existia pra `allowConnections`: a seção agora também
+     libera entrada quando o usuário tem `financialAccess`, `hrAccess`
+     ou `salesAccess` — os itens individuais dentro continuam
+     mostrando só o que cada flag realmente libera.
+- **BUG — módulo RH nunca funcionava pra usuário não-admin, mesmo com
+  `hrAccess=true` no banco**: o middleware `isAuth.ts` monta
+  `req.user` a partir de uma lista explícita de campos copiados do
+  usuário completo do banco — e `hrAccess` nunca estava nessa lista
+  (só existia no model, nunca chegava no `req.user` usado por
+  `EnsureHRAccess`/`EnsureFinancialAccess`-like checks). Isso significa
+  que a permissão "Módulo RH" marcada num funcionário, pelo visto desde
+  que o flag foi criado, nunca funcionou de verdade pra ninguém — era
+  sempre barrado com 403, não importa o que o admin marcasse. Corrigido
+  junto por ser o mesmo tipo de bug e ter sido achado durante o
+  mapeamento desta entrega.
+- `ShowUserService`/`SerializeUser` agora também devolvem `hrAccess`
+  (faltava, só tinha `financialAccess`) além do novo `salesAccess` —
+  sem isso o frontend não tem como saber o valor do flag depois do
+  login/edição.
+
+### Verificado
+- Teste HTTP ponta-a-ponta (login real + `/fiscal/access`,
+  `/finance/access`, `/hr/access`) cobrindo: usuário só com
+  `salesAccess` (vê Vendas, não vê Financeiro), usuário só com
+  `financialAccess` (continua vendo Vendas por compatibilidade),
+  usuário só com `hrAccess` (prova do fix do `isAuth.ts`), usuário sem
+  nenhum acesso, e admin (sempre tudo liberado).
+- Teste em navegador real (Playwright): menu lateral de um funcionário
+  só-vendas mostra "Vendas" e esconde "Financeiro"/"RH"; admin continua
+  vendo tudo; tela `/vendas` funciona pros dois perfis; tela
+  `/financeiro` bloqueada corretamente pro funcionário sem
+  `financialAccess`; checkbox "Módulo Vendas" aparece habilitado na
+  edição desse usuário.
+
 ## [2.3.256] — Correção crítica: valores monetários multiplicados ao editar; cliente sumindo da Venda — 2026-11-06
 
 ### Corrigido

@@ -247,6 +247,17 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   hrAccess: boolean;
 
+  // Acesso ao módulo Vendas — INDEPENDENTE do Financeiro: financialAccess
+  // continua dando acesso a Vendas também (compatibilidade), mas este flag
+  // permite liberar SÓ Vendas pra um usuário que não deve ver o resto do
+  // Financeiro (clientes/fornecedores/contas a pagar/receber). Só tem
+  // efeito se o plano incluir Fiscal (Plan.useFinancial + Plan.useFiscal)
+  // — ver EnsureFiscalAccess.ts. Admin e Master sempre têm acesso quando o
+  // módulo está ativo, independente deste campo.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  salesAccess: boolean;
+
   // Acesso ao Painel Vigia (monitoramento de atrasos em tempo real) — mesmo
   // padrão do financialAccess/hrAccess: só tem efeito se o plano incluir
   // (Plan.useSupervisorPanel); Admin e Master sempre têm acesso quando o

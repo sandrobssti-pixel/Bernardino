@@ -47,6 +47,15 @@ const isAuth = async (req: Request, res: Response, next: NextFunction): Promise<
     _baseUser.allowConnections = String(fullUser.allowConnections || "enabled");
     _baseUser.allowImport = String(fullUser.allowImport || "disabled");
     _baseUser.financialAccess = !!fullUser.financialAccess;
+    // v2.3.257 — `hrAccess` nunca tinha sido copiado aqui: toda checagem
+    // de permissão do backend (EnsureHRAccess etc.) usa ESTE `req.user`,
+    // não o model completo — então `user.hrAccess` sempre chegava
+    // `undefined` em QUALQUER requisição de um usuário não-admin, mesmo
+    // com o campo marcado no banco. Na prática, conceder "Módulo RH" pra
+    // um usuário comum nunca funcionou de verdade (bug real, achado ao
+    // investigar o mesmo sintoma relatado pro Financeiro).
+    _baseUser.hrAccess = !!fullUser.hrAccess;
+    _baseUser.salesAccess = !!fullUser.salesAccess;
     req.user = _baseUser;
   } catch (err: any) {
     throw new AppError("ERR_SESSION_EXPIRED", 401);

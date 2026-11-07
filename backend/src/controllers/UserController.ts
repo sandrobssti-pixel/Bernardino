@@ -285,6 +285,7 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
     canViewAllContacts, // <<< NOVO: permissão
     financialAccess,
     hrAccess,
+    salesAccess,
     blockMultipleLogins,
     birthDate,
     super: superParam // <<< Master: só é honrado se quem solicita já for super
@@ -489,6 +490,7 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
       canViewAllContacts: !!canViewAllContacts, // <<< coerção booleana
       financialAccess: !!financialAccess,
       hrAccess: !!hrAccess,
+      salesAccess: !!salesAccess,
       blockMultipleLogins:
         typeof blockMultipleLogins === "undefined"
           ? true
@@ -599,6 +601,9 @@ export const update = async (
   }
   if (Object.prototype.hasOwnProperty.call(userData, "hrAccess")) {
     userData.hrAccess = !!userData.hrAccess;
+  }
+  if (Object.prototype.hasOwnProperty.call(userData, "salesAccess")) {
+    userData.salesAccess = !!userData.salesAccess;
   }
   if (Object.prototype.hasOwnProperty.call(userData, "blockMultipleLogins")) {
     userData.blockMultipleLogins = !!userData.blockMultipleLogins;

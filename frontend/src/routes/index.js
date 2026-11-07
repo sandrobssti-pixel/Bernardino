@@ -10,6 +10,7 @@ import Login from "../pages/Login";
 import Connections from "../pages/Connections";
 import SettingsCustom from "../pages/SettingsCustom";
 import Financeiro from "../pages/Financeiro";
+import Vendas from "../pages/Vendas";
 import RH from "../pages/RH";
 import PayrollTables from "../pages/PayrollTables";
 import WeaponDispatch from "../pages/WeaponDispatch";
@@ -94,6 +95,7 @@ const Routes = () => {
             <WhatsAppsProvider>
               <LoggedInLayout>
                 <Route exact path="/financeiro" component={Financeiro} isPrivate />
+                <Route exact path="/vendas" component={Vendas} isPrivate />
                 <Route exact path="/rh" component={RH} isPrivate />
                 <Route exact path="/weapon-dispatch" component={WeaponDispatch} isPrivate />
                 <Route exact path="/services" component={Services} isPrivate />

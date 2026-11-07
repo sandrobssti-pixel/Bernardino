@@ -6,6 +6,7 @@ interface RequestUser {
   profile: string;
   super?: boolean;
   financialAccess?: boolean;
+  salesAccess?: boolean;
 }
 
 interface AccessStatus {
@@ -19,9 +20,11 @@ interface AccessStatus {
 // (Plan.useFinancial) — Vendas usa os cadastros de cliente/produto que
 // pertencem ao Financeiro, não faz sentido ter um sem o outro. Dentro de
 // uma empresa que tem os dois módulos, Admin sempre tem acesso; um usuário
-// comum só se o Admin da empresa liberou (mesmo campo User.financialAccess
-// usado pelo Financeiro — não há um flag por-usuário separado pro fiscal).
-// Master tem acesso total, isolado por companyId, igual ao Financeiro.
+// comum só se o Admin da empresa liberou — por `User.financialAccess`
+// (mesmo campo do Financeiro, continua dando acesso a Vendas também, por
+// compatibilidade) OU por `User.salesAccess` (v2.3.257 — caminho
+// INDEPENDENTE, pra liberar só Vendas sem o resto do Financeiro). Master
+// tem acesso total, isolado por companyId, igual ao Financeiro.
 export const GetFiscalAccessStatus = async (
   user: RequestUser
 ): Promise<AccessStatus> => {
@@ -36,7 +39,7 @@ export const GetFiscalAccessStatus = async (
   const planHasModule = !!(plan?.useFinancial && plan?.useFiscal);
   if (!planHasModule) return { planHasModule: false, hasAccess: false };
 
-  const hasAccess = user.profile === "admin" || !!user.financialAccess;
+  const hasAccess = user.profile === "admin" || !!user.financialAccess || !!user.salesAccess;
   return { planHasModule: true, hasAccess };
 };
 

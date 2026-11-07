@@ -12,9 +12,7 @@ import useFiscal from "../../hooks/useFiscal";
 import useServices from "../../hooks/useServices";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
-import FiscalConfigPanel from "../../components/FiscalConfigPanel";
 import FinancePaymentConfigPanel from "../../components/FinancePaymentConfigPanel";
-import FiscalSalesPanel from "../../components/FiscalSalesPanel";
 import {
   financeCustomerColumns,
   financeCustomerFields,
@@ -80,10 +78,6 @@ const Financeiro = () => {
   const fiscal = useFiscal();
   const services = useServices();
   const [financeAccess, setFinanceAccess] = useState(null);
-  // Fiscal (Vendas/Configuração Fiscal) é um add-on SEPARADO do Financeiro
-  // (Plan.useFiscal, v2.3.23) — o Master pode vender um plano com Financeiro
-  // mas sem Fiscal, então precisa de um gate próprio (não basta financeAccess).
-  const [fiscalAccess, setFiscalAccess] = useState(null);
   // Flag global da Reforma Tributária 2027 (IVA) — vem da Configuração
   // Fiscal, mas também é usada aqui pra desabilitar os campos novos de
   // Cliente/Produto enquanto estiver off (ver FinanceRecordModal
@@ -129,15 +123,21 @@ const Financeiro = () => {
         setFinanceAccess({ planHasModule: false, hasAccess: false });
       }
       try {
+        // v2.3.257 — Vendas/Configuração Fiscal (e o próprio acesso ao
+        // módulo, `showFiscalTabs`) saíram daqui pra uma página própria
+        // (pages/Vendas) — o fetch continua só porque `fiscalConfig`/
+        // `reform2027Enabled` também são usados aqui (desabilita campos
+        // novos de Cliente/Produto da Reforma Tributária enquanto a
+        // empresa não tiver o módulo fiscal ativo).
         const access = await fiscal.getAccess();
-        setFiscalAccess(access);
         if (access?.hasAccess) {
           const config = await fiscal.config.show();
           setReform2027Enabled(!!config?.reform2027Enabled);
           setFiscalConfig(config);
         }
       } catch (err) {
-        setFiscalAccess({ planHasModule: false, hasAccess: false });
+        // Sem acesso ao fiscal: reform2027Enabled/fiscalConfig continuam
+        // no padrão seguro (false/null), já definido no useState inicial.
       }
       try {
         const access = await finance.getPaymentAccess();
@@ -149,7 +149,6 @@ const Financeiro = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const showFiscalTabs = user.super || !!fiscalAccess?.hasAccess;
   const showPaymentTab = user.super || !!paymentAccess?.hasAccess;
   const financeRecordContext = { reform2027Enabled };
 
@@ -201,26 +200,6 @@ const Financeiro = () => {
         );
       }
       return <FinancePaymentConfigPanel key={financeTab} finance={finance} />;
-    }
-    if (financeTab === "sales" || financeTab === "fiscalConfig") {
-      if (!showFiscalTabs) {
-        return (
-          <Box className={classes.lockedBox}>
-            <Typography variant="h6" gutterBottom>
-              Módulo fiscal não disponível
-            </Typography>
-            <Typography variant="body2">
-              {fiscalAccess?.planHasModule
-                ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo fiscal."
-                : "Esse módulo é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
-            </Typography>
-          </Box>
-        );
-      }
-      if (financeTab === "sales") {
-        return <FiscalSalesPanel key={financeTab} finance={finance} fiscal={fiscal} />;
-      }
-      return <FiscalConfigPanel key={financeTab} fiscal={fiscal} />;
     }
     if (financeTab === "customers") {
       return (

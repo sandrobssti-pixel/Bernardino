@@ -37,6 +37,7 @@ interface UserData {
   canViewAllContacts?: boolean;
   financialAccess?: boolean;
   hrAccess?: boolean;
+  salesAccess?: boolean;
   blockMultipleLogins?: boolean;
   birthDate?: Date | string | null;
   super?: boolean;
@@ -136,6 +137,10 @@ const UpdateUserService = async ({
     dataToUpdate.hrAccess = !!userData.hrAccess;
   }
 
+  if (userData.salesAccess !== undefined) {
+    dataToUpdate.salesAccess = !!userData.salesAccess;
+  }
+
   if (userData.blockMultipleLogins !== undefined) {
     dataToUpdate.blockMultipleLogins = !!userData.blockMultipleLogins;
   }
@@ -208,6 +213,7 @@ const UpdateUserService = async ({
     canViewAllContacts: !!user.canViewAllContacts,
     financialAccess: !!user.financialAccess,
     hrAccess: !!user.hrAccess,
+    salesAccess: !!user.salesAccess,
     blockMultipleLogins: !!user.blockMultipleLogins,
     super: !!user.super
   };

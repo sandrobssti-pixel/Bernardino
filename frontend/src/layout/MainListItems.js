@@ -46,7 +46,6 @@ import MonetizationOnIcon from "@material-ui/icons/MonetizationOn";
 import ShoppingCartIcon from "@material-ui/icons/ShoppingCart";
 import StoreIcon from "@material-ui/icons/Store";
 import LocalShippingIcon from "@material-ui/icons/LocalShipping";
-import GavelIcon from "@material-ui/icons/Gavel";
 import FlagIcon from "@material-ui/icons/Flag";
 import PublicIcon from "@material-ui/icons/Public";
 import BuildIcon from "@material-ui/icons/Build";
@@ -1103,8 +1102,19 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
       <Can
         role={
+          // v2.3.257 — essa seção inteira ("Administração") era um portão
+          // único travado em role==="admin" (só a exceção de
+          // allowConnections furava). Mesmo com financialAccess/hrAccess/
+          // salesAccess setados certinho num usuário "user", ele nunca
+          // chegava nem a entrar aqui — as checagens certas de
+          // financialAccess/hrAccess/salesAccess logo abaixo nunca eram
+          // alcançadas. Reaproveita o mesmo padrão de coerção de role já
+          // usado pra allowConnections (linha ~1373).
           user.profile === "user" &&
-          user.allowConnections === "enabled"
+          (user.allowConnections === "enabled" ||
+            user.financialAccess ||
+            user.hrAccess ||
+            user.salesAccess)
             ? "admin"
             : user.profile
         }
@@ -1413,10 +1423,15 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 />
               )}
             />
-            <Can
-              role={user.profile}
-              perform="dashboard:view"
-              yes={() => (
+            {
+              // v2.3.257 — era `<Can perform="dashboard:view">`, uma regra
+              // estática que o perfil "user" NUNCA tem (rules.js: `user:
+              // {static: []}`) — marcar "Módulo Financeiro" pra um usuário
+              // comum no UserModal nunca fazia esse item aparecer pra ele,
+              // mesmo com o campo certo no banco. Corrigido pra checar o
+              // acesso de verdade (mesma regra do backend/EnsureFinancialAccess).
+            }
+            {(user.profile === "admin" || user.super || user.financialAccess) && (
                 <>
                   <Tooltip
                     placement="right"
@@ -1509,14 +1524,6 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                         to="/financeiro?tab=paymentConfig"
                         primary="💳 Config. Pagamento"
                         icon={<MonetizationOnIcon />}
-                        iconKey="financial"
-                        tooltip={collapsed}
-                      />
-                      <ListItemLink
-                        small
-                        to="/financeiro?tab=sales"
-                        primary="🛒 Vendas"
-                        icon={<ShoppingCartIcon />}
                         iconKey="financial"
                         tooltip={collapsed}
                       />
@@ -1644,23 +1651,27 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                         iconKey="financial"
                         tooltip={collapsed}
                       />
-                      <ListItemLink
-                        small
-                        to="/financeiro?tab=fiscalConfig"
-                        primary="🧾 Configuração Fiscal"
-                        icon={<GavelIcon />}
-                        iconKey="financial"
-                        tooltip={collapsed}
-                      />
                     </List>
                   </Collapse>
                 </>
-              )}
-            />
-            <Can
-              role={user.profile}
-              perform="dashboard:view"
-              yes={() => (
+            )}
+            {
+              // v2.3.257 — Vendas virou item de menu próprio (fora do
+              // Financeiro, ver abaixo) com rota dedicada (/vendas),
+              // acessível independente de financialAccess (novo
+              // salesAccess). Mesma correção de gate do dashboard:view
+              // que o Financeiro acima.
+            }
+            {(user.profile === "admin" || user.super || user.financialAccess || user.salesAccess) && (
+              <ListItemLink
+                to="/vendas"
+                primary="🛒 Vendas"
+                icon={<ShoppingCartIcon />}
+                iconKey="financial"
+                tooltip={collapsed}
+              />
+            )}
+            {(user.profile === "admin" || user.super || user.hrAccess) && (
                 <ListItemLink
                   to="/rh"
                   primary={i18n.t(
@@ -1670,8 +1681,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   iconKey="rh"
                   tooltip={collapsed}
                 />
-              )}
-            />
+            )}
             <Can
               role={user.profile}
               perform="dashboard:view"

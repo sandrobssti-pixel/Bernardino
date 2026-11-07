@@ -33,6 +33,10 @@ interface SerializedUser {
   allowExport: string;
   blockMultipleLogins: boolean;
   farewellMessage?: string;
+  canViewAllContacts?: boolean;
+  financialAccess?: boolean;
+  hrAccess?: boolean;
+  salesAccess?: boolean;
 }
 
 export const SerializeUser = async (user: User): Promise<SerializedUser> => {
@@ -72,6 +76,14 @@ export const SerializeUser = async (user: User): Promise<SerializedUser> => {
     allowImport: user.allowImport,
     allowExport: user.allowExport,
     blockMultipleLogins: !!user.blockMultipleLogins,
-    farewellMessage: user.farewellMessage
+    farewellMessage: user.farewellMessage,
+    // v2.3.257 — faltavam aqui: o frontend (AuthContext.user, usado
+    // direto pela barra lateral) nunca recebia esses flags no login,
+    // mesmo eles existindo no banco — contribuía pro sintoma "habilito a
+    // permissão mas não aparece pro usuário".
+    canViewAllContacts: !!user.canViewAllContacts,
+    financialAccess: !!user.financialAccess,
+    hrAccess: !!user.hrAccess,
+    salesAccess: !!user.salesAccess
   };
 };
