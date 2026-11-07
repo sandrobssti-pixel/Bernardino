@@ -1894,6 +1894,7 @@ const messages = {
         ERR_SALE_ALREADY_CONFIRMED: "Esta venda já foi confirmada.",
         ERR_SALE_NOT_CONFIRMED: "Confirme a venda antes de emitir a nota fiscal.",
         ERR_SALE_NOT_FOUND: "Venda não encontrada.",
+        ERR_SALE_DELETE_ADMIN_ONLY: "Só o administrador pode excluir vendas.",
         ERR_FISCAL_DOCUMENT_INVALID_TYPE: "Tipo de documento fiscal inválido.",
         ERR_FISCAL_DOCUMENT_EMAIL_REQUIRED: "Informe pelo menos um e-mail.",
         ERR_FISCAL_DOCUMENT_EMAIL_INVALID: "Tem um e-mail com formato inválido na lista — confira e tente de novo.",

@@ -116,12 +116,24 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
   const { companyId, profile, super: isSuper } = req.user as any;
   const { id } = req.params;
 
+  const isAdmin = profile === "admin" || !!isSuper;
+
+  // v2.3.260 — exclusão de venda é admin-only (pedido explícito do
+  // cliente: "no modulo vendas o usuario não terá a opção de excluir
+  // vendas só o admin" — diferente do resto do Financeiro, onde
+  // financialAccess passou a dar controle total). O frontend (SaleList)
+  // já escondia o botão pra não-admin, mas sem essa trava aqui um
+  // usuário comum com salesAccess/financialAccess podia chamar esse
+  // endpoint direto (fora da tela) e excluir do mesmo jeito.
+  if (!isAdmin) {
+    throw new AppError("ERR_SALE_DELETE_ADMIN_ONLY", 403);
+  }
+
   // `force` (bypassa a trava de "nota de Produção" em SaleService.remove)
   // só é honrado pra Admin/Master — se um usuário comum mandar
   // `?force=true` na mão, o parâmetro é simplesmente ignorado, continua
   // caindo na regra padrão (nunca deixa apagar). Ver docs/MANUAL_TECNICO.md.
-  const isAdmin = profile === "admin" || !!isSuper;
-  const force = isAdmin && String(req.query.force) === "true";
+  const force = String(req.query.force) === "true";
 
   await SaleService.remove(id, companyId, force);
   return res.status(200).json({ message: "Sale deleted" });

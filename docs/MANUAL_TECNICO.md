@@ -17846,3 +17846,104 @@ de teste removidos ao final.
 FinanceReceivableService.ts`, `backend/src/services/FinanceService/
 FinanceExpenseService.ts`, `frontend/src/components/
 FinanceRecordList/index.js`, `frontend/src/pages/Financeiro/index.js`.
+
+## 233. Financeiro: financialAccess dá controle total; Vendas: exclusão continua admin-only, agora travada no backend também (v2.3.260)
+
+### Pedido do cliente
+
+> "quando o admin colocar a permissão para o usuario do modulo
+> financeiro ele terar a permissão de excluir os registros ou editar e
+> adiconar controle total, agpora no modulo vendas o usuario não terar
+> a opção de excluir vendas só o admin"
+
+Duas partes, em módulos diferentes.
+
+### Parte 1 — Financeiro: exclusão passa a acompanhar financialAccess
+
+`FinanceRecordList` (componente genérico de lista, usado por Contas a
+Pagar/Receber/Clientes/Fornecedores/Produtos — **mas também por
+Funcionários/RH, Serviços, Sócios, Serviço Armaria e regras de SLA do
+Supervisor**, módulos fora do Financeiro que reaproveitam o mesmo
+componente) restringia exclusão (linha a linha, seleção em massa e a
+própria coluna de checkbox) a admin/super, sem exceção configurável —
+decisão explícita de uma entrega anterior (ver comentário removido:
+"pedido explícito do cliente, diferente do `allowImport`"). O cliente
+agora pediu o oposto especificamente pro Financeiro: quem ganha o
+módulo tem controle total.
+
+**Como não dá pra mudar isso globalmente** (afetaria Funcionários/
+Serviços/Sócios/Armaria/SLA, que não foram pedidos e não tem ligação
+com `financialAccess`), o componente ganhou um prop novo, opcional:
+
+```jsx
+// FinanceRecordList/index.js
+canDelete, // default: admin-only (comportamento de sempre, se o prop não vier)
+const canDeleteRecords = canDelete !== undefined ? canDelete : isAdmin;
+```
+
+`Financeiro/index.js` passa `canDelete={canDeleteFinanceRecords}`
+(`admin || super || financialAccess`) nos 5 `<FinanceRecordList>` que
+são dele (expenses/receivables/customers/suppliers/products) — todo
+outro consumidor do componente (Employees, Services, CompanyPartners,
+PerformancePanel, WeaponArmoryServiceModal, SupervisorSlaRulesPanel)
+não passa o prop, então continua exatamente admin-only como sempre foi.
+
+**Backend não precisou de nenhuma mudança** — os 5 controllers
+(`FinanceReceivableController`/`FinanceExpenseController`/
+`FinanceCustomerController`/`FinanceSupplierController`/
+`FinanceProductController`) já chamavam só `EnsureFinancialAccess` no
+`remove`, sem checagem de admin — a restrição sempre foi só de UI,
+então liberar o botão já é suficiente, o backend já aceitava.
+
+### Parte 2 — Vendas: exclusão era só escondida no frontend, não travada de verdade
+
+Ao conferir o paralelo (`SaleList`/`SaleController`) pra confirmar que
+exclusão de Venda continuava admin-only como pedido, achei que o
+frontend (`SaleList.js`, `isAdmin &&` no botão/checkbox) já escondia
+certo, MAS o backend (`SaleController.remove`) só checava
+`EnsureFiscalAccess` (= `financialAccess || salesAccess || admin`) —
+**sem nenhuma checagem de admin pra excluir**. Um usuário comum com
+acesso a Vendas podia chamar `DELETE /sales/:id` direto (Postman, curl,
+qualquer cliente HTTP fora da tela) e excluir uma venda mesmo sem o
+botão aparecer pra ele — a trava sempre foi cosmética, não de verdade.
+Esse tipo de bug (UI esconde, backend não trava) é exatamente o que
+_não_ aconteceu nas Partes 1 (lá o backend já era permissivo igual à
+nova UI) — aqui era o inverso: UI restritiva, backend permissivo.
+
+Corrigido adicionando a checagem real em `SaleController.remove`:
+
+```ts
+const isAdmin = profile === "admin" || !!isSuper;
+if (!isAdmin) {
+  throw new AppError("ERR_SALE_DELETE_ADMIN_ONLY", 403);
+}
+```
+
+Novo código de erro `ERR_SALE_DELETE_ADMIN_ONLY` adicionado só em
+`pt.js` (seção 11 desta skill: `ERR_SALE_*`/`ERR_FISCAL_*` têm entrada
+de tradução, diferente de `ERR_FINANCE_*`).
+
+### Verificação
+
+Teste HTTP direto (login real de cada perfil + chamada no endpoint de
+verdade, não só leitura de código):
+- Usuário com `financialAccess=true` (perfil "user"): `DELETE
+  /finance/expenses/:id` → 200, excluiu.
+- Usuário com `salesAccess=true` (perfil "user", sem financialAccess):
+  `DELETE /sales/:id` → 403 `ERR_SALE_DELETE_ADMIN_ONLY` (antes da
+  correção, teria dado 200 e excluído de verdade).
+- Admin: `DELETE /sales/:id` → 200, excluiu normalmente (confirma que
+  a trava não quebrou o caso que deveria continuar funcionando).
+
+Confirmado em navegador real: botão de lixeira + checkbox de seleção
+aparecem em Contas a Pagar pro usuário só-financeiro (perfil "user");
+a tela de Vendas do usuário só-vendas mostra Editar/Visualizar/
+Confirmar na coluna Ações, sem ícone de excluir — igual já era antes,
+confirmando que não houve regressão na Parte 2. `tsc --noEmit` e
+`eslint` limpos, `npx craco build` de produção (cache limpo antes)
+compilou sem erro. Dados de teste removidos do banco ao final.
+
+**Arquivos**: `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/pages/Financeiro/index.js`,
+`backend/src/controllers/SaleController.ts`,
+`frontend/src/translate/languages/pt.js`.

@@ -3,6 +3,35 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.260] — Financeiro: financialAccess dá controle total (editar/excluir); Vendas: exclusão continua admin-only — 2026-11-07
+
+### Adicionado
+- **Quem recebe "Módulo Financeiro" agora tem controle TOTAL dentro dele**
+  — além de já poder editar/adicionar (sem mudança), também pode
+  **excluir** Contas a Pagar, Contas a Receber, Clientes, Fornecedores e
+  Produtos. Antes, exclusão (individual e em massa) era restrita ao
+  admin sem exceção, mesmo pra quem tinha financialAccess. Pedido
+  explícito do cliente.
+
+### Corrigido
+- **BUG DE SEGURANÇA — exclusão de Venda não era travada de verdade no
+  backend**, só escondida no frontend: um usuário comum com acesso a
+  Vendas podia chamar o endpoint de exclusão direto (fora da tela) e
+  apagar uma venda mesmo sem o botão aparecer pra ele. Corrigido com
+  uma trava real no backend (`SaleController.remove`) — exclusão de
+  Venda continua admin-only, agora também aplicada do lado do servidor,
+  não só escondendo o botão.
+
+### Verificado
+- Teste HTTP direto: usuário só com `financialAccess` excluindo uma
+  Conta a Pagar (sucesso, 200); usuário só com `salesAccess` tentando
+  excluir uma Venda direto pela API (bloqueado, 403); admin excluindo
+  Venda normalmente (sucesso). Confirmado em navegador real: botão de
+  excluir aparece pro usuário financeiro em Contas a Pagar; continua
+  ausente pro usuário de Vendas na tela de Vendas.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 233.
+
 ## [2.3.259] — Correção: filtro de Período em Contas a Pagar/Receber filtrava o campo errado — 2026-11-07
 
 ### Corrigido

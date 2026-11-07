@@ -119,6 +119,15 @@ const FinanceRecordList = ({
   // filtrado), o backend de cada recurso decide a coluna de fato.
   enablePeriodFilter = false,
   periodDateLabel = "Lançamento",
+  // Quem pode excluir registro (linha a linha e seleção em massa).
+  // Default (quando o prop não é passado) é admin-only, igual sempre
+  // foi — mantém Funcionários/Serviços/Sócios/Armaria/SLA exatamente
+  // como estavam. `Financeiro/index.js` (v2.3.260) passa um valor
+  // próprio pros 5 cadastros do módulo: financialAccess dá CONTROLE
+  // TOTAL (editar E excluir, não só editar), pedido explícito do
+  // cliente — diferente de Vendas (`SaleList`), que continua
+  // restringindo exclusão ao admin.
+  canDelete,
   finance,
   services,
   allowImport = false,
@@ -144,10 +153,10 @@ const FinanceRecordList = ({
   // Imprimir/exportar PDF/Excel — permissão separada de `allowImport`
   // (UserModal.js). 100% client-side, sem endpoint pra proteger.
   const canExport = user?.profile === "admin" || user?.super || user?.allowExport === "enabled";
-  // Seleção em massa ("selecionar tudo da página" + excluir) é admin-only,
-  // sem exceção configurável — pedido explícito do cliente, diferente do
-  // `allowImport` acima (esse não tem toggle por usuário).
   const isAdmin = user?.profile === "admin" || !!user?.super;
+  // Seleção em massa ("selecionar tudo da página" + excluir), excluir
+  // individual e a coluna de checkbox — ver prop `canDelete` acima.
+  const canDeleteRecords = canDelete !== undefined ? canDelete : isAdmin;
   // Rodapé com o endereço/telefone/e-mail da empresa (v2.3.184, pedido do
   // cliente — "interno da empresa, não da Focus/nota fiscal") — busca a
   // Configuração Fiscal só pra ler o endereço do emitente já cadastrado
@@ -181,7 +190,8 @@ const FinanceRecordList = ({
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   // Exclusão individual (v2.3.179) — por linha, sem precisar marcar
   // checkbox primeiro (a seleção em massa acima continua existindo, pra
-  // excluir vários de uma vez). Mesmo gate `isAdmin` da seleção em massa.
+  // excluir vários de uma vez). Mesmo gate `canDeleteRecords` da seleção
+  // em massa.
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -593,7 +603,7 @@ const FinanceRecordList = ({
               </Button>
             </>
           )}
-          {isAdmin && selectedIds.length > 0 && (
+          {canDeleteRecords && selectedIds.length > 0 && (
             <Button
               variant="outlined"
               color="secondary"
@@ -645,7 +655,7 @@ const FinanceRecordList = ({
         <Table size="small">
           <TableHead>
             <TableRow>
-              {isAdmin && (
+              {canDeleteRecords && (
                 <TableCell padding="checkbox">
                   <Checkbox
                     size="small"
@@ -664,7 +674,7 @@ const FinanceRecordList = ({
           <TableBody>
             {records.map((record) => (
               <TableRow key={record.id} selected={selectedIds.includes(record.id)}>
-                {isAdmin && (
+                {canDeleteRecords && (
                   <TableCell padding="checkbox">
                     <Checkbox
                       size="small"
@@ -685,7 +695,7 @@ const FinanceRecordList = ({
                       <EditIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  {isAdmin && (
+                  {canDeleteRecords && (
                     <Tooltip title="Excluir">
                       <IconButton size="small" onClick={() => setDeleteTarget(record)}>
                         <DeleteOutlineIcon fontSize="small" />
@@ -695,10 +705,10 @@ const FinanceRecordList = ({
                 </TableCell>
               </TableRow>
             ))}
-            {loading && <TableRowSkeleton columns={columns.length + (isAdmin ? 2 : 1)} />}
+            {loading && <TableRowSkeleton columns={columns.length + (canDeleteRecords ? 2 : 1)} />}
             {!loading && records.length === 0 && (
               <TableRow>
-                <TableCell colSpan={columns.length + (isAdmin ? 2 : 1)} align="center">
+                <TableCell colSpan={columns.length + (canDeleteRecords ? 2 : 1)} align="center">
                   Nenhum registro encontrado.
                 </TableCell>
               </TableRow>

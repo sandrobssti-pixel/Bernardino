@@ -151,6 +151,15 @@ const Financeiro = () => {
 
   const showPaymentTab = user.super || !!paymentAccess?.hasAccess;
   const financeRecordContext = { reform2027Enabled };
+  // v2.3.260 — pedido do cliente: quem recebe "Módulo Financeiro" tem
+  // controle TOTAL dentro dele (editar E excluir, não só editar). Antes,
+  // `FinanceRecordList` restringia exclusão ao admin sempre, sem exceção
+  // configurável — passado explicitamente aqui pros 5 cadastros do módulo
+  // (`canDelete`, ver o prop em FinanceRecordList), não mudando o default
+  // (ainda admin-only) usado por Funcionários/Serviços/Sócios/Armaria/SLA,
+  // que reaproveitam o mesmo componente fora do Financeiro.
+  const canDeleteFinanceRecords =
+    user.profile === "admin" || user.super || !!user.financialAccess;
 
   const renderPanel = () => {
     if (financeTab === "painel") {
@@ -168,6 +177,7 @@ const Financeiro = () => {
           finance={finance}
           enablePeriodFilter
           periodDateLabel="Lançamento"
+          canDelete={canDeleteFinanceRecords}
         />
       );
     }
@@ -185,6 +195,7 @@ const Financeiro = () => {
           enablePayments={showPaymentTab}
           enablePeriodFilter
           periodDateLabel="Lançamento"
+          canDelete={canDeleteFinanceRecords}
         />
       );
     }
@@ -217,6 +228,7 @@ const Financeiro = () => {
           allowTemplateDownload
           templateFilename="modelo-importacao-clientes.xlsx"
           context={financeRecordContext}
+          canDelete={canDeleteFinanceRecords}
         />
       );
     }
@@ -229,6 +241,7 @@ const Financeiro = () => {
           columns={financeSupplierColumns}
           fields={financeSupplierFields}
           allowImport
+          canDelete={canDeleteFinanceRecords}
         />
       );
     }
@@ -261,6 +274,7 @@ const Financeiro = () => {
           // cliente: "quando digita fornecedor não aparece os
           // cadastrados". Ver docs/MANUAL_TECNICO.md, seção 188.
           finance={finance}
+          canDelete={canDeleteFinanceRecords}
         />
       );
     }
