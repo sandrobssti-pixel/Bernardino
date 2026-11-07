@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.261] — Removido "Serviço" do cadastro de Produtos (redundante com Serviços Adms.) — 2026-11-07
+
+### Removido
+- **Categoria "Serviço" dentro de Financeiro → Produtos**, incluindo o
+  item de menu correspondente. Pedido do cliente: era redundante com o
+  módulo "Serviços Adms." (`/services`), onde o catálogo de serviços
+  de verdade já é mantido (confirmado com prints: a lista de Produtos
+  tipo Serviço estava vazia, enquanto Serviços Adms. tinha o catálogo
+  completo, ex. "CAC - Concessão de Certificado de Registro (CR)").
+  "Serviço" não aparece mais como opção ao criar um Produto novo, nem
+  como filtro na listagem.
+- **Compatibilidade preservada pra dado já existente**: um Produto com
+  `type="service"` cadastrado antes desta mudança (em qualquer empresa)
+  continua aparecendo normalmente em "Todos os produtos", com "Serviço"
+  certo na coluna Tipo, e continua editável — só não é mais oferecido
+  como opção pra um cadastro NOVO.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 234.
+
 ## [2.3.260] — Financeiro: financialAccess dá controle total (editar/excluir); Vendas: exclusão continua admin-only — 2026-11-07
 
 ### Adicionado

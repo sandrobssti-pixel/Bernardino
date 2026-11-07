@@ -17947,3 +17947,88 @@ compilou sem erro. Dados de teste removidos do banco ao final.
 `frontend/src/pages/Financeiro/index.js`,
 `backend/src/controllers/SaleController.ts`,
 `frontend/src/translate/languages/pt.js`.
+
+## 234. Removido "Serviço" do cadastro de Produtos — redundante com Serviços Adms. (v2.3.261)
+
+### Pedido do cliente
+
+> "remova a função serviços de dentro de produtos não tem serventia
+> pois já exite um modulo serviços Adms."
+
+### Investigação antes de remover — havia uma diferença real
+
+Antes de tirar qualquer coisa, chequei se os dois eram de fato
+redundantes (regra deste repositório: ação destrutiva em produção
+exige cautela). Achei uma diferença real:
+
+- **Produto tipo "Serviço"** (`FinanceProduct.type === "service"`,
+  Financeiro → Produtos): é um Produto normal (formulário simplificado,
+  sem NCM/controle de estoque — `isNotService`/
+  `isNotServiceAndNotWeaponAmmo` em `financeConfig.js`), que **pode ser
+  vendido na tela de Vendas** (`SaleModal` busca em
+  `finance.products.list`, sem distinguir tipo) e gerar nota fiscal de
+  verdade.
+- **"Serviços Adms."** (`Service`/`/services`, v2.3.175): catálogo
+  separado, mais simples (código/nome/valor/condições de pagamento),
+  usado como referência pelo Despachante Bélico e pelo `_servicePicker`
+  de preenchimento rápido em Contas a Receber/Pagar (seção 26) — **não
+  aparece na tela de Vendas**, não gera nota fiscal.
+
+Levantei essa diferença com o cliente antes de mexer (`AskUserQuestion`)
+— resposta, com prints anexados: "Serviço" dentro de Produtos está
+vazio/sem uso de verdade (confirmado no print — "Nenhum registro
+encontrado"), enquanto "Serviços Adms." tem o catálogo real completo
+(19+ itens, ex. linha CAC/Civil de certificados de registro de arma).
+O cliente está ciente da conexão com Vendas e decidiu que não usa esse
+caminho hoje — confirmou remover mesmo assim.
+
+### O que foi removido vs. o que foi preservado
+
+Removido (não oferecido mais pra cadastro NOVO):
+- Item de menu "🔧 Serviços" dentro do submenu Produtos
+  (`MainListItems.js`, link `/financeiro?tab=products&type=service`).
+- Opção "Serviço" no `<select>` Tipo do formulário Criar/Editar Produto
+  (`PRODUCT_TYPE_OPTIONS`, usado em `financeProductFields`).
+- Opção "Serviço" no filtro "Tipo" da listagem de Produtos
+  (`financeProductFilters`).
+
+Preservado (compatibilidade com dado já existente, em QUALQUER
+empresa — este é um sistema multi-tenant, outras empresas-cliente além
+da que pediu podem ter Produto tipo Serviço cadastrado):
+- `PRODUCT_TYPE_LABELS` continua com `service: "Serviço"` — um
+  registro antigo continua mostrando "Serviço" certo na coluna Tipo da
+  listagem, não fica em branco.
+- `isNotService`/`isNotServiceAndNotWeaponAmmo`/
+  `hasStockControlAndNotWeaponAmmo` (lógica de `visibleWhen` dos campos
+  do formulário) continuam intactas — abrir um Produto tipo Serviço já
+  existente pra editar continua escondendo NCM/estoque corretamente,
+  em vez de ficar com campos sem sentido pra esse tipo.
+- Nenhuma migration, nenhum dado apagado — só a OFERTA de criar um
+  Produto novo desse tipo saiu da UI. Um Produto tipo Serviço antigo
+  continua aparecendo em "Todos os produtos", editável, sem nenhuma
+  diferença visível além de não constar mais no filtro/menu de atalho.
+- Backend (`FinanceProductService.ts`, model, migrations) não foi
+  tocado — não havia necessidade, o tipo continua um valor válido pra
+  quem já tem dado assim.
+
+Pra implementar a divisão (lista completa de labels vs. lista
+selecionável), `PRODUCT_TYPE_OPTIONS` deixou de ser a fonte direta —
+virou `ALL_PRODUCT_TYPES.filter((opt) => opt.value !== "service")`,
+com `ALL_PRODUCT_TYPES` (renomeado do que antes era
+`PRODUCT_TYPE_OPTIONS`) alimentando só `PRODUCT_TYPE_LABELS` (que
+precisa de TODOS os valores, incluindo os não mais selecionáveis).
+
+### Verificação
+
+Em navegador real (não só leitura de código): cadastrei um Produto
+`type="service"` direto no banco de testes (simulando dado legado de
+outra empresa) e confirmei que aparece certo em "Todos os produtos"
+("Serviço" na coluna Tipo, editável, sem erro). Abri o modal "Novo
+Produto" e confirmei que o `<select>` Tipo mostra só Produto/Arma/
+Munição/Insumo/Acessórios/Caça & Pesca — sem "Serviço". `eslint`
+limpo (sem erro, só warnings pré-existentes do arquivo) nos arquivos
+tocados, `npx craco build` de produção (cache limpo antes) compilou
+sem erro. Dados de teste removidos ao final.
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/layout/MainListItems.js`.

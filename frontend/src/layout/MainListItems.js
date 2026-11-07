@@ -1632,14 +1632,17 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                             iconKey="financial"
                             tooltip={collapsed}
                           />
-                          <ListItemLink
-                            small
-                            to="/financeiro?tab=products&type=service"
-                            primary="🔧 Serviços"
-                            icon={<SettingsOutlinedIcon />}
-                            iconKey="financial"
-                            tooltip={collapsed}
-                          />
+                          {
+                            // v2.3.261 — "Serviços" (Produto tipo "service")
+                            // removido do menu: redundante com o módulo
+                            // "Serviços Adms." (/services), que é onde o
+                            // catálogo de serviços de verdade é mantido.
+                            // `type="service"` continua suportado no
+                            // cadastro de Produto (PRODUCT_TYPE_LABELS,
+                            // financeProductFields) pra não quebrar
+                            // registro já existente em outra empresa —
+                            // só não é mais oferecido pra criar um novo.
+                          }
                         </List>
                       </Collapse>
 

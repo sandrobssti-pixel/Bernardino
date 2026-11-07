@@ -111,7 +111,14 @@ export const financeSupplierFields = [
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
 
-export const PRODUCT_TYPE_OPTIONS = [
+// "service" fica de fora da lista SELECIONÁVEL (abaixo) — v2.3.261,
+// pedido do cliente: o Produto tipo Serviço ficava redundante com o
+// módulo "Serviços Adms." (/services), que é onde o catálogo de
+// serviços de verdade é mantido. Continua em PRODUCT_TYPE_LABELS pra
+// qualquer registro antigo (de outra empresa) continuar exibindo
+// "Serviço" certo na coluna Tipo em vez de ficar em branco — só não é
+// mais oferecido como opção ao criar/editar um Produto.
+const ALL_PRODUCT_TYPES = [
   { value: "product", label: "Produto" },
   { value: "service", label: "Serviço" },
   { value: "weapon", label: "Arma" },
@@ -120,7 +127,9 @@ export const PRODUCT_TYPE_OPTIONS = [
   { value: "hunting_fishing", label: "Caça & Pesca" },
 ];
 
-export const PRODUCT_TYPE_LABELS = PRODUCT_TYPE_OPTIONS.reduce((acc, opt) => {
+export const PRODUCT_TYPE_OPTIONS = ALL_PRODUCT_TYPES.filter((opt) => opt.value !== "service");
+
+export const PRODUCT_TYPE_LABELS = ALL_PRODUCT_TYPES.reduce((acc, opt) => {
   acc[opt.value] = opt.label;
   return acc;
 }, {});
@@ -618,7 +627,6 @@ export const financeProductFilters = [
       { value: "ammunition", label: "Munições/Insumos" },
       { value: "accessory", label: "Acessórios" },
       { value: "hunting_fishing", label: "Caça & Pesca" },
-      { value: "service", label: "Serviço" },
     ],
   },
 ];
