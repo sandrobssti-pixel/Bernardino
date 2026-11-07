@@ -166,6 +166,8 @@ const Financeiro = () => {
           fields={financeExpenseFields}
           filters={financeExpenseFilters}
           finance={finance}
+          enablePeriodFilter
+          periodDateLabel="Vencimento"
         />
       );
     }
@@ -181,6 +183,8 @@ const Financeiro = () => {
           finance={finance}
           services={services}
           enablePayments={showPaymentTab}
+          enablePeriodFilter
+          periodDateLabel="Vencimento"
         />
       );
     }

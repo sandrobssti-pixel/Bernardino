@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import moment from "moment";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
+import { PERIOD_OPTIONS, resolvePeriodRange } from "../../utils/periodFilter";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -117,41 +118,6 @@ const isTestSale = (sale, fiscalConfig) => {
 // de qualquer jeito (venda com nota de Produção, `SaleService.remove`).
 const isDeletable = (sale, fiscalConfig) =>
   sale.status === "draft" || isTestSale(sale, fiscalConfig);
-
-// Filtro de período (Hoje/Semana/Mês/Personalizado) — resolve o preset pra
-// um par startDate/endDate ("YYYY-MM-DD", igual `Sale.saleDate`, DATEONLY)
-// que o backend já sabe filtrar (`SaleService.list`). "custom" usa as datas
-// digitadas pelo usuário direto, sem conversão.
-const PERIOD_OPTIONS = [
-  { value: "", label: "Todo o período" },
-  { value: "today", label: "Hoje" },
-  { value: "week", label: "Esta semana" },
-  { value: "month", label: "Este mês" },
-  { value: "custom", label: "Período personalizado" },
-];
-
-const resolvePeriodRange = (preset, customStart, customEnd) => {
-  if (preset === "today") {
-    const today = moment().format("YYYY-MM-DD");
-    return { startDate: today, endDate: today };
-  }
-  if (preset === "week") {
-    return {
-      startDate: moment().startOf("week").format("YYYY-MM-DD"),
-      endDate: moment().endOf("week").format("YYYY-MM-DD"),
-    };
-  }
-  if (preset === "month") {
-    return {
-      startDate: moment().startOf("month").format("YYYY-MM-DD"),
-      endDate: moment().endOf("month").format("YYYY-MM-DD"),
-    };
-  }
-  if (preset === "custom") {
-    return { startDate: customStart || undefined, endDate: customEnd || undefined };
-  }
-  return {};
-};
 
 // v2.3.216 (pedido do cliente, print real da venda #519): o status da
 // LISTA de vendas mostrava só "Confirmada" pra uma venda que já tinha nota

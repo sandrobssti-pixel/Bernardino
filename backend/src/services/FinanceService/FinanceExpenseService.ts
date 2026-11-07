@@ -9,6 +9,8 @@ interface ListRequest {
   searchParam?: string;
   pageNumber?: string | number;
   status?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface ListResponse {
@@ -45,7 +47,9 @@ export const list = async ({
   companyId,
   searchParam = "",
   pageNumber = "1",
-  status
+  status,
+  startDate,
+  endDate
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
@@ -65,6 +69,17 @@ export const list = async ({
 
   if (status) {
     whereCondition.status = status;
+  }
+
+  // Filtro de Período (Hoje/Semana/Mês/Personalizado, v2.3.258) — mesmo
+  // padrão já usado em `SaleService.list`, filtrando pelo Vencimento
+  // (`dueDate`), que é a data que a tela já usa pra ordenar/exibir a lista.
+  if (startDate && endDate) {
+    whereCondition.dueDate = { [Op.between]: [startDate, endDate] };
+  } else if (startDate) {
+    whereCondition.dueDate = { [Op.gte]: startDate };
+  } else if (endDate) {
+    whereCondition.dueDate = { [Op.lte]: endDate };
   }
 
   const { count, rows: records } = await FinanceExpense.findAndCountAll({

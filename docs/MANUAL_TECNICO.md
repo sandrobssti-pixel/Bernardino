@@ -17695,3 +17695,83 @@ Dados de teste (Company/Plan/usuários/CompaniesSettings) removidos do
 banco de testes ao final.
 
 **Arquivos**: ver listas por camada acima (Arquitetura/Bug 1/Bug 2/Bug 3).
+
+## 231. Filtro de Período em Contas a Pagar/Receber (v2.3.258)
+
+### Pedido do cliente
+
+> "coloque um filtro em contas a receber e contas a pagar, conforme no
+> modulo vendas, quando o usuario for filtrar por periodo ou por dia ou
+> por semana ou por mes atual, como tem no modulo vendas consulta"
+
+Pedido direto, um único jeito óbvio de implementar — reaproveitar o
+filtro de Período que já existia em Vendas (`SaleList`, v2.3.247), sem
+precisar de pergunta prévia (regra do `CLAUDE.md`/seção 0 desta skill é
+só pra pedido com mais de um caminho razoável).
+
+### Implementação
+
+O filtro "Período" (Hoje/Esta semana/Este mês/Período personalizado) já
+existia só dentro de `SaleList/index.js` (`PERIOD_OPTIONS`/
+`resolvePeriodRange`, puramente local ali). Extraído pra
+`frontend/src/utils/periodFilter.js` — `SaleList` passou a importar de
+lá (comportamento idêntico, só sem duplicar a lógica), e
+`FinanceRecordList` (componente genérico de lista do módulo Financeiro,
+usado por Contas a Pagar/Receber/Clientes/Fornecedores/Produtos) ganhou
+dois props novos, opcionais:
+
+- `enablePeriodFilter` (boolean) — liga o dropdown "Período" + os dois
+  campos de data (quando "Período personalizado" é escolhido), mesmo
+  componente visual que já existia em Vendas.
+- `periodDateLabel` (string, só exibição) — nome do campo de data que
+  está sendo filtrado, mostrado no label do dropdown (ex.: "Período
+  (Vencimento)").
+
+Ligado só nas duas abas que o cliente pediu
+(`Financeiro/index.js`, `financeTab === "expenses"`/`"receivables"`) —
+Clientes/Fornecedores/Produtos não ganharam o filtro (não têm uma data
+que faça sentido filtrar desse jeito, e não foi pedido).
+
+Data filtrada é sempre `dueDate` (Vencimento) — mesmo campo que a
+LISTA já usa pra ordenar (`order: [["dueDate", "ASC"]]`,
+`FinanceReceivableService.ts`/`FinanceExpenseService.ts`) e exibir como
+coluna principal, mesma lógica de "qual data representa o registro"
+que `SaleList` usa com `Sale.saleDate`. Contas a Receber tem também
+`receivedDate` e Contas a Pagar `paymentDate` — nenhum dos dois é o que
+o filtro usa; se o cliente pedir filtro por data de pagamento/
+recebimento no futuro, é um filtro adicional (campo `startDate`/
+`endDate` já aceito pelo backend não tem como saber qual coluna usar
+sem um parâmetro a mais pra escolher).
+
+Backend: `FinanceReceivableService.list`/`FinanceExpenseService.list`
+ganharam `startDate`/`endDate` no `ListRequest`, aplicado em
+`whereCondition.dueDate` com `Op.between` (os dois informados) ou só
+`Op.gte`/`Op.lte` (só uma ponta, caso o frontend mande um dia sem o
+outro). `FinanceReceivableController.index`/`FinanceExpenseController.index`
+repassam os dois novos query params pro service — o hook `useFinance`
+já manda qualquer objeto de params direto pro backend
+(`api.get(.../params)`), não precisou mudar nada ali.
+
+### Verificação
+
+Teste HTTP direto (não só leitura de código): seedei 3 Contas a Receber
+e 3 Contas a Pagar com `dueDate` espalhada (hoje, semana passada, mês
+passado), logado como admin de verdade via `/auth/login`, e bati nos
+dois endpoints com `startDate`/`endDate` calculados pros 3 presets —
+cada filtro devolveu exatamente o(s) registro(s) esperado(s)
+(`count: 1` pra "hoje"/"esta semana", só o item de hoje; sem filtro,
+`count: 3`). Confirmado também em navegador real (Playwright): o
+dropdown "Período (Vencimento)" aparece corretamente ao lado do
+"Status" nas duas telas. `tsc --noEmit` limpo, `eslint` limpo nos
+arquivos tocados, `npx craco build` de produção (cache limpo antes,
+seção 9 desta skill) compilou sem erro. Dados de teste removidos do
+banco ao final.
+
+**Arquivos**: `frontend/src/utils/periodFilter.js` (novo),
+`frontend/src/components/SaleList/index.js` (refatorado pra importar
+de lá), `frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/pages/Financeiro/index.js`,
+`backend/src/services/FinanceService/FinanceReceivableService.ts`,
+`backend/src/services/FinanceService/FinanceExpenseService.ts`,
+`backend/src/controllers/FinanceReceivableController.ts`,
+`backend/src/controllers/FinanceExpenseController.ts`.

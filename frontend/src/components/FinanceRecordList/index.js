@@ -5,6 +5,7 @@ import * as XLSX from "xlsx";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useFiscal from "../../hooks/useFiscal";
 import { buildEmitterAddressLine } from "../../utils/financeFormat";
+import { PERIOD_OPTIONS, resolvePeriodRange } from "../../utils/periodFilter";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Paper from "@material-ui/core/Paper";
@@ -108,6 +109,13 @@ const FinanceRecordList = ({
   fields,
   filters = [],
   initialFilterValues = {},
+  // Filtro de Período (Hoje/Semana/Mês/Personalizado), mesmo padrão já
+  // usado no módulo Vendas (`SaleList`, ver `utils/periodFilter.js`) —
+  // pedido do cliente pra Contas a Pagar/Receber. `periodDateLabel` é só
+  // pra UX (nome do campo de data filtrado, ex. "Vencimento"), o backend
+  // de cada recurso decide qual coluna de fato usa pro filtro.
+  enablePeriodFilter = false,
+  periodDateLabel = "Vencimento",
   finance,
   services,
   allowImport = false,
@@ -180,6 +188,9 @@ const FinanceRecordList = ({
   // só lido na primeira renderização; a tela troca de filtro navegando de
   // novo (o `key` em Financeiro/index.js remonta o componente).
   const [filterValues, setFilterValues] = useState(initialFilterValues);
+  const [periodPreset, setPeriodPreset] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [importing, setImporting] = useState(false);
@@ -189,7 +200,10 @@ const FinanceRecordList = ({
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await resource.list({ searchParam, pageNumber, ...filterValues });
+      const periodParams = enablePeriodFilter
+        ? resolvePeriodRange(periodPreset, customStart, customEnd)
+        : {};
+      const data = await resource.list({ searchParam, pageNumber, ...filterValues, ...periodParams });
       setRecords(data.records || []);
       setCount(data.count || 0);
       setSelectedIds([]);
@@ -205,7 +219,7 @@ const FinanceRecordList = ({
     // Financeiro/index.js também usa `key={financeTab}` como reforço, pra
     // garantir estado limpo (busca, filtros) a cada troca de aba.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParam, pageNumber, filterValues, resource]);
+  }, [searchParam, pageNumber, filterValues, resource, enablePeriodFilter, periodPreset, customStart, customEnd]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -224,7 +238,7 @@ const FinanceRecordList = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setPageNumber(1);
-  }, [searchParam, filterValues, resource]);
+  }, [searchParam, filterValues, resource, periodPreset, customStart, customEnd]);
 
   const handleOpenNew = () => {
     setSelectedRecord(null);
@@ -502,6 +516,47 @@ const FinanceRecordList = ({
               ))}
             </TextField>
           ))}
+          {enablePeriodFilter && (
+            <>
+              <TextField
+                select
+                variant="outlined"
+                size="small"
+                label={`Período (${periodDateLabel})`}
+                style={{ minWidth: 200 }}
+                value={periodPreset}
+                onChange={(e) => setPeriodPreset(e.target.value)}
+              >
+                {PERIOD_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {periodPreset === "custom" && (
+                <>
+                  <TextField
+                    type="date"
+                    variant="outlined"
+                    size="small"
+                    label="De"
+                    InputLabelProps={{ shrink: true }}
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                  />
+                  <TextField
+                    type="date"
+                    variant="outlined"
+                    size="small"
+                    label="Até"
+                    InputLabelProps={{ shrink: true }}
+                    value={customEnd}
+                    onChange={(e) => setCustomEnd(e.target.value)}
+                  />
+                </>
+              )}
+            </>
+          )}
         </Box>
         <Box display="flex" style={{ gap: 8 }}>
           {allowTemplateDownload && (

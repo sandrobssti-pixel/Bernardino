@@ -3,6 +3,34 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.258] — Filtro de Período em Contas a Pagar/Receber — 2026-11-07
+
+### Adicionado
+- **Filtro "Período" (Hoje / Esta semana / Este mês / Período personalizado)
+  em Contas a Pagar e Contas a Receber**, igual ao que já existia no módulo
+  Vendas. Filtra pela data de Vencimento (`dueDate`), mesmo campo que a
+  lista já usa pra ordenar/exibir. Pedido do cliente: "coloque um filtro em
+  contas a receber e contas a pagar, conforme no modulo vendas".
+- Lógica do filtro (opções e resolução de preset pra intervalo de datas)
+  extraída pra um utilitário compartilhado
+  (`frontend/src/utils/periodFilter.js`) — reaproveitado por Vendas (que já
+  tinha isso, antes só local ali) e pelas duas telas novas, em vez de
+  duplicar o código uma terceira vez.
+- Backend: `FinanceReceivableService.list`/`FinanceExpenseService.list`
+  aceitam `startDate`/`endDate`, filtrando `dueDate` com `Op.between`
+  (ou só `gte`/`lte` quando só uma ponta é informada).
+
+### Verificado
+- Teste HTTP direto (login real + `/finance/receivables`/`/finance/expenses`
+  com `startDate`/`endDate`) com 3 contas de cada tipo em datas diferentes
+  (hoje, semana passada, mês passado) — cada filtro devolveu só o
+  esperado.
+- Confirmado em navegador real: dropdown "Período (Vencimento)" aparece ao
+  lado do filtro "Status" nas duas telas.
+- `tsc --noEmit` limpo no backend, `eslint` limpo nos arquivos tocados, e
+  `npx craco build` de produção (com cache limpo antes) compilando sem
+  erro.
+
 ## [2.3.257] — Módulo Vendas independente do Financeiro; permissões por usuário corrigidas — 2026-11-07
 
 ### Adicionado
