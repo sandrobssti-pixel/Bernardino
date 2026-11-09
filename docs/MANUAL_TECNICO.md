@@ -18224,3 +18224,72 @@ nesse caso — adicionado o `InputLabelProps` que faltava nos mesmos 3
 campos da correção anterior. Confirmado em navegador real que o rótulo
 agora fica na borda, sem sobrepor o texto, nas telas de Contas a
 Pagar/Receber e Vendas.
+
+## 237. Filtro de Período em Contas a Pagar/Receber volta a filtrar por Vencimento (v2.3.265)
+
+### O ciclo completo (pra não repetir sem registrar)
+
+Terceira volta nesse mesmo filtro, sentidos opostos:
+
+1. **v2.3.258**: filtro de Período criado, filtrando por Vencimento
+   (`dueDate`).
+2. **v2.3.259**: cliente lançou 14 contas num dia, filtro "Hoje" só
+   mostrou 3 — a maioria tinha vencimento futuro (prazo/parcelamento).
+   Trocado pra filtrar por Lançamento (`createdAt`).
+3. **v2.3.265 (esta seção)**: cliente reportou o problema INVERSO —
+   "só entrou um registro semanal e tem mais de 20". Investigando:
+   tinha mais de 20 contas com VENCIMENTO essa semana, mas a maioria
+   tinha sido lançada/importada no sistema em outra época (não essa
+   semana) — filtrando por Lançamento, ficavam de fora.
+
+Os dois sentidos são comportamento genuinamente esperado PRA CASOS DE
+USO diferentes — não dá pra acertar os dois ao mesmo tempo com um único
+campo de data. Perguntado direto ao cliente qual dos dois é o que
+precisa de verdade (não presumido): confirmou **Vencimento**.
+
+**Se esse ciclo voltar a acontecer uma quarta vez**, a solução
+estrutural é um segundo controle (seletor Vencimento/Lançamento) ao
+lado do dropdown de Período, não trocar o campo de novo — os dois
+casos de uso são legítimos e podem coexistir. Não implementado ainda
+porque o cliente, perguntado diretamente dessa vez (3 opções:
+Vencimento / Lançamento / os dois com seletor), escolheu só
+Vencimento.
+
+### Correção
+
+Revertido `whereCondition.createdAt` (`Op.gte`/`Op.lte` com
+`"${startDate} 00:00:00"`/`"${endDate} 23:59:59.999"`, necessário por
+`createdAt` ser timestamp) de volta pra `whereCondition.dueDate`
+(`Op.gte`/`Op.lte` direto com a string "YYYY-MM-DD", já que `dueDate`
+é `DATEONLY` — mesmo formato da v2.3.258 original) em
+`FinanceReceivableService.list`/`FinanceExpenseService.list`. Label no
+frontend (`periodDateLabel`) voltou de "Lançamento" pra "Vencimento"
+em `FinanceRecordList.js` (default) e nos dois usos em
+`Financeiro/index.js`. Vendas (`SaleList`) nunca teve essa ambiguidade
+— sempre filtrou por `saleDate` (data da venda), não tocado aqui.
+
+### Verificação
+
+Teste HTTP direto reproduzindo o cenário real relatado: 5 Contas a
+Receber com `createdAt` forçado pra janeiro/2026 (via SQL direto — update
+não sobrescreve `createdAt`) mas `dueDate` espalhado dentro da semana
+atual (segunda a domingo) — filtro "Esta semana" devolveu as 5
+corretamente (antes da correção, devolveria 0). Confirmado em
+navegador real com filtro de período personalizado (09/11 a 15/11),
+mesmo resultado. `tsc --noEmit` e `eslint` limpos. Dados de teste
+removidos ao final.
+
+**Nota de processo**: antes de aceitar o relato inicial ("filtro
+semanal não funciona") como bug de código, reproduzi contra o código
+já publicado e não consegui — era deploy desatualizado (containers de
+21h). Só depois de confirmado o deploy em dia, e com um exemplo
+concreto ("mais de 20 registros", depois confirmado como sendo sobre
+Vencimento vs. Lançamento) ficou claro que o pedido real era outro —
+registrado aqui pra, numa próxima vez que "o filtro de período não
+funciona" for relatado, checar PRIMEIRO qual sentido (Vencimento x
+Lançamento) o cliente espera, antes de investigar deploy ou lógica.
+
+**Arquivos**: `backend/src/services/FinanceService/
+FinanceReceivableService.ts`, `backend/src/services/FinanceService/
+FinanceExpenseService.ts`, `frontend/src/components/
+FinanceRecordList/index.js`, `frontend/src/pages/Financeiro/index.js`.

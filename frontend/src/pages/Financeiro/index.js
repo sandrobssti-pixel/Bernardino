@@ -176,7 +176,7 @@ const Financeiro = () => {
           filters={financeExpenseFilters}
           finance={finance}
           enablePeriodFilter
-          periodDateLabel="Lançamento"
+          periodDateLabel="Vencimento"
           canDelete={canDeleteFinanceRecords}
         />
       );
@@ -194,7 +194,7 @@ const Financeiro = () => {
           services={services}
           enablePayments={showPaymentTab}
           enablePeriodFilter
-          periodDateLabel="Lançamento"
+          periodDateLabel="Vencimento"
           canDelete={canDeleteFinanceRecords}
         />
       );

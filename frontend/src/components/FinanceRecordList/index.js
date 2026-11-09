@@ -111,14 +111,14 @@ const FinanceRecordList = ({
   initialFilterValues = {},
   // Filtro de Período (Hoje/Semana/Mês/Personalizado), mesmo padrão já
   // usado no módulo Vendas (`SaleList`, ver `utils/periodFilter.js`) —
-  // pedido do cliente pra Contas a Pagar/Receber. Filtra pela DATA DE
-  // LANÇAMENTO (`createdAt`), não pelo Vencimento — confirmado com o
-  // cliente depois de a 1ª versão (filtrando por Vencimento) mostrar só
-  // 3 de 14 contas lançadas no mesmo dia (a maioria vencia em data
-  // futura). `periodDateLabel` é só pra UX (nome do campo de data
-  // filtrado), o backend de cada recurso decide a coluna de fato.
+  // pedido do cliente pra Contas a Pagar/Receber. Filtra pelo VENCIMENTO
+  // (`dueDate`) — ver histórico completo em `FinanceReceivableService.ts`/
+  // `FinanceExpenseService.ts` (já foi Vencimento, depois Lançamento,
+  // voltou pra Vencimento — docs/MANUAL_TECNICO.md, seção 237).
+  // `periodDateLabel` é só pra UX, o backend de cada recurso decide a
+  // coluna de fato.
   enablePeriodFilter = false,
-  periodDateLabel = "Lançamento",
+  periodDateLabel = "Vencimento",
   // Quem pode excluir registro (linha a linha e seleção em massa).
   // Default (quando o prop não é passado) é admin-only, igual sempre
   // foi — mantém Funcionários/Serviços/Sócios/Armaria/SLA exatamente

@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.265] — Filtro de Período em Contas a Pagar/Receber volta a filtrar por Vencimento — 2026-11-09
+
+### Corrigido
+- **O filtro de Período em Contas a Pagar/Receber volta a filtrar pelo
+  VENCIMENTO (`dueDate`), não mais pela data de Lançamento
+  (`createdAt`)** — reversão da v2.3.259. Cliente reportou que contas
+  importadas/cadastradas há meses, mas com vencimento dentro da semana
+  filtrada, não apareciam (só contava o que tinha sido digitado no
+  sistema naquele período, não o que vencia nele). Confirmado
+  explicitamente com o cliente que o esperado é Vencimento.
+
+### Verificado
+- Teste HTTP direto: 5 contas lançadas em janeiro/2026 mas com
+  vencimento espalhado dentro da semana atual — filtro "Esta semana"
+  agora mostra as 5 corretamente. Confirmado em navegador real com
+  período personalizado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 237.
+
 ## [2.3.264] — Correção: rótulo "Status"/"Período" sobrepondo "Todos" depois do fix anterior — 2026-11-09
 
 ### Corrigido

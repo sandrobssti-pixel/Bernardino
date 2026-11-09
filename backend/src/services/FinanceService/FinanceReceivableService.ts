@@ -73,25 +73,27 @@ export const list = async ({
     whereCondition.status = status;
   }
 
-  // Filtro de Período (Hoje/Semana/Mês/Personalizado, v2.3.258/259) —
-  // filtra pela DATA DE LANÇAMENTO (`createdAt`, quando o registro foi
-  // cadastrado), não pelo Vencimento: a primeira versão filtrava por
-  // `dueDate` e o cliente reportou que lançar 14 contas num dia só
-  // mostrava 3 no filtro "Hoje" — a maioria tinha vencimento em data
-  // futura (prazo/parcelamento), mesmo lançada no mesmo dia. Confirmado
-  // com o cliente que o esperado é ver o que foi LANÇADO no período,
-  // independente de quando vence. `createdAt` é timestamp (não
-  // DATEONLY como `dueDate`), por isso o range cobre o dia inteiro.
+  // Filtro de Período (Hoje/Semana/Mês/Personalizado) — filtra pelo
+  // VENCIMENTO (`dueDate`). Histórico (v2.3.258→v2.3.259→v2.3.265): já
+  // filtrou por Vencimento, depois por Lançamento (`createdAt` — cliente
+  // relatou que lançar 14 contas num dia só mostrava 3 em "Hoje", porque
+  // a maioria vencia no futuro), e agora voltou pra Vencimento de novo —
+  // cliente reportou o problema inverso: contas com vencimento essa
+  // semana (ex.: importadas/cadastradas em outra data) não apareciam no
+  // filtro "Esta semana" por terem sido LANÇADAS antes. Confirmado
+  // explicitamente com o cliente qual dos dois quer: Vencimento. Ver
+  // docs/MANUAL_TECNICO.md, seção 237, pra não repetir esse ciclo nos
+  // dois sentidos sem registrar.
   if (startDate) {
-    whereCondition.createdAt = {
-      ...(whereCondition.createdAt || {}),
-      [Op.gte]: `${startDate} 00:00:00`
+    whereCondition.dueDate = {
+      ...(whereCondition.dueDate || {}),
+      [Op.gte]: startDate
     };
   }
   if (endDate) {
-    whereCondition.createdAt = {
-      ...(whereCondition.createdAt || {}),
-      [Op.lte]: `${endDate} 23:59:59.999`
+    whereCondition.dueDate = {
+      ...(whereCondition.dueDate || {}),
+      [Op.lte]: endDate
     };
   }
 
