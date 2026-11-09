@@ -19,9 +19,18 @@ export const resolvePeriodRange = (preset, customStart, customEnd) => {
     return { startDate: today, endDate: today };
   }
   if (preset === "week") {
+    // v2.3.263 — "Esta semana" usava `startOf("week")`/`endOf("week")`, que
+    // segue o `dow` (first day of week) do locale GLOBAL do moment — por
+    // acaso domingo (dow: 0) tanto no locale default quanto no "pt-br"
+    // configurado em `handleLogin` (useAuth.js). Cliente confirmou que
+    // "esta semana" deve ser segunda a domingo (convenção comum no
+    // Brasil), não domingo a sábado. `startOf("isoWeek")`/`endOf("isoWeek")`
+    // é sempre segunda a domingo (ISO 8601), independente de locale —
+    // mais confiável que mexer no `dow` do locale global (que afetaria
+    // outro código que dependa dele sem relação com este filtro).
     return {
-      startDate: moment().startOf("week").format("YYYY-MM-DD"),
-      endDate: moment().endOf("week").format("YYYY-MM-DD"),
+      startDate: moment().startOf("isoWeek").format("YYYY-MM-DD"),
+      endDate: moment().endOf("isoWeek").format("YYYY-MM-DD"),
     };
   }
   if (preset === "month") {

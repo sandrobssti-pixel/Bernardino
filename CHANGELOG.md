@@ -3,6 +3,28 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.263] — Semana começa na segunda-feira; dropdown "Todos" não aparecia selecionado — 2026-11-09
+
+### Corrigido
+- **Filtro "Esta semana" agora começa na segunda-feira e termina no
+  domingo**, em Contas a Pagar, Contas a Receber e Vendas — antes
+  começava no domingo (convenção padrão do moment.js), pedido do
+  cliente pra bater com a convenção comum no Brasil.
+- **BUG VISUAL — selecionar "Todos" (Status) ou "Todo o período"
+  (Período) deixava a caixa do dropdown em branco**, mesmo o filtro
+  funcionando corretamente por trás (mostrando todos os registros
+  certos). Dava a impressão de que a seleção "não ficava gravada".
+  Afeta os filtros Status (Contas a Pagar/Receber), Tipo (Produtos) e
+  Período (Contas a Pagar/Receber/Vendas).
+
+### Verificado
+- Teste HTTP direto confirmando o novo range segunda-domingo. Confirmado
+  em navegador real: "Todos"/"Todo o período" agora aparecem
+  corretamente escritos na caixa do dropdown, igual qualquer outra
+  opção selecionada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 236.
+
 ## [2.3.262] — Busca por cliente/fornecedor (nome ou CPF/CNPJ) em Contas a Pagar, Contas a Receber e Vendas — 2026-11-07
 
 ### Adicionado

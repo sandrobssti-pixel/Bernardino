@@ -521,6 +521,12 @@ const FinanceRecordList = ({
               onChange={(e) =>
                 setFilterValues((prev) => ({ ...prev, [filter.name]: e.target.value }))
               }
+              // v2.3.263 — sem isso, MUI deixa a caixa em branco quando o
+              // valor selecionado é "" (ex.: "Todos"), mesmo já existindo
+              // um MenuItem pra esse valor — parecia que a seleção "não
+              // ficava gravada" (relato do cliente), quando na verdade o
+              // filtro já funcionava certo, só não aparecia visualmente.
+              SelectProps={{ displayEmpty: true }}
             >
               {filter.options.map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>
@@ -539,6 +545,7 @@ const FinanceRecordList = ({
                 style={{ minWidth: 200 }}
                 value={periodPreset}
                 onChange={(e) => setPeriodPreset(e.target.value)}
+                SelectProps={{ displayEmpty: true }}
               >
                 {PERIOD_OPTIONS.map((opt) => (
                   <MenuItem key={opt.value} value={opt.value}>

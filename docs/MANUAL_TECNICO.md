@@ -18113,3 +18113,96 @@ final.
 FinanceReceivableService.ts`, `backend/src/services/FinanceService/
 FinanceExpenseService.ts`, `backend/src/services/FiscalService/
 SaleService.ts`, `frontend/src/components/SaleList/index.js`.
+
+## 236. Semana começa na segunda-feira; dropdown "Todos" não aparecia selecionado (v2.3.263)
+
+### Relato do cliente
+
+> "contas a receber quando puxa no periodo semanal não esta puxando,
+> corrija essa opção em todos os modulos que tenha a função de filtrar"
+
+depois, com um print mostrando o filtro "Esta semana" em Contas a
+Pagar trazendo só 4 registros ("não aparece todos só esses"), e por
+fim:
+
+> "quando coloca todos não fica aparente igual por exemplo pendente ou
+> pago que fica visivel"
+
+### Investigação — dois problemas DIFERENTES, nenhum no backend
+
+Reproduzi o relato original ("esta semana" não traz nada) contra o
+código já publicado (v2.3.262, que já tinha a correção da seção 232 —
+filtro por `createdAt`, não `dueDate`) e NÃO consegui reproduzir: um
+registro criado "agora" aparecia corretamente no filtro "Esta semana"
+nos três módulos (Contas a Pagar, Contas a Receber, Vendas). Isso
+apontava pra deploy desatualizado no servidor — confirmado: `git log`
+já mostrava o commit certo, mas os containers estavam de pé há 21
+horas (não recriados desde então). Depois do rebuild+recreate, pedi
+confirmação de novo.
+
+O relato seguinte ("só aparecem 4, deveria ter mais") veio já com o
+deploy em dia. Pedi um exemplo concreto de registro faltando — a
+resposta do cliente, na verdade, era sobre OUTRA coisa (confirmado na
+pergunta seguinte): o dropdown "Status" selecionado em "Todos" fica
+com a CAIXA EM BRANCO, diferente de "Pendente"/"Pago" que aparecem
+escritos normalmente. Isso parecia, pro cliente, que a seleção
+"não ficava gravada" — mas o filtro em si já funcionava (nenhum dado
+estava sendo escondido). Confirmado em navegador real: com "Período:
+Esta semana" + "Status: Todos", os 2 registros de teste apareciam
+certinho, só a caixa de Status ficava visualmente vazia.
+
+Separado disso, perguntei diretamente se "esta semana" deveria começar
+na segunda-feira (convenção comum no Brasil) em vez de domingo (como o
+moment.js calcula por padrão) — cliente confirmou que sim.
+
+### Causa raiz e correção — bug 1 (início da semana)
+
+`resolvePeriodRange("week", ...)` usava `moment().startOf("week")`/
+`endOf("week")`, que seguem o `dow` (first day of week) do locale
+GLOBAL do moment — por acaso domingo tanto no locale default quanto no
+"pt-br" (configurado em `handleLogin`, `useAuth.js`). Trocado pra
+`startOf("isoWeek")`/`endOf("isoWeek")` — sempre segunda a domingo
+(ISO 8601), independente de locale, sem precisar mexer no `dow` global
+(que afetaria outro código sem relação com este filtro). Como
+`utils/periodFilter.js` é compartilhado pelos 3 módulos (seção 231),
+a correção vale pros três de uma vez.
+
+### Causa raiz e correção — bug 2 (dropdown "Todos" em branco)
+
+MUI (`TextField select`) não mostra o label do `MenuItem` cujo `value`
+é `""` a menos que o prop `SelectProps={{ displayEmpty: true }}` seja
+passado — sem isso, a caixa fica em branco quando o valor selecionado
+é `""`, MESMO já existindo um `MenuItem value=""` com o label certo
+("Todos"/"Todo o período"). Bug puramente visual, não de lógica —
+nenhum filtro estava de fato quebrado. Adicionado `SelectProps={{
+displayEmpty: true }}` em:
+- `FinanceRecordList.js` — o `<TextField select>` genérico de
+  `filters.map(...)` (afeta Status em Contas a Pagar/Receber, e Tipo
+  em Produtos, que reaproveitam o mesmo mecanismo) e o de "Período".
+- `SaleList.js` — o `<TextField select>` de "Período" (Vendas não tem
+  filtro de Status).
+
+### Verificação
+
+Teste HTTP direto confirmando o novo range (segunda 09/11 a domingo
+15/11, hoje sendo segunda-feira). Confirmado em navegador real: filtro
+"Esta semana" com o novo range mostrando os 2 registros de teste
+corretamente; dropdown Status trocando entre "Pendente" (mostra 1
+registro, caixa escrita "Pendente") e "Todos" (mostra os 2, caixa
+agora escrita "Todos" em vez de em branco); mesmo teste no dropdown
+"Período" de Vendas, mostrando "Todo o período" corretamente escrito.
+`eslint` limpo nos arquivos tocados.
+
+**Nota sobre o ambiente desta sessão**: o container foi reiniciado no
+meio desta investigação, apagando `node_modules`, `.env` (backend e
+frontend) e o banco de testes `atendeflow_test` inteiro (usuário e
+schema zerados). Precisou recriar o usuário/banco Postgres, rodar as
+migrations do zero, recriar `.env` a partir de `.env.example`
+(`JWT_SECRET`/`JWT_REFRESH_SECRET` locais, `DB_NAME=atendeflow_test`)
+e reinstalar dependências antes de continuar os testes — nada disso
+tem relação com o código do AtendeFlow em si, é só o estado efêmero
+desta sessão de desenvolvimento.
+
+**Arquivos**: `frontend/src/utils/periodFilter.js`,
+`frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/components/SaleList/index.js`.
