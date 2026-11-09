@@ -521,12 +521,18 @@ const FinanceRecordList = ({
               onChange={(e) =>
                 setFilterValues((prev) => ({ ...prev, [filter.name]: e.target.value }))
               }
-              // v2.3.263 — sem isso, MUI deixa a caixa em branco quando o
-              // valor selecionado é "" (ex.: "Todos"), mesmo já existindo
-              // um MenuItem pra esse valor — parecia que a seleção "não
-              // ficava gravada" (relato do cliente), quando na verdade o
-              // filtro já funcionava certo, só não aparecia visualmente.
+              // v2.3.263/264 — sem `displayEmpty`, MUI deixa a caixa em
+              // branco quando o valor selecionado é "" (ex.: "Todos"),
+              // mesmo já existindo um MenuItem pra esse valor — parecia
+              // que a seleção "não ficava gravada" (relato do cliente).
+              // `displayEmpty` sozinho, porém, faz o LABEL ("Status") não
+              // subir pra borda do campo quando o valor é "" — o texto do
+              // valor ("Todos") fica desenhado por cima do label, os dois
+              // sobrepostos ("borrado", 2º relato do cliente). As duas
+              // props andam juntas no MUI pra esse caso — nunca uma sem
+              // a outra.
               SelectProps={{ displayEmpty: true }}
+              InputLabelProps={{ shrink: true }}
             >
               {filter.options.map((opt) => (
                 <MenuItem key={opt.value} value={opt.value}>
@@ -546,6 +552,7 @@ const FinanceRecordList = ({
                 value={periodPreset}
                 onChange={(e) => setPeriodPreset(e.target.value)}
                 SelectProps={{ displayEmpty: true }}
+                InputLabelProps={{ shrink: true }}
               >
                 {PERIOD_OPTIONS.map((opt) => (
                   <MenuItem key={opt.value} value={opt.value}>

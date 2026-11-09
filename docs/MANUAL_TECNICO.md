@@ -18206,3 +18206,21 @@ desta sessão de desenvolvimento.
 **Arquivos**: `frontend/src/utils/periodFilter.js`,
 `frontend/src/components/FinanceRecordList/index.js`,
 `frontend/src/components/SaleList/index.js`.
+
+### Addendum (v2.3.264) — o fix do bug 2 tinha efeito colateral
+
+Depois de publicado, o cliente relatou que ficou "pior": print
+mostrando o rótulo "Status" desenhado por cima do texto "Todos",
+ilegível. Causa: `displayEmpty` sozinho resolve a caixa ficar em
+branco, mas por padrão o `InputLabel` do MUI só "sobe" pra borda do
+campo (`shrink`) quando o Select tem um valor considerado "preenchido"
+— e um Select com `displayEmpty` + valor `""` não conta como
+"preenchido" pra essa lógica, então o label fica na posição de
+descanso (dentro da caixa) ao mesmo tempo que `displayEmpty` desenha o
+texto "Todos" também dentro da caixa — os dois se sobrepõem. As duas
+props (`SelectProps={{ displayEmpty: true }}` +
+`InputLabelProps={{ shrink: true }}`) precisam andar SEMPRE juntas
+nesse caso — adicionado o `InputLabelProps` que faltava nos mesmos 3
+campos da correção anterior. Confirmado em navegador real que o rótulo
+agora fica na borda, sem sobrepor o texto, nas telas de Contas a
+Pagar/Receber e Vendas.

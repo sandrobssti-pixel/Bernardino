@@ -3,6 +3,24 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.264] — Correção: rótulo "Status"/"Período" sobrepondo "Todos" depois do fix anterior — 2026-11-09
+
+### Corrigido
+- A correção da v2.3.263 (`displayEmpty`, pra "Todos"/"Todo o período"
+  aparecerem escritos no dropdown) tinha um efeito colateral: sem
+  `InputLabelProps={{ shrink: true }}` junto, o rótulo do campo
+  ("Status", "Período") não subia pra borda do campo quando o valor
+  era "" — ficava desenhado por cima do texto "Todos", os dois
+  sobrepostos/ilegíveis. Corrigido adicionando a prop que faltava —
+  as duas sempre andam juntas nesse caso específico do MUI.
+
+### Verificado
+- Confirmado em navegador real: rótulo "Status" na borda do campo,
+  texto "Todos" legível dentro da caixa, sem sobreposição — nas telas
+  de Contas a Pagar/Receber e Vendas.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 236 (atualizada).
+
 ## [2.3.263] — Semana começa na segunda-feira; dropdown "Todos" não aparecia selecionado — 2026-11-09
 
 ### Corrigido

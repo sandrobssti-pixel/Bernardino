@@ -655,6 +655,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
             value={periodPreset}
             onChange={(e) => setPeriodPreset(e.target.value)}
             SelectProps={{ displayEmpty: true }}
+            InputLabelProps={{ shrink: true }}
           >
             {PERIOD_OPTIONS.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>
