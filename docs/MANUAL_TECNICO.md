@@ -18293,3 +18293,126 @@ Lançamento) o cliente espera, antes de investigar deploy ou lógica.
 FinanceReceivableService.ts`, `backend/src/services/FinanceService/
 FinanceExpenseService.ts`, `frontend/src/components/
 FinanceRecordList/index.js`, `frontend/src/pages/Financeiro/index.js`.
+
+## 238. Seafile: corrida de inicialização Seahub/MariaDB — healthcheck real + autoheal
+
+Quinto problema real do Seafile (os outros 4 estão na seção 40), achado
+em produção em 10/11/2026: `https://arquivos.confiancatechnologies.com`
+voltou "502 Bad Gateway" (diagnóstico do Cloudflare: "Host Error" — o
+túnel chega certo no servidor, o serviço local é que não responde).
+
+### Causa raiz (confirmada por log, não suposta)
+
+`docker logs confianza-seafile` mostrou o ciclo de boot completo:
+
+```
+Aguardando MariaDB em confianza-seafile-db:3306 (1/60)...
+...
+Starting seafile server, please wait ...
+Seafile server started
+Starting seahub at port 8000 ...
+Error:Seahub failed to start.
+Please try to run "./seahub.sh start" again
+subprocess.CalledProcessError: Command '.../seahub.sh start' returned non-zero exit status 1.
+```
+
+O entrypoint do container `seafile` só espera a **porta TCP** do
+MariaDB responder antes de seguir — não que o MariaDB já aceite
+queries de verdade. Entre "porta aberta" e "pronto pra query" existe
+uma janela real (mais provável logo depois de um restart do host, com
+os dois containers subindo juntos), e quando `seahub.sh start` cai
+nessa janela ele falha uma vez e **não tenta de novo sozinho**. Como o
+Nginx interno do container já tinha subido, o container continua
+"Up" — a política `restart: unless-stopped` nunca age, porque pra ela
+o container nunca morreu, só ficou com o backend quebrado atrás de um
+proxy de pé. Corrigido manualmente uma vez com:
+```bash
+docker exec -it confianza-seafile /opt/seafile/seafile-server-latest/seahub.sh start
+```
+— confirmando que era mesmo corrida de inicialização, não erro de
+config (rodou limpo de primeira na segunda tentativa).
+
+### Correção estrutural (pra não precisar repetir o comando manual)
+
+Descartada a ideia de um script de watchdog solto em cron: o Docker já
+tem a ferramenta certa pra "container de pé mas quebrado por dentro",
+só não vinha configurada. Duas mudanças em `docker-compose.seafile.yml`:
+
+1. **`healthcheck` real no `seafile-db`** (`mysqladmin ping`, não só
+   porta TCP) + **`depends_on: condition: service_healthy`** no
+   serviço `seafile` — fecha a janela de corrida no boot: o container
+   `seafile` só começa a subir depois que o MariaDB responde query de
+   verdade, não só porta aberta.
+2. **`healthcheck` no próprio `seafile`**, testando o Seahub de
+   verdade através do Nginx interno (`curl -f http://127.0.0.1/` —
+   falha com `502` se o Seahub caiu) + serviço **`autoheal`**
+   (`willfarrell/autoheal`, lê o socket do Docker e reinicia qualquer
+   container com label `autoheal: "true"` que o Docker marcar
+   `unhealthy`). Isso cobre o caso em que a corrida acontece mesmo
+   assim (ex.: MariaDB demora mais que o esperado por outro motivo) —
+   em vez de ficar quebrado até alguém notar e entrar no servidor, o
+   próprio Docker detecta e reinicia o `confianza-seafile` sozinho.
+
+```yaml
+seafile-db:
+  healthcheck:
+    test: ["CMD-SHELL", "mysqladmin ping -h localhost -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+    interval: 5s
+    timeout: 5s
+    retries: 10
+    start_period: 30s
+
+seafile:
+  depends_on:
+    seafile-db:
+      condition: service_healthy
+  labels:
+    autoheal: "true"
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1/ || exit 1"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 120s
+
+autoheal:
+  image: willfarrell/autoheal:latest
+  container_name: confianza-seafile-autoheal
+  restart: unless-stopped
+  environment:
+    AUTOHEAL_CONTAINER_LABEL: autoheal
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+```
+
+### Aplicar num servidor que já tem o Seafile rodando
+
+Não precisa recriar nada do zero — só atualizar o compose já existente
+e recriar os serviços afetados:
+
+```bash
+cd ~/atendeflow   # ou onde o docker-compose.seafile.yml do cliente estiver
+git pull          # se o compose for versionado no repo do cliente, senão editar manual
+docker compose -p seafile -f docker-compose.seafile.yml --env-file .env.seafile up -d
+docker compose -p seafile ps   # confirmar "healthy" no seafile-db e no seafile, e o autoheal "Up"
+```
+
+**Checkpoint**: `docker inspect --format='{{.State.Health.Status}}' confianza-seafile-db`
+e o mesmo pra `confianza-seafile` devolvem `healthy` depois de ~1-2min.
+
+### Por que não um script de cron em vez disso
+
+Um script batendo numa URL de health e chamando `docker restart` a
+cada N minutos resolveria o sintoma, mas competiria com a própria
+política de restart do Docker e adicionaria mais uma peça solta pra
+manter (cron, log próprio, etc.) pra resolver algo que o Docker já
+sabe fazer nativamente com `healthcheck` + um sidecar padrão da
+comunidade (`autoheal`, usado exatamente pra esse cenário). Mantido
+fora do escopo: se `autoheal` não estiver disponível/aceitável num
+cliente específico, a alternativa é um script cron chamando
+`docker exec confianza-seafile /opt/seafile/seafile-server-latest/seahub.sh start`
+condicionado a um `curl` que falhe — mas só criar se o `autoheal` se
+mostrar insuficiente na prática.
+
+**Arquivos**: `docker-compose.seafile.yml`,
+`.claude/skills/seafile-deploy/SKILL.md`.

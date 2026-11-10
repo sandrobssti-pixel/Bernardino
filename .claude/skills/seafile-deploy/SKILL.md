@@ -1,6 +1,6 @@
 ---
 name: seafile-deploy
-description: Use sempre que for implantar o Seafile (solução própria tipo "Google Drive" pra arquivos das empresas, hospedada na infraestrutura do próprio cliente) num servidor novo ou existente. Roteiro genérico, reaproveitável em qualquer cliente — stack Docker isolado, disco dedicado, túnel Cloudflare, backup pro NAS. Já inclui os 4 problemas reais encontrados e corrigidos na primeira implantação (Confiança Technologies, v2.3.56/`docs/MANUAL_TECNICO.md` seção 40), pra não precisar redescobrir cada um de novo.
+description: Use sempre que for implantar o Seafile (solução própria tipo "Google Drive" pra arquivos das empresas, hospedada na infraestrutura do próprio cliente) num servidor novo ou existente. Roteiro genérico, reaproveitável em qualquer cliente — stack Docker isolado, disco dedicado, túnel Cloudflare, backup pro NAS, healthcheck+autoheal contra corrida de inicialização. Já inclui os 5 problemas reais encontrados e corrigidos (Confiança Technologies, v2.3.56/`docs/MANUAL_TECNICO.md` seção 40, e seção 238 pro 5º), pra não precisar redescobrir cada um de novo.
 ---
 
 # Implantar o Seafile num servidor de cliente
@@ -90,9 +90,12 @@ docker compose -p seafile -f docker-compose.seafile.yml --env-file .env.seafile 
 cliente) em TODO comando Compose daqui pra frente (`up`, `down`, `ps`,
 `logs`) — ver problema 2.
 
-**Checkpoint**: `docker compose -p seafile ps` mostra os 3 serviços
-`Up`. Se `confianza-seafile` reiniciar em loop, ver problemas 1 e 3
-abaixo antes de qualquer outra investigação.
+**Checkpoint**: `docker compose -p seafile ps` mostra os 4 serviços
+`Up` (`seafile-db`, `seafile-memcached`, `seafile`, `autoheal`), com
+`seafile-db` e `seafile` em `healthy` depois de ~1-2min (não só `Up`
+— ver problema 5). Se `confianza-seafile` reiniciar em loop ou ficar
+"Up" mas o site não responder, ver problemas 1, 3 e 5 abaixo antes de
+qualquer outra investigação.
 
 ## 4. Problemas reais já resolvidos (conferir estes primeiro)
 
@@ -123,6 +126,27 @@ abaixo antes de qualquer outra investigação.
    printf '<email-admin>\n<nova-senha>\n<nova-senha>\n' \
      | docker exec -i <container-seafile> /opt/seafile/seafile-server-<versão>/reset-admin.sh
    ```
+
+5. **Corrida de inicialização: Seahub cai no boot se o MariaDB "está de
+   pé" mas ainda não aceita query de verdade.** Sintoma: site cai com
+   "502 Bad Gateway" (Nginx interno respondendo, Seahub morto atrás
+   dele) e `docker logs <container-seafile>` mostra `Error:Seahub
+   failed to start` logo depois de `Starting seafile server`. Como o
+   container nunca "morre" (Nginx continua de pé), `restart:
+   unless-stopped` não resolve sozinho. Detalhe completo e causa raiz
+   em `docs/MANUAL_TECNICO.md`, seção 238. O
+   `docker-compose.seafile.yml` deste repositório **já tem a
+   correção** (não recriar nada manual):
+   - `healthcheck` real (`mysqladmin ping`, não só porta TCP) no
+     `seafile-db` + `depends_on: condition: service_healthy` no
+     `seafile` — fecha a janela de corrida no boot.
+   - `healthcheck` no próprio `seafile` (testa o Seahub via Nginx
+     interno) + serviço `autoheal` (reinicia sozinho se o Docker
+     marcar `unhealthy`) — cobre o caso raro de ainda assim acontecer.
+   Se precisar aplicar isso num servidor que já tem um
+   `docker-compose.seafile.yml` MAIS ANTIGO (sem essas duas seções),
+   só copiar a versão atual do arquivo e rodar `up -d` de novo — não
+   precisa recriar volumes nem dados.
 
 ## 5. Acesso público (Cloudflare Tunnel)
 
@@ -177,7 +201,10 @@ Agendar no cron:
 
 ## 7. Checklist final
 
-- [ ] `docker compose -p seafile ps` — 3 serviços `Up`.
+- [ ] `docker compose -p seafile ps` — 4 serviços `Up`.
+- [ ] `seafile-db` e `seafile` em `healthy` (não só `Up`) depois de
+      ~1-2min — `docker inspect --format='{{.State.Health.Status}}'
+      <container>` (problema 5). `autoheal` também `Up`.
 - [ ] Login funciona no domínio público, com o admin resetado se
       necessário (problema 4).
 - [ ] `docker compose -p seafile down` não lista containers de outro

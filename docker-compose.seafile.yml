@@ -29,6 +29,19 @@ services:
       - /srv/seafile-data/mysql:/var/lib/mysql
     networks:
       - seafile-internal
+    healthcheck:
+      # O entrypoint do container "seafile" só espera a PORTA do MariaDB
+      # responder (TCP), não que ele já aceite queries de verdade — isso
+      # já causou corrida de inicialização (ver docs/MANUAL_TECNICO.md,
+      # seção 238). `mysqladmin ping` é o teste real de "pronto pra
+      # query"; combinado com o `depends_on: condition: service_healthy`
+      # abaixo, o container "seafile" só começa a subir depois que isso
+      # passar.
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   seafile-memcached:
     image: memcached:1.6.29
@@ -51,8 +64,10 @@ services:
     container_name: confianza-seafile
     restart: unless-stopped
     depends_on:
-      - seafile-db
-      - seafile-memcached
+      seafile-db:
+        condition: service_healthy
+      seafile-memcached:
+        condition: service_started
     environment:
       DB_HOST: confianza-seafile-db
       DB_ROOT_PASSWD: ${SEAFILE_DB_ROOT_PASSWORD}
@@ -67,3 +82,34 @@ services:
     networks:
       - seafile-internal
       - coolify
+    labels:
+      # Consumido pelo serviço "autoheal" abaixo: se o healthcheck a
+      # seguir ficar "unhealthy", o autoheal reinicia ESTE container
+      # sozinho — é o que de fato corrige o caso real já visto (Nginx
+      # interno de pé, Seahub morto por trás, container nunca sai nem
+      # entra em restart policy porque nunca "morre").
+      autoheal: "true"
+    healthcheck:
+      # Testa o Seahub de verdade através do Nginx interno do container
+      # (porta 80) — se o Seahub caiu, Nginx devolve 502 e o `-f` do
+      # curl falha. Checar só "o processo está de pé" não bastava (era
+      # exatamente o estado do incidente de 10/11/2026).
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # Observa containers com label "autoheal=true" e reinicia os que o
+  # Docker marcar como "unhealthy" — Compose/Docker sozinho NUNCA faz
+  # isso (restart policy só age quando o container morre, não quando
+  # ele fica "vivo mas quebrado" como no incidente que motivou isto).
+  # Ver docs/MANUAL_TECNICO.md, seção 238.
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: confianza-seafile-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
