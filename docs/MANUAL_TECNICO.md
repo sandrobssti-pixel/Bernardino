@@ -18519,6 +18519,12 @@ seção 138) — add-on independente, não aninhado dentro do Financeiro:
   comparável; `ERR_SERVICE_INVALID_PHOTO_TYPE` também só existe em
   `pt.js`, nenhum dos outros 4 idiomas), não os 5 idiomas completos.
 
+- **Ativação do add-on pelo Master**: `useMembers` adicionado em
+  `frontend/src/components/PlansManager/index.js` (lista de campos do
+  formulário de Plano + estado inicial/leitura), mesmo padrão dos
+  outros add-ons — sem isso, não existia nenhuma forma pela UI do
+  Master ligar o módulo pra um plano (só via SQL direto).
+
 ### Débito conhecido, não resolvido nesta fase
 
 - **Sem toggle de `membersAccess` em `UserModal`** — só `financialAccess`/
