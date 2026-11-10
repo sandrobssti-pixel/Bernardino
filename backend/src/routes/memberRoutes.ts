@@ -5,6 +5,7 @@ import memberPhotoUpload from "../config/memberPhotoUpload";
 
 import * as MemberAccessController from "../controllers/MemberAccessController";
 import * as MemberController from "../controllers/MemberController";
+import * as MemberFaceController from "../controllers/MemberFaceController";
 
 const memberRoutes = Router();
 const photoUpload = multer(memberPhotoUpload);
@@ -27,6 +28,11 @@ memberRoutes.post(
   isAuth,
   MemberController.linkFromContact
 );
+// Controle de Acesso (reconhecimento facial) — "/members/checkins" (GET,
+// sem :id) precisa vir ANTES de "/members/:id" (GET), senão "checkins"
+// seria lido como o :id da rota genérica (mesmo motivo de
+// by-contact/link-contact acima).
+memberRoutes.get("/members/checkins", isAuth, MemberFaceController.listCheckIns);
 memberRoutes.get("/members/:id", isAuth, MemberController.show);
 memberRoutes.post("/members", isAuth, MemberController.store);
 memberRoutes.put("/members/:id", isAuth, MemberController.update);
@@ -36,6 +42,16 @@ memberRoutes.post(
   isAuth,
   photoUpload.single("photo"),
   MemberController.uploadPhoto
+);
+
+// Decreto nº 11.615/2023, art. 38, §5º, III (redação dada pelo Decreto
+// nº 12.345/2024). Descritor é calculado no navegador; o backend só
+// guarda/compara números.
+memberRoutes.post("/members/checkin", isAuth, MemberFaceController.checkIn);
+memberRoutes.post(
+  "/members/:id/face-descriptor",
+  isAuth,
+  MemberFaceController.setFaceDescriptor
 );
 
 export default memberRoutes;

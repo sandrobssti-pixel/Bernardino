@@ -942,6 +942,7 @@ const messages = {
           services: "Servicios Admin.",
           weaponArmory: "Servicio Armería",
           members: "Gestor CAC",
+          memberCheckIn: "Control de Acceso",
           queueIntegration: "Integraciones",
           version: "Versión",
           kanban: "CRM / Kanban",

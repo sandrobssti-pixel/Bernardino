@@ -36,6 +36,7 @@ import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
 import PeopleIcon from "@material-ui/icons/People";
 import ListIcon from "@material-ui/icons/ListAlt";
 import BadgeIcon from "@material-ui/icons/PermIdentity";
+import FaceIcon from "@material-ui/icons/Face";
 import AnnouncementIcon from "@material-ui/icons/Announcement";
 import AccountBalanceWalletIcon from "@material-ui/icons/AccountBalanceWallet";
 import CakeIcon from "@material-ui/icons/Cake";
@@ -110,6 +111,7 @@ const iconColors = {
   server: "#0f766e",
   birthday: "#e11d48",
   members: "#7839ee",
+  memberCheckIn: "#0ea473",
   default: "#155eef",
 };
 
@@ -1743,6 +1745,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<BadgeIcon />}
                   iconKey="members"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/member-checkin"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.memberCheckIn"
+                  )}
+                  icon={<FaceIcon />}
+                  iconKey="memberCheckIn"
                   tooltip={collapsed}
                 />
               )}

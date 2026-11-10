@@ -18810,3 +18810,145 @@ configuração/catálogo da empresa inteira (ex. "Tipos de Documentos").
 `backend/src/controllers/MemberController.ts`,
 `backend/src/routes/memberRoutes.ts`,
 `frontend/src/hooks/useMembers/index.js`.
+
+## 243. Gerenciador CAC — Secretaria: Controle de Acesso (reconhecimento facial + check-in, v2.3.270)
+
+Primeira entrega da Secretaria (primeiro dos três módulos combinados com
+o cliente — Secretaria → Competições → Entidades Filiadas, ver seção
+242), por onde o cliente escolheu começar: Controle de Acesso
+(reconhecimento facial + check-in), que já fundia com as Fases 3/4 do
+roadmap original (seção 239).
+
+### Decisão de arquitetura: reconhecimento facial 100% no navegador
+
+Opção descartada: processar imagem no SERVIDOR (ex. `face-api.js` +
+`canvas` + `@tensorflow/tfjs-node`, rodando em Node). Native addons
+(`canvas` precisa compilar contra cairo/pango/libjpeg; `tfjs-node` traz
+binário nativo) adicionam risco real de build/deploy diferente em cada
+servidor de cliente (o próprio `backend/Dockerfile` já é `node:20-
+bookworm-slim`, frágil o bastante com `libreoffice` instalado à parte) —
+exatamente o tipo de fragilidade que este projeto já tenta evitar (ver
+seção 238, Seafile: decisão de não adicionar complexidade desnecessária
+no servidor).
+
+**Escolhido**: `@vladmandic/face-api` (fork ativamente mantido do
+`face-api.js` original, TensorFlow.js já embutido, sem peer dependency
+solta) rodando 100% no NAVEGADOR via WebGL. O backend nunca recebe nem
+processa imagem pra esse fim — só recebe/guarda/compara o **descritor**
+(128 números, `Float32Array` serializado em JSON) calculado no cliente.
+Isso elimina qualquer dependência nativa do servidor E reduz a
+superfície de dado sensível trafegado (a câmera nunca sai do navegador
+do operador).
+
+`react-webcam` já estava instalado (`frontend/package.json`, `^7.1.1`)
+mas **nunca tinha sido usado em lugar nenhum do código** — forte indício
+de que essa decisão de arquitetura (webcam no navegador) já tinha sido
+antecipada antes desta sessão, confirmando a escolha.
+
+Modelos (pesos pré-treinados: `tiny_face_detector`, `face_landmark_68`,
+`face_recognition`, ~6.8MB total) copiados de
+`node_modules/@vladmandic/face-api/model/` pra
+`frontend/public/face-models/` — hospedados LOCALMENTE (servidos
+estaticamente pelo próprio frontend), nunca buscados de CDN de
+terceiro, mantendo a mesma filosofia self-hosted já confirmada pelo
+cliente pro reconhecimento facial como um todo.
+
+### Dado biométrico — tratamento LGPD
+
+`Member.faceDescriptor` (TEXT, o array de 128 números em JSON) é
+**sempre excluído** de `list`/`show`/`showByContact`/`create`/
+`linkFromContact` (`PUBLIC_ATTRIBUTES`, mesmo padrão já usado em
+`WeaponDispatchClientService` pra senha gov.br, seção 138) — só um
+booleano (`Member.faceEnrolled`) é exposto, pra tela saber se mostra
+"cadastrar" ou "recadastrar". **Bug achado e corrigido ainda durante o
+desenvolvimento** (antes do commit): a resposta de `POST /members/
+checkin` devolvia o "candidate" Sequelize inteiro (que PRECISA
+selecionar `faceDescriptor` internamente pra calcular a distância),
+vazando o descritor bruto do associado reconhecido na API — corrigido
+montando um objeto de resposta limpo, só com os campos que a tela de
+check-in de fato usa (`id`, `name`, `code`, `photoUrl`, `status`).
+
+### Fluxo de cadastro (enrollment)
+
+Na aba "Gerenciador CAC" do `ContactModal` (`ContactCacTab.js`), com a
+foto do associado já anexada: botão "Cadastrar reconhecimento facial"
+carrega a MESMA foto num `<img crossOrigin="anonymous">` escondido
+(precisa do `crossOrigin` pra não dar `SecurityError` de canvas
+"tainted" ao ler os pixels via `face-api.js` — o CORS global do backend,
+`backend/src/app.ts`, já cobre `/public/*` por já vir ANTES do
+`express.static` no pipeline de middlewares, confirmado sem precisar de
+mudança nenhuma), espera carregar, roda a detecção, e só então manda o
+descritor (nunca a imagem) pro backend (`POST /members/:id/
+face-descriptor`). "Nenhum rosto detectado" é tratado como resultado
+normal (toast de aviso), nunca erro — pode ser só uma foto de corpo
+inteiro/mal enquadrada, o operador tenta de novo com outra foto.
+
+### Fluxo de check-in
+
+Tela nova `/member-checkin` ("Controle de Acesso" no menu) — webcam ao
+vivo (`react-webcam`), botão "Registrar presença" roda a detecção
+direto no elemento `<video>` (sem precisar de screenshot/canvas
+intermediário — `face-api.js` aceita `<video>` como entrada direto),
+manda o descritor pro backend (`POST /members/checkin`), que compara
+contra TODOS os associados da empresa com reconhecimento cadastrado
+(distância euclidiana, limiar 0.6 — mesmo padrão default do
+`FaceMatcher` da biblioteca, pra o limiar do navegador bater com o que
+o backend aceita) e devolve o mais parecido dentro do limiar, ou
+`matched: false` se nenhum bateu. "Sem reconhecimento" é devolvido como
+`200 {matched:false}`, não erro HTTP — é resultado esperado (pessoa não
+cadastrada, ou rosto não bateu), não uma falha de sistema. Cada
+reconhecimento positivo grava um `MemberCheckIn` (associado, timestamp,
+distância calculada — pra auditoria/ajuste de limiar futuro).
+
+### Verificação
+
+Testado em navegador real (Playwright, câmera fake do Chromium
+`--use-fake-device-for-media-stream`):
+- Cadastro facial a partir de uma foto SEM rosto (PNG azul sólido,
+  único "rosto de teste" seguro disponível neste ambiente, sem usar
+  foto de pessoa real) → pipeline completo roda sem erro (carrega
+  modelo, lê a imagem via canvas, roda detecção) e corretamente NÃO
+  marca `faceEnrolled` (nenhum rosto de verdade pra detectar) — prova
+  que a wiring (CORS, carregamento de modelo, chamada de API) funciona
+  de ponta a ponta, mesmo sem uma foto real de rosto neste ambiente de
+  teste pra validar o caminho positivo.
+- Tela de check-in: webcam fake do Chromium (vídeo de teste padrão,
+  sem rosto nenhum) → "Nenhum rosto detectado" exibido corretamente,
+  sem travar a tela nem lançar exceção.
+- Testado via `curl` direto contra a API (descritores sintéticos, não
+  reais): `POST .../face-descriptor` rejeita array de tamanho errado;
+  `POST /members/checkin` acha corretamente o associado mais parecido
+  entre dois candidatos (distância 0.011, bem abaixo do limiar 0.6) e
+  devolve "sem match" pra um descritor bem diferente dos dois
+  cadastrados; `GET /members/checkins` lista com o associado já
+  populado (`include`).
+- `tsc --noEmit` (backend) limpo. `eslint` (frontend, arquivos tocados)
+  limpo. Build de produção completo (`rm -rf build node_modules/.cache`
+  antes) terminou com sucesso — só 2 warnings esperados ("Critical
+  dependency: require function...", comportamento conhecido/inofensivo
+  do TensorFlow.js bundlado, não um erro). Bundle principal cresceu
+  ~330KB gzipped (2.4MB → 2.73MB) por causa do `@vladmandic/face-api`
+  — aceitável dado o que a feature entrega.
+
+**Pendência explícita, não verificada nesta entrega**: o caminho
+POSITIVO de reconhecimento (uma foto/vídeo com um rosto de verdade
+sendo corretamente detectado e comparado) não foi testado neste
+ambiente por não haver uma foto de rosto real disponível de forma seria
+seguro usar — a biblioteca (`face-api.js`) é amplamente usada e testada
+na comunidade, mas o cliente deve confirmar com um teste real (cadastrar
+o próprio rosto e fazer um check-in de verdade) antes de confiar nisso
+em produção de um clube real.
+
+**Arquivos**: `backend/src/models/Member.ts`,
+`backend/src/models/MemberCheckIn.ts`,
+`backend/src/database/migrations/20261110200{000,100,200}-*.ts`,
+`backend/src/services/MemberService/{MemberService,MemberFaceService}.ts`,
+`backend/src/controllers/MemberFaceController.ts`,
+`backend/src/routes/memberRoutes.ts`,
+`frontend/src/utils/faceRecognition.js`,
+`frontend/public/face-models/*`,
+`frontend/src/components/ContactModal/ContactCacTab.js`,
+`frontend/src/pages/MemberCheckIn/index.js`,
+`frontend/src/hooks/useMembers/index.js`,
+`frontend/src/layout/MainListItems.js`, `frontend/src/routes/index.js`,
+`frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.

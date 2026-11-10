@@ -3,6 +3,30 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.270] — Gerenciador CAC: Controle de Acesso (reconhecimento facial + check-in) — 2026-11-10
+
+### Adicionado
+- **Reconhecimento facial 100% no navegador** (sem dependência nativa
+  pesada no servidor) — `@vladmandic/face-api` rodando via WebGL,
+  modelos hospedados localmente (`frontend/public/face-models/`, nunca
+  um CDN de terceiro). O backend só guarda/compara os 128 números do
+  descritor facial, nunca processa imagem.
+- **Cadastro facial** direto na aba "Gerenciador CAC" do Contato —
+  botão "Cadastrar reconhecimento facial" processa a foto já anexada do
+  associado.
+- **Tela de Check-in** (`/member-checkin`, menu "Controle de Acesso") —
+  kiosk simples com webcam (usando `react-webcam`, já instalado mas
+  nunca usado antes), botão "Registrar presença" e lista das últimas
+  presenças.
+- Atende à exigência do Art. 38, §5º, III do Decreto nº 11.615/2023
+  (redação dada pelo Decreto nº 12.345/2024): entidades de tiro
+  desportivo devem reportar a relação de quem frequentou, obtida por
+  biometria/reconhecimento facial.
+- Descritor facial é dado biométrico sensível (LGPD) — nunca retorna em
+  nenhuma resposta de API; só um booleano (`faceEnrolled`) é exposto.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 243.
+
 ## [2.3.269] — Gerenciador CAC integrado ao Contato (aba no ContactModal) — 2026-11-10
 
 ### Adicionado

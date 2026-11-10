@@ -88,6 +88,14 @@ const withAutoStatus = (record: Member, explicitStatus?: string): string => {
   return complete ? "active" : "pending";
 };
 
+// Descritor facial é dado biométrico sensível (LGPD) — nunca volta pro
+// frontend em list/show/showByContact, só `faceEnrolled` (boolean). Mesmo
+// padrão já usado em WeaponDispatchClientService.PUBLIC_ATTRIBUTES (senha
+// gov.br).
+const PUBLIC_ATTRIBUTES = {
+  exclude: ["faceDescriptor"]
+};
+
 export const list = async ({
   companyId,
   searchParam = "",
@@ -113,6 +121,7 @@ export const list = async ({
 
   const { count, rows: records } = await Member.findAndCountAll({
     where: whereCondition,
+    attributes: PUBLIC_ATTRIBUTES,
     limit,
     offset,
     order: [["code", "ASC"]]
@@ -125,7 +134,10 @@ export const show = async (
   id: string | number,
   companyId: number
 ): Promise<Member> => {
-  const record = await Member.findOne({ where: { id, companyId } });
+  const record = await Member.findOne({
+    where: { id, companyId },
+    attributes: PUBLIC_ATTRIBUTES
+  });
 
   if (!record) {
     throw new AppError("ERR_MEMBER_NOT_FOUND", 404);
@@ -166,7 +178,10 @@ export const create = async (
       code,
       companyId
     } as any);
-    return record;
+    // Reconsulta com PUBLIC_ATTRIBUTES — nunca devolver faceDescriptor
+    // (sempre null aqui mesmo, mas mantém a mesma garantia de
+    // list/show/showByContact por consistência).
+    return show(record.id, companyId);
   } catch (err: any) {
     if (err.name === "SequelizeUniqueConstraintError") {
       throw new AppError("ERR_MEMBER_DUPLICATE_DOCUMENT");
@@ -220,7 +235,10 @@ export const showByContact = async (
   contactId: string | number,
   companyId: number
 ): Promise<Member> => {
-  const record = await Member.findOne({ where: { contactId, companyId } });
+  const record = await Member.findOne({
+    where: { contactId, companyId },
+    attributes: PUBLIC_ATTRIBUTES
+  });
 
   if (!record) {
     throw new AppError("ERR_MEMBER_NOT_FOUND", 404);
@@ -238,7 +256,10 @@ export const linkFromContact = async (
     throw new AppError("ERR_NO_CONTACT_FOUND", 404);
   }
 
-  const existing = await Member.findOne({ where: { contactId: contact.id, companyId } });
+  const existing = await Member.findOne({
+    where: { contactId: contact.id, companyId },
+    attributes: PUBLIC_ATTRIBUTES
+  });
   if (existing) return existing;
 
   const code = await nextMemberCode(companyId);
@@ -252,7 +273,9 @@ export const linkFromContact = async (
     companyId
   } as any);
 
-  return record;
+  // Reconsulta com PUBLIC_ATTRIBUTES — nunca devolver faceDescriptor (ver
+  // comentário em create()).
+  return show(record.id, companyId);
 };
 
 export const setPhoto = async (

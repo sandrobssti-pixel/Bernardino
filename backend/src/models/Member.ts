@@ -123,6 +123,26 @@ class Member extends Model<Member> {
   @Column(DataType.TEXT)
   notes: string;
 
+  // Descritor facial (128 números, JSON-stringificado) — calculado 100%
+  // no NAVEGADOR (face-api.js, backend WebGL, sem nenhuma dependência
+  // nativa pesada no servidor), a partir da foto já cadastrada. O
+  // backend nunca processa imagem nenhuma pra isso, só guarda/compara os
+  // números. Dado biométrico sensível (LGPD) — SEMPRE excluído de
+  // list/show/showByContact (ver MemberService.PUBLIC_ATTRIBUTES), nunca
+  // volta pro frontend; só `faceEnrolled` (abaixo) é exposto. Null =
+  // reconhecimento facial não cadastrado ainda. Ver MemberFaceService.ts
+  // e docs/MANUAL_TECNICO.md.
+  @Column(DataType.TEXT)
+  faceDescriptor: string;
+
+  // Espelha "faceDescriptor preenchido ou não", mas como boolean simples
+  // exposto normalmente — assim a tela sabe se mostra "cadastrar" ou
+  // "recadastrar" reconhecimento facial sem nunca precisar expor o
+  // descritor em si.
+  @Default(false)
+  @Column
+  faceEnrolled: boolean;
+
   @ForeignKey(() => Contact)
   @Column
   contactId: number;

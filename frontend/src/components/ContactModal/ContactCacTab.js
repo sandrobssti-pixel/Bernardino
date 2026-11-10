@@ -13,8 +13,12 @@ import CircularProgress from "@material-ui/core/CircularProgress";
 import Avatar from "@material-ui/core/Avatar";
 import PersonIcon from "@material-ui/icons/Person";
 
+import FaceIcon from "@material-ui/icons/Face";
+import Chip from "@material-ui/core/Chip";
+
 import toastError from "../../errors/toastError";
 import useMembers from "../../hooks/useMembers";
+import { computeFaceDescriptor } from "../../utils/faceRecognition";
 import {
   CAC_CATEGORY_OPTIONS,
   CAC_CATEGORY_INFO,
@@ -56,6 +60,8 @@ const ContactCacTab = ({ contactId }) => {
   const [member, setMember] = useState(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
+  const photoRef = useRef(null);
 
   useEffect(() => {
     isMounted.current = true;
@@ -126,6 +132,40 @@ const ContactCacTab = ({ contactId }) => {
     }
   };
 
+  // Controle de Acesso (reconhecimento facial) — calcula o descritor a
+  // partir da FOTO JÁ CADASTRADA (não precisa de webcam aqui; webcam é só
+  // no momento do check-in em si, ver pages/MemberCheckIn). Tudo roda no
+  // navegador (face-api.js); só o descritor (números) é enviado ao
+  // backend, nunca a imagem.
+  const waitForImageLoad = (img) =>
+    new Promise((resolve, reject) => {
+      if (img.complete && img.naturalWidth > 0) {
+        resolve();
+        return;
+      }
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("ERR_MEMBER_PHOTO_LOAD_FAILED"));
+    });
+
+  const handleEnrollFace = async () => {
+    if (!photoRef.current) return;
+    setEnrolling(true);
+    try {
+      await waitForImageLoad(photoRef.current);
+      const descriptor = await computeFaceDescriptor(photoRef.current);
+      if (!descriptor) {
+        toast.error("Nenhum rosto detectado nessa foto. Tente uma foto mais nítida, com o rosto bem visível.");
+      } else {
+        await members.setFaceDescriptor(member.id, descriptor);
+        setMember((prev) => ({ ...prev, faceEnrolled: true }));
+        toast.success("Reconhecimento facial cadastrado.");
+      }
+    } catch (err) {
+      toastError(err);
+    }
+    setEnrolling(false);
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" className={classes.root}>
@@ -178,6 +218,34 @@ const ContactCacTab = ({ contactId }) => {
                 Anexar foto
                 <input type="file" accept="image/*" hidden onChange={handleUploadPhoto} />
               </Button>
+              {member.photoUrl && (
+                <>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <img
+                    ref={photoRef}
+                    src={member.photoUrl}
+                    crossOrigin="anonymous"
+                    style={{ display: "none" }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    size="small"
+                    startIcon={<FaceIcon />}
+                    disabled={enrolling}
+                    onClick={handleEnrollFace}
+                  >
+                    {enrolling
+                      ? "Processando..."
+                      : member.faceEnrolled
+                      ? "Recadastrar reconhecimento facial"
+                      : "Cadastrar reconhecimento facial"}
+                  </Button>
+                  {member.faceEnrolled && (
+                    <Chip size="small" color="primary" label="Facial cadastrado" />
+                  )}
+                </>
+              )}
             </div>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={4}>

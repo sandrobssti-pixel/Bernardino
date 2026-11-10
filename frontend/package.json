@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "2.3.269",
+  "version": "2.3.270",
   "nomeEmpresa": "Sua empresa",
   "versionSystem": "2.3.84",
   "private": true,
@@ -29,6 +29,7 @@
     "@testing-library/jest-dom": "^5.11.4",
     "@testing-library/react": "^11.0.4",
     "@testing-library/user-event": "^12.1.7",
+    "@vladmandic/face-api": "^1.7.15",
     "apexcharts": "^5.3.6",
     "axios": "^0.21.1",
     "bootstrap": "^5.2.3",
