@@ -3,6 +3,32 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.269] — Gerenciador CAC integrado ao Contato (aba no ContactModal) — 2026-11-10
+
+### Adicionado
+- O cadastro do Gerenciador CAC agora também aparece **dentro do próprio
+  modal de Contato** (Atendimento/Contatos), como uma segunda aba
+  ("Dados principais" / "Gerenciador CAC") — pedido explícito do
+  cliente, referência adicional "Shooting House". Editar/criar o
+  perfil CAC de um contato não exige mais navegar até a tela separada:
+  dá pra fazer tudo na mesma tela do Contato. A tela/menu dedicado do
+  Gerenciador CAC continua existindo (útil pra listar/buscar todos os
+  associados de uma vez).
+- Vínculo Contato ↔ Associado (`GET /members/by-contact/:contactId`,
+  `POST /members/link-contact/:contactId`), mesmo padrão já usado pelo
+  Financeiro (`FinanceCustomer.showByContact`/`linkFromContact`).
+- Corrigido, no mesmo commit: `birthDate` vazio quebrava o
+  salvamento com 500 (Postgres não aceita `""` numa coluna de data) —
+  agora normalizado pra `null` no backend, protegendo os dois pontos de
+  entrada (tela dedicada e aba no Contato).
+
+Próximos passos do roadmap combinados com o cliente, em ordem:
+Secretaria (documentos/laudos/controle de acesso) → Competições →
+Entidades Filiadas — todos também pensados pra aparecer integrados ao
+Contato, não como telas isoladas.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 242.
+
 ## [2.3.268] — Gerenciador CAC: classe legal CAC (Decreto 11.615/2023 + 12.345/2024) — 2026-11-10
 
 ### Adicionado

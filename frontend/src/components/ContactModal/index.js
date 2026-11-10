@@ -28,6 +28,10 @@ import api from "../../services/api";
 import toastError from "../../errors/toastError";
 import { TagsContainer } from "../TagsContainer";
 import useFinance from "../../hooks/useFinance";
+import useMembers from "../../hooks/useMembers";
+import Tabs from "@material-ui/core/Tabs";
+import Tab from "@material-ui/core/Tab";
+import ContactCacTab from "./ContactCacTab";
 // import AsyncSelect from "../AsyncSelect";
 
 const useStyles = makeStyles(theme => ({
@@ -290,6 +294,7 @@ const ContactModal = ({
 	const classes = useStyles();
 	const isMounted = useRef(true);
 	const finance = useFinance();
+	const members = useMembers();
 
 	const initialState = {
 		name: "",
@@ -312,6 +317,8 @@ const ContactModal = ({
 	const [financeAccess, setFinanceAccess] = useState(null);
 	const [linkedFinanceCustomer, setLinkedFinanceCustomer] = useState(null);
 	const [linkingFinanceCustomer, setLinkingFinanceCustomer] = useState(false);
+	const [membersAccess, setMembersAccess] = useState(null);
+	const [activeTab, setActiveTab] = useState(0);
 	useEffect(() => {
 		return () => {
 			isMounted.current = false;
@@ -382,6 +389,27 @@ const ContactModal = ({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [open, contactId]);
 
+	// Aba "Gerenciador CAC" (ver docs/MANUAL_TECNICO.md, seção 242) — mesmo
+	// padrão acima, só que só decide SE a aba aparece; quem busca/cria o
+	// Associado é o próprio ContactCacTab.
+	useEffect(() => {
+		if (!open || !contactId) {
+			setMembersAccess(null);
+			setActiveTab(0);
+			return;
+		}
+
+		(async () => {
+			try {
+				const access = await members.getAccess();
+				if (isMounted.current) setMembersAccess(access);
+			} catch (err) {
+				if (isMounted.current) setMembersAccess({ hasAccess: false });
+			}
+		})();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [open, contactId]);
+
 	const handleLinkAsFinanceCustomer = async () => {
 		setLinkingFinanceCustomer(true);
 		try {
@@ -414,6 +442,7 @@ const ContactModal = ({
 		setPendingTags([]);
 		setKanbanTagId("");
 		setKanbanError(false);
+		setActiveTab(0);
 	};
 
 	const handleSaveContact = async values => {
@@ -466,6 +495,29 @@ const ContactModal = ({
 						? `${i18n.t("contactModal.title.edit")}`
 						: `${i18n.t("contactModal.title.add")}`}
 				</DialogTitle>
+				{contactId && membersAccess?.hasAccess && (
+					<Tabs
+						value={activeTab}
+						onChange={(_e, value) => {
+							setActiveTab(value);
+							// MUI calcula a posição do indicador pela largura medida das
+							// abas — como trocar de aba aqui também troca o conteúdo
+							// abaixo (altura do Dialog muda bastante), força um
+							// recálculo depois do reflow, senão o traço fica preso na
+							// aba anterior.
+							setTimeout(() => window.dispatchEvent(new Event("resize")), 50);
+						}}
+						indicatorColor="primary"
+						textColor="primary"
+						variant="fullWidth"
+					>
+						<Tab label="Dados principais" />
+						<Tab label="Gerenciador CAC" />
+					</Tabs>
+				)}
+				{activeTab === 1 && contactId && membersAccess?.hasAccess && (
+					<ContactCacTab contactId={contactId} />
+				)}
 				<Formik
 					initialValues={contact}
 					enableReinitialize={true}
@@ -478,7 +530,10 @@ const ContactModal = ({
 					}}
 				>
 						{({ values, errors, touched, isSubmitting }) => (
-						<Form className={classes.formRoot}>
+						<Form
+							className={classes.formRoot}
+							style={activeTab === 1 ? { display: "none" } : undefined}
+						>
 							<DialogContent dividers className={classes.dialogContent}>
 								{requireFullRegistration && (
 									<Alert severity="info" style={{ marginBottom: 16 }}>

@@ -57,6 +57,24 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
   return res.status(200).json({ message: "Member deleted" });
 };
 
+export const showByContact = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { contactId } = req.params;
+
+  const record = await MemberService.showByContact(contactId, companyId);
+  return res.status(200).json(record);
+};
+
+export const linkFromContact = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { contactId } = req.params;
+
+  const record = await MemberService.linkFromContact(contactId, companyId);
+  return res.status(200).json(record);
+};
+
 export const uploadPhoto = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;

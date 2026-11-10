@@ -2,6 +2,7 @@ import { Op, QueryTypes, Sequelize } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import Member from "../../models/Member";
+import Contact from "../../models/Contact";
 
 interface ListRequest {
   companyId: number;
@@ -133,10 +134,22 @@ export const show = async (
   return record;
 };
 
+// "" não é uma data válida pro Postgres (birthDate é DATEONLY) — vira
+// "Invalid date" no UPDATE/INSERT e quebra com 500 (batido na prática pela
+// aba CAC do ContactModal, que sempre manda a chave mesmo vazia; o
+// formulário completo do Gerenciador CAC tem o mesmo risco se o campo for
+// deixado em branco). null é o valor certo pra "sem data".
+const normalizeMemberData = (data: MemberData): MemberData => ({
+  ...data,
+  birthDate: data.birthDate || null
+});
+
 export const create = async (
   data: MemberData,
   companyId: number
 ): Promise<Member> => {
+  data = normalizeMemberData(data);
+
   try {
     await memberSchema.validate(data);
   } catch (err: any) {
@@ -168,6 +181,7 @@ export const update = async (
   companyId: number
 ): Promise<Member> => {
   const record = await show(id, companyId);
+  data = normalizeMemberData(data);
 
   try {
     await memberSchema.validate(data);
@@ -196,6 +210,49 @@ export const remove = async (
 ): Promise<void> => {
   const record = await show(id, companyId);
   await record.destroy();
+};
+
+// Vínculo Contato (Atendimento) <-> Associado (Gerenciador CAC) — pedido
+// do cliente pra virar "uma tela só": a aba CAC dentro do ContactModal usa
+// isso pra achar (ou oferecer criar) o Associado deste Contato, mesmo
+// padrão já usado em FinanceCustomerService.showByContact/linkFromContact.
+export const showByContact = async (
+  contactId: string | number,
+  companyId: number
+): Promise<Member> => {
+  const record = await Member.findOne({ where: { contactId, companyId } });
+
+  if (!record) {
+    throw new AppError("ERR_MEMBER_NOT_FOUND", 404);
+  }
+
+  return record;
+};
+
+export const linkFromContact = async (
+  contactId: string | number,
+  companyId: number
+): Promise<Member> => {
+  const contact = await Contact.findOne({ where: { id: contactId, companyId } });
+  if (!contact) {
+    throw new AppError("ERR_NO_CONTACT_FOUND", 404);
+  }
+
+  const existing = await Member.findOne({ where: { contactId: contact.id, companyId } });
+  if (existing) return existing;
+
+  const code = await nextMemberCode(companyId);
+  const record = await Member.create({
+    name: contact.name,
+    phone: contact.number,
+    whatsapp: contact.number,
+    email: contact.email || "",
+    code,
+    contactId: contact.id,
+    companyId
+  } as any);
+
+  return record;
 };
 
 export const setPhoto = async (

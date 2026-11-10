@@ -36,6 +36,19 @@ const useMembers = () => {
     return data;
   };
 
+  // Vínculo Contato <-> Associado — usado pela aba "Gerenciador CAC" do
+  // ContactModal (mesmo padrão de finance.getCustomerByContact/
+  // linkContactAsCustomer).
+  const getByContact = async (contactId) => {
+    const { data } = await api.get(`/members/by-contact/${contactId}`);
+    return data;
+  };
+
+  const linkFromContact = async (contactId) => {
+    const { data } = await api.post(`/members/link-contact/${contactId}`);
+    return data;
+  };
+
   // Foto do associado — só depois do registro já existir, mesmo padrão de
   // finance.products.uploadPhoto/services.uploadPhoto. Essa foto também
   // alimenta o enrollment de reconhecimento facial (fase futura).
@@ -48,7 +61,7 @@ const useMembers = () => {
     return data;
   };
 
-  return { getAccess, list, show, save, update, remove, uploadPhoto };
+  return { getAccess, list, show, save, update, remove, uploadPhoto, getByContact, linkFromContact };
 };
 
 export default useMembers;

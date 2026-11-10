@@ -18692,3 +18692,121 @@ regra nenhuma, mesmo princípio já usado nesta sessão pro
 `backend/src/services/MemberService/MemberService.ts`,
 `backend/src/database/migrations/20261110180000-add-caccategory-to-members.ts`,
 `frontend/src/pages/Members/membersConfig.js`.
+
+## 242. Gerenciador CAC integrado ao ContactModal (aba) + referência Shooting House (v2.3.269)
+
+Continuação das seções 239-241. O cliente mandou prints de outro sistema
+de referência, bem mais completo que o "Clube Atirador" original — o
+"Shooting House" (`admin.shootinghouse.com.br`), com módulos: Secretaria
+(Declarações, Tipos de Documentos, Documentos, Controle de Acesso,
+Laudos, Cursos, Agendamentos, Fichas Eletrônicas), Competições
+(Campeonatos, Etapas, Arbitragem, Modalidades Gerais, Recálculos,
+Recordes), Entidades Filiadas (vínculo com federação/confederação, ex.
+"calibre.org.br"), Financeiro/Lojista (DRE, plano de contas, totem de
+pagamento), Despachante (Declarações, Laudos, Solicitações).
+
+### Decisões confirmadas com o cliente (AskUserQuestion)
+
+- **Ordem de construção**: Secretaria → Competições → Entidades
+  Filiadas, uma de cada vez ("em ordem quando terminar uma parte faz
+  outra") — não construir os três em paralelo.
+- **Integração com o Atendimento**: "fundir numa tela só" — o
+  `ContactModal` (usado em Contatos/Atendimentos) ganha abas extras,
+  em vez de cada módulo novo virar uma tela 100% separada. O cliente
+  escolheu essa opção explicitamente em vez de só um vínculo leve tipo
+  o que o Financeiro já tem (chip "vinculado" + botão).
+
+### O que foi implementado nesta entrega (base da integração, não Secretaria/Competições ainda)
+
+`ContactModal` (`frontend/src/components/ContactModal/index.js`) ganhou
+`Tabs`/`Tab` (MUI) — "Dados principais" (índice 0, comportamento
+EXATAMENTE igual a antes) e "Gerenciador CAC" (índice 1) — só aparecem
+quando `contactId` existe (não dá pra vincular contato ainda não salvo,
+mesma regra do vínculo Financeiro) E `membersAccess?.hasAccess` (mesmo
+`members.getAccess()` já usado na tela dedicada).
+
+**Decisão de arquitetura**: as duas abas são **completamente
+independentes** uma da outra — o Formik do Contato (tab 0) continua
+exatamente como estava, só fica escondido via `style={display:"none"}`
+quando a tab 1 está ativa (nunca desmontado — evita perder texto
+digitado e não-salvo na troca de aba). A aba CAC
+(`ContactModal/ContactCacTab.js`, componente novo e separado) tem seu
+PRÓPRIO Formik, próprio botão de salvar (`type="button"`/`type="submit"`
+só dentro do próprio `<form>` dela, nunca o botão principal de
+"Salvar"/"Cancelar" do rodapé do Contato) — evita qualquer risco de um
+clique na aba CAC disparar o submit do formulário do Contato por
+engano, e evita tocar na extensa lógica já existente do Formik
+principal do Contato (781 linhas, usado em todo o Atendimento).
+
+Fluxo da aba: se o Contato ainda não tem um Associado vinculado, mostra
+botão "Criar perfil CAC pra este contato" (chama
+`POST /members/link-contact/:contactId`, mesmo padrão de
+`FinanceCustomerService.linkFromContact` — reaproveita nome/telefone/
+e-mail do Contato pro cadastro inicial). Depois de criado (ou se já
+existia), mostra os campos específicos do CAC (CPF, RG, data de
+nascimento, Categoria, Classe CAC, Status, Observações — SEM duplicar
+nome/telefone/e-mail/endereço, que continuam só na aba "Dados
+principais"/na tela dedicada do Gerenciador CAC). Upload de foto
+também funciona direto na aba.
+
+### Backend — vínculo Contato ↔ Associado
+
+Novo em `MemberService.ts`: `showByContact`/`linkFromContact`, cópia
+exata do padrão já usado em `FinanceCustomerService.ts`. Rotas
+`GET /members/by-contact/:contactId` e
+`POST /members/link-contact/:contactId` — registradas ANTES de
+`GET /members/:id` (mesmo motivo de sempre: `:contactId` seria lido
+como o `:id` da rota genérica se viesse depois).
+
+### Bug achado e corrigido durante o teste (antes do commit)
+
+Testado via Playwright (empresa de teste + contato de teste + fluxo
+completo: abrir aba, criar perfil, preencher CPF, selecionar "Atirador
+Desportivo de Alto Rendimento", salvar, voltar pra aba principal e
+conferir que nada mudou lá). Dois bugs reais achados e corrigidos antes
+do commit:
+
+1. **Indicador da aba ficava "preso" na aba anterior** (conteúdo trocava
+   certo, só o traço visual do MUI Tabs não acompanhava) — causa:
+   trocar de aba também troca drasticamente a altura do conteúdo do
+   Dialog, e o MUI mede a posição do indicador baseado no layout atual
+   das abas, que pode ficar desatualizado nesse req. Corrigido
+   disparando um `window.dispatchEvent(new Event("resize"))` (50ms
+   depois, pra rodar após o reflow) no `onChange` das `Tabs` — truque
+   comum pra esse tipo de indicador MUI preso.
+2. **`birthDate` vazio quebrava o salvamento com 500** — a aba CAC
+   sempre manda a chave `birthDate` no payload (mesmo vazia), e
+   `""` não é uma data válida pro Postgres (`birthDate` é `DATEONLY`);
+   o erro real no log era `invalid input syntax for type date:
+   "Invalid date"` (code `22007`). Corrigido na ORIGEM
+   (`MemberService.ts`, `normalizeMemberData`), não só na aba nova —
+   protege também a tela dedicada do Gerenciador CAC (que tinha o
+   mesmo risco latente, nunca exercitado até este teste porque os
+   testes anteriores sempre omitiam o campo do payload em vez de
+   mandar `""`).
+
+Também precisei corrigir um problema do AMBIENTE DE TESTE (não do
+produto): empresa criada só com `Company.create()` direto (sem passar
+pelo `CreateCompanyService` de verdade) não tem `CompaniesSettings`
+— a tela de Contatos quebra com "Cannot convert undefined or null to
+object" (`Object.entries(settingList)`, `pages/Contacts/index.js`)
+porque `getAllSettings` devolve `undefined`. Não é bug de produto (toda
+empresa real sempre passa por `CreateCompanyService`, que já cria o
+`CompaniesSettings`) — só documentando aqui pra não perder tempo
+redescobrindo da próxima vez que um script de seed de teste precisar
+simular uma empresa inteira do zero.
+
+### Próximos passos (não desta entrega)
+
+Secretaria (primeiro da lista combinada) — ainda não iniciado. Vai
+seguir o mesmo princípio de integração: aparecer como aba dentro do
+`ContactModal` quando fizer sentido ser por-contato (documentos/laudos
+de UM associado específico), e como tela própria quando for
+configuração/catálogo da empresa inteira (ex. "Tipos de Documentos").
+
+**Arquivos**: `frontend/src/components/ContactModal/index.js`,
+`frontend/src/components/ContactModal/ContactCacTab.js` (novo),
+`backend/src/services/MemberService/MemberService.ts`,
+`backend/src/controllers/MemberController.ts`,
+`backend/src/routes/memberRoutes.ts`,
+`frontend/src/hooks/useMembers/index.js`.
