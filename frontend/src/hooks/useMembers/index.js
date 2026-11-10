@@ -79,6 +79,27 @@ const useMembers = () => {
     return data;
   };
 
+  // Fila de revisão (entradas de habitualidade enviadas pelo Portal do
+  // Associado — foto do livro + geolocalização, aguardando o Admin
+  // confirmar se a localização bate com o endereço do clube).
+  const listPendingHabitualidade = async (params) => {
+    const { data } = await api.get("/members/checkins/pending", { params });
+    return data;
+  };
+
+  const validateCheckIn = async (id, validationStatus) => {
+    const { data } = await api.put(`/members/checkins/${id}/validate`, { status: validationStatus });
+    return data;
+  };
+
+  // PIN de acesso ao Portal do Associado — gerado pelo Admin (dentro da
+  // administração do clube), mostrado em texto puro só nesta resposta
+  // pra ele repassar ao associado fora do sistema.
+  const generatePortalPin = async (id) => {
+    const { data } = await api.post(`/members/${id}/portal-pin`);
+    return data;
+  };
+
   return {
     getAccess,
     list,
@@ -92,6 +113,9 @@ const useMembers = () => {
     setFaceDescriptor,
     checkIn,
     listCheckIns,
+    listPendingHabitualidade,
+    validateCheckIn,
+    generatePortalPin,
   };
 };
 

@@ -14,6 +14,7 @@ import {
 } from "sequelize-typescript";
 import Company from "./Company";
 import Member from "./Member";
+import User from "./User";
 
 // Registro de presença (Controle de Acesso) — Decreto nº 11.615/2023,
 // art. 38, §5º, III (redação dada pelo Decreto nº 12.345/2024): entidades
@@ -46,6 +47,46 @@ class MemberCheckIn extends Model<MemberCheckIn> {
   // ajuste de limiar futuro, nunca usado como prova sozinho.
   @Column(DataType.FLOAT)
   matchDistance: number;
+
+  // Entrada de habitualidade (pedido do cliente, v2.3.271): foto do livro
+  // físico de registro do clube, com a assinatura do associado, mais a
+  // geolocalização de onde foi tirada — enviados pelo PRÓPRIO associado,
+  // pelo Portal do Associado (nunca editável/removível depois de criado;
+  // só o campo "validationStatus" abaixo muda, e só pelo Admin). Null
+  // nos três campos = check-in simples do kiosk (sem entrada de
+  // habitualidade).
+  @Column
+  logbookPhotoUrl: string;
+
+  @Column(DataType.DOUBLE)
+  latitude: number;
+
+  @Column(DataType.DOUBLE)
+  longitude: number;
+
+  // "pending" | "valid" | "invalid" — o Admin confere a geolocalização
+  // acima contra o endereço do clube (manual nesta fase, sem cálculo
+  // automático de raio) e decide. Só tem sentido quando
+  // `logbookPhotoUrl` existe.
+  @Default("pending")
+  @Column
+  validationStatus: string;
+
+  @ForeignKey(() => User)
+  @Column
+  validatedByUserId: number;
+
+  @BelongsTo(() => User)
+  validatedByUser: User;
+
+  @Column
+  validatedAt: Date;
+
+  // "kiosk" (funcionário, tela de Controle de Acesso) | "portal" (o
+  // próprio associado, pelo Portal do Associado no celular dele).
+  @Default("kiosk")
+  @Column
+  source: string;
 
   @ForeignKey(() => Company)
   @Column

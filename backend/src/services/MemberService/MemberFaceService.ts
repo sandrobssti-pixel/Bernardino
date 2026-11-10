@@ -1,3 +1,4 @@
+import { Op } from "sequelize";
 import AppError from "../../errors/AppError";
 import Member from "../../models/Member";
 import MemberCheckIn from "../../models/MemberCheckIn";
@@ -109,12 +110,18 @@ export const checkIn = async (
 interface ListCheckInsRequest {
   companyId: number;
   memberId?: string | number;
+  // "pending"/"valid"/"invalid" — filtro usado pela fila de revisão do
+  // Admin (ver listPendingHabitualidade abaixo, que já fixa isso em
+  // "pending" + só com logbookPhotoUrl); aqui fica genérico, pra reaproveitar
+  // em outras telas futuras sem precisar de outra função.
+  validationStatus?: string;
   pageNumber?: string | number;
 }
 
 export const listCheckIns = async ({
   companyId,
   memberId,
+  validationStatus,
   pageNumber = "1"
 }: ListCheckInsRequest): Promise<{ records: MemberCheckIn[]; count: number; hasMore: boolean }> => {
   const limit = 20;
@@ -122,6 +129,7 @@ export const listCheckIns = async ({
 
   const whereCondition: any = { companyId };
   if (memberId) whereCondition.memberId = memberId;
+  if (validationStatus) whereCondition.validationStatus = validationStatus;
 
   const { count, rows: records } = await MemberCheckIn.findAndCountAll({
     where: whereCondition,
@@ -132,4 +140,49 @@ export const listCheckIns = async ({
   });
 
   return { records, count, hasMore: count > offset + records.length };
+};
+
+// Fila de revisão do Admin — só entrada de habitualidade de verdade
+// (TEM foto do livro), nunca o check-in simples do kiosk (sem foto, só
+// reconhecimento facial), que não precisa de aprovação nenhuma.
+export const listPendingHabitualidade = async (
+  companyId: number
+): Promise<{ records: MemberCheckIn[]; count: number }> => {
+  const { count, rows: records } = await MemberCheckIn.findAndCountAll({
+    where: {
+      companyId,
+      validationStatus: "pending",
+      logbookPhotoUrl: { [Op.ne]: null }
+    },
+    include: [{ model: Member, as: "member", attributes: ["id", "name", "code", "photoUrl"] }],
+    order: [["checkedInAt", "ASC"]]
+  });
+
+  return { records, count };
+};
+
+// Admin confere a geolocalização (latitude/longitude já gravadas) contra
+// o endereço do clube — manual nesta fase (sem cálculo automático de
+// raio) — e aprova ou rejeita. Nunca mexe em logbookPhotoUrl/latitude/
+// longitude/matchDistance (imutáveis desde a criação, por pedido
+// explícito do cliente).
+export const validateCheckIn = async (
+  id: string | number,
+  companyId: number,
+  userId: number,
+  status: "valid" | "invalid"
+): Promise<MemberCheckIn> => {
+  const record = await MemberCheckIn.findOne({ where: { id, companyId } });
+  if (!record) {
+    throw new AppError("ERR_MEMBER_CHECKIN_NOT_FOUND", 404);
+  }
+  if (status !== "valid" && status !== "invalid") {
+    throw new AppError("ERR_MEMBER_CHECKIN_INVALID_STATUS");
+  }
+
+  record.validationStatus = status;
+  record.validatedByUserId = userId;
+  record.validatedAt = new Date();
+  await record.save();
+  return record;
 };

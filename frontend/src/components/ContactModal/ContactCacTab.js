@@ -15,6 +15,11 @@ import PersonIcon from "@material-ui/icons/Person";
 
 import FaceIcon from "@material-ui/icons/Face";
 import Chip from "@material-ui/core/Chip";
+import Dialog from "@material-ui/core/Dialog";
+import DialogTitle from "@material-ui/core/DialogTitle";
+import DialogContent from "@material-ui/core/DialogContent";
+import DialogActions from "@material-ui/core/DialogActions";
+import VpnKeyIcon from "@material-ui/icons/VpnKey";
 
 import toastError from "../../errors/toastError";
 import useMembers from "../../hooks/useMembers";
@@ -61,6 +66,8 @@ const ContactCacTab = ({ contactId }) => {
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [generatingPin, setGeneratingPin] = useState(false);
+  const [generatedPin, setGeneratedPin] = useState(null);
   const photoRef = useRef(null);
 
   useEffect(() => {
@@ -166,6 +173,21 @@ const ContactCacTab = ({ contactId }) => {
     setEnrolling(false);
   };
 
+  // PIN de acesso ao Portal do Associado — mostrado em texto puro só
+  // UMA VEZ, nesta resposta; depois disso só o hash fica guardado (nem
+  // o próprio Admin consegue ver de novo, só gerar um novo PIN, que
+  // revoga o anterior).
+  const handleGeneratePin = async () => {
+    setGeneratingPin(true);
+    try {
+      const { pin } = await members.generatePortalPin(member.id);
+      setGeneratedPin(pin);
+    } catch (err) {
+      toastError(err);
+    }
+    setGeneratingPin(false);
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" className={classes.root}>
@@ -194,6 +216,28 @@ const ContactCacTab = ({ contactId }) => {
   }
 
   return (
+    <>
+    <Dialog open={!!generatedPin} onClose={() => setGeneratedPin(null)} maxWidth="xs" fullWidth>
+      <DialogTitle>PIN do Portal do Associado</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="textSecondary" gutterBottom>
+          Repasse este PIN ao associado (presencialmente ou por WhatsApp).
+          Ele não será mostrado de novo — se perder, gere um novo (o
+          anterior deixa de funcionar).
+        </Typography>
+        <Box display="flex" justifyContent="center" my={2}>
+          <Typography variant="h4" style={{ letterSpacing: 4 }}>
+            {generatedPin}
+          </Typography>
+        </Box>
+        <Typography variant="caption" color="textSecondary">
+          O associado acessa em /portal/login com o CPF cadastrado + este PIN.
+        </Typography>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setGeneratedPin(null)}>Fechar</Button>
+      </DialogActions>
+    </Dialog>
     <Formik
       initialValues={{
         document: member.document || "",
@@ -246,6 +290,16 @@ const ContactCacTab = ({ contactId }) => {
                   )}
                 </>
               )}
+              <Button
+                type="button"
+                variant="outlined"
+                size="small"
+                startIcon={<VpnKeyIcon />}
+                disabled={generatingPin}
+                onClick={handleGeneratePin}
+              >
+                {generatingPin ? "Gerando..." : "Gerar PIN do Portal do Associado"}
+              </Button>
             </div>
             <Grid container spacing={2}>
               <Grid item xs={12} sm={4}>
@@ -323,6 +377,7 @@ const ContactCacTab = ({ contactId }) => {
         </Form>
       )}
     </Formik>
+    </>
   );
 };
 

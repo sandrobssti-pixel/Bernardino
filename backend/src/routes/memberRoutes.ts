@@ -33,6 +33,14 @@ memberRoutes.post(
 // seria lido como o :id da rota genérica (mesmo motivo de
 // by-contact/link-contact acima).
 memberRoutes.get("/members/checkins", isAuth, MemberFaceController.listCheckIns);
+// Fila de revisão do Admin (entrada de habitualidade — foto do livro +
+// geolocalização, enviada pelo Portal do Associado) — precisa vir antes
+// de "/members/:id" pelo mesmo motivo de sempre.
+memberRoutes.get(
+  "/members/checkins/pending",
+  isAuth,
+  MemberFaceController.listPendingHabitualidade
+);
 memberRoutes.get("/members/:id", isAuth, MemberController.show);
 memberRoutes.post("/members", isAuth, MemberController.store);
 memberRoutes.put("/members/:id", isAuth, MemberController.update);
@@ -52,6 +60,19 @@ memberRoutes.post(
   "/members/:id/face-descriptor",
   isAuth,
   MemberFaceController.setFaceDescriptor
+);
+memberRoutes.put(
+  "/members/checkins/:id/validate",
+  isAuth,
+  MemberFaceController.validateCheckIn
+);
+
+// PIN de acesso ao Portal do Associado — gerado pelo Admin, dentro da
+// administração do clube.
+memberRoutes.post(
+  "/members/:id/portal-pin",
+  isAuth,
+  MemberFaceController.generatePortalPin
 );
 
 export default memberRoutes;

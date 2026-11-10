@@ -143,6 +143,17 @@ class Member extends Model<Member> {
   @Column
   faceEnrolled: boolean;
 
+  // PIN de acesso ao Portal do Associado (hash bcrypt, nunca texto puro —
+  // mesmo padrão de User.passwordHash) — gerado pelo Admin
+  // (MemberPortalPinService.generate), mostrado em texto puro só UMA VEZ
+  // na hora da geração, pro Admin repassar ao associado. Null = portal
+  // ainda não liberado pra esse associado. Ver docs/MANUAL_TECNICO.md.
+  @Column(DataType.TEXT)
+  portalPinHash: string;
+
+  @Column
+  portalPinSetAt: Date;
+
   @ForeignKey(() => Contact)
   @Column
   contactId: number;

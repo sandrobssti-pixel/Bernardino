@@ -19,6 +19,8 @@ import WeaponArmory from "../pages/WeaponArmory";
 import Members from "../pages/Members";
 import MemberCheckIn from "../pages/MemberCheckIn";
 import PublicJobBoard from "../pages/PublicJobBoard";
+import MemberPortalLogin from "../pages/MemberPortal/Login";
+import MemberPortalCheckIn from "../pages/MemberPortal/CheckIn";
 import Users from "../pages/Users";
 import Contacts from "../pages/Contacts";
 import ContactImportPage from "../pages/Contacts/import";
@@ -94,6 +96,13 @@ const Routes = () => {
                 pra permitir que um Admin logado também consiga visualizar
                 a própria página pública. */}
             <DomRoute exact path="/vagas/:companyId/:jobId?" component={PublicJobBoard} />
+            {/* Portal do Associado (Gerenciador CAC) — login próprio do
+                associado (CPF + PIN), independente do login de equipe/
+                Admin do AtendeFlow. DomRoute (não Route) pelo mesmo
+                motivo do PublicJobBoard acima — não depende/mexe no
+                estado de autenticação de equipe. */}
+            <DomRoute exact path="/portal/login" component={MemberPortalLogin} />
+            <DomRoute exact path="/portal/checkin" component={MemberPortalCheckIn} />
             <WhatsAppsProvider>
               <LoggedInLayout>
                 <Route exact path="/financeiro" component={Financeiro} isPrivate />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
+import { toast } from "react-toastify";
 
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
@@ -15,6 +16,11 @@ import ListItemText from "@material-ui/core/ListItemText";
 import PersonIcon from "@material-ui/icons/Person";
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 import CancelIcon from "@material-ui/icons/Cancel";
+import RoomIcon from "@material-ui/icons/Room";
+import ThumbUpIcon from "@material-ui/icons/ThumbUp";
+import ThumbDownIcon from "@material-ui/icons/ThumbDown";
+import Link from "@material-ui/core/Link";
+import Divider from "@material-ui/core/Divider";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useMembers from "../../hooks/useMembers";
@@ -74,6 +80,26 @@ const useStyles = makeStyles((theme) => ({
     textAlign: "center",
     padding: theme.spacing(4),
   },
+  pendingBox: {
+    marginTop: theme.spacing(3),
+    padding: theme.spacing(2),
+    maxWidth: 1100,
+    marginLeft: "auto",
+    marginRight: "auto",
+  },
+  pendingItem: {
+    display: "flex",
+    gap: theme.spacing(2),
+    alignItems: "flex-start",
+    padding: theme.spacing(1.5, 0),
+  },
+  logbookThumb: {
+    width: 90,
+    height: 90,
+    borderRadius: 8,
+    objectFit: "cover",
+    flexShrink: 0,
+  },
 }));
 
 // Controle de Acesso do Gerenciador CAC — Decreto nº 11.615/2023, art.
@@ -92,6 +118,8 @@ const MemberCheckIn = () => {
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
+  const [pending, setPending] = useState([]);
+  const [validatingId, setValidatingId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -116,9 +144,43 @@ const MemberCheckIn = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fila de revisão — entradas de habitualidade enviadas pelo associado
+  // pelo Portal (foto do livro + geolocalização), aguardando o Admin
+  // confirmar se a localização bate com o endereço do clube. Nunca
+  // mostra check-ins só de kiosk (sem foto do livro) — esses não são
+  // "habitualidade", já ficam registrados sem precisar de validação.
+  const fetchPending = useCallback(async () => {
+    try {
+      const data = await members.listPendingHabitualidade({ pageNumber: 1 });
+      setPending(data.records || []);
+    } catch (err) {
+      // informativo, mesma lógica do fetchHistory acima
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
-    if (access?.hasAccess) fetchHistory();
-  }, [access, fetchHistory]);
+    if (access?.hasAccess) {
+      fetchHistory();
+      fetchPending();
+    }
+  }, [access, fetchHistory, fetchPending]);
+
+  const handleValidate = async (id, validationStatus) => {
+    setValidatingId(id);
+    try {
+      await members.validateCheckIn(id, validationStatus);
+      setPending((prev) => prev.filter((item) => item.id !== id));
+      toast.success(
+        validationStatus === "valid"
+          ? "Entrada de habitualidade confirmada."
+          : "Entrada de habitualidade rejeitada."
+      );
+    } catch (err) {
+      toastError(err);
+    }
+    setValidatingId(null);
+  };
 
   const handleCheckIn = async () => {
     const video = webcamRef.current?.video;
@@ -248,6 +310,70 @@ const MemberCheckIn = () => {
           </List>
         </Paper>
       </div>
+
+      {pending.length > 0 && (
+        <Paper className={classes.pendingBox}>
+          <Typography variant="subtitle1" gutterBottom>
+            Habitualidades pendentes de validação
+          </Typography>
+          <Typography variant="caption" color="textSecondary">
+            Confirme se a localização enviada pelo associado bate com o
+            endereço do clube antes de aprovar.
+          </Typography>
+          <List>
+            {pending.map((item, index) => (
+              <React.Fragment key={item.id}>
+                {index > 0 && <Divider component="li" />}
+                <li className={classes.pendingItem} style={{ listStyle: "none" }}>
+                  <img
+                    src={item.logbookPhotoUrl}
+                    alt="Foto do livro"
+                    className={classes.logbookThumb}
+                  />
+                  <Box flex={1}>
+                    <Typography variant="body1">{item.member?.name}</Typography>
+                    <Typography variant="caption" color="textSecondary" display="block">
+                      {new Date(item.checkedInAt).toLocaleString("pt-BR")}
+                    </Typography>
+                    {item.latitude != null && item.longitude != null && (
+                      <Link
+                        href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        <RoomIcon fontSize="small" />
+                        Ver localização no mapa
+                      </Link>
+                    )}
+                  </Box>
+                  <Box display="flex" gridGap={8}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      startIcon={<ThumbUpIcon />}
+                      disabled={validatingId === item.id}
+                      onClick={() => handleValidate(item.id, "valid")}
+                    >
+                      Confirmar
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<ThumbDownIcon />}
+                      disabled={validatingId === item.id}
+                      onClick={() => handleValidate(item.id, "invalid")}
+                    >
+                      Rejeitar
+                    </Button>
+                  </Box>
+                </li>
+              </React.Fragment>
+            ))}
+          </List>
+        </Paper>
+      )}
     </div>
   );
 };

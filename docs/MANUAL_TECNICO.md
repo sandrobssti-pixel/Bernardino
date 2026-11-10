@@ -18952,3 +18952,170 @@ em produção de um clube real.
 `frontend/src/hooks/useMembers/index.js`,
 `frontend/src/layout/MainListItems.js`, `frontend/src/routes/index.js`,
 `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.
+
+## 244. Portal do Associado — entrada de habitualidade (foto do livro + geolocalização, v2.3.271)
+
+Pedido do cliente: liberar o módulo pra o cliente final (associado) usar
+direto do celular dele — anexar a foto da página do livro físico de
+presença (com a própria assinatura), mantendo a biometria facial
+(seção 243), e capturar a localização no momento do envio. O registro
+cai no sistema LOCAL (mesmo banco/`Member CheckIn` já existente) e **não
+pode ser editado nem excluído** depois de criado — só o Admin do clube,
+dentro da administração, decide se a localização é válida.
+
+### Decisão: mesmo registro, não uma entidade nova
+
+Confirmado com o cliente (ver pedido original) que a "entrada de
+habitualidade" é o MESMO `MemberCheckIn` da seção 243, só estendido com
+campos novos (`logbookPhotoUrl`, `latitude`, `longitude`,
+`validationStatus`, `validatedByUserId`, `validatedAt`, `source`), não
+uma tabela separada — menos duplicação, e o kiosk (reconhecimento
+facial sem foto de livro) e o Portal (foto de livro + geo) continuam
+sendo variações do mesmo conceito de "presença registrada".
+Imutabilidade é garantida por DESIGN DE ENDPOINT, não por constraint de
+banco: não existe nenhuma rota capaz de alterar `logbookPhotoUrl`/
+`latitude`/`longitude`/`matchDistance` depois de criado — a única rota
+de escrita pós-criação (`PUT /members/checkins/:id/validate`) só toca
+`validationStatus` + os campos de auditoria do validador.
+
+### Portal do Associado — autenticação própria (nova)
+
+AtendeFlow não tinha login nenhum pro associado final, só pra
+equipe/Admin. Criado um sistema PARALELO, totalmente separado do login
+de equipe (`isAuth.ts`):
+
+- **PIN numérico de 6 dígitos** (CPF + PIN, bcrypt-hash em
+  `Member.portalPinHash`/`portalPinSetAt`) — escolhido por ser o mais
+  simples de implementar sem precisar construir infraestrutura de
+  e-mail/SMS pra essa primeira versão. Gerado pelo Admin (botão "Gerar
+  PIN do Portal do Associado" na aba CAC do Contato,
+  `POST /members/:id/portal-pin`) e mostrado em texto puro **só uma
+  vez**, num diálogo, pro Admin repassar ao associado fora do sistema
+  (presencial, WhatsApp) — depois disso só o hash fica guardado, nem o
+  próprio Admin consegue ver de novo.
+- **`isMemberAuth.ts`** (novo middleware) — token JWT com formato
+  `{memberId, companyId, scope:"member"}`, deliberadamente diferente do
+  formato do token de equipe (`{id, profile, companyId}`), pra
+  `isAuth.ts` continuar rejeitando um token de associado sem precisar
+  tocar nesse arquivo (usado em quase toda rota do sistema).
+- **CPF não é único globalmente** (só por empresa — um mesmo CPF pode
+  legitimamente ser associado de dois clubes clientes diferentes).
+  `MemberPortalService.login` busca por TODAS as empresas e exige
+  exatamente UM resultado (CPF + PIN coincidindo); mais de um resultado
+  (coincidência rara de PIN) é tratado como ambíguo e o login é
+  recusado, nunca arriscando logar na empresa errada.
+- `POST /member-portal/login` é pública (é o próprio ponto de entrada);
+  `POST /member-portal/checkin` exige `isMemberAuth`. Rotas num arquivo
+  novo (`memberPortalRoutes.ts`), registradas depois de `memberRoutes`
+  em `routes/index.ts`.
+
+### Frontend do Portal — páginas públicas
+
+`/portal/login` e `/portal/checkin` — `DomRoute` (não o `Route` custom
+do resto do sistema), mesmo motivo já documentado pra
+`PublicJobBoard` (seção do RH): não dependem nem mexem no estado de
+autenticação de equipe, precisam funcionar mesmo com uma sessão de
+equipe aberta no mesmo navegador. Hook novo (`useMemberPortal`) usa a
+instância `openApi` já existente (sem interceptor de sessão de equipe)
+e anexa o `Authorization` manualmente a cada chamada, guardando o token
+numa chave de `localStorage` própria (`memberPortalToken`) — nunca
+reaproveita a chave/instância do token de equipe, pra zero risco de
+misturar as duas sessões no mesmo navegador.
+
+Fluxo em `/portal/checkin`: se o associado já tem reconhecimento facial
+cadastrado (`faceEnrolled`, devolvido pelo login), mostra webcam pra
+capturar o descritor primeiro (mesma função `computeFaceDescriptor` da
+seção 243 — roda no navegador, só o descritor sai do dispositivo);
+depois exige a foto do livro (`<input type="file" accept="image/*"
+capture="environment">`, abre a câmera traseira nativa no celular) e a
+localização (`navigator.geolocation.getCurrentPosition`). Envio é
+`multipart/form-data` pra `POST /member-portal/checkin` só depois dos
+três (ou dois, se não tiver facial cadastrado) estarem prontos.
+
+### Validação do Admin — manual, sem cálculo de raio
+
+Confirmado com o cliente: nesta versão a validação é MANUAL — o Admin
+olha a foto do livro + um link pro Google Maps com a lat/lng enviada
+(`https://www.google.com/maps?q=<lat>,<lng>`) e confirma se bate com o
+endereço do clube, sem nenhum cálculo automático de raio/geofencing
+(isso fica pra uma eventual Fase 4 futura, se o cliente pedir). Fila
+nova (seção "Habitualidades pendentes de validação", mesma tela
+`/member-checkin` do kiosk) lista só `MemberCheckIn` com
+`validationStatus:"pending" AND logbookPhotoUrl IS NOT NULL` — nunca
+mostra check-in simples de kiosk (sem foto de livro), que não é uma
+"habitualidade" precisando de revisão.
+
+### Bugs achados e corrigidos durante o desenvolvimento (antes do commit)
+
+- **Geolocalização ausente não era rejeitada.** `MemberPortalController`
+  fazia `parseFloat(req.body.latitude)` — se o campo não vier,
+  `parseFloat(undefined)` é `NaN`, e a checagem original
+  (`typeof latitude !== "number"`) passava igual, porque
+  `typeof NaN === "number"` é `true` em JS. Resultado: um envio sem
+  localização nenhuma era aceito com `latitude`/`longitude` nulos no
+  banco, silenciosamente, apesar de o decreto/pedido exigir
+  geolocalização sempre. Achado testando via `curl` sem os campos.
+  Corrigido acrescentando `Number.isNaN(latitude) ||
+  Number.isNaN(longitude)` na checagem (`MemberPortalService.
+  submitHabitualidade`).
+- **`useMembers.validateCheckIn` (frontend) mandava o campo errado** —
+  `{ validationStatus }` em vez do `{ status }` que
+  `MemberFaceController.validateCheckIn` de fato lê do `req.body`,
+  então o botão "Confirmar"/"Rejeitar" da fila de Admin sempre
+  devolveria `ERR_MEMBER_CHECKIN_INVALID_STATUS`. Achado testando a
+  rota via `curl` com o mesmo payload que o hook monta. Corrigido
+  renomeando o campo enviado.
+
+### Verificação
+
+- `tsc --noEmit` (backend) limpo. `eslint` (frontend, arquivos tocados)
+  limpo.
+- Migrações novas rodadas de ponta a ponta contra o banco de teste
+  local (`npx sequelize-cli db:migrate`, sem `NODE_ENV=test` — com
+  `NODE_ENV=test` a CLI tenta carregar um `.env.test` que não existe
+  neste ambiente, deixando as variáveis de banco vazias e a conexão
+  entra num loop de retry do Sequelize que parece travado; isso é uma
+  particularidade deste ambiente de teste, não um bug do projeto):
+  colunas e a FK (`validatedByUserId → Users.id`) criadas corretamente;
+  rodar de novo confirma idempotência (`IF NOT EXISTS`, "already up to
+  date").
+- Testado via `curl` contra a API real, de ponta a ponta, com empresa/
+  usuário/associado de teste criados via `CreateCompanyService` (nunca
+  via insert cru, pra não cair na mesma pegadinha de `CompaniesSettings`
+  já documentada na seção 242): login de equipe → gerar PIN do Portal →
+  login do associado com CPF+PIN (token de escopo `member` separado) →
+  envio de habitualidade (foto + geo, multipart) cria `MemberCheckIn`
+  com `validationStatus:"pending"`/`source:"portal"` → aparece na fila
+  de pendentes → Admin confirma (`status:"valid"`) → some da fila →
+  reaparece como `invalid` ao rejeitar outro registro. Casos de erro
+  confirmados: PIN errado rejeitado; foto do livro ausente rejeitada
+  (`ERR_MEMBER_LOGBOOK_PHOTO_REQUIRED`); geolocalização ausente
+  rejeitada depois do fix acima; token de equipe não funciona na rota
+  do Portal (401, `isMemberAuth` recusa corretamente um token sem
+  `scope:"member"`); status de validação inválido rejeitado
+  (`ERR_MEMBER_CHECKIN_INVALID_STATUS`).
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso.
+
+**Pendência explícita, não verificada nesta entrega**: o caminho
+POSITIVO de reconhecimento facial dentro do fluxo do Portal (igual à
+pendência já registrada na seção 243) não foi testado com um rosto real
+— só com o fluxo sem reconhecimento facial cadastrado (`faceEnrolled:
+false`), que já cobre a foto do livro + geolocalização, que é o ponto
+central deste pedido.
+
+**Arquivos**: `backend/src/models/Member.ts`,
+`backend/src/models/MemberCheckIn.ts`,
+`backend/src/database/migrations/20261110220{000,100}-*.ts`,
+`backend/src/middleware/isMemberAuth.ts`,
+`backend/src/config/memberLogbookPhotoUpload.ts`,
+`backend/src/services/MemberService/{MemberPortalService,
+MemberFaceService}.ts`,
+`backend/src/controllers/{MemberPortalController,MemberFaceController}.ts`,
+`backend/src/routes/{memberPortalRoutes,memberRoutes,index}.ts`,
+`frontend/src/hooks/{useMemberPortal,useMembers}/index.js`,
+`frontend/src/pages/MemberPortal/{Login,CheckIn}.js`,
+`frontend/src/pages/MemberCheckIn/index.js`,
+`frontend/src/components/ContactModal/ContactCacTab.js`,
+`frontend/src/routes/index.js`,
+`frontend/src/translate/languages/pt.js`.

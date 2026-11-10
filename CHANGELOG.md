@@ -3,6 +3,36 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.271] — Portal do Associado: entrada de habitualidade (foto do livro + geolocalização) — 2026-11-10
+
+### Adicionado
+- **Portal do Associado** (`/portal/login`, `/portal/checkin`) — login
+  próprio do associado (CPF + PIN gerado pelo Admin do clube),
+  totalmente separado do login de equipe/Admin do AtendeFlow.
+- O associado, pelo próprio celular, anexa a **foto da página do livro
+  físico de presença** (com a assinatura), captura a **geolocalização**
+  no momento, e mantém o **reconhecimento facial** já cadastrado (quando
+  existir) — tudo num único envio.
+- Registro cai no `MemberCheckIn` já existente (seção 243), estendido
+  com `logbookPhotoUrl`/`latitude`/`longitude`/`validationStatus`/
+  `source` — **imutável** depois de criado (nenhuma rota edita ou
+  exclui esses campos).
+- **Fila de revisão do Admin** ("Habitualidades pendentes", na tela
+  Controle de Acesso) — Admin confirma manualmente se a localização
+  enviada bate com o endereço do clube (link direto pro Google Maps),
+  aprovando ou rejeitando.
+- Botão "Gerar PIN do Portal do Associado" na aba Gerenciador CAC do
+  Contato.
+
+### Corrigido
+- Envio de habitualidade sem geolocalização estava sendo aceito com
+  `latitude`/`longitude` nulos (bug de `NaN` sendo `typeof "number"` em
+  JS) — agora rejeitado corretamente.
+- Botões "Confirmar"/"Rejeitar" da fila do Admin mandavam o campo errado
+  pro backend e sempre falhavam — corrigido antes do commit.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 244.
+
 ## [2.3.270] — Gerenciador CAC: Controle de Acesso (reconhecimento facial + check-in) — 2026-11-10
 
 ### Adicionado
