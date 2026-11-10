@@ -25,6 +25,32 @@ export const STATUS_OPTIONS = [
   { value: "inactive", label: "Inativo" },
 ];
 
+// Classificação legal CAC (Colecionador/Atirador/Caçador) — Decreto nº
+// 11.615/2023, art. 2º, incisos XVII a XIX e XXV, e Decreto nº
+// 12.345/2024, art. 2º, inciso XXXVI (Atirador Desportivo de Alto
+// Rendimento). SEPARADA do campo "category" livre, que continua
+// genérico pra qualquer tipo de clube — este campo só faz sentido pra
+// clube de tiro, por isso fica opcional ("Não é CAC" como padrão).
+export const CAC_CATEGORY_OPTIONS = [
+  { value: "none", label: "Não é CAC" },
+  { value: "atirador_desportivo", label: "Atirador Desportivo" },
+  { value: "atirador_alto_rendimento", label: "Atirador Desportivo de Alto Rendimento" },
+  { value: "cacador_excepcional", label: "Caçador Excepcional" },
+  { value: "cacador_subsistencia", label: "Caçador de Subsistência" },
+  { value: "colecionador", label: "Colecionador" },
+];
+
+// Texto informativo (Art. 38-C/38-D do Decreto nº 11.615/2023, na
+// redação do Decreto nº 12.345/2024) — só exibição, SEM validação de
+// quantidade de arma/munição ainda: o cadastro de Associados (Fase 1)
+// não tem vínculo com arma/FinanceWeaponUnit nesta fase do projeto (ver
+// docs/MANUAL_TECNICO.md, seção 241) — travar um número aqui sem ter o
+// dado de verdade pra validar contra seria pior que não ter a regra.
+export const CAC_CATEGORY_INFO = {
+  atirador_alto_rendimento:
+    "Art. 38-C/38-D do Decreto nº 11.615/2023 (redação dada pelo Decreto nº 12.345/2024): pode adquirir até 16 armas (até 8 de uso restrito) e até 20% a mais de munição/insumos no período de 12 meses, desde que necessárias à modalidade de competição em que estiver inscrito. Limite não validado automaticamente nesta fase (depende da integração com o cadastro de armas, ainda não construída).",
+};
+
 export const StatusChip = ({ status }) => (
   <Chip
     size="small"
@@ -47,6 +73,14 @@ export const memberColumns = [
   { field: "name", label: "Nome" },
   { field: "document", label: "CPF" },
   { field: "category", label: "Categoria" },
+  {
+    field: "cacCategory",
+    label: "Classe CAC",
+    render: (r) =>
+      r.cacCategory && r.cacCategory !== "none"
+        ? CAC_CATEGORY_OPTIONS.find((o) => o.value === r.cacCategory)?.label || r.cacCategory
+        : "—",
+  },
   { field: "status", label: "Status", render: (r) => <StatusChip status={r.status} /> },
 ];
 
@@ -61,6 +95,21 @@ export const memberFields = [
   { name: "phone", label: "Telefone", gridSize: 6 },
   { name: "whatsapp", label: "WhatsApp", gridSize: 6 },
   { name: "category", label: "Categoria (ex.: atirador, sócio, aluno)", gridSize: 6 },
+  {
+    name: "cacCategory",
+    label: "Classe CAC (se for clube de tiro)",
+    type: "select",
+    options: CAC_CATEGORY_OPTIONS,
+    defaultValue: "none",
+    gridSize: 6,
+  },
+  {
+    type: "sectionTitle",
+    key: "cacInfo",
+    label: "Atirador Desportivo de Alto Rendimento",
+    helperText: CAC_CATEGORY_INFO.atirador_alto_rendimento,
+    visibleWhen: (values) => values.cacCategory === "atirador_alto_rendimento",
+  },
   {
     name: "status",
     label: "Status",

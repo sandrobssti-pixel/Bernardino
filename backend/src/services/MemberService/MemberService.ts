@@ -24,6 +24,7 @@ interface MemberData {
   phone?: string;
   whatsapp?: string;
   category?: string;
+  cacCategory?: string;
   status?: string;
   zipCode?: string;
   street?: string;

@@ -69,6 +69,17 @@ class Member extends Model<Member> {
   @Column
   category: string;
 
+  // Classificação legal CAC — SEPARADA de "category" (que continua livre
+  // e genérica, pra qualquer tipo de clube). "none" = não aplicável/não é
+  // CAC (default; nunca "" vazio — ver comentário na migration). Valores
+  // reconhecidos (Decreto 11.615/2023, art. 2º, XVII-XIX e XXV; Decreto
+  // 12.345/2024, art. 2º, XXXVI): "atirador_desportivo",
+  // "atirador_alto_rendimento", "cacador_excepcional",
+  // "cacador_subsistencia", "colecionador".
+  @Default("none")
+  @Column
+  cacCategory: string;
+
   // "pending" (cadastro incompleto — falta documento/foto/etc.) | "active"
   // | "inactive". Novo cadastro sempre nasce "pending".
   @Default("pending")

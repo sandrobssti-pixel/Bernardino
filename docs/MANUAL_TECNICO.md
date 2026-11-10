@@ -18591,3 +18591,104 @@ base em número reconstruído de memória e potencialmente errado.
 `frontend/src/pages/Members/index.js`,
 `frontend/src/hooks/useMembers/index.js`,
 `frontend/src/components/PlansManager/index.js`.
+
+## 241. Gerenciador CAC: classe legal CAC a partir do texto oficial dos decretos (v2.3.268)
+
+Continuação da seção 239/240. O cliente confirmou (AskUserQuestion) que
+os Decreto nº 11.615/2023 e Decreto nº 12.345/2024 são os decretos
+vigentes de regulamentação CAC e pediu regra de negócio baseada neles.
+Pedi os números exatos antes de codificar — arriscado demais travar
+cadastro real com base em memória — e o cliente enviou os PDFs reais
+dos dois decretos (um deles, inclusive, a página oficial do Diário
+Oficial da União, fonte primária).
+
+### Nível de confiança da fonte (importante registrar)
+
+- **Decreto nº 12.345/2024**: PDF é o **texto oficial do DOU**
+  (`in.gov.br`), com o conteúdo INTEGRAL do decreto (ele só altera
+  artigos específicos do 11.615/2023, então o decreto inteiro é curto).
+  Alta confiança — tudo usado abaixo vem direto dali.
+- **Decreto nº 11.615/2023**: PDF enviado é uma **consolidação
+  resumida** dos artigos iniciais (definições, Sinarm, classificação de
+  armas, início da aquisição) — o próprio documento avisa, no rodapé,
+  que o decreto completo tem mais de 80 artigos e recomenda consultar
+  o Planalto pra o texto integral. Usado só o que está literalmente
+  nesse trecho (Art. 1º-15, §§); os artigos que o 12.345/2024 EDITA
+  (35, 38, 38-A a 38-H, 41, 79, 79-A, 81-A) vieram do PDF do DOU, não
+  desse resumo.
+
+### Regras confirmadas (uso imediato)
+
+1. **Art. 38, §5º, III** (redação dada pelo Decreto nº 12.345/2024):
+   entidades de tiro desportivo devem encaminhar periodicamente ao
+   órgão fiscalizador "a relação dos atiradores e dos atletas que
+   frequentaram a entidade de tiro desportivo, que deverá ser obtida
+   por **controle biométrico ou de reconhecimento facial**" —
+   confirma que a Fase 3 do roadmap (seção 239, reconhecimento facial)
+   não é só um diferencial de produto, é **exigência legal** pra
+   qualquer clube de tiro cliente deste módulo.
+2. **Art. 38-C** (incluído pelo Decreto nº 12.345/2024): Atirador
+   Desportivo de Alto Rendimento pode adquirir **até 16 armas, das
+   quais até 8 de uso restrito**, desde que comprovadamente
+   necessárias pra modalidade de competição em que estiver inscrito.
+3. **Art. 38-D**: o mesmo atirador pode adquirir, em 12 meses, **até
+   20% a mais** de munição/insumos do que o previsto no art. 37,
+   caput, inciso III (baseline do atirador comum — **não temos o texto
+   desse artigo**, só sabemos que existe e que o alto rendimento ganha
+   +20% em cima dele; nenhum número absoluto é inventado aqui).
+4. **Art. 38-H**: quem não atinge a classificação mínima (ranking
+   nacional, Art. 38-F) perde as prerrogativas dos arts. 38-B a 38-E —
+   ou seja, a classe "alto rendimento" tem critério de
+   manutenção/perda, não é permanente uma vez concedida.
+5. **Art. 79-A** (incluído pelo Decreto nº 12.345/2024): proibido
+   transporte de arma/munição por colecionador/atirador/caçador no dia
+   da eleição + 24h antes/depois; entidades de tiro não podem funcionar
+   nesse período. Relevante pra uma fase futura (geofencing/check-in)
+   — não implementado ainda.
+6. **Art. 38, III/§3º**: horário de funcionamento padrão das entidades
+   de tiro é 6h-22h; entidade que não se adequar a certas exigências de
+   segurança só pode operar em horário restrito (18h-22h dias úteis;
+   6h-22h fins de semana/feriados só instrução/tiro, ou 6h-22h
+   qualquer dia só expediente administrativo sem tiro real). Relevante
+   pra quando o check-in (Fase 4) precisar validar horário, não
+   implementado ainda.
+
+### O que foi implementado nesta entrega
+
+Campo novo `Member.cacCategory` (string, default `"none"` — nunca `""`
+vazio, pra não repetir o bug de exibição do `<select>` do MUI com valor
+vazio selecionado, seção 236), **separado** do campo `category` livre
+(que continua servindo qualquer tipo de clube/associação, não só tiro).
+Opções reconhecidas: Atirador Desportivo, Atirador Desportivo de Alto
+Rendimento, Caçador Excepcional, Caçador de Subsistência, Colecionador
+(Decreto 11.615/2023, art. 2º, XVII-XIX e XXV) e a nova categoria do
+12.345/2024 (art. 2º, XXXVI). Ao selecionar "Atirador Desportivo de
+Alto Rendimento" no formulário, aparece uma nota informativa (pseudo-
+campo `type: "sectionTitle"` com `helperText`, mesmo mecanismo já usado
+pra texto condicional no `FinanceRecordModal`) citando os arts.
+38-C/38-D — **só informativo, sem validação de quantidade** (o cadastro
+de Associados desta fase não tem nenhum vínculo com arma/
+`FinanceWeaponUnit` ainda — travar um número de arma/munição sem ter
+o dado de arma de verdade pra contar contra seria pior que não ter a
+regra nenhuma, mesmo princípio já usado nesta sessão pro
+`seafile-deploy`/decisão de não adivinhar número de decreto).
+
+### Pendente pra fases futuras (não implementado agora, documentado pra não perder)
+
+- Validar de verdade o limite de 16/8 armas do Art. 38-C — depende da
+  Fase "Armas" do roadmap (seção 239), que vai reaproveitar
+  `FinanceWeaponUnit` e então ligar unidade de arma ao `Member`.
+- Validar o +20% de munição do Art. 38-D — depende do mesmo vínculo
+  arma/munição E do texto do Art. 37 (baseline), que ainda não temos.
+- Bloqueio de transporte/funcionamento no período eleitoral (Art. 79-A)
+  — depende da Fase "Check-in/geofencing" (Fase 4).
+- Validação de horário de funcionamento (Art. 38 III/§3º) — mesma Fase
+  4, quando `MemberLocation` (ponto de check-in) for criado.
+- Perda de prerrogativa por não atingir ranking (Art. 38-H) — não tem
+  dado de ranking/calendário de competições no sistema ainda; fora de
+  escopo até o cliente pedir o módulo "Provas/Competições" do roadmap.
+
+**Arquivos**: `backend/src/models/Member.ts`,
+`backend/src/services/MemberService/MemberService.ts`,
+`backend/src/database/migrations/20261110180000-add-caccategory-to-members.ts`,
+`frontend/src/pages/Members/membersConfig.js`.

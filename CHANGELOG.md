@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.268] — Gerenciador CAC: classe legal CAC (Decreto 11.615/2023 + 12.345/2024) — 2026-11-10
+
+### Adicionado
+- **Campo "Classe CAC"** no Gerenciador CAC, separado do campo
+  "Categoria" livre — reconhece as classificações legais definidas pelo
+  Decreto nº 11.615/2023 (Atirador Desportivo, Caçador Excepcional,
+  Caçador de Subsistência, Colecionador) e pelo Decreto nº 12.345/2024
+  (Atirador Desportivo de Alto Rendimento). Ao selecionar "Atirador
+  Desportivo de Alto Rendimento", exibe nota informativa citando os
+  benefícios dos arts. 38-C/38-D (até 16 armas, até 8 de uso restrito, e
+  até 20% mais munição/insumos em 12 meses) — só informativo, sem
+  validação automática de quantidade ainda (depende de uma integração
+  com cadastro de armas que não existe nesta fase).
+- Confirmado, por análise direta do texto oficial do Decreto nº
+  12.345/2024 (art. 38, §5º, III), que o controle de presença por
+  biometria/reconhecimento facial em entidades de tiro desportivo é uma
+  **exigência legal**, não só uma feature — reforça a prioridade da
+  Fase 3 do roadmap (seção 239).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 241.
+
 ## [2.3.267] — Renomeado para "Gerenciador CAC" — 2026-11-10
 
 ### Alterado
