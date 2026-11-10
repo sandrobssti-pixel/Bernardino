@@ -16,6 +16,7 @@ import PayrollTables from "../pages/PayrollTables";
 import WeaponDispatch from "../pages/WeaponDispatch";
 import Services from "../pages/Services";
 import WeaponArmory from "../pages/WeaponArmory";
+import Members from "../pages/Members";
 import PublicJobBoard from "../pages/PublicJobBoard";
 import Users from "../pages/Users";
 import Contacts from "../pages/Contacts";
@@ -100,6 +101,7 @@ const Routes = () => {
                 <Route exact path="/weapon-dispatch" component={WeaponDispatch} isPrivate />
                 <Route exact path="/services" component={Services} isPrivate />
                 <Route exact path="/weapon-armory" component={WeaponArmory} isPrivate />
+                <Route exact path="/members" component={Members} isPrivate />
 
                 <Route exact path="/companies" component={Companies} isPrivate />
                 <Route exact path="/" isPrivate render={(props) => (

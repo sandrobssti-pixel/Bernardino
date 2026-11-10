@@ -18416,3 +18416,143 @@ mostrar insuficiente na prática.
 
 **Arquivos**: `docker-compose.seafile.yml`,
 `.claude/skills/seafile-deploy/SKILL.md`.
+
+## 239. Módulo Associados — Fase 1 (cadastro, v2.3.266)
+
+Primeira fase de um projeto maior: réplica, por etapas, de um sistema de
+filiação de clube de tiro ("Clube Atirador", de um fornecedor terceiro)
+dentro do AtendeFlow, nomeado "Clube Cactus" no cliente específico
+(Cactus Clube de Tiro) mas construído como **módulo genérico**
+(`Plan.useMembers`) — qualquer empresa com sócios/alunos/associados pode
+usar, não é específico de clube de tiro.
+
+### Escopo completo do projeto (roadmap, não tudo nesta fase)
+
+O sistema de referência tem ~15 módulos (Usuários/Filiados, Armas,
+Agrupar Calibres, Filiação a Outro Clube, Presenças com câmera facial,
+Provas/Competições, Categorias de Provas, Carteirinha Digital,
+Financeiro — Cobranças/Caixa/Inadimplentes, Documentos, Ponto, Controle
+de Acesso, Dados Pendentes, Auditoria, Notificações, Sessões Ativas).
+Confirmado com o cliente (AskUserQuestion): replicar por etapas,
+começando pelo núcleo do pedido original (cadastro + reconhecimento
+facial + check-in com geolocalização via app mobile nativo). Decisões
+já confirmadas pro restante do roadmap:
+- **Reaproveitar `FinanceWeaponUnit`** (já existe pro Despachante
+  Bélico, seção 23) quando a fase de Armas chegar, em vez de recriar um
+  cadastro de arma do zero.
+- **Reconhecimento facial self-hosted** (biblioteca própria no
+  servidor, ex. face-api.js/DeepFace) ou arquivamento de fotos via
+  Seafile — não um serviço de nuvem pago (AWS Rekognition etc.), decisão
+  do cliente.
+- **Migração de dados do sistema antigo**: cliente tem acesso de
+  admin/banco de dados no sistema de referência — a fase de migração
+  (futura) vai exportar de lá, não recadastrar manualmente.
+- **App mobile**: nativo iOS + Android (não PWA) — cliente já tem conta
+  Apple Developer e Google Play, sem bloqueio de publicação.
+
+### Esta fase (Fase 1): cadastro básico, sem reconhecimento facial/app ainda
+
+Padrão idêntico ao módulo Despachante Bélico (`WeaponDispatchClient`,
+seção 138) — add-on independente, não aninhado dentro do Financeiro:
+
+- `Plan.useMembers` (boolean) + `User.membersAccess` (boolean) — mesmo
+  padrão de `useFinancial`/`useWeaponDispatch`. `EnsureMembersAccess.ts`
+  idêntico a `EnsureWeaponDispatchAccess.ts`: Admin sempre tem acesso
+  quando o plano inclui o módulo; usuário comum só se liberado
+  individualmente; Master tem acesso total, isolado por `companyId`.
+- Model `Member` (`backend/src/models/Member.ts`): nome, documento
+  (CPF/CNPJ — texto livre, sem validação de formato nesta fase),
+  RG, data de nascimento, e-mail, telefone, WhatsApp, categoria (texto
+  livre — "atirador"/"sócio"/"aluno"..., não é enum fixo, cada empresa
+  define as próprias), status (`pending`/`active`/`inactive`), endereço
+  completo (CEP/rua/número/complemento/bairro/cidade/UF), foto, notas,
+  vínculo opcional com `Contact` (mesmo padrão de
+  `FinanceCustomer.contactId`/`WeaponDispatchClient.contactId`).
+- **Código sequencial** (`"00001"`, `"00002"`... por empresa, mesmo
+  padrão de `FinanceCustomer.code`/`Sale.code`, seção 20) — também vai
+  servir de número da carteirinha digital numa fase futura. Campo
+  travado (`disabledWhen`) na tela, nunca editável manualmente.
+- **Status "pending"→"active" automático**: todo cadastro novo nasce
+  `pending` (equivalente ao "Dados Pendentes" do sistema de referência)
+  e só vira `active` sozinho quando tiver documento E foto preenchidos
+  — nunca mexe quando o status já foi definido explicitamente ou já
+  está `inactive` (saída deliberada do associado). Testado via API
+  (curl): criar sem documento/foto → `pending`; atualizar com documento
+  (ainda sem foto) → continua `pending`; enviar foto → vira `active`
+  sozinho.
+- **Documento único por empresa, mas opcional** (índice único parcial
+  `WHERE document IS NOT NULL AND document <> ''`, mesmo padrão de
+  `FinanceWeaponUnit.serialNumber`, seção 11) — cadastro pode nascer sem
+  CPF (`pending`), mas dois associados da mesma empresa não podem ter o
+  mesmo CPF preenchido. `ensureDocumentNotTaken` (findOne prévio, erro
+  amigável `ERR_MEMBER_DUPLICATE_DOCUMENT`) + `try/catch` de
+  `SequelizeUniqueConstraintError` como rede de segurança contra
+  corrida — testado via curl: segunda criação com CPF repetido devolve
+  erro amigável (antes da correção, devolvia "Internal server error"
+  genérico — faltava o padrão da seção 11, corrigido ainda nesta
+  entrega antes do commit).
+- **Frontend reaproveita `FinanceRecordList`/`FinanceRecordModal`**
+  (apesar do nome "Finance..." — já é o componente de lista/CRUD
+  genérico de fato usado por Funcionários/Serviços/Sócios/Armaria/SLA)
+  em vez de duplicar uma tela própria do zero: `resource` é um objeto
+  simples (`list`/`save`/`update`/`remove`/`uploadPhoto`), sem nenhum
+  acoplamento a conceito financeiro — `pages/Members/index.js` +
+  `pages/Members/membersConfig.js` + `hooks/useMembers/index.js`, mesmo
+  trio de arquivos do padrão `Services`/`servicesConfig.js`/
+  `useServices`.
+- **Gate de acesso na tela** (`planHasModule`/`hasAccess`, tela de
+  "módulo não disponível"/"peça pro admin liberar") replicado de
+  `pages/WeaponDispatch/index.js` — não do Financeiro (que usa
+  `FinanceRecordList`'s prop `finance` pra isso); aqui o gate fica no
+  componente de página, fora do `FinanceRecordList` (que recebe
+  `finance={undefined}` implicitamente, sem quebrar nada — confirmado
+  lendo o código: todo uso de `finance` dentro de
+  `FinanceRecordModal`/`FinanceRecordList` é opcional/`?.`).
+- Item de menu "Associados" (`mainDrawer.listItems.members`, ícone
+  `PermIdentity`, cor própria `#7839ee` em `iconColors`) nos 5 idiomas
+  (`pt.js`/`en.js`/`es.js`/`esES.js`/`tr.js`) — `tr.js` já estava
+  defasado em vários outros itens de menu recentes (`rh`,
+  `weaponDispatch`, `services`...) antes desta entrega; não corrigido
+  de passagem (fora de escopo), só a chave nova entrou lá também.
+- Mensagens de erro (`ERR_MEMBER_*`) traduzidas só em `pt.js` — mesmo
+  nível de esforço real já usado por `Services` (único módulo genérico
+  comparável; `ERR_SERVICE_INVALID_PHOTO_TYPE` também só existe em
+  `pt.js`, nenhum dos outros 4 idiomas), não os 5 idiomas completos.
+
+### Débito conhecido, não resolvido nesta fase
+
+- **Sem toggle de `membersAccess` em `UserModal`** — só `financialAccess`/
+  `hrAccess`/`salesAccess` têm esse toggle hoje; `weaponDispatchAccess`/
+  `weaponArmoryAccess` também não têm (mesma lacuna pré-existente,
+  replicada aqui por consistência, não corrigida). Sem o toggle, só o
+  Admin da empresa usa o módulo por enquanto — liberar pra um usuário
+  comum exigiria editar o banco direto. Se o cliente pedir isso,
+  resolver junto dos outros dois módulos que têm a mesma lacuna.
+
+### Verificação
+
+Testado via `curl` direto contra API local (empresa de teste, plano com
+`useMembers=true`): acesso negado (403) pra usuário sem `membersAccess`;
+criação/edição/exclusão; upload de foto promovendo `pending`→`active`
+sozinho; busca por CPF; CPF duplicado rejeitado com erro amigável,
+CPF repetido na MESMA linha (self-update) não conflita. Testado em
+navegador real (Playwright): menu "Associados" aparece, tela de lista
+no mesmo padrão visual do resto do AtendeFlow, modal "Novo(a) Associado"
+com todos os campos, campo "Código" travado (confirmado via DOM:
+`disabled: true`). Migrations rodadas e revertidas com sucesso contra
+Postgres local. `tsc --noEmit` (backend) e build de produção completo
+(frontend, `rm -rf build node_modules/.cache` antes) limpos. Dados de
+teste removidos ao final.
+
+**Arquivos**: `backend/src/models/Member.ts`,
+`backend/src/models/Plan.ts`, `backend/src/models/User.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/MemberService/{EnsureMembersAccess,MemberService}.ts`,
+`backend/src/controllers/{MemberAccessController,MemberController}.ts`,
+`backend/src/config/memberPhotoUpload.ts`,
+`backend/src/routes/{memberRoutes.ts,index.ts}`,
+`backend/src/database/migrations/20261110160{000,100,200}-*.ts`,
+`frontend/src/hooks/useMembers/index.js`,
+`frontend/src/pages/Members/{index.js,membersConfig.js}`,
+`frontend/src/routes/index.js`, `frontend/src/layout/MainListItems.js`,
+`frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.

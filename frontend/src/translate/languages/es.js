@@ -941,6 +941,7 @@ const messages = {
           weaponDispatch: "Despachante de Armas",
           services: "Servicios Admin.",
           weaponArmory: "Servicio Armería",
+          members: "Asociados",
           queueIntegration: "Integraciones",
           version: "Versión",
           kanban: "CRM / Kanban",

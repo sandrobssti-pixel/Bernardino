@@ -1007,6 +1007,7 @@ const messages = {
           weaponDispatch: "Despachante Bélico",
           services: "Serviços Adms.",
           weaponArmory: "Serviço Armaria",
+          members: "Associados",
           queueIntegration: "Integrações",
           version: "Versão",
           kanban: "CRM / Kanban",
@@ -1882,6 +1883,12 @@ const messages = {
         // junto com o fix em app.ts que para de devolver "Internal server
         // error" genérico pra esse caso (ver comentário lá).
         ERR_SERVICE_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
+        ERR_MEMBER_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
+        ERR_MEMBER_INVALID_NAME: "Informe o nome do associado.",
+        ERR_MEMBER_NOT_FOUND: "Associado não encontrado.",
+        ERR_MEMBER_DUPLICATE_DOCUMENT: "Já existe um associado cadastrado com esse CPF.",
+        ERR_MEMBER_NO_PHOTO_SENT: "Nenhuma foto enviada.",
+        ERR_NO_MEMBERS_MODULE_ACCESS: "Você não tem acesso ao módulo Associados.",
         ERR_COMPANY_INVALID_LOGO_TYPE: "Tipo de arquivo não permitido — envie uma imagem JPG, PNG ou WEBP.",
         ERR_FINANCE_PRODUCT_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",
         ERR_WEAPON_ARMORY_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",

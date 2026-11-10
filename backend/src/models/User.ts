@@ -281,6 +281,13 @@ class User extends Model<User> {
   @Column(DataType.BOOLEAN)
   weaponArmoryAccess: boolean;
 
+  // Acesso ao módulo Associados (cadastro de membros/filiados, genérico —
+  // clube de tiro, academia, associação...) — mesmo padrão acima, só tem
+  // efeito se Plan.useMembers estiver ligado.
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  membersAccess: boolean;
+
   @Default("pt-BR")
   @Column(DataType.STRING)
   language: string;

@@ -956,7 +956,8 @@ const messages = {
           prompts: "Assistente IA",
           allConnections: "Bağlantıları yönet",
           reports: "Raporlar",
-          management: "Yönetim"
+          management: "Yönetim",
+          members: "Üyeler"
         },
         appBar: {
           user: {

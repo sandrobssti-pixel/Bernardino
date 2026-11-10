@@ -962,6 +962,7 @@ const messages = {
           weaponDispatch: "Weapon Dispatch",
           services: "Admin Services",
           weaponArmory: "Gunsmith Service",
+          members: "Members",
           queueIntegration: "Integrations",
           version: "Version",
           kanban: "CRM / Kanban",

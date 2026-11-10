@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.266] — Módulo Associados — Fase 1: cadastro (add-on genérico) — 2026-11-10
+
+### Adicionado
+- **Novo módulo add-on "Associados"** (`Plan.useMembers`), genérico —
+  qualquer empresa com sócios/alunos/filiados pode usar, não é
+  específico de clube de tiro. Primeira fase de um projeto maior
+  (réplica por etapas de um sistema de filiação de clube de tiro,
+  confirmado com o cliente): cadastro completo (nome, CPF/RG, data de
+  nascimento, contato, categoria livre, endereço, foto, notas), código
+  sequencial por empresa, status Pendente/Ativo/Inativo com promoção
+  automática pra Ativo quando documento e foto estiverem preenchidos.
+  Reconhecimento facial, check-in com geolocalização e app mobile ficam
+  pra fases seguintes.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 239.
+
 ## [2.3.265] — Filtro de Período em Contas a Pagar/Receber volta a filtrar por Vencimento — 2026-11-09
 
 ### Corrigido

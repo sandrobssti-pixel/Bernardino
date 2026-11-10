@@ -35,6 +35,7 @@ import ExpandLessIcon from "@material-ui/icons/ExpandLess";
 import ExpandMoreIcon from "@material-ui/icons/ExpandMore";
 import PeopleIcon from "@material-ui/icons/People";
 import ListIcon from "@material-ui/icons/ListAlt";
+import BadgeIcon from "@material-ui/icons/PermIdentity";
 import AnnouncementIcon from "@material-ui/icons/Announcement";
 import AccountBalanceWalletIcon from "@material-ui/icons/AccountBalanceWallet";
 import CakeIcon from "@material-ui/icons/Cake";
@@ -108,6 +109,7 @@ const iconColors = {
   globalConfig: "#6941c6",
   server: "#0f766e",
   birthday: "#e11d48",
+  members: "#7839ee",
   default: "#155eef",
 };
 
@@ -1726,6 +1728,21 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   )}
                   icon={<BuildOutlinedIcon />}
                   iconKey="weaponArmory"
+                  tooltip={collapsed}
+                />
+              )}
+            />
+            <Can
+              role={user.profile}
+              perform="dashboard:view"
+              yes={() => (
+                <ListItemLink
+                  to="/members"
+                  primary={i18n.t(
+                    "mainDrawer.listItems.members"
+                  )}
+                  icon={<BadgeIcon />}
+                  iconKey="members"
                   tooltip={collapsed}
                 />
               )}

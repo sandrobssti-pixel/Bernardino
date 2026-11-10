@@ -155,6 +155,14 @@ class Plan extends Model<Plan> {
   @Column
   useWeaponArmory: boolean;
 
+  // Módulo Associados (cadastro de membros/filiados, reconhecimento facial
+  // e check-in com geolocalização — genérico, não específico de clube de
+  // tiro: qualquer empresa com sócios/alunos/associados pode usar) — add-on
+  // separado, mesmo padrão acima. Ver docs/MANUAL_TECNICO.md.
+  @Default(false)
+  @Column
+  useMembers: boolean;
+
   // Módulo de RH/recrutamento (vagas, candidaturas, efetivação — Fase 5) —
   // add-on separado, independente do Financeiro/Fiscal (não usa nenhum
   // cadastro deles). Ver docs/MANUAL_TECNICO.md, seção 6.2.

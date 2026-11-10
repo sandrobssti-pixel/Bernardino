@@ -69,6 +69,7 @@ import supervisorPanelRoutes from "./supervisorPanelRoutes";
 import weaponDispatchRoutes from "./weaponDispatchRoutes";
 import serviceRoutes from "./serviceRoutes";
 import weaponArmoryRoutes from "./weaponArmoryRoutes";
+import memberRoutes from "./memberRoutes";
 
 const routes = Router();
 
@@ -143,5 +144,6 @@ routes.use(supervisorPanelRoutes);
 routes.use(weaponDispatchRoutes);
 routes.use(serviceRoutes);
 routes.use(weaponArmoryRoutes);
+routes.use(memberRoutes);
 
 export default routes;
