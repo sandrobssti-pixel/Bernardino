@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.267] — Renomeado para "Gerenciador CAC" — 2026-11-10
+
+### Alterado
+- O módulo add-on criado na v2.3.266 (internamente `Plan.useMembers`)
+  passou a se chamar **"Gerenciador CAC"** em toda a interface (menu,
+  mensagens de acesso, tela de Planos do Master, 5 idiomas) — pedido
+  explícito do cliente: o nome precisa ser neutro porque o módulo vai
+  atender vários clubes de tiro diferentes, não só o Cactus. Nomes
+  internos de código (`Member`, rotas `/members`, `useMembers`) não
+  foram alterados — só rótulos visíveis ao usuário.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 240.
+
 ## [2.3.266] — Módulo Associados — Fase 1: cadastro (add-on genérico) — 2026-11-10
 
 ### Adicionado

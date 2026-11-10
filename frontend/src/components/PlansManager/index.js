@@ -578,7 +578,7 @@ const ALL_FEATURES = [
   { key: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
   { key: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
   { key: "useWeaponArmory", label: "Serviço Armaria (add-on)" },
-  { key: "useMembers", label: "Associados (add-on)" },
+  { key: "useMembers", label: "Gerenciador CAC (add-on)" },
 ];
 
 const FEATURE_FIELDS = [
@@ -602,7 +602,7 @@ const FEATURE_FIELDS = [
   { name: "useFlowbuilder", label: "Flowbuilder — criar/editar fluxo (add-on)" },
   { name: "useWeaponDispatch", label: "Despachante Bélico (add-on)" },
   { name: "useWeaponArmory", label: "Serviço Armaria (add-on)" },
-  { name: "useMembers", label: "Associados (add-on)" },
+  { name: "useMembers", label: "Gerenciador CAC (add-on)" },
 ];
 
 export function PlanManagerForm(props) {

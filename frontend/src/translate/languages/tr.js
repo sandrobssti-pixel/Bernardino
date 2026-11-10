@@ -957,7 +957,7 @@ const messages = {
           allConnections: "Bağlantıları yönet",
           reports: "Raporlar",
           management: "Yönetim",
-          members: "Üyeler"
+          members: "CAC Yöneticisi"
         },
         appBar: {
           user: {

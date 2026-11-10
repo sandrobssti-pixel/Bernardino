@@ -33,9 +33,11 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-// Associados — cadastro de membros/filiados, módulo add-on genérico
-// (Plan.useMembers, mesmo padrão de gate de acesso do WeaponDispatch/HR).
-// Ver docs/MANUAL_TECNICO.md.
+// Gerenciador CAC — cadastro de associados/atiradores, módulo add-on
+// genérico (Plan.useMembers, mesmo padrão de gate de acesso do
+// WeaponDispatch/HR) — nome neutro de propósito, pensado pra servir
+// qualquer clube de tiro cliente, não só o Cactus. Ver
+// docs/MANUAL_TECNICO.md.
 const Members = () => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
@@ -70,11 +72,11 @@ const Members = () => {
         <div className={classes.pageRoot}>
           <Box className={classes.lockedBox}>
             <Typography variant="h6" gutterBottom>
-              Módulo Associados não disponível
+              Módulo Gerenciador CAC não disponível
             </Typography>
             <Typography variant="body2">
               {access.planHasModule
-                ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo Associados."
+                ? "Peça para o administrador da sua empresa liberar seu acesso ao módulo Gerenciador CAC."
                 : "Esse módulo é um add-on separado do plano contratado. Fale com o suporte para contratá-lo."}
             </Typography>
           </Box>

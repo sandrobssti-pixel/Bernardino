@@ -18562,3 +18562,32 @@ teste removidos ao final.
 `frontend/src/pages/Members/{index.js,membersConfig.js}`,
 `frontend/src/routes/index.js`, `frontend/src/layout/MainListItems.js`,
 `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.
+
+## 240. "Associados" renomeado para "Gerenciador CAC" (v2.3.267)
+
+Pedido explícito do cliente, logo depois da Fase 1 (seção 239): o nome
+precisa ser neutro porque o módulo vai atender vários clubes de tiro
+clientes diferentes, não só o Cactus Clube de Tiro. Alterado apenas o
+que é visível ao usuário — menu (`mainDrawer.listItems.members`, nos 5
+idiomas), as duas mensagens da tela de gate de acesso
+(`pages/Members/index.js`), o código de erro
+`ERR_NO_MEMBERS_MODULE_ACCESS` (`pt.js`) e o rótulo do add-on na tela de
+Planos do Master (`PlansManager/index.js`, dois lugares). **Não**
+renomeados: model `Member`, rotas `/members/*`, hook `useMembers`,
+coluna `Plan.useMembers`/`User.membersAccess` — são nomes internos de
+código, sem custo de rename (ninguém além de desenvolvedor vê), e
+renomear tabela/rota já criada em produção seria risco desnecessário
+pra um pedido puramente de rótulo visível.
+
+Pendente, em aberto com o cliente no momento desta entrega: regra de
+negócio baseada nos Decreto 11.615/2023 e Decreto 12.345/2024
+(confirmados pelo cliente como os decretos vigentes de regulamentação
+CAC) — aguardando o cliente confirmar os números exatos (quantidade de
+armas por categoria, limite de munição por calibre/ano, etc.) antes de
+codificar qualquer validação, pra não travar/liberar cadastro real com
+base em número reconstruído de memória e potencialmente errado.
+
+**Arquivos**: `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`,
+`frontend/src/pages/Members/index.js`,
+`frontend/src/hooks/useMembers/index.js`,
+`frontend/src/components/PlansManager/index.js`.

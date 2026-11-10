@@ -1,9 +1,10 @@
 import api from "../../services/api";
 
-// Módulo Associados (cadastro de membros/filiados, reconhecimento facial e
-// check-in com geolocalização — genérico, não específico de clube de tiro)
-// — add-on independente (Plan.useMembers), mesmo padrão de
-// useFinance/useWeaponDispatch. Ver docs/MANUAL_TECNICO.md.
+// Gerenciador CAC (cadastro de associados/atiradores, reconhecimento
+// facial e check-in com geolocalização — nome neutro, pensado pra
+// qualquer clube de tiro cliente) — add-on independente
+// (Plan.useMembers), mesmo padrão de useFinance/useWeaponDispatch. Ver
+// docs/MANUAL_TECNICO.md.
 const useMembers = () => {
   const getAccess = async () => {
     const { data } = await api.get("/members/access");
