@@ -122,6 +122,53 @@ const useMembers = () => {
     return data;
   };
 
+  // Endereço ADICIONAL do associado — o principal continua em
+  // update(id, payload), junto com o resto do cadastro.
+  const listAddresses = async (memberId) => {
+    const { data } = await api.get(`/members/${memberId}/addresses`);
+    return data;
+  };
+
+  const createAddress = async (memberId, payload) => {
+    const { data } = await api.post(`/members/${memberId}/addresses`, payload);
+    return data;
+  };
+
+  const updateAddress = async (id, payload) => {
+    const { data } = await api.put(`/members/addresses/${id}`, payload);
+    return data;
+  };
+
+  const removeAddress = async (id) => {
+    const { data } = await api.delete(`/members/addresses/${id}`);
+    return data;
+  };
+
+  // Checklist de documentos do associado — "Substituir" é só um upload
+  // normal de novo (o upsert acontece no backend, ver
+  // MemberDocumentService.upload).
+  const listDocuments = async (memberId) => {
+    const { data } = await api.get(`/members/${memberId}/documents`);
+    return data;
+  };
+
+  const uploadDocument = async (memberId, { documentType, weaponId, label, file }) => {
+    const formData = new FormData();
+    formData.append("documentType", documentType);
+    if (weaponId) formData.append("weaponId", weaponId);
+    if (label) formData.append("label", label);
+    formData.append("file", file);
+    const { data } = await api.post(`/members/${memberId}/documents`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return data;
+  };
+
+  const removeDocument = async (id) => {
+    const { data } = await api.delete(`/members/documents/${id}`);
+    return data;
+  };
+
   return {
     getAccess,
     list,
@@ -142,6 +189,13 @@ const useMembers = () => {
     createWeapon,
     updateWeapon,
     removeWeapon,
+    listAddresses,
+    createAddress,
+    updateAddress,
+    removeAddress,
+    listDocuments,
+    uploadDocument,
+    removeDocument,
   };
 };
 

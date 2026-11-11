@@ -21,15 +21,21 @@ import DialogContent from "@material-ui/core/DialogContent";
 import DialogActions from "@material-ui/core/DialogActions";
 import VpnKeyIcon from "@material-ui/icons/VpnKey";
 
+import Tabs from "@material-ui/core/Tabs";
+import Tab from "@material-ui/core/Tab";
+
 import toastError from "../../errors/toastError";
 import useMembers from "../../hooks/useMembers";
 import MemberWeaponsSection from "./MemberWeaponsSection";
+import MemberAddressesSection from "./MemberAddressesSection";
+import MemberDocumentsSection from "./MemberDocumentsSection";
 import { computeFaceDescriptor } from "../../utils/faceRecognition";
 import {
   CAC_CATEGORY_OPTIONS,
   CAC_CATEGORY_INFO,
   STATUS_OPTIONS,
   CR_ISSUING_AUTHORITY_OPTIONS,
+  ADDRESS_TYPE_OPTIONS,
 } from "../../pages/Members/membersConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -70,6 +76,7 @@ const ContactCacTab = ({ contactId }) => {
   const [enrolling, setEnrolling] = useState(false);
   const [generatingPin, setGeneratingPin] = useState(false);
   const [generatedPin, setGeneratedPin] = useState(null);
+  const [subTab, setSubTab] = useState("dados");
   const photoRef = useRef(null);
 
   useEffect(() => {
@@ -251,6 +258,15 @@ const ContactCacTab = ({ contactId }) => {
         crNumber: member.crNumber || "",
         crIssuingAuthority: member.crIssuingAuthority || "none",
         crValidUntil: member.crValidUntil || "",
+        addressType: member.addressType || "residencial",
+        addressDescription: member.addressDescription || "",
+        zipCode: member.zipCode || "",
+        street: member.street || "",
+        number: member.number || "",
+        complement: member.complement || "",
+        neighborhood: member.neighborhood || "",
+        city: member.city || "",
+        state: member.state || "",
         notes: member.notes || "",
       }}
       enableReinitialize
@@ -306,7 +322,18 @@ const ContactCacTab = ({ contactId }) => {
                 {generatingPin ? "Gerando..." : "Gerar PIN do Portal do Associado"}
               </Button>
             </div>
-            <Grid container spacing={2}>
+            <Tabs
+              value={subTab}
+              onChange={(e, v) => setSubTab(v)}
+              indicatorColor="primary"
+              textColor="primary"
+              style={{ marginBottom: 16, borderBottom: "1px solid rgba(0,0,0,0.08)" }}
+            >
+              <Tab value="dados" label="Dados" />
+              <Tab value="endereco" label="Endereço" />
+              <Tab value="documentos" label="Documentos" />
+            </Tabs>
+            <Grid container spacing={2} style={{ display: subTab === "dados" ? "flex" : "none" }}>
               <Grid item xs={12} sm={4}>
                 <Field as={TextField} fullWidth variant="outlined" size="small" name="document" label="CPF" />
               </Grid>
@@ -402,7 +429,56 @@ const ContactCacTab = ({ contactId }) => {
                 />
               </Grid>
             </Grid>
-            <MemberWeaponsSection memberId={member.id} />
+            {subTab === "dados" && <MemberWeaponsSection memberId={member.id} />}
+
+            <Grid container spacing={2} style={{ display: subTab === "endereco" ? "flex" : "none" }}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" style={{ fontWeight: 700 }}>
+                  Endereço principal
+                </Typography>
+                <Typography variant="caption" color="textSecondary">
+                  Obrigatório, exceto o número do CR (associado pode ainda estar em trâmite).
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field as={TextField} select fullWidth variant="outlined" size="small" name="addressType" label="Tipo">
+                  {ADDRESS_TYPE_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Field>
+              </Grid>
+              <Grid item xs={12} sm={8}>
+                <Field as={TextField} fullWidth variant="outlined" size="small" name="addressDescription" label="Descrição (opcional)" />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <Field as={TextField} fullWidth required variant="outlined" size="small" name="zipCode" label="CEP" />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <Field as={TextField} fullWidth required variant="outlined" size="small" name="street" label="Rua" />
+              </Grid>
+              <Grid item xs={12} sm={3}>
+                <Field as={TextField} fullWidth required variant="outlined" size="small" name="number" label="Número" />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field as={TextField} fullWidth variant="outlined" size="small" name="complement" label="Complemento (opcional)" />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field as={TextField} fullWidth required variant="outlined" size="small" name="neighborhood" label="Bairro" />
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Field as={TextField} fullWidth required variant="outlined" size="small" name="city" label="Cidade" />
+              </Grid>
+              <Grid item xs={12} sm={2}>
+                <Field as={TextField} fullWidth variant="outlined" size="small" name="state" label="UF" />
+              </Grid>
+              <Grid item xs={12}>
+                <MemberAddressesSection memberId={member.id} />
+              </Grid>
+            </Grid>
+
+            {subTab === "documentos" && <MemberDocumentsSection member={member} />}
           </div>
           <div className={classes.footer}>
             <Button type="submit" variant="contained" color="primary" disabled={saving}>

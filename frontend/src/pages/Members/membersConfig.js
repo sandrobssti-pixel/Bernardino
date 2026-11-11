@@ -65,6 +65,31 @@ export const CR_ISSUING_AUTHORITY_OPTIONS = [
   { value: "outro", label: "Outro" },
 ];
 
+// Tipo do endereço principal — referência real do
+// clube-atirador.techsofttecnologia.com.br (tela "Endereço"): "CACs
+// podem ter mais de um endereço (rural, comercial, local de guarda de
+// armas)". "residencial" default, nunca "" vazio (mesmo motivo acima).
+export const ADDRESS_TYPE_OPTIONS = [
+  { value: "residencial", label: "Residencial" },
+  { value: "comercial", label: "Comercial" },
+  { value: "rural", label: "Rural" },
+  { value: "guarda_armas", label: "Local de guarda de armas" },
+  { value: "outro", label: "Outro" },
+];
+
+// "Tipo de Uso" da arma pessoal do associado — confirmado via print real
+// do clube-atirador.techsofttecnologia.com.br (seção "CRAFs e Guia de
+// Trânsito" da tela Documentos): só arma "própria" (e ativa) gera campo
+// de anexo de CRAF — as demais (importada do histórico, de terceiro/
+// stand) não. Ver MemberWeaponsSection.js.
+export const WEAPON_USAGE_TYPE_OPTIONS = [
+  { value: "", label: "Não informado" },
+  { value: "propria", label: "Própria" },
+  { value: "importada_historico", label: "Importada (histórico)" },
+  { value: "terceiro", label: "De terceiro" },
+  { value: "stand", label: "Do clube/stand" },
+];
+
 export const StatusChip = ({ status }) => (
   <Chip
     size="small"
@@ -146,13 +171,33 @@ export const memberFields = [
     defaultValue: "none",
     gridSize: 4,
   },
-  { name: "crValidUntil", label: "Validade do CR", type: "date", gridSize: 4 },
-  { name: "zipCode", label: "CEP", gridSize: 3 },
-  { name: "street", label: "Rua", gridSize: 6 },
-  { name: "number", label: "Número", gridSize: 3 },
-  { name: "complement", label: "Complemento", gridSize: 4 },
-  { name: "neighborhood", label: "Bairro", gridSize: 4 },
-  { name: "city", label: "Cidade", gridSize: 4 },
+  {
+    name: "crValidUntil",
+    label: "Validade do CR",
+    type: "date",
+    gridSize: 4,
+  },
+  {
+    type: "sectionTitle",
+    key: "addressSection",
+    label: "Endereço principal",
+    helperText: "Obrigatório, exceto o número do CR acima (associado pode ainda estar em trâmite).",
+  },
+  {
+    name: "addressType",
+    label: "Tipo",
+    type: "select",
+    options: ADDRESS_TYPE_OPTIONS,
+    defaultValue: "residencial",
+    gridSize: 4,
+  },
+  { name: "addressDescription", label: "Descrição (opcional)", gridSize: 8 },
+  { name: "zipCode", label: "CEP", gridSize: 3, requiredWhen: () => true },
+  { name: "street", label: "Rua", gridSize: 6, requiredWhen: () => true },
+  { name: "number", label: "Número", gridSize: 3, requiredWhen: () => true },
+  { name: "complement", label: "Complemento (opcional)", gridSize: 4 },
+  { name: "neighborhood", label: "Bairro", gridSize: 4, requiredWhen: () => true },
+  { name: "city", label: "Cidade", gridSize: 4, requiredWhen: () => true },
   { name: "state", label: "UF", gridSize: 4 },
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];

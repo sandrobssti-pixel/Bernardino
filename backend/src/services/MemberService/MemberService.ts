@@ -30,6 +30,8 @@ interface MemberData {
   crNumber?: string;
   crIssuingAuthority?: string;
   crValidUntil?: string | null;
+  addressType?: string;
+  addressDescription?: string;
   zipCode?: string;
   street?: string;
   number?: string;

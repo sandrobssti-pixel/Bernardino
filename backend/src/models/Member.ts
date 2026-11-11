@@ -105,6 +105,17 @@ class Member extends Model<Member> {
   @Column(DataType.DATEONLY)
   crValidUntil: Date;
 
+  // Tipo/descrição do endereço PRINCIPAL (os campos de endereço em si —
+  // abaixo — já existiam desde a Fase 1). "residencial" default, nunca
+  // "" vazio (mesmo motivo de cacCategory/crIssuingAuthority acima).
+  @Default("residencial")
+  @Column
+  addressType: string;
+
+  @Default("")
+  @Column
+  addressDescription: string;
+
   @Default("")
   @Column
   zipCode: string;

@@ -25,8 +25,11 @@ import EditIcon from "@material-ui/icons/Edit";
 import DeleteIcon from "@material-ui/icons/Delete";
 import GpsFixedIcon from "@material-ui/icons/GpsFixed";
 
+import MenuItem from "@material-ui/core/MenuItem";
+
 import useMembers from "../../hooks/useMembers";
 import toastError from "../../errors/toastError";
+import { WEAPON_USAGE_TYPE_OPTIONS } from "../../pages/Members/membersConfig";
 
 const emptyWeapon = {
   usageType: "",
@@ -191,7 +194,13 @@ const MemberWeaponsSection = ({ memberId }) => {
               <DialogContent dividers>
                 <Grid container spacing={2}>
                   <Grid item xs={12} sm={6}>
-                    <Field as={TextField} fullWidth variant="outlined" size="small" name="usageType" label="Tipo de uso" />
+                    <Field as={TextField} select fullWidth variant="outlined" size="small" name="usageType" label="Tipo de uso">
+                      {WEAPON_USAGE_TYPE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </MenuItem>
+                      ))}
+                    </Field>
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <Field as={TextField} fullWidth variant="outlined" size="small" name="storageLocation" label="Local de guarda" />

@@ -3,6 +3,27 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.273] — Gerenciador CAC: Endereço (múltiplos) + checklist de Documentos — 2026-11-11
+
+### Adicionado
+- **Endereço principal obrigatório** (tipo, descrição, CEP, rua,
+  número, bairro, cidade — exceto o número do CR, que pode ainda estar
+  em trâmite) + **endereços adicionais** (rural, comercial, local de
+  guarda de armas) na aba Gerenciador CAC do Contato.
+- **Checklist de Documentos** — CPF, RG, CNH, Comprovante de Endereço,
+  Certidão de Antecedentes Criminais, Certificado de Registro (CR) e
+  protocolo, CRAF por arma própria/ativa, Guia de Trânsito, Relatório
+  de Indisciplina, documentos de concessão/revalidação de CR (11
+  tipos) e documentos avulsos — anexar, visualizar, substituir e
+  excluir em todos.
+
+### Corrigido
+- "Tipo de Uso" da arma pessoal virou uma lista fixa de opções
+  (Própria/Importada/De terceiro/Do clube) em vez de texto livre —
+  necessário pro CRAF aparecer corretamente no checklist de Documentos.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 246.
+
 ## [2.3.272] — CR do associado + arma pessoal + correção de vazamento de dado sensível — 2026-11-11
 
 ### Adicionado

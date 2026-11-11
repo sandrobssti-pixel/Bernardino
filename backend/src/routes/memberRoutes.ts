@@ -2,14 +2,18 @@ import { Router } from "express";
 import multer from "multer";
 import isAuth from "../middleware/isAuth";
 import memberPhotoUpload from "../config/memberPhotoUpload";
+import memberDocumentUpload from "../config/memberDocumentUpload";
 
 import * as MemberAccessController from "../controllers/MemberAccessController";
 import * as MemberController from "../controllers/MemberController";
 import * as MemberFaceController from "../controllers/MemberFaceController";
 import * as MemberWeaponController from "../controllers/MemberWeaponController";
+import * as MemberAddressController from "../controllers/MemberAddressController";
+import * as MemberDocumentController from "../controllers/MemberDocumentController";
 
 const memberRoutes = Router();
 const photoUpload = multer(memberPhotoUpload);
+const documentUpload = multer(memberDocumentUpload);
 
 // Associados — cadastro de membros/filiados, módulo add-on genérico
 // (Plan.useMembers). Ver docs/MANUAL_TECNICO.md.
@@ -99,6 +103,50 @@ memberRoutes.delete(
   "/members/weapons/:id",
   isAuth,
   MemberWeaponController.remove
+);
+
+// Endereço ADICIONAL do associado (endereço principal continua nos
+// campos de PUT /members/:id) — mesmo cuidado de ordem de rota do
+// bloco de armas acima.
+memberRoutes.get(
+  "/members/:memberId/addresses",
+  isAuth,
+  MemberAddressController.index
+);
+memberRoutes.post(
+  "/members/:memberId/addresses",
+  isAuth,
+  MemberAddressController.store
+);
+memberRoutes.put(
+  "/members/addresses/:id",
+  isAuth,
+  MemberAddressController.update
+);
+memberRoutes.delete(
+  "/members/addresses/:id",
+  isAuth,
+  MemberAddressController.remove
+);
+
+// Checklist de documentos do associado (CPF, RG, CNH, CR, CRAF por
+// arma, certidões, documentos avulsos) — mesmo cuidado de ordem de
+// rota dos blocos acima.
+memberRoutes.get(
+  "/members/:memberId/documents",
+  isAuth,
+  MemberDocumentController.index
+);
+memberRoutes.post(
+  "/members/:memberId/documents",
+  isAuth,
+  documentUpload.single("file"),
+  MemberDocumentController.store
+);
+memberRoutes.delete(
+  "/members/documents/:id",
+  isAuth,
+  MemberDocumentController.remove
 );
 
 export default memberRoutes;

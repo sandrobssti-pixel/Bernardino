@@ -19231,3 +19231,158 @@ documentos de concessão/revalidação de CR) (tela "Documentos").
 `frontend/src/components/ContactModal/{ContactCacTab,MemberWeaponsSection}.js`,
 `frontend/src/hooks/useMembers/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 246. Gerenciador CAC — Endereço (múltiplos) + checklist de Documentos (v2.3.273)
+
+Continuação direta da seção 245 — cliente foi enviando, mensagem por
+mensagem, prints do `clube-atirador.techsofttecnologia.com.br` com as
+abas "Endereço" e "Documentos" abertas (inclusive as 3 seções que
+estavam fechadas no print anterior: "Certificado de Registro – CR",
+"CRAFs e Guia de Trânsito" e "Histórico Disciplinar"), confirmando
+escopo via pergunta objetiva a cada decisão de arquitetura relevante
+(reaproveitar Financeiro existente vs. separado — ainda pendente de
+resposta explícita do cliente, NÃO construído nesta entrega).
+
+### Aba "Endereço" dentro do Gerenciador CAC
+
+`ContactCacTab.js` ganhou uma mini-barra de abas própria (`Tabs`/`Tab`
+do MUI, estado `subTab` local) — "Dados" | "Endereço" | "Documentos" —
+nunca desmonta o Formik principal ao trocar de sub-aba (só
+`display:none`, mesmo cuidado já usado no `ContactModal` em si pras
+abas de primeiro nível, seção 242).
+
+- **Endereço principal**: dois campos novos em `Member`
+  (`addressType` — "residencial" default, nunca `""` vazio, mesmo
+  motivo de `cacCategory`/`crIssuingAuthority` — e
+  `addressDescription`), mais os campos de endereço que já existiam
+  desde a Fase 1 (`zipCode`/`street`/`number`/`complement`/
+  `neighborhood`/`city`/`state`). Pedido explícito do cliente: "endereço
+  completo, obrigatório, só não é obrigatório o número do CR (associado
+  pode ainda estar em trâmite)" — **obrigatoriedade aplicada só no
+  FRONTEND** (`required` nos campos de CEP/Rua/Número/Bairro/Cidade,
+  tanto na tela cheia via `requiredWhen: () => true` quanto na aba do
+  Contato), NUNCA no schema Yup do backend — `Member` continua sendo um
+  módulo add-on GENÉRICO (`Plan.useMembers`, não específico de clube de
+  tiro, confirmado desde a Fase 1), travar endereço como obrigatório no
+  backend quebraria essa promessa pra uma eventual empresa não-CAC
+  usando o mesmo módulo pra outra coisa.
+- **Endereços adicionais** (`MemberAddress`, modelo novo) — "CACs podem
+  ter mais de um endereço (rural, comercial, local de guarda de
+  armas)", complementares ao principal. CRUD completo
+  (`GET/POST /members/:memberId/addresses`,
+  `PUT/DELETE /members/addresses/:id`), seção independente
+  (`MemberAddressesSection.js`, mesmo padrão de Formik isolado em
+  diálogo já usado em `MemberWeaponsSection.js`) — esses SIM exigem CEP/
+  Rua/Número/Bairro/Cidade no backend (`MemberAddressService`,
+  `ERR_MEMBER_ADDRESS_INVALID`), porque um endereço adicional incompleto
+  não faz sentido nenhum (diferente do principal, que é só obrigatório
+  por convenção de UI, pensando numa eventual reutilização genérica).
+
+### Correção: "Tipo de Uso" da arma pessoal
+
+Print da seção "CRAFs e Guia de Trânsito" (ver abaixo) revelou o valor
+REAL do campo "Tipo de Uso" da arma (`MemberWeapon.usageType`), que na
+seção 245 eu tinha deixado como texto livre por falta de referência:
+"**Própria**" é um valor de verdade usado pelo sistema de referência
+pra decidir se o CRAF aparece (mensagem: "só armas com tipo de uso
+'Própria' e ativas geram o campo de anexo"). Corrigido — campo virou
+`<select>` com opções fixas (`WEAPON_USAGE_TYPE_OPTIONS`:
+"Própria"/"Importada (histórico)"/"De terceiro"/"Do clube/stand"),
+inferidas do próprio texto de ajuda da referência ("ex.: importada do
+sistema antigo, de terceiro/stand ou desativada"). Nenhuma migration
+nova precisou — a coluna já era texto livre, só a apresentação mudou.
+
+### Checklist de Documentos (`MemberDocument`, modelo novo)
+
+Pedido explícito do cliente: "obrigatório adicionar todos esses
+documentos anexados e certidões" — mecanismo ÚNICO e genérico
+reaproveitado pra TODOS os ~20 tipos de documento do catálogo
+("isso para todos os campos", confirmado pelo cliente): slot vazio
+mostra "Anexar"; depois de anexado, mostra "Visualizar/Substituir/
+Excluir". "Substituir" é só uma chamada de upload normal de novo — o
+UPSERT acontece no backend (`MemberDocumentService.upload`), não no
+frontend: pra tipo de documento "de slot único" (todos exceto "Outros
+Documentos"/"Documentos Avulsos"), já existindo uma linha pro mesmo
+`(memberId, documentType[, weaponId])`, ela é ATUALIZADA (mesmo id,
+arquivo novo) em vez de criar uma linha nova — evita acumular lixo de
+versões antigas do mesmo documento.
+
+`documentType` é a CHAVE do catálogo (`memberDocumentsConfig.js`,
+TEXTO livre, não enum de banco) — adicionar um tipo de documento novo
+no futuro não precisa de migration, só editar esse arquivo de config.
+Catálogo, organizado em grupos (flat ou `Accordion` recolhível, igual à
+referência):
+
+- **Documentos pessoais** (flat, sem accordion): CPF, RG (frente e
+  verso), CNH, Comprovante de Endereço, Certidão de Antecedentes
+  Criminais.
+- **"Certificado de Registro – CR"**: Certificado de Registro – CR,
+  Protocolo de Concessão/Renovação – CR. Mostra também uma linha
+  informativa só-leitura ("CR: {número} · Validade: {data}. Número e
+  validade do CR são editados na aba Dados.") — não duplica
+  `crNumber`/`crValidUntil` (que já vivem em `Member`, aba Dados, desde
+  a seção 245).
+- **"CRAFs e Guia de Trânsito"**: um slot de CRAF DINÂMICO por arma
+  qualificada (`usageType === "propria" && active === true`), rotulado
+  com marca/modelo da arma (`documentType:"craf"`, `weaponId` da arma
+  específica) — se nenhuma arma qualificar, mostra o mesmo texto
+  explicativo da referência em vez do slot; mais um slot fixo "Guia de
+  Trânsito" (não vinculado a arma nenhuma — só uma caixa aparecia na
+  referência mesmo com arma cadastrada, então tratado como documento do
+  associado, não da arma).
+- **"Histórico Disciplinar"**: Relatório de Indisciplina.
+- **"Documentos para Concessão ou Revalidação de CR"**: Certidão da
+  Justiça Estadual/Federal/Militar/Eleitoral, Certidão da Polícia Civil,
+  Certidão do Cartório Distribuidor, Teste Psicológico, Teste de Tiro,
+  Título de Eleitor, Primeiro/Segundo Endereço Acervo, e "Outros
+  Documentos" (tipo MULTI — múltiplos uploads, cada um com nome
+  próprio, confirmado pelo cliente: "+ Adicionar" em vez de "Anexar").
+- **"Documentos Avulsos"** (MULTI, mesmo padrão de "Outros Documentos").
+
+Upload aceita imagem (JPG/PNG/WEBP) OU PDF (`memberDocumentUpload.ts`,
+diferente de `memberPhotoUpload.ts` que só aceita imagem — certidão/
+protocolo normalmente é PDF), até 10MB.
+
+### Verificação
+
+- `tsc --noEmit` (backend) limpo. `eslint` (frontend, arquivos tocados)
+  limpo.
+- Migrações novas (`add-address-type-to-members`,
+  `create-member-addresses`, `create-member-documents`) rodadas contra
+  o banco de teste local, idempotentes.
+- Testado via `curl`, ponta a ponta: endereço principal atualizado
+  (sem vazar `portalPinHash` — confirma que o fix da seção 245
+  continua valendo); endereço adicional criado/listado/excluído, campo
+  obrigatório ausente rejeitado (`ERR_MEMBER_ADDRESS_INVALID`); arma
+  "própria"/ativa criada; documento de slot único enviado e
+  SUBSTITUÍDO (mesmo id, arquivo trocado, confirmado via segunda
+  chamada); CRAF vinculado à arma certa (`weaponId`); documento tipo
+  MULTI criando duas linhas distintas com rótulos próprios; tipo de
+  documento ausente rejeitado (`ERR_MEMBER_DOCUMENT_TYPE_REQUIRED`);
+  arquivo ausente rejeitado (`ERR_MEMBER_NO_DOCUMENT_SENT`); tipo de
+  arquivo inválido (`.exe`) rejeitado
+  (`ERR_MEMBER_INVALID_DOCUMENT_TYPE`); `weaponId` de arma inexistente
+  rejeitado (`ERR_MEMBER_WEAPON_NOT_FOUND`); exclusão de documento
+  confirmada.
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso.
+
+**Pendência explícita, fora do escopo desta entrega**: aba "Financeiro"
+(anuidade/mensalidade + cálculo de "Declaração de Filiação válida
+até") — aguardando o cliente confirmar se reaproveita o módulo
+Financeiro que já existe no AtendeFlow (recomendado, evita duplicar
+lógica de cobrança/pagamento) ou se é um controle totalmente separado.
+
+**Arquivos**: `backend/src/models/{Member,MemberAddress,MemberDocument}.ts`,
+`backend/src/database/migrations/20261111000000-*.ts`,
+`backend/src/database/migrations/20261111000100-*.ts`,
+`backend/src/database/migrations/20261111010000-*.ts`,
+`backend/src/database/index.ts`,
+`backend/src/config/memberDocumentUpload.ts`,
+`backend/src/services/MemberService/{MemberAddressService,MemberDocumentService}.ts`,
+`backend/src/controllers/{MemberAddressController,MemberDocumentController}.ts`,
+`backend/src/routes/memberRoutes.ts`,
+`frontend/src/pages/Members/{membersConfig,memberDocumentsConfig}.js`,
+`frontend/src/components/ContactModal/{ContactCacTab,MemberWeaponsSection,MemberAddressesSection,MemberDocumentsSection}.js`,
+`frontend/src/hooks/useMembers/index.js`,
+`frontend/src/translate/languages/pt.js`.
