@@ -23,7 +23,8 @@ FALHAS=0
 
 # conferir "rotulo" "pasta" "padrao" "tamanho_minimo_em_KB"
 conferir() {
-  local rotulo="$1" pasta="$2" padrao="$3" min_kb="$4" achados
+  local rotulo="$1" pasta="$2" padrao="$3" min_kb="$4" achados minimo
+  if [ "$min_kb" -ge 1024 ]; then minimo="$((min_kb / 1024)) MB"; else minimo="${min_kb} KB"; fi
   if [ ! -d "$pasta" ]; then
     echo "FALHA  $rotulo: pasta $pasta nao existe"
     FALHAS=$((FALHAS + 1)); return
@@ -32,7 +33,7 @@ conferir() {
   if [ "$achados" -ge 1 ]; then
     echo "OK     $rotulo"
   else
-    echo "FALHA  $rotulo: nenhum arquivo '$padrao' com menos de ${MAX_HORAS}h e mais de $((min_kb / 1024)) MB em $pasta"
+    echo "FALHA  $rotulo: nenhum arquivo '$padrao' com menos de ${MAX_HORAS}h e mais de ${minimo} em $pasta"
     FALHAS=$((FALHAS + 1))
   fi
 }
