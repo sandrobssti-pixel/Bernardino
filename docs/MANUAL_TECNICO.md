@@ -19713,3 +19713,46 @@ de geração + assinatura PAdES/ICP-Brasil da Declaração de Filiação
 `frontend/src/pages/Members/{index,CompanyCertificateSettings}.js`,
 `frontend/src/layout/MainListItems.js`,
 `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.
+
+## 250. Bug real: `docker-compose.coolify.yml` não repassava as chaves de criptografia pros containers
+
+Cliente tentou cadastrar o certificado digital (seção 249) em produção e
+recebeu erro 500. A `COMPANY_CERTIFICATE_ENCRYPTION_KEY` JÁ estava
+corretamente definida no `.env` do servidor e confirmada via
+`docker compose exec backend printenv` — mas o log do backend mostrava
+exatamente o erro de "variável não configurada" do
+`companyCertificateCrypto.ts`.
+
+**Causa raiz**: `docker-compose.coolify.yml` não usa `env_file` — ele
+declara MANUALMENTE, uma por uma, cada variável de ambiente que o
+container do backend recebe, via `environment:` com interpolação
+`${VAR}`. Uma variável só chega ao container se estiver listada
+explicitamente ali, mesmo que esteja perfeitamente definida no `.env`
+do shell ou no painel do Coolify. Como `COMPANY_CERTIFICATE_ENCRYPTION_KEY`
+nunca foi adicionada a essa lista (só documentada como "obrigatória" em
+texto), o compose simplesmente não a repassava — o container nunca via
+essa variável, independente de onde ela estivesse configurada.
+
+**Mesmo bug encontrado, de brinde, na `WEAPON_DISPATCH_ENCRYPTION_KEY`**
+(senha do gov.br do Despachante Bélico, seção anterior que a
+introduziu) — também nunca tinha sido adicionada a essa lista. Como
+ninguém ainda tinha testado aquele recurso específico em produção, o
+bug estava lá, silencioso, desde que foi implementado.
+
+**Corrigido** adicionando as duas no `environment:` do serviço
+`backend`:
+```yaml
+WEAPON_DISPATCH_ENCRYPTION_KEY: ${WEAPON_DISPATCH_ENCRYPTION_KEY:-}
+COMPANY_CERTIFICATE_ENCRYPTION_KEY: ${COMPANY_CERTIFICATE_ENCRYPTION_KEY:-}
+```
+
+**Lição pra qualquer variável de ambiente NOVA deste projeto, daqui pra
+frente**: documentar como "obrigatória" no `MANUAL_TECNICO.md`/
+`CHANGELOG.md` NÃO é suficiente — é preciso também adicionar a linha
+correspondente em `docker-compose.coolify.yml` (serviço `backend`,
+dentro de `environment:`), senão a variável nunca chega ao container em
+produção, mesmo estando certinha no `.env`/painel do Coolify. Verificar
+isso é um passo obrigatório antes de considerar qualquer feature nova
+com segredo/chave de ambiente pronta pra deploy.
+
+**Arquivos**: `docker-compose.coolify.yml`.

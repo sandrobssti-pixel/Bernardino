@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.276.1] — Correção: variáveis de criptografia não chegavam aos containers em produção — 2026-11-11
+
+### Corrigido
+- **Bug real**: `docker-compose.coolify.yml` não repassava
+  `COMPANY_CERTIFICATE_ENCRYPTION_KEY` (nem `WEAPON_DISPATCH_ENCRYPTION_KEY`,
+  encontrado de brinde) pro container do backend — mesmo com a variável
+  certinha no `.env`/painel do Coolify, o erro 500 "variável não
+  configurada" acontecia porque o compose só declarava manualmente as
+  variáveis já conhecidas antes dessas duas. Ambas adicionadas no
+  `environment:` do serviço `backend`.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 250.
+
 ## [2.3.276] — Certificado digital da entidade (cadastro) + correção de menu duplicado — 2026-11-11
 
 ### Adicionado

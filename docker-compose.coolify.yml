@@ -105,6 +105,16 @@ services:
       VERIFY_TOKEN: ${VERIFY_TOKEN:-}
       FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
       FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
+
+      # Chaves de criptografia (AES-256-GCM) de segredos sensíveis do
+      # Gerenciador CAC — uma por tipo de segredo, nunca reaproveitada
+      # entre as duas. Sem a variável correspondente configurada (aba de
+      # variáveis de ambiente do recurso Docker Compose no Coolify, ou no
+      # .env lido por --env-file), a funcionalidade falha alto na hora de
+      # salvar/ler o segredo (erro explícito, não silencioso). Ver
+      # docs/MANUAL_TECNICO.md.
+      WEAPON_DISPATCH_ENCRYPTION_KEY: ${WEAPON_DISPATCH_ENCRYPTION_KEY:-}
+      COMPANY_CERTIFICATE_ENCRYPTION_KEY: ${COMPANY_CERTIFICATE_ENCRYPTION_KEY:-}
     volumes:
       - atendeflow_public:/app/public
     depends_on:
