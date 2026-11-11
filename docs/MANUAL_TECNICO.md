@@ -19603,3 +19603,113 @@ sem essa resposta.
 `frontend/src/pages/Members/{index,MemberEditDialog}.js`,
 `frontend/src/components/FinanceRecordList/index.js`,
 `frontend/src/layout/MainListItems.js`.
+
+## 249. Certificado digital da entidade (upload) + correção de nome duplicado no menu (v2.3.276)
+
+### Correção: "Gerenciador CAC" duplicado no menu
+
+Cliente mandou print de produção (v2.3.275 já em uso) mostrando "Gerenciador
+CAC" duas vezes — o grupo recolhível (seção 248) E o primeiro sub-item
+dentro dele, ambos usando a MESMA chave de tradução
+(`mainDrawer.listItems.members`). Causa raiz boba: na seção 248, ao
+transformar os dois itens separados num grupo, usei a mesma chave pros
+dois níveis em vez de dar um nome PRÓPRIO ao grupo. Corrigido com uma
+chave nova, `mainDrawer.listItems.cacSystem` ("SisCAC — Sistema
+Integrado de Gestão CAC", confirmado pelo cliente), nos 5 idiomas —
+o grupo agora é "SisCAC", com "Gerenciador CAC" e "Controle de Acesso"
+como sub-itens, sem repetir nome nenhum.
+
+### Certificado digital da entidade (upload)
+
+Pedido do cliente: "coloca um campo inserir certificado digital" —
+confirmado antes (seção 248) que é um certificado A1 (arquivo .pfx/.p12
+com senha, automatizável), usado futuramente pra assinar a Declaração
+de Filiação (Anexo B, Decreto 11.615/2023) e outros documentos
+oficiais. Esta entrega é só o CADASTRO do certificado (upload,
+validação, guarda criptografada) — a geração do PDF da Declaração em si
+e a assinatura PAdES/ICP-Brasil de fato ficam pra uma próxima entrega
+(dependências já instaladas — `node-signpdf` ainda NÃO, só
+`node-forge`, usado aqui só pra VALIDAR o certificado no upload).
+
+- **`CompanyDigitalCertificate`** (modelo novo) — UM certificado por
+  empresa (`companyId` único), nunca por associado — é a entidade (o
+  clube) que assina, não cada atirador. Guarda o `.pfx` inteiro (base64)
+  e a senha, os dois SEMPRE criptografados (AES-256-GCM, chave própria
+  em `COMPANY_CERTIFICATE_ENCRYPTION_KEY`, nunca reaproveitando a chave
+  que já protege a senha gov.br do Despachante Bélico — mesmo
+  raciocínio de "uma chave por segredo" já seguido lá). Nunca aparece
+  em NENHUMA resposta de API — só metadados informativos
+  (`fileName`/`subjectName`/`validUntil`/`uploadedAt`, extraídos do
+  próprio certificado no upload, via `node-forge`, sem precisar
+  decifrar nada depois pra mostrar na tela).
+- **Validação no upload, não só depois**: `node-forge` abre o `.pfx`
+  com a senha informada ANTES de salvar qualquer coisa — senha errada
+  ou arquivo corrompido são rejeitados na hora
+  (`ERR_COMPANY_CERTIFICATE_WRONG_PASSWORD`/
+  `ERR_COMPANY_CERTIFICATE_INVALID_FILE`), em vez de só descobrir isso
+  na hora de assinar um documento de verdade.
+- **`CompanyCertificateAccessLog`** (modelo novo) — auditoria de todo
+  USO do certificado (não só do upload) — mesmo padrão já estabelecido
+  de `WeaponDispatchGovPasswordAccessLog`: só QUEM/QUANDO/POR QUÊ,
+  nunca o segredo em si. `CompanyCertificateService.getForSigning`
+  (a única função que decifra de verdade) grava uma linha aqui antes de
+  devolver — é a função que o pipeline de assinatura (próxima entrega)
+  vai chamar.
+- **Upload em memória, nunca em disco**: `companyCertificateUpload.ts`
+  usa `multer.memoryStorage()` — diferente de TODO outro upload deste
+  projeto (foto, documento, etc., que usam `diskStorage`) — o `.pfx` em
+  texto puro nunca toca o disco, nem de passagem; só existe em memória
+  até `CompanyCertificateService.upload` criptografar e gravar no banco.
+- **Admin-only, além do gate normal do módulo** — `profile === "admin"`
+  (ou Master) exigido explicitamente em
+  `CompanyCertificateController.ensureAccess`, mais rígido que o resto
+  do Gerenciador CAC (que só exige o módulo liberado): é uma chave
+  privada da entidade inteira, não um dado de associado.
+- **Frontend** (`CompanyCertificateSettings.js`, novo, no topo da tela
+  "Gerenciador CAC") — mostra status (ícone verde se válido, vermelho
+  se vencido, cinza se nunca cadastrado) + botão "Inserir certificado
+  digital"/"Substituir" (diálogo com seletor de arquivo `.pfx`/`.p12` +
+  campo de senha) + "Remover". Nunca mostra o arquivo/senha de volta
+  depois de salvos — só os metadados.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend, arquivos tocados)
+  limpos.
+- Migrações novas (`create-company-digital-certificates`,
+  `create-company-certificate-access-logs`) rodadas contra o banco de
+  teste local, idempotentes.
+- Testado via `curl`, de ponta a ponta, com um certificado A1 de teste
+  (autoassinado via `openssl`, nunca um certificado real): senha errada
+  rejeitada; senha certa aceita, com `subjectName`/`validUntil`
+  corretamente extraídos do certificado; confirmado via SQL direto que
+  o arquivo/senha gravados no banco são só ciphertext (nunca texto
+  puro); round-trip de descriptografia
+  (`CompanyCertificateService.getForSigning`) confirmado byte-a-byte
+  idêntico ao arquivo original + senha batendo, com a linha de
+  auditoria sendo gravada corretamente; tipo de arquivo inválido
+  (`.exe`) rejeitado; senha ausente rejeitada; remoção e nova tentativa
+  de remoção (já removido) tratadas corretamente.
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso — na primeira tentativa falhou por falta
+  de memória (processo de desenvolvimento do frontend tinha ficado
+  rodando em paralelo de um teste anterior, consumindo ~4GB); matado
+  o processo órfão, build refeito com sucesso.
+
+**Pendência explícita, para a próxima entrega**: pipeline de verdade
+de geração + assinatura PAdES/ICP-Brasil da Declaração de Filiação
+(Anexo B) usando este certificado — ainda não construído.
+
+**Arquivos**: `backend/src/models/{CompanyDigitalCertificate,CompanyCertificateAccessLog}.ts`,
+`backend/src/database/migrations/20261112000000-*.ts`,
+`backend/src/database/migrations/20261112000100-*.ts`,
+`backend/src/database/index.ts`,
+`backend/src/utils/companyCertificateCrypto.ts`,
+`backend/src/config/companyCertificateUpload.ts`,
+`backend/src/services/CompanyService/CompanyCertificateService.ts`,
+`backend/src/controllers/CompanyCertificateController.ts`,
+`backend/src/routes/{companyCertificateRoutes,index}.ts`,
+`frontend/src/hooks/useCompanyCertificate/index.js`,
+`frontend/src/pages/Members/{index,CompanyCertificateSettings}.js`,
+`frontend/src/layout/MainListItems.js`,
+`frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.

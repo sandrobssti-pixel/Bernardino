@@ -105,6 +105,8 @@ import MemberWeapon from "../models/MemberWeapon";
 import MemberAddress from "../models/MemberAddress";
 import MemberDocument from "../models/MemberDocument";
 import MemberMembershipCharge from "../models/MemberMembershipCharge";
+import CompanyDigitalCertificate from "../models/CompanyDigitalCertificate";
+import CompanyCertificateAccessLog from "../models/CompanyCertificateAccessLog";
 import WeaponDispatchGovPasswordAccessLog from "../models/WeaponDispatchGovPasswordAccessLog";
 import Service from "../models/Service";
 import WeaponArmoryService from "../models/WeaponArmoryService";
@@ -223,7 +225,9 @@ const models = [
   MemberWeapon,
   MemberAddress,
   MemberDocument,
-  MemberMembershipCharge
+  MemberMembershipCharge,
+  CompanyDigitalCertificate,
+  CompanyCertificateAccessLog
 ];
 
 sequelize.addModels(models);

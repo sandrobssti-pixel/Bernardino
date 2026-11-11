@@ -3,6 +3,29 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.276] — Certificado digital da entidade (cadastro) + correção de menu duplicado — 2026-11-11
+
+### Adicionado
+- **Certificado digital A1 (.pfx/.p12) da entidade** — novo campo
+  "Inserir certificado digital" no topo do Gerenciador CAC (admin-only),
+  pra guardar o certificado próprio do clube que vai assinar
+  digitalmente a Declaração de Filiação (Anexo B, Decreto 11.615/2023)
+  numa próxima entrega. Arquivo e senha são validados no upload
+  (rejeita senha errada/arquivo inválido na hora) e guardados SEMPRE
+  criptografados (AES-256-GCM, chave própria), nunca em disco e nunca
+  expostos de volta por nenhuma API — só metadados (nome, titular,
+  validade). Todo uso é auditado (quem/quando), nunca o segredo em si.
+  **A geração + assinatura do PDF da Declaração ainda não foi
+  construída** — esta entrega é só o cadastro seguro do certificado.
+
+### Corrigido
+- **Bug real**: menu lateral mostrava "Gerenciador CAC" duplicado (o
+  grupo e o primeiro sub-item usavam o mesmo nome). Grupo renomeado
+  pra **"SisCAC (Sistema Integrado de Gestão CAC)"**; sub-itens
+  continuam "Gerenciador CAC" e "Controle de Acesso".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 249.
+
 ## [2.3.275] — Gerenciador CAC: tela cheia ganha paridade com a aba do Contato — 2026-11-11
 
 ### Corrigido

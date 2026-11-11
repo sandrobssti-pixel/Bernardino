@@ -941,6 +941,7 @@ const messages = {
           weaponDispatch: "Despachante de Armas",
           services: "Servicios Admin.",
           weaponArmory: "Servicio Armería",
+          cacSystem: "SisCAC (Sistema Integrado de Gestión CAC)",
           members: "Gestor CAC",
           memberCheckIn: "Control de Acceso",
           queueIntegration: "Integraciones",

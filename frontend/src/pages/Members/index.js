@@ -9,6 +9,7 @@ import { AuthContext } from "../../context/Auth/AuthContext";
 import useMembers from "../../hooks/useMembers";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import MemberEditDialog from "./MemberEditDialog";
+import CompanyCertificateSettings from "./CompanyCertificateSettings";
 import { memberColumns, memberFields } from "./membersConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -116,6 +117,7 @@ const Members = () => {
 
   return (
     <div className={classes.pageRoot}>
+      <CompanyCertificateSettings />
       <FinanceRecordList
         key={refreshToken}
         title="Associado"

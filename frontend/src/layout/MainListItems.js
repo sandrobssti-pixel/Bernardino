@@ -1759,7 +1759,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                             fontSize: "0.9rem",
                           }}
                         >
-                          {i18n.t("mainDrawer.listItems.members")}
+                          {i18n.t("mainDrawer.listItems.cacSystem")}
                         </Typography>
                       ) : (
                         ""
@@ -1791,7 +1791,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           className={classes.listItemText}
                           primary={
                             <Typography className={classes.listItemLabel}>
-                              {i18n.t("mainDrawer.listItems.members")}
+                              {i18n.t("mainDrawer.listItems.cacSystem")}
                             </Typography>
                           }
                         />

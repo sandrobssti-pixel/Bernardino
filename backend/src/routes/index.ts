@@ -71,6 +71,7 @@ import serviceRoutes from "./serviceRoutes";
 import weaponArmoryRoutes from "./weaponArmoryRoutes";
 import memberRoutes from "./memberRoutes";
 import memberPortalRoutes from "./memberPortalRoutes";
+import companyCertificateRoutes from "./companyCertificateRoutes";
 
 const routes = Router();
 
@@ -147,5 +148,6 @@ routes.use(serviceRoutes);
 routes.use(weaponArmoryRoutes);
 routes.use(memberRoutes);
 routes.use(memberPortalRoutes);
+routes.use(companyCertificateRoutes);
 
 export default routes;
