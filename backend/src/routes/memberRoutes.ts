@@ -10,6 +10,7 @@ import * as MemberFaceController from "../controllers/MemberFaceController";
 import * as MemberWeaponController from "../controllers/MemberWeaponController";
 import * as MemberAddressController from "../controllers/MemberAddressController";
 import * as MemberDocumentController from "../controllers/MemberDocumentController";
+import * as MemberMembershipController from "../controllers/MemberMembershipController";
 
 const memberRoutes = Router();
 const photoUpload = multer(memberPhotoUpload);
@@ -147,6 +148,19 @@ memberRoutes.delete(
   "/members/documents/:id",
   isAuth,
   MemberDocumentController.remove
+);
+
+// Cobrança de filiação/anuidade — reaproveita o módulo Financeiro que já
+// existe (Venda/Conta a Receber), confirmado com o cliente.
+memberRoutes.get(
+  "/members/:memberId/membership-charges",
+  isAuth,
+  MemberMembershipController.index
+);
+memberRoutes.post(
+  "/members/:memberId/membership-charges",
+  isAuth,
+  MemberMembershipController.store
 );
 
 export default memberRoutes;

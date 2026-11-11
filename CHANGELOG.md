@@ -3,6 +3,23 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.274] — Gerenciador CAC: aba Financeiro (filiação), integrada ao Financeiro — 2026-11-11
+
+### Adicionado
+- **Aba "Financeiro"** no Gerenciador CAC — gera cobrança de filiação/
+  anuidade do associado como uma Conta a Receber NORMAL do módulo
+  Financeiro que já existe (não um controle separado), com período
+  coberto (ex.: 01/01/2026 a 01/01/2027).
+- Quando a cobrança é paga (por qualquer caminho — Pix, boleto,
+  Mercado Pago, Asaas ou marcação manual), o associado fica
+  automaticamente **ativo** e a validade da filiação é estendida —
+  renovar antes do vencimento nunca faz perder dias.
+- **"Declaração de Filiação: válida até X"** visível tanto pro Admin
+  (aba Financeiro do Contato) quanto pro próprio associado no Portal
+  (`/portal/checkin`).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 247.
+
 ## [2.3.273] — Gerenciador CAC: Endereço (múltiplos) + checklist de Documentos — 2026-11-11
 
 ### Adicionado

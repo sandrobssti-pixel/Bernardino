@@ -169,6 +169,20 @@ const useMembers = () => {
     return data;
   };
 
+  // Cobrança de filiação/anuidade — reaproveita o módulo Financeiro que
+  // já existe (Conta a Receber), confirmado com o cliente. A validade
+  // (Member.filiationValidUntil) é estendida automaticamente quando a
+  // cobrança é paga (backend, hook em FinanceReceivable).
+  const listMembershipCharges = async (memberId) => {
+    const { data } = await api.get(`/members/${memberId}/membership-charges`);
+    return data;
+  };
+
+  const generateMembershipCharge = async (memberId, payload) => {
+    const { data } = await api.post(`/members/${memberId}/membership-charges`, payload);
+    return data;
+  };
+
   return {
     getAccess,
     list,
@@ -196,6 +210,8 @@ const useMembers = () => {
     listDocuments,
     uploadDocument,
     removeDocument,
+    listMembershipCharges,
+    generateMembershipCharge,
   };
 };
 

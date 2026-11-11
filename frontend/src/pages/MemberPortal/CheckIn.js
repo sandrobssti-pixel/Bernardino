@@ -209,6 +209,11 @@ const MemberPortalCheckIn = () => {
               <Typography variant="body2" color="textSecondary">
                 Registrar entrada de habitualidade
               </Typography>
+              <Typography variant="caption" color={member.filiationValidUntil ? "textSecondary" : "error"} style={{ display: "block", marginTop: 4 }}>
+                {member.filiationValidUntil
+                  ? `Filiação válida até ${new Date(`${member.filiationValidUntil}T00:00:00`).toLocaleDateString("pt-BR")}`
+                  : "Filiação sem pagamento confirmado — procure a secretaria do clube."}
+              </Typography>
             </Box>
             <Button size="small" startIcon={<ExitToAppIcon />} onClick={handleLogout}>
               Sair

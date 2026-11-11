@@ -29,6 +29,7 @@ import useMembers from "../../hooks/useMembers";
 import MemberWeaponsSection from "./MemberWeaponsSection";
 import MemberAddressesSection from "./MemberAddressesSection";
 import MemberDocumentsSection from "./MemberDocumentsSection";
+import MemberMembershipSection from "./MemberMembershipSection";
 import { computeFaceDescriptor } from "../../utils/faceRecognition";
 import {
   CAC_CATEGORY_OPTIONS,
@@ -331,6 +332,7 @@ const ContactCacTab = ({ contactId }) => {
             >
               <Tab value="dados" label="Dados" />
               <Tab value="endereco" label="Endereço" />
+              <Tab value="financeiro" label="Financeiro" />
               <Tab value="documentos" label="Documentos" />
             </Tabs>
             <Grid container spacing={2} style={{ display: subTab === "dados" ? "flex" : "none" }}>
@@ -478,6 +480,9 @@ const ContactCacTab = ({ contactId }) => {
               </Grid>
             </Grid>
 
+            {subTab === "financeiro" && (
+              <MemberMembershipSection member={member} onMemberUpdate={fetchMember} />
+            )}
             {subTab === "documentos" && <MemberDocumentsSection member={member} />}
           </div>
           <div className={classes.footer}>

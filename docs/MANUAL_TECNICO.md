@@ -19386,3 +19386,132 @@ lógica de cobrança/pagamento) ou se é um controle totalmente separado.
 `frontend/src/components/ContactModal/{ContactCacTab,MemberWeaponsSection,MemberAddressesSection,MemberDocumentsSection}.js`,
 `frontend/src/hooks/useMembers/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 247. Gerenciador CAC — aba Financeiro (filiação), reaproveitando o módulo Financeiro (v2.3.274)
+
+Fecha a pendência da seção 246. Cliente confirmou, nas próprias
+palavras: "podemos usar o financeiro que já existe... só importar os
+clientes filiados... quando o associado for fazer ou renovar filiação
+faz a venda, contas a receber, faz o pagamento e automaticamente no
+Gerenciador CAC usuário vai ficar ativo e vigente... tem que ter essa
+relação para quando pagar ficar ativo". Confirmado por pergunta
+objetiva: (1) sem passar pela Venda fiscal completa (NF-e/CFOP — pedida
+originalmente, mas dispensada depois que a pesquisa mostrou que
+`Service` nem é vendável hoje e que `Sale` é um fluxo fiscal pesado, sem
+sentido pra uma simples cobrança de anuidade) — cria a Conta a Receber
+DIRETO; (2) validade estende a partir do VENCIMENTO anterior (não da
+data do pagamento) — pagar adiantado não faz perder dias.
+
+### Por que precisou de pesquisa antes de desenhar
+
+Antes de escrever qualquer código, uma pesquisa (sub-agente, só
+leitura) respondeu 3 perguntas que decidiam a arquitetura:
+
+1. **`Service` (catálogo "Serviços" do admin) não é vendável por `Sale`
+   hoje** — só `FinanceProduct` entra em `SaleItem`. O "Serviço de
+   Filiação" que o cliente já tinha cadastrado em Serviços continua
+   existindo, sem relação nenhuma com isso — não dava pra reaproveitar
+   diretamente.
+2. **Não existe, em lugar nenhum do sistema, o conceito de "período
+   coberto" numa cobrança** (a tela de referência mostra "Anuidade 2027
+   — cobre o período de X até Y") — precisou ser criado do zero.
+3. **Uma conta a receber (`FinanceReceivable`) vira "paga" por 4
+   caminhos DIFERENTES e independentes no código** (2 webhooks de
+   gateway — Mercado Pago e Asaas —, 1 caminho de "gateway já devolve
+   paga na criação", e 1 update genérico da tela/API) — nenhum ponto
+   único em comum pra pendurar a lógica de "ativar o associado".
+
+### Arquitetura escolhida
+
+- **`Member.financeCustomerId`** (novo, FK opcional pra
+  `FinanceCustomer`) — mesmo padrão de `Member.contactId`. Criado
+  AUTOMATICAMENTE (reaproveitando `FinanceCustomerService.create`,
+  nunca inserção crua) na primeira cobrança de filiação gerada pro
+  associado, copiando nome/CPF/e-mail/telefone/endereço do próprio
+  cadastro do Gerenciador CAC — é isso que o cliente quis dizer com
+  "importar os clientes filiados" pro Financeiro, só que automático e
+  incremental (um de cada vez, na hora que precisa), não um import em
+  lote.
+- **`Member.filiationValidUntil`** (novo, data) — a validade calculada
+  ("Declaração de Filiação"), só ESCRITA pelo hook abaixo, nunca editada
+  direto pela tela.
+- **`MemberMembershipCharge`** (modelo novo) — uma "etiqueta" fina em
+  cima de um `FinanceReceivable` já existente, guardando só o que o
+  Financeiro genérico não tem: `periodMonths`, `coverageStart`,
+  `coverageEnd`. A cobrança em si (valor, vencimento, status, Pix/
+  boleto/webhook de gateway) continua sendo um `FinanceReceivable`
+  normal, criado via `FinanceReceivableService.create` já existente —
+  aparece no módulo Financeiro igual a qualquer outra conta a receber,
+  cumprindo literalmente "usar o financeiro que já existe".
+- **Hook `@AfterSave` em `FinanceReceivable.ts`** — resolve o problema
+  dos "4 caminhos pra virar paga": em vez de replicar a lógica de
+  ativação em cada um dos 4 pontos, um hook de MODEL (não de
+  controller/service) dispara sempre que QUALQUER um deles salva a
+  instância com `status` mudado pra `"received"` — `instance.changed
+  ("status")` garante que só dispara na TRANSIÇÃO, não em todo save.
+  `require()` (não `import` no topo do arquivo) de propósito:
+  `MemberMembershipService` importa esse mesmo model
+  (`FinanceReceivable`) pra outras coisas, um `import` no topo criaria
+  dependência circular de verdade entre os dois módulos — `require()`
+  dentro da função só resolve em tempo de execução, quando os dois já
+  estão carregados.
+- **Cálculo da validade, confirmado com o cliente**: na hora de GERAR a
+  cobrança (não na hora de pagar), `coverageStart` = data de validade
+  atual do associado (se ainda no futuro) ou hoje (se vencida/nunca
+  pagou); `coverageEnd` = `coverageStart` + N meses. Quando o
+  `FinanceReceivable` vinculado vira "received", o hook só copia
+  `coverageEnd` pra `Member.filiationValidUntil` — a conta "pagar
+  adiantado não perde dias" já fica resolvida no momento da GERAÇÃO da
+  cobrança, não precisa de lógica nenhuma na hora do pagamento.
+
+### Onde aparece
+
+- **Admin** (aba "Financeiro" nova em `ContactCacTab.js`,
+  `MemberMembershipSection.js`): banner "Declaração de Filiação: válida
+  até X" (verde quando em dia) + lista de cobranças de filiação (com
+  status Pendente/Paga, vencimento, período coberto) + botão "Gerar
+  cobrança de filiação" (período em meses, valor, vencimento — sem
+  passar pela tela de Venda).
+- **Portal do Associado** ("no aplicativo", pedido explícito do
+  cliente) — `member-portal/login` agora devolve
+  `member.filiationValidUntil`; `pages/MemberPortal/CheckIn.js` mostra
+  "Filiação válida até X" (ou aviso em vermelho se nunca pagou) no
+  cabeçalho da tela.
+
+### Verificação
+
+- `tsc --noEmit` (backend) limpo. `eslint` (frontend, arquivos tocados)
+  limpo.
+- Migrações novas (`add-finance-fields-to-members`,
+  `create-member-membership-charges`) rodadas contra o banco de teste
+  local, idempotentes.
+- Testado via `curl`, de ponta a ponta, usando a ROTA REAL do
+  Financeiro (`PUT /finance/receivables/:id`, não uma chamada direta ao
+  model) — pra confirmar que o hook dispara através do caminho de
+  verdade que a tela usa, não só numa chamada de teste isolada: gerar
+  cobrança cria `FinanceCustomer` automaticamente (associado ainda não
+  tinha) + `FinanceReceivable` (aparece no Financeiro normal) +
+  `MemberMembershipCharge`; marcar a conta como "received" pela rota
+  real do Financeiro ativa o associado (`status:"active"`) e estende
+  `filiationValidUntil` pro `coverageEnd` certo; gerar uma SEGUNDA
+  cobrança (renovação) confirma que o período começa a contar do
+  vencimento anterior (não de hoje — "pagar adiantado não perde dias",
+  confirmado); login do Portal do Associado confirmado devolvendo
+  `filiationValidUntil` atualizado.
+- Precisou liberar `Plan.useFinancial` na empresa de teste (não tinha,
+  da criação original) — achado ao testar a rota real do Financeiro
+  pela primeira vez nesta sessão, não um bug, só configuração de
+  ambiente de teste.
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso.
+
+**Arquivos**: `backend/src/models/{Member,MemberMembershipCharge,FinanceReceivable}.ts`,
+`backend/src/database/migrations/20261111020000-*.ts`,
+`backend/src/database/migrations/20261111020100-*.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/MemberService/{MemberMembershipService,MemberPortalService}.ts`,
+`backend/src/controllers/MemberMembershipController.ts`,
+`backend/src/routes/memberRoutes.ts`,
+`frontend/src/components/ContactModal/{ContactCacTab,MemberMembershipSection}.js`,
+`frontend/src/pages/MemberPortal/CheckIn.js`,
+`frontend/src/hooks/useMembers/index.js`.

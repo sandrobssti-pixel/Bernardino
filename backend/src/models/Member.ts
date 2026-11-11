@@ -14,6 +14,7 @@ import {
 } from "sequelize-typescript";
 import Company from "./Company";
 import Contact from "./Contact";
+import FinanceCustomer from "./FinanceCustomer";
 
 // Cadastro de Associados — módulo add-on genérico (Plan.useMembers), não
 // específico de clube de tiro: qualquer empresa com sócios/alunos/
@@ -190,6 +191,26 @@ class Member extends Model<Member> {
 
   @BelongsTo(() => Contact)
   contact: Contact;
+
+  // Vínculo com o módulo Financeiro que já existe (confirmado com o
+  // cliente: reaproveitar cobrança/venda/conta a receber, não um
+  // controle separado) — mesmo padrão opcional de "contactId" acima.
+  // Criado automaticamente na primeira cobrança de filiação gerada
+  // (MemberMembershipService.generateCharge), se ainda não existir.
+  @ForeignKey(() => FinanceCustomer)
+  @Column
+  financeCustomerId: number;
+
+  @BelongsTo(() => FinanceCustomer)
+  financeCustomer: FinanceCustomer;
+
+  // Validade calculada da filiação ("Declaração de Filiação", tela de
+  // referência) — estendida automaticamente quando uma cobrança de
+  // filiação é paga (ver hook em FinanceReceivable.ts +
+  // MemberMembershipService.onReceivablePaid). Null = nunca pagou
+  // filiação nenhuma ainda.
+  @Column(DataType.DATEONLY)
+  filiationValidUntil: Date;
 
   @ForeignKey(() => Company)
   @Column

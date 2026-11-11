@@ -10,7 +10,8 @@ import {
   ForeignKey,
   BelongsTo,
   Default,
-  DataType
+  DataType,
+  AfterSave
 } from "sequelize-typescript";
 import Company from "./Company";
 import FinanceCustomer from "./FinanceCustomer";
@@ -19,6 +20,24 @@ import FinanceCustomer from "./FinanceCustomer";
 // Fase 2 do roadmap, ver docs/MANUAL_TECNICO.md, seção 6.2.
 @Table
 class FinanceReceivable extends Model<FinanceReceivable> {
+  // Gancho pro Gerenciador CAC (cobrança de filiação do associado, ver
+  // MemberMembershipService.ts) — confirmado por pesquisa que existem
+  // 4 pontos DIFERENTES no código que marcam uma conta como "received"
+  // (2 webhooks de gateway, 1 caminho de criação-já-paga, 1 update
+  // genérico da tela), sem nenhum ponto único em comum — um hook de
+  // model, que dispara não importa qual caminho escreveu o status, é o
+  // único jeito confiável de pegar todos sem duplicar a lógica em cada
+  // um. `require()` dentro da função (não import no topo do arquivo) de
+  // propósito: MemberMembershipService importa este mesmo model
+  // (FinanceReceivable), um import no topo criaria uma dependência
+  // circular de verdade entre os dois módulos.
+  @AfterSave
+  static async notifyMembershipOnStatusChange(instance: FinanceReceivable): Promise<void> {
+    if (!instance.changed("status") || instance.status !== "received") return;
+    const MemberMembershipService = require("../services/MemberService/MemberMembershipService");
+    await MemberMembershipService.onReceivablePaid(instance);
+  }
+
   @PrimaryKey
   @AutoIncrement
   @Column

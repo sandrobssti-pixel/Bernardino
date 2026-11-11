@@ -45,6 +45,7 @@ interface LoginResponse {
     code: string;
     companyId: number;
     faceEnrolled: boolean;
+    filiationValidUntil: Date | null;
   };
 }
 
@@ -62,7 +63,7 @@ export const login = async ({ document, pin }: LoginRequest): Promise<LoginRespo
 
   const candidates = await Member.findAll({
     where: { document: trimmedDocument },
-    attributes: ["id", "name", "code", "companyId", "portalPinHash", "faceEnrolled"]
+    attributes: ["id", "name", "code", "companyId", "portalPinHash", "faceEnrolled", "filiationValidUntil"]
   });
 
   const matches: Member[] = [];
@@ -92,7 +93,8 @@ export const login = async ({ document, pin }: LoginRequest): Promise<LoginRespo
       name: member.name,
       code: member.code,
       companyId: member.companyId,
-      faceEnrolled: member.faceEnrolled
+      faceEnrolled: member.faceEnrolled,
+      filiationValidUntil: member.filiationValidUntil
     }
   };
 };
