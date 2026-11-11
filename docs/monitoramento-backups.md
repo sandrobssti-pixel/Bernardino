@@ -128,3 +128,34 @@ Os caminhos assumem o **Volume 1** (`/volume1/atendeflow-backup`, `/volume1/seaf
 - O WhatsApp depende do AtendeFlow e do servidor estarem de pé; o e-mail do NAS cobre o caso do servidor fora.
 - Se o próprio **NAS** estiver desligado, nenhum dos dois avisa pelo NAS; o monitor do servidor acusa
   "NAO esta montado / nao responde" — por isso o WhatsApp e o e-mail do servidor importam.
+
+## `backup-atendeflow.sh` v2 (robusto a oscilação de rede)
+
+Em 11/11/2026 o backup das 03:00 morreu em 33 s: a imagem `alpine` (usada só para compactar o volume)
+tinha sido apagada pela limpeza do Docker, o `docker run` precisou **baixá-la** e isso coincidiu com uma
+oscilação de rede de ~15 s. O script antigo abortava no primeiro erro, sem tentar de novo e sem registrar
+a falha — o monitor foi quem percebeu, 35 h depois. A v2:
+
+- **não depende de baixar imagem:** usa o `alpine` local; se não existir, a imagem do próprio Postgres em
+  uso (que o Docker não apaga); só baixa em último caso, com tentativas;
+- **tenta de novo** (`TENTATIVAS`, padrão 3, `ESPERA` 30 s) em cada etapa;
+- grava em `.partial` e só renomeia depois de verificar (`gzip -t` no banco; `tar tzf` no volume, que pega
+  arquivo cortado) e conferir um tamanho mínimo;
+- **sempre registra a falha** (`!!! Backup FALHOU na etapa: ...`) no `backup.log` e num log local
+  (`~/backup-atendeflow.log`), e termina com código de erro;
+- **retenção por quantidade** (`MANTER`, padrão 10): mantém os mais recentes e **nunca apaga abaixo disso**.
+  A retenção por idade apagou o histórico quando o NAS ficou 10 dias sem backup.
+
+Atualizar no servidor (compare antes de trocar, o script do servidor pode ter ajustes locais):
+
+```bash
+cd /srv/confianza/Bernardino-ops
+git fetch origin claude/dazzling-franklin-j7aqci && git checkout --detach origin/claude/dazzling-franklin-j7aqci
+diff ~/scripts/backup-atendeflow.sh backup-atendeflow.sh | head -80
+cp ~/scripts/backup-atendeflow.sh ~/scripts/backup-atendeflow.sh.bak-$(date +%F)
+install -m 755 backup-atendeflow.sh ~/scripts/backup-atendeflow.sh
+~/scripts/backup-atendeflow.sh        # rodar uma vez à mão e acompanhar
+```
+
+A verificação do arquivo grande acrescenta uns 3 a 5 minutos ao backup (leitura do arquivo no NAS). O
+backup do Seafile (`backup-seafile.sh`) já faz verificação equivalente.
