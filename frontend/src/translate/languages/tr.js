@@ -957,7 +957,7 @@ const messages = {
           allConnections: "Bağlantıları yönet",
           reports: "Raporlar",
           management: "Yönetim",
-          cacSystem: "SisCAC (Entegre CAC Yönetim Sistemi)",
+          cacSystem: "SisCAC",
           members: "CAC Yöneticisi",
           memberCheckIn: "Erişim Kontrolü"
         },

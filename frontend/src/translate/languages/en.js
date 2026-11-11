@@ -962,7 +962,7 @@ const messages = {
           weaponDispatch: "Weapon Dispatch",
           services: "Admin Services",
           weaponArmory: "Gunsmith Service",
-          cacSystem: "SisCAC (Integrated CAC Management System)",
+          cacSystem: "SisCAC",
           members: "CAC Manager",
           memberCheckIn: "Access Control",
           queueIntegration: "Integrations",

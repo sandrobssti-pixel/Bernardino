@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.277] — Correção: label "SisCAC" desalinhado no menu — 2026-11-11
+
+### Corrigido
+- **Bug real**: o rótulo "SisCAC (Sistema Integrado de Gestão CAC)" era
+  longo demais e aparecia cortado/desalinhado no menu lateral. Encurtado
+  pra **"SisCAC"**, mesmo padrão de brevidade de qualquer outro item do
+  menu (sub-itens "Gerenciador CAC"/"Controle de Acesso" sem mudança).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 251.
+
 ## [2.3.276.1] — Correção: variáveis de criptografia não chegavam aos containers em produção — 2026-11-11
 
 ### Corrigido

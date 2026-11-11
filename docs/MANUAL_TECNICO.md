@@ -19756,3 +19756,20 @@ isso é um passo obrigatório antes de considerar qualquer feature nova
 com segredo/chave de ambiente pronta pra deploy.
 
 **Arquivos**: `docker-compose.coolify.yml`.
+
+## 251. Correção: label "SisCAC" longo demais causava menu desalinhado (v2.3.277)
+
+Cliente reportou (print em produção) que o grupo "SisCAC (Sistema
+Integrado de Gestão CAC)" aparecia cortado/desalinhado no menu lateral,
+diferente de todos os outros itens (ex.: "Campanhas", "Despachante
+Bélico"), que são sempre rótulos curtos de uma palavra ou poucas
+palavras. Causa: o texto completo era longo demais pra largura do menu,
+sem quebra de linha visível, estourando o contêiner.
+
+**Corrigido** encurtando o valor de `mainDrawer.listItems.cacSystem`
+pra só **"SisCAC"**, nos 5 idiomas — mesmo padrão de brevidade de
+qualquer outro item do menu. Os sub-itens continuam "Gerenciador CAC" e
+"Controle de Acesso", sem mudança nenhuma de código (`MainListItems.js`
+não foi tocado — o problema era só o texto, não a estrutura).
+
+**Arquivos**: `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.
