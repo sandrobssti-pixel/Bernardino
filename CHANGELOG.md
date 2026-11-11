@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.275] — Gerenciador CAC: tela cheia ganha paridade com a aba do Contato — 2026-11-11
+
+### Corrigido
+- **Bug real**: a tela cheia "Gerenciador CAC" (menu lateral) não tinha
+  nenhuma das seções novas (arma pessoal, endereços adicionais,
+  Documentos, Financeiro/filiação) — só existiam na aba do Contato.
+  Agora as duas telas mostram exatamente o mesmo conteúdo.
+
+### Adicionado
+- Nova aba **"Controle de Acesso"** no perfil do associado — histórico
+  de presenças (kiosk e Portal do Associado).
+- Menu reorganizado: **"Controle de Acesso"** deixou de ser item
+  separado e virou sub-item dentro de **"Gerenciador CAC"**.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 248.
+
 ## [2.3.274] — Gerenciador CAC: aba Financeiro (filiação), integrada ao Financeiro — 2026-11-11
 
 ### Adicionado

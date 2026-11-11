@@ -19515,3 +19515,91 @@ leitura) respondeu 3 perguntas que decidiam a arquitetura:
 `frontend/src/components/ContactModal/{ContactCacTab,MemberMembershipSection}.js`,
 `frontend/src/pages/MemberPortal/CheckIn.js`,
 `frontend/src/hooks/useMembers/index.js`.
+
+## 248. Gerenciador CAC — tela cheia ganha paridade com a aba do Contato + menu reorganizado (v2.3.275)
+
+Bug real reportado pelo cliente, testando pela primeira vez a tela
+cheia "Gerenciador CAC" (menu lateral, `pages/Members`) em vez da aba
+do Contato: "a aba financeiro do associado não tem gerar cobrança de
+filiação" — confirmado por pergunta objetiva que o cliente SEMPRE
+testa por essa tela, não pela aba do Contato. Causa raiz: desde a
+Fase 1, essa tela usa o modal genérico de campo-config
+(`FinanceRecordModal`, reaproveitado de Produtos/Serviços/Funcionários)
+— TODAS as seções novas construídas nas seções 245-247 (CR, arma
+pessoal, endereços adicionais, Documentos, Financeiro) só tinham sido
+adicionadas na aba "Gerenciador CAC" do `ContactModal`
+(`ContactCacTab.js`), nunca levadas pra essa tela cheia.
+
+### Correção: conteúdo de edição extraído pra um componente só
+
+`MemberEditForm.js` (novo) — todo o conteúdo de edição (Dados/Endereço/
+Financeiro/Documentos + a aba nova "Controle de Acesso", ver abaixo),
+extraído de `ContactCacTab.js` quase sem mudança nenhuma, parametrizado
+por `member`/`onMemberChange`/`showIdentityFields`/`extraSaveValues` —
+reaproveitado por:
+- `ContactCacTab.js` (agora só um wrapper fino: busca/cria o Member a
+  partir do `contactId`, e passa pra `MemberEditForm` com
+  `showIdentityFields={false}` — nome/e-mail/telefone/WhatsApp
+  continuam sendo do Contato, editados em "Dados principais", não
+  aqui, mesmo comportamento de sempre).
+- `MemberEditDialog.js` (novo, `pages/Members/`) — modal próprio da
+  tela cheia, com `showIdentityFields` (nome/e-mail/telefone/WhatsApp
+  SÃO campos do Associado aqui, editáveis). Criar um associado NOVO é
+  em duas etapas: um mini-formulário só com Nome/CPF primeiro (as
+  outras seções — armas, endereços, documentos, financeiro — precisam
+  de um `member.id` já existente pra funcionar), e assim que criado o
+  mesmo modal vira o `MemberEditForm` completo.
+
+`pages/Members/index.js` troca o modal interno do `FinanceRecordList`
+pelo `MemberEditDialog` via duas props NOVAS, aditivas e
+retrocompatíveis, em `FinanceRecordList/index.js`: `onEditOverride`/
+`onCreateOverride` — quando passadas, "Editar"/"Novo" chamam essas
+funções em vez de abrir o modal genérico interno; quando NÃO passadas
+(todo outro consumidor — Produtos, Serviços, Funcionários, Armaria,
+Sócios, SLA...), nada muda. `key={refreshToken}` força a lista a
+recarregar ao fechar o diálogo — mesmo padrão já usado em
+`Financeiro/index.js` (seção 260 do manual).
+
+### Nova aba "Controle de Acesso" dentro do perfil do associado
+
+`MemberCheckInHistorySection.js` (novo) — histórico de presenças deste
+associado especificamente (`members.listCheckIns({ memberId })`, já
+aceitava esse filtro desde a seção 243, só nunca tinha sido exposto
+numa tela própria do associado). Mostra se o check-in veio do kiosk ou
+do Portal do Associado, e — quando tem foto de livro (habitualidade) —
+o status de validação (Pendente/Válida/Rejeitada).
+
+### Menu reorganizado — "Controle de Acesso" vira sub-item
+
+Pedido do cliente: "Controle de Acesso tem que ficar dentro do
+Gerenciador CAC" — confirmado, por pergunta objetiva, que era sobre
+REORGANIZAR O MENU (não sobre adicionar como aba, que já virou a seção
+anterior desta entrega). `MainListItems.js`: os dois itens separados
+("Associados"/`#7839ee` e "Controle de Acesso"/`#0ea473`) viraram um
+grupo recolhível só ("Gerenciador CAC", `Collapse`/`ExpandMore`/
+`ExpandLess`), mesmo padrão já estabelecido pra "Campanhas" (3
+sub-itens) — `openMembersSubmenu`/`isMembersRouteActive` espelham
+exatamente `openCampaignSubmenu`/`isCampaignRouteActive`. O grupo
+começa aberto se a rota atual já for `/members` ou `/member-checkin`.
+
+### Verificação
+
+- `tsc --noEmit` (backend, nenhum arquivo de backend mudou nesta
+  entrega) e `eslint` (frontend, arquivos tocados) limpos.
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso.
+
+**Pendência explícita, ainda não iniciada**: Declaração de Filiação
+(Anexo B, Decreto 11.615/2023) em PDF com assinatura digital ICP-Brasil
+— cliente enviou o modelo real (assinado) e confirmou que o clube já
+tem certificado próprio (A1, arquivo .pfx/.p12 com senha — automatizável
+pelo backend, diferente de A3/token físico). Ainda falta confirmar
+COMO o arquivo do certificado e a senha chegam até o sistema (upload
+pelo Admin? variável de ambiente no servidor?) antes de implementar —
+é dado sensível (chave privada da entidade), não dá pra decidir sozinho
+sem essa resposta.
+
+**Arquivos**: `frontend/src/components/ContactModal/{ContactCacTab,MemberEditForm,MemberCheckInHistorySection}.js`,
+`frontend/src/pages/Members/{index,MemberEditDialog}.js`,
+`frontend/src/components/FinanceRecordList/index.js`,
+`frontend/src/layout/MainListItems.js`.

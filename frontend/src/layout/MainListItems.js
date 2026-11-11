@@ -460,6 +460,12 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
   const [connectionWarning, setConnectionWarning] = useState(false);
   const [openCampaignSubmenu, setOpenCampaignSubmenu] = useState(false);
+  // Gerenciador CAC — "Controle de Acesso" deixou de ser item separado
+  // no menu principal, virou sub-item (pedido do cliente). Ver
+  // docs/MANUAL_TECNICO.md.
+  const [openMembersSubmenu, setOpenMembersSubmenu] = useState(
+    location.pathname === "/members" || location.pathname.startsWith("/member-checkin")
+  );
   const [openDashboardSubmenu, setOpenDashboardSubmenu] = useState(false);
   const [openFinanceiroSubmenu, setOpenFinanceiroSubmenu] = useState(
     location.pathname.startsWith("/financeiro")
@@ -537,6 +543,9 @@ const MainListItems = ({ collapsed, drawerClose }) => {
     location.pathname === "/campaigns" ||
     location.pathname.startsWith("/contact-lists") ||
     location.pathname.startsWith("/campaigns-config");
+
+  const isMembersRouteActive =
+    location.pathname === "/members" || location.pathname.startsWith("/member-checkin");
 
   const isFlowbuilderRouteActive =
     location.pathname.startsWith("/flowbuilders") ||
@@ -1738,30 +1747,87 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               role={user.profile}
               perform="dashboard:view"
               yes={() => (
-                <ListItemLink
-                  to="/members"
-                  primary={i18n.t(
-                    "mainDrawer.listItems.members"
-                  )}
-                  icon={<BadgeIcon />}
-                  iconKey="members"
-                  tooltip={collapsed}
-                />
-              )}
-            />
-            <Can
-              role={user.profile}
-              perform="dashboard:view"
-              yes={() => (
-                <ListItemLink
-                  to="/member-checkin"
-                  primary={i18n.t(
-                    "mainDrawer.listItems.memberCheckIn"
-                  )}
-                  icon={<FaceIcon />}
-                  iconKey="memberCheckIn"
-                  tooltip={collapsed}
-                />
+                <>
+                  <Tooltip
+                    placement="right"
+                    arrow
+                    title={
+                      collapsed ? (
+                        <Typography
+                          style={{
+                            fontWeight: 700,
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          {i18n.t("mainDrawer.listItems.members")}
+                        </Typography>
+                      ) : (
+                        ""
+                      )
+                    }
+                  >
+                    <ListItem
+                      dense
+                      button
+                      className={`${classes.listItem} ${
+                        isMembersRouteActive ? classes.listItemActive : ""
+                      } ${collapsed ? classes.listItemIconOnly : ""}`}
+                      onClick={() => setOpenMembersSubmenu((prev) => !prev)}
+                    >
+                      <ListItemIcon
+                        className={`${classes.listItemIcon} ${
+                          collapsed ? classes.listItemIconOnlyWrap : ""
+                        }`}
+                      >
+                        <span
+                          className={classes.iconWrap}
+                          style={{ color: iconColors.members }}
+                        >
+                          <BadgeIcon />
+                        </span>
+                      </ListItemIcon>
+                      {!collapsed && (
+                        <ListItemText
+                          className={classes.listItemText}
+                          primary={
+                            <Typography className={classes.listItemLabel}>
+                              {i18n.t("mainDrawer.listItems.members")}
+                            </Typography>
+                          }
+                        />
+                      )}
+                      {!collapsed &&
+                        (openMembersSubmenu ? (
+                          <ExpandLessIcon className={classes.groupExpandIcon} />
+                        ) : (
+                          <ExpandMoreIcon className={classes.groupExpandIcon} />
+                        ))}
+                    </ListItem>
+                  </Tooltip>
+                  <Collapse
+                    in={openMembersSubmenu}
+                    timeout="auto"
+                    unmountOnExit
+                    className={classes.submenuSection}
+                  >
+                    <List dense component="div" disablePadding>
+                      <ListItemLink
+                        to="/members"
+                        primary={i18n.t("mainDrawer.listItems.members")}
+                        icon={<BadgeIcon />}
+                        iconKey="members"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        to="/member-checkin"
+                        primary={i18n.t("mainDrawer.listItems.memberCheckIn")}
+                        icon={<FaceIcon />}
+                        iconKey="memberCheckIn"
+                        tooltip={collapsed}
+                      />
+                    </List>
+                  </Collapse>
+                </>
               )}
             />
             <Can

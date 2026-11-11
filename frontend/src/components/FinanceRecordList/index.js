@@ -142,6 +142,14 @@ const FinanceRecordList = ({
   // mexe em nada quando não for passada, mantém Produtos/Serviços/Contas
   // exatamente como estavam.
   rowActions,
+  // Substitui o modal genérico interno por um próprio (Gerenciador CAC —
+  // precisa de abas Dados/Endereço/Financeiro/Documentos/Controle de
+  // Acesso, que o modal genérico de campo-config não suporta). Quando
+  // passado, "Editar"/"Novo" chamam essas funções em vez de abrir
+  // `modalOpen` — não muda nada em nenhum outro consumidor (Produtos,
+  // Serviços, Funcionários etc.) que não passar essas props.
+  onEditOverride,
+  onCreateOverride,
 }) => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
@@ -254,11 +262,19 @@ const FinanceRecordList = ({
   }, [searchParam, filterValues, resource, periodPreset, customStart, customEnd]);
 
   const handleOpenNew = () => {
+    if (onCreateOverride) {
+      onCreateOverride();
+      return;
+    }
     setSelectedRecord(null);
     setModalOpen(true);
   };
 
   const handleEdit = (record) => {
+    if (onEditOverride) {
+      onEditOverride(record);
+      return;
+    }
     setSelectedRecord(record);
     setModalOpen(true);
   };
