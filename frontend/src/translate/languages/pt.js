@@ -1896,6 +1896,8 @@ const messages = {
         ERR_MEMBER_CHECKIN_NOT_FOUND: "Registro de presença não encontrado.",
         ERR_MEMBER_CHECKIN_INVALID_STATUS: "Status inválido — use \"valid\" ou \"invalid\".",
         ERR_MEMBER_NO_PHOTO_SENT: "Nenhuma foto enviada.",
+        ERR_MEMBER_WEAPON_NOT_FOUND: "Arma não encontrada.",
+        ERR_MEMBER_WEAPON_INVALID_MODEL: "Informe o modelo da arma.",
         ERR_NO_MEMBERS_MODULE_ACCESS: "Você não tem acesso ao módulo Gerenciador CAC.",
         ERR_COMPANY_INVALID_LOGO_TYPE: "Tipo de arquivo não permitido — envie uma imagem JPG, PNG ou WEBP.",
         ERR_FINANCE_PRODUCT_INVALID_PHOTO_TYPE: "Tipo de arquivo não permitido — envie uma foto JPG, PNG ou WEBP.",

@@ -27,6 +27,9 @@ interface MemberData {
   category?: string;
   cacCategory?: string;
   status?: string;
+  crNumber?: string;
+  crIssuingAuthority?: string;
+  crValidUntil?: string | null;
   zipCode?: string;
   street?: string;
   number?: string;
@@ -89,11 +92,16 @@ const withAutoStatus = (record: Member, explicitStatus?: string): string => {
 };
 
 // Descritor facial é dado biométrico sensível (LGPD) — nunca volta pro
-// frontend em list/show/showByContact, só `faceEnrolled` (boolean). Mesmo
-// padrão já usado em WeaponDispatchClientService.PUBLIC_ATTRIBUTES (senha
-// gov.br).
+// frontend em list/show/showByContact/update, só `faceEnrolled`
+// (boolean). Mesmo padrão já usado em
+// WeaponDispatchClientService.PUBLIC_ATTRIBUTES (senha gov.br).
+// "portalPinHash" é hash bcrypt do PIN do Portal do Associado — mesmo
+// cuidado de nunca expor um hash de credencial via API (bug real
+// achado via curl: estava vazando em GET /members, GET /members/:id e
+// PUT /members/:id, porque esse exclude só cobria faceDescriptor desde
+// que o campo foi criado — corrigido aqui).
 const PUBLIC_ATTRIBUTES = {
-  exclude: ["faceDescriptor"]
+  exclude: ["faceDescriptor", "portalPinHash"]
 };
 
 export const list = async ({
@@ -153,7 +161,8 @@ export const show = async (
 // deixado em branco). null é o valor certo pra "sem data".
 const normalizeMemberData = (data: MemberData): MemberData => ({
   ...data,
-  birthDate: data.birthDate || null
+  birthDate: data.birthDate || null,
+  crValidUntil: data.crValidUntil || null
 });
 
 export const create = async (

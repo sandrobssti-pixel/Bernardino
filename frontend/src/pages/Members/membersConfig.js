@@ -51,6 +51,20 @@ export const CAC_CATEGORY_INFO = {
     "Art. 38-C/38-D do Decreto nº 11.615/2023 (redação dada pelo Decreto nº 12.345/2024): pode adquirir até 16 armas (até 8 de uso restrito) e até 20% a mais de munição/insumos no período de 12 meses, desde que necessárias à modalidade de competição em que estiver inscrito. Limite não validado automaticamente nesta fase (depende da integração com o cadastro de armas, ainda não construída).",
 };
 
+// CR (Certificado de Registro) do PRÓPRIO associado — órgão emissor.
+// Referência real do clube-atirador.techsofttecnologia.com.br (tela
+// "Editar Usuário"): "EB - Exército Brasileiro" e "PF - Polícia
+// Federal" são os dois órgãos que emitem CR pra CAC no Brasil. Valor
+// vazio "none" (não "" de verdade) pelo mesmo motivo de
+// CAC_CATEGORY_OPTIONS acima — bug de exibição do <select> do MUI com
+// "" selecionado, já documentado neste projeto (seção 236 do manual).
+export const CR_ISSUING_AUTHORITY_OPTIONS = [
+  { value: "none", label: "Não informado" },
+  { value: "EB", label: "EB - Exército Brasileiro" },
+  { value: "PF", label: "PF - Polícia Federal" },
+  { value: "outro", label: "Outro" },
+];
+
 export const StatusChip = ({ status }) => (
   <Chip
     size="small"
@@ -118,6 +132,21 @@ export const memberFields = [
     defaultValue: "pending",
     gridSize: 12,
   },
+  {
+    type: "sectionTitle",
+    key: "crSection",
+    label: "CR (Certificado de Registro) do associado",
+  },
+  { name: "crNumber", label: "Número do CR", gridSize: 4 },
+  {
+    name: "crIssuingAuthority",
+    label: "Órgão emissor",
+    type: "select",
+    options: CR_ISSUING_AUTHORITY_OPTIONS,
+    defaultValue: "none",
+    gridSize: 4,
+  },
+  { name: "crValidUntil", label: "Validade do CR", type: "date", gridSize: 4 },
   { name: "zipCode", label: "CEP", gridSize: 3 },
   { name: "street", label: "Rua", gridSize: 6 },
   { name: "number", label: "Número", gridSize: 3 },

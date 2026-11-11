@@ -100,6 +100,28 @@ const useMembers = () => {
     return data;
   };
 
+  // Arma PESSOAL do associado — diferente da armaria/estoque do clube
+  // (useFinance/WeaponArmory).
+  const listWeapons = async (memberId) => {
+    const { data } = await api.get(`/members/${memberId}/weapons`);
+    return data;
+  };
+
+  const createWeapon = async (memberId, payload) => {
+    const { data } = await api.post(`/members/${memberId}/weapons`, payload);
+    return data;
+  };
+
+  const updateWeapon = async (id, payload) => {
+    const { data } = await api.put(`/members/weapons/${id}`, payload);
+    return data;
+  };
+
+  const removeWeapon = async (id) => {
+    const { data } = await api.delete(`/members/weapons/${id}`);
+    return data;
+  };
+
   return {
     getAccess,
     list,
@@ -116,6 +138,10 @@ const useMembers = () => {
     listPendingHabitualidade,
     validateCheckIn,
     generatePortalPin,
+    listWeapons,
+    createWeapon,
+    updateWeapon,
+    removeWeapon,
   };
 };
 

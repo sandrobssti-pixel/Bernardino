@@ -86,6 +86,25 @@ class Member extends Model<Member> {
   @Column
   status: string;
 
+  // CR (Certificado de Registro) do PRÓPRIO associado — número, órgão
+  // emissor (Exército/Polícia Federal) e validade. SEPARADO de arma
+  // individual (cadastro de arma pessoal do associado fica pra uma
+  // entrega futura). Ver docs/MANUAL_TECNICO.md.
+  @Default("")
+  @Column
+  crNumber: string;
+
+  // "none" (não informado) | "EB" (Exército Brasileiro) | "PF" (Polícia
+  // Federal) | "outro" — ver CR_ISSUING_AUTHORITY_OPTIONS
+  // (frontend/membersConfig.js). "none", nunca "" vazio (mesmo motivo
+  // de cacCategory acima).
+  @Default("none")
+  @Column
+  crIssuingAuthority: string;
+
+  @Column(DataType.DATEONLY)
+  crValidUntil: Date;
+
   @Default("")
   @Column
   zipCode: string;

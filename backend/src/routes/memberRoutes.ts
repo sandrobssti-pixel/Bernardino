@@ -6,6 +6,7 @@ import memberPhotoUpload from "../config/memberPhotoUpload";
 import * as MemberAccessController from "../controllers/MemberAccessController";
 import * as MemberController from "../controllers/MemberController";
 import * as MemberFaceController from "../controllers/MemberFaceController";
+import * as MemberWeaponController from "../controllers/MemberWeaponController";
 
 const memberRoutes = Router();
 const photoUpload = multer(memberPhotoUpload);
@@ -73,6 +74,31 @@ memberRoutes.post(
   "/members/:id/portal-pin",
   isAuth,
   MemberFaceController.generatePortalPin
+);
+
+// Arma PESSOAL do associado — diferente da armaria/estoque do clube
+// (módulo Financeiro/WeaponArmory). "/members/weapons/:id" não colide
+// com "/members/:id" nem com "/members/checkins*" — são literais de
+// segmento diferentes, profundidade de rota diferente.
+memberRoutes.get(
+  "/members/:memberId/weapons",
+  isAuth,
+  MemberWeaponController.index
+);
+memberRoutes.post(
+  "/members/:memberId/weapons",
+  isAuth,
+  MemberWeaponController.store
+);
+memberRoutes.put(
+  "/members/weapons/:id",
+  isAuth,
+  MemberWeaponController.update
+);
+memberRoutes.delete(
+  "/members/weapons/:id",
+  isAuth,
+  MemberWeaponController.remove
 );
 
 export default memberRoutes;

@@ -19119,3 +19119,115 @@ MemberFaceService}.ts`,
 `frontend/src/components/ContactModal/ContactCacTab.js`,
 `frontend/src/routes/index.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 245. CR do associado + cadastro de arma pessoal + correção de vazamento de dado sensível (v2.3.272)
+
+Cliente mandou prints reais do `clube-atirador.techsofttecnologia.com.br`
+(tela "Editar Usuário", abas Dados/Endereço/Financeiro/Documentos, e a
+tela "Armas"/"Editar Arma") como referência de campo a campo pro que o
+Gerenciador CAC precisa cobrir. Dado o volume (Endereço com múltiplos
+endereços, Financeiro com anuidade/mensalidade recorrente, Documentos
+com checklist de upload por tipo, Armas), confirmado com o cliente via
+pergunta objetiva: **só CR do associado + arma pessoal nesta entrega**;
+Endereço/Financeiro/Documentos ficam anotados pra entregas futuras.
+
+### CR (Certificado de Registro) do associado
+
+Três campos novos em `Member`: `crNumber` (número), `crIssuingAuthority`
+("EB" - Exército Brasileiro | "PF" - Polícia Federal | "outro" | "none"
+— texto livre com opções fixas, não enum de banco, pelo mesmo motivo de
+`cacCategory`: `"none"` como vazio, nunca `""`, pra evitar o bug de
+exibição do `<select>` do MUI já documentado na seção 236) e
+`crValidUntil` (data). Expostos tanto na tela cheia (`pages/Members`,
+via `FinanceRecordModal`) quanto na aba "Gerenciador CAC" do
+`ContactModal`. `crValidUntil: ""` normalizado pra `null` em
+`normalizeMemberData` (mesmo tratamento já aplicado a `birthDate` desde
+a Fase 1 — "" não é data válida pro Postgres, vira 500).
+
+### Cadastro de arma pessoal do associado (`MemberWeapon`)
+
+Modelo NOVO, diferente de `FinanceWeaponUnit` (que é a armaria/estoque
+do CLUBE, módulo Financeiro — arma que o clube possui e empresta/vende).
+`MemberWeapon` é a arma que o PRÓPRIO associado possui e registra no
+cadastro dele. Campos espelham a tela "Editar Arma" de referência:
+`usageType` ("Tipo de Uso"), `storageLocation` ("Local de guarda"),
+`brand`, `model` (obrigatório), `weaponType` ("Tipo"), `caliber`,
+`serialNumber`, `sigmaRegistrationNumber` (mesmo nome de campo de
+`FinanceWeaponUnit.sigmaRegistrationNumber`, por consistência),
+`crafValidUntil` (validade do CRAF — Certificado de Registro de Arma de
+Fogo, DIFERENTE do CR do associado acima: CR é do atirador, CRAF é da
+arma individual), `active` (toggle "Arma Ativa"), `notes`.
+
+`usageType` e `storageLocation` ficam como TEXTO LIVRE de propósito — a
+referência mostrava os dois como `<select>` preenchidos com um valor só
+("Tipo de Uso" aparecia vazio/placeholder na tela compartilhada, sem dar
+pra ver as opções reais do dropdown), e travar um enum errado nesse
+ponto seria pior que deixar aberto (mesmo raciocínio já aplicado a
+`Member.category`). Se o cliente confirmar as opções reais depois, vira
+um `<select>` com enum fixo numa entrega futura, sem precisar de
+migração de dado (coluna já existe como texto).
+
+CRUD completo: `GET/POST /members/:memberId/weapons`,
+`PUT/DELETE /members/weapons/:id` — gate de acesso igual ao resto do
+módulo (`EnsureMembersAccess`). UI nova, `MemberWeaponsSection.js`,
+embutida na aba "Gerenciador CAC" do Contato — seção independente, com
+próprio estado e próprio diálogo de cadastro/edição (Formik isolado,
+nunca o Formik principal da aba), mesmo cuidado já aplicado ao botão de
+reconhecimento facial/PIN do Portal (nunca dar submit sem querer no
+formulário principal).
+
+### Bug real achado e corrigido: vazamento do hash do PIN do Portal do Associado
+
+Testando a atualização do CR do associado via `curl` (`PUT
+/members/:id`), a resposta trouxe `portalPinHash` (o HASH bcrypt do PIN
+do Portal, seção 244) em texto — não o PIN em si (que nunca é
+recuperável do hash), mas ainda assim um dado que NUNCA deveria sair
+numa resposta de API, pelo mesmo princípio já aplicado ao descritor
+facial. Causa raiz: `MemberService.PUBLIC_ATTRIBUTES` (usado por
+`list`/`show`/`showByContact`/`update`, via `show()`) só excluía
+`faceDescriptor` — `portalPinHash` foi adicionado ao modelo na seção
+244 mas nunca entrou nessa lista de exclusão. Resultado: `GET
+/members`, `GET /members/:id` e `PUT /members/:id` vazavam o hash desde
+a entrega da seção 244 (v2.3.271), não é um bug introduzido nesta
+entrega — só foi achado agora, testando um PUT de verdade pela primeira
+vez contra um associado com PIN já gerado. Corrigido acrescentando
+`"portalPinHash"` ao `exclude` de `PUBLIC_ATTRIBUTES`. Confirmado via
+`curl`, antes e depois do fix, que o campo some da resposta de `GET
+/members/:id` e `PUT /members/:id`.
+
+### Verificação
+
+- `tsc --noEmit` (backend) limpo. `eslint` (frontend, arquivos tocados)
+  limpo.
+- Migrações novas (`add-cr-fields-to-members`,
+  `create-member-weapons`) rodadas contra o banco de teste local,
+  idempotentes (`IF NOT EXISTS` / rodar de novo não repete).
+- Testado via `curl`: CRUD completo de `MemberWeapon` (criar, listar,
+  atualizar, excluir); modelo obrigatório rejeitado
+  (`ERR_MEMBER_WEAPON_INVALID_MODEL`); associado inexistente rejeitado
+  (`ERR_MEMBER_NOT_FOUND`); atualização do CR do associado
+  (`crNumber`/`crIssuingAuthority`/`crValidUntil`) persistindo
+  corretamente; o vazamento do `portalPinHash` confirmado ANTES do fix
+  (achado real, não hipotético) e a ausência do campo confirmada DEPOIS.
+- Build de produção do frontend (`rm -rf build node_modules/.cache`
+  antes) concluído com sucesso.
+
+**Pendências explícitas, fora do escopo desta entrega** (anotadas a
+partir das telas de referência do cliente, aguardando confirmação de
+prioridade): múltiplos endereços por associado (tela "Endereço");
+anuidade/mensalidade recorrente com cálculo de validade da filiação
+(tela "Financeiro"); checklist de documentos com upload por tipo (CPF,
+RG, CNH, Certificado de Registro, CRAFs, Histórico Disciplinar,
+documentos de concessão/revalidação de CR) (tela "Documentos").
+
+**Arquivos**: `backend/src/models/{Member,MemberWeapon}.ts`,
+`backend/src/database/migrations/20261110230000-*.ts`,
+`backend/src/database/migrations/20261110240000-*.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/MemberService/{MemberService,MemberWeaponService}.ts`,
+`backend/src/controllers/MemberWeaponController.ts`,
+`backend/src/routes/memberRoutes.ts`,
+`frontend/src/pages/Members/membersConfig.js`,
+`frontend/src/components/ContactModal/{ContactCacTab,MemberWeaponsSection}.js`,
+`frontend/src/hooks/useMembers/index.js`,
+`frontend/src/translate/languages/pt.js`.

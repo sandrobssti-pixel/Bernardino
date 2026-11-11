@@ -3,6 +3,26 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.272] — CR do associado + arma pessoal + correção de vazamento de dado sensível — 2026-11-11
+
+### Adicionado
+- **CR (Certificado de Registro) do associado** — número, órgão emissor
+  (Exército/Polícia Federal) e validade, no cadastro do Gerenciador CAC
+  (tela cheia e aba do Contato).
+- **Cadastro de arma pessoal do associado** — marca, modelo, tipo,
+  calibre, número de série, SIGMA, validade do CRAF e status
+  ativa/inativa, na aba Gerenciador CAC do Contato. Diferente da
+  armaria/estoque do clube (módulo Financeiro).
+
+### Corrigido
+- **Vazamento de dado sensível**: o hash bcrypt do PIN do Portal do
+  Associado (`portalPinHash`) estava sendo exposto em `GET /members`,
+  `GET /members/:id` e `PUT /members/:id` desde a v2.3.271 — nunca
+  deveria sair numa resposta de API, mesmo princípio já aplicado ao
+  dado biométrico facial. Corrigido.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 245.
+
 ## [2.3.271] — Portal do Associado: entrada de habitualidade (foto do livro + geolocalização) — 2026-11-10
 
 ### Adicionado

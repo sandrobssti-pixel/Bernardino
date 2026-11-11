@@ -23,11 +23,13 @@ import VpnKeyIcon from "@material-ui/icons/VpnKey";
 
 import toastError from "../../errors/toastError";
 import useMembers from "../../hooks/useMembers";
+import MemberWeaponsSection from "./MemberWeaponsSection";
 import { computeFaceDescriptor } from "../../utils/faceRecognition";
 import {
   CAC_CATEGORY_OPTIONS,
   CAC_CATEGORY_INFO,
   STATUS_OPTIONS,
+  CR_ISSUING_AUTHORITY_OPTIONS,
 } from "../../pages/Members/membersConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -246,6 +248,9 @@ const ContactCacTab = ({ contactId }) => {
         category: member.category || "",
         cacCategory: member.cacCategory || "none",
         status: member.status || "pending",
+        crNumber: member.crNumber || "",
+        crIssuingAuthority: member.crIssuingAuthority || "none",
+        crValidUntil: member.crValidUntil || "",
         notes: member.notes || "",
       }}
       enableReinitialize
@@ -356,6 +361,35 @@ const ContactCacTab = ({ contactId }) => {
                 </Field>
               </Grid>
               <Grid item xs={12}>
+                <Typography variant="subtitle2" style={{ fontWeight: 700, marginTop: 8 }}>
+                  CR (Certificado de Registro) do associado
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field as={TextField} fullWidth variant="outlined" size="small" name="crNumber" label="Número do CR" />
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field as={TextField} select fullWidth variant="outlined" size="small" name="crIssuingAuthority" label="Órgão emissor">
+                  {CR_ISSUING_AUTHORITY_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Field>
+              </Grid>
+              <Grid item xs={12} sm={4}>
+                <Field
+                  as={TextField}
+                  fullWidth
+                  variant="outlined"
+                  size="small"
+                  type="date"
+                  name="crValidUntil"
+                  label="Validade do CR"
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12}>
                 <Field
                   as={TextField}
                   fullWidth
@@ -368,6 +402,7 @@ const ContactCacTab = ({ contactId }) => {
                 />
               </Grid>
             </Grid>
+            <MemberWeaponsSection memberId={member.id} />
           </div>
           <div className={classes.footer}>
             <Button type="submit" variant="contained" color="primary" disabled={saving}>
