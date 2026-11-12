@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.279] — Correção: "Registrar presença" falhava sem WebGL — 2026-11-12
+
+### Corrigido
+- **Bug real**: em computador sem GPU/aceleração de hardware, o
+  reconhecimento facial (TensorFlow.js, 100% no navegador) falhava ao
+  tentar WebGL e depois travava tentando WASM multi-thread, sem nunca
+  cair pro backend CPU (que sempre funciona). Corrigido escolhendo o
+  backend explicitamente: WebGL → WASM single-thread → CPU garantido.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 253.
+
 ## [2.3.278] — Botão "Voltar para Gerenciador CAC" no Controle de Acesso — 2026-11-12
 
 ### Adicionado

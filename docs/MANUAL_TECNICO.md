@@ -19788,3 +19788,62 @@ padrão já usado em outras telas do projeto — ex.:
 via `useHistory().push`.
 
 **Arquivos**: `frontend/src/pages/MemberCheckIn/index.js`.
+
+## 253. Bug real: "Registrar presença" falhava em computador sem WebGL (v2.3.279)
+
+Cliente reportou erro ao clicar "Registrar presença" no Controle de
+Acesso. Console do navegador mostrou a causa real:
+
+```
+Error: WebGL is not supported on this device
+...
+requested a shared WebAssembly.Memory but the returned buffer is not a
+SharedArrayBuffer, indicating that while the browser has
+SharedArrayBuffer it does not have WebAssembly threads support
+...
+Error: bad memory
+```
+
+**Causa raiz**: o reconhecimento facial roda 100% no navegador via
+TensorFlow.js (`@vladmandic/face-api`, ver seção sobre Controle de
+Acesso). A seleção AUTOMÁTICA de backend do tfjs, nesse computador
+específico (sem GPU/aceleração de hardware), tenta nessa ordem:
+1. **WebGL** — falha de cara ("WebGL is not supported on this device").
+2. **WASM multi-thread** — tenta usar `SharedArrayBuffer` pra rodar em
+   múltiplas threads, mas esse recurso exige os cabeçalhos HTTP
+   `Cross-Origin-Opener-Policy`/`Cross-Origin-Embedder-Policy`
+   (ausentes neste domínio, como na grande maioria dos sites) — falha
+   com "bad memory".
+3. A seleção automática do tfjs, ao esgotar essas duas tentativas,
+   **nunca chegava a cair pro backend CPU** (que não depende de GPU nem
+   de threads, sempre funciona em qualquer navegador) — travava ali, e
+   `computeFaceDescriptor` acabava lançando erro, exibido como falha
+   genérica ao tentar registrar presença.
+
+**Corrigido** (`frontend/src/utils/faceRecognition.js`) escolhendo o
+backend EXPLICITAMENTE, em vez de confiar na seleção automática: tenta
+WebGL → WASM single-thread (via `faceapi.tf.setThreadsCount(1)` antes
+de `faceapi.tf.setBackend("wasm")`, evitando o bug do `SharedArrayBuffer`
+por completo) → CPU (garantido, mais lento, mas funciona sempre). A
+escolha de backend é feita uma única vez (memoizada em
+`backendReadyPromise`) antes do primeiro carregamento dos modelos; se
+falhar, a promise é resetada pra permitir nova tentativa sem precisar
+recarregar a página.
+
+**Verificação**: como não dá pra reproduzir "ausência real de WebGL"
+de forma confiável simulando flags do Chromium (o navegador de teste
+insiste em prover WebGL via software mesmo com
+`--disable-webgl`/`--disable-webgl2`), a lógica de fallback foi
+validada isoladamente com Node — simulando exatamente os dois modos de
+falha reais do log do cliente (WebGL retornando `false`, WASM lançando
+a exceção "bad memory") e confirmando que a função cai corretamente pro
+próximo backend da lista sem travar. As funções reais usadas
+(`faceapi.tf.setBackend`/`getBackend`/`ready`/`setThreadsCount`) foram
+confirmadas como existentes e funcionais rodando o bundle real da
+biblioteca (`@vladmandic/face-api`) num Chromium headless real via
+Playwright — ponto de atenção real encontrado nesse processo: essas
+funções NÃO ficam expostas direto em `faceapi.*` (ex.:
+`faceapi.setBackend` não existe), e sim em `faceapi.tf.*` — confirmado
+só testando de verdade, não só lendo a documentação/tipagem.
+
+**Arquivos**: `frontend/src/utils/faceRecognition.js`.
