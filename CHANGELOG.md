@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.278] — Botão "Voltar para Gerenciador CAC" no Controle de Acesso — 2026-11-12
+
+### Adicionado
+- Botão **"Voltar para Gerenciador CAC"** no topo da tela "Controle de
+  Acesso" — não precisa mais usar a coluna lateral pra ir de uma tela
+  pra outra dentro do mesmo módulo (SisCAC).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 252.
+
 ## [2.3.277] — Correção: label "SisCAC" desalinhado no menu — 2026-11-11
 
 ### Corrigido

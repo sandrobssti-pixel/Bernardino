@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useContext, useRef, useCallback } from "react";
+import { useHistory } from "react-router-dom";
 import Webcam from "react-webcam";
 import { toast } from "react-toastify";
 
@@ -19,6 +20,7 @@ import CancelIcon from "@material-ui/icons/Cancel";
 import RoomIcon from "@material-ui/icons/Room";
 import ThumbUpIcon from "@material-ui/icons/ThumbUp";
 import ThumbDownIcon from "@material-ui/icons/ThumbDown";
+import ArrowBackIcon from "@material-ui/icons/ArrowBack";
 import Link from "@material-ui/core/Link";
 import Divider from "@material-ui/core/Divider";
 
@@ -111,6 +113,7 @@ const useStyles = makeStyles((theme) => ({
 // check-in. Ver docs/MANUAL_TECNICO.md.
 const MemberCheckIn = () => {
   const classes = useStyles();
+  const routerHistory = useHistory();
   const { user } = useContext(AuthContext);
   const members = useMembers();
   const webcamRef = useRef(null);
@@ -218,6 +221,13 @@ const MemberCheckIn = () => {
       return (
         <div className={classes.pageRoot}>
           <Box className={classes.lockedBox}>
+            <Button
+              size="small"
+              startIcon={<ArrowBackIcon />}
+              onClick={() => routerHistory.push("/members")}
+            >
+              Voltar para Gerenciador CAC
+            </Button>
             <Typography variant="h6" gutterBottom>
               Módulo Gerenciador CAC não disponível
             </Typography>
@@ -234,6 +244,15 @@ const MemberCheckIn = () => {
 
   return (
     <div className={classes.pageRoot}>
+      <Box display="flex" justifyContent="center" mb={1}>
+        <Button
+          size="small"
+          startIcon={<ArrowBackIcon />}
+          onClick={() => routerHistory.push("/members")}
+        >
+          Voltar para Gerenciador CAC
+        </Button>
+      </Box>
       <Typography variant="h5" gutterBottom align="center">
         Controle de Acesso — Check-in
       </Typography>

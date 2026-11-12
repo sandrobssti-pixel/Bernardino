@@ -19773,3 +19773,18 @@ qualquer outro item do menu. Os sub-itens continuam "Gerenciador CAC" e
 não foi tocado — o problema era só o texto, não a estrutura).
 
 **Arquivos**: `frontend/src/translate/languages/{pt,en,es,esES,tr}.js`.
+
+## 252. Botão "Voltar para Gerenciador CAC" no Controle de Acesso (v2.3.278)
+
+Pedido do cliente: a tela "Controle de Acesso" (`/member-checkin`, sub-
+item do menu SisCAC) não tinha como voltar pro "Gerenciador CAC" sem
+usar a coluna lateral — precisava clicar em outro item do menu em vez
+de um caminho direto entre as duas telas do mesmo módulo.
+
+Adicionado botão "Voltar para Gerenciador CAC" (`ArrowBackIcon`, mesmo
+padrão já usado em outras telas do projeto — ex.:
+`ContactListItems/index.js`) no topo da tela, em todos os estados
+(carregando, módulo bloqueado, tela principal), levando pra `/members`
+via `useHistory().push`.
+
+**Arquivos**: `frontend/src/pages/MemberCheckIn/index.js`.
