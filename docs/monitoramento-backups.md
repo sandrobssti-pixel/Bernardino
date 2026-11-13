@@ -99,7 +99,7 @@ Códigos de saída: `0` tudo ok · `1` problema encontrado (e avisado) · `2` pr
 DSM > **Painel de controle > Programador de tarefas > Criar > Tarefa agendada > Script definido pelo usuário**:
 
 1. **Geral:** nome `Verificar backups`, usuário **root**.
-2. **Programação:** diariamente, **07:00** (depois dos backups das 02:37, 03:00 e 03:30).
+2. **Programação:** diariamente, **07:00** (depois dos backups das ~02:41 Confianza, 03:00 AtendeFlow e 03:30 Seafile).
 3. **Configurações de tarefa:** marque **"Enviar detalhes de execução por e-mail"** e **"Enviar somente quando o
    script terminar de forma anormal"**, e informe o e-mail. Cole o conteúdo de `nas-verifica-backups.sh`.
 

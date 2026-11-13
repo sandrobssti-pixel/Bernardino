@@ -20,16 +20,16 @@ parte: `monitoramento-backups.md`, `backup-arquivos.md`, `servidor-paraguai.md`.
 
 ### Rotinas automáticas (horários locais)
 
-> Só o horário do AtendeFlow (03:00) foi confirmado no log. Os de Seafile e Confianza (02:37 e 03:30, em alguma ordem) vieram dos combinados da manutenção: confirme com `crontab -l` (do usuário e do root) e `systemctl list-timers --all`.
+> Horários **confirmados** em 13/11/2026 com `crontab -l`, `sudo crontab -l` e `systemctl list-timers --all`. Os timers do systemd têm atraso aleatório de alguns minutos (por isso 02:41, 04:34, 06:31).
 
 | Hora | O quê | Onde |
 |---|---|---|
-| 02:37 | backup do Seafile **ou** do Confianza (conferir a ordem com `crontab -l`) | servidor → NAS |
-| 03:00 | backup do AtendeFlow (v2: tenta de novo, grava `.partial`, verifica, retenção de **10**) | servidor → `/mnt/nas-backup` |
-| 03:30 | o outro dos dois (Seafile ↔ Confianza cifrado) | servidor → NAS |
-| 04:30 | cópia dos arquivos de trabalho (`~/Sandro`, `outputs`), sem apagar nada no destino | servidor → `/mnt/nas-arquivos` |
+| ~02:41 | backup cifrado do **Confianza** (`confianza-backup.timer`, script `deploy/selfhost/backup.sh`) | servidor → `/mnt/nas-confianza` |
+| 03:00 | backup do **AtendeFlow** (v2: tenta de novo, grava `.partial`, verifica, retenção de **10**; cron do usuário `sandro`) | servidor → `/mnt/nas-backup` |
+| 03:30 | backup do **Seafile** (cron do **root**; log em `/var/log/backup-seafile.cron.log`) | servidor → `/mnt/nas-seafile` |
+| ~04:30 | cópia dos arquivos de trabalho (`~/Sandro`, `outputs`), sem apagar nada no destino | servidor → `/mnt/nas-arquivos` |
 | 05:00 | `Limpar backups antigos` | tarefa do DSM |
-| 06:30 e 14:00 | monitor de backups, aviso por **WhatsApp e e-mail** | servidor (systemd timer) |
+| ~06:30 e ~14:00 | monitor de backups, aviso por **WhatsApp e e-mail** | servidor (systemd timer) |
 | 07:00 | `Verificar backups`, e-mail do DSM **só se anormal** | tarefa do DSM (funciona com o servidor desligado) |
 | dia 11, a partir das 08:00 | depuração de dados | NAS |
 | dia 15, 10:00 | teste S.M.A.R.T. ampliado nos dois discos | tarefa `SMART ampliado mensal` |
@@ -74,7 +74,7 @@ No DSM: **Armazenamento** com pool e volume em "Boas condições" (sem "Degradad
 | Mensagem | O que olhar primeiro |
 |---|---|
 | `... NAO esta montado` / `nao responde` | `ping -c3 192.168.100.77` (esperado `ttl=64`); NAS ligado? `sudo systemctl start 'mnt-nas\x2dbackup.automount' 'mnt-nas\x2dseafile.automount' 'mnt-nas\x2dconfianza.automount' 'mnt-nas\x2darquivos.automount'` |
-| `ultimo backup ... tem Nh` | `tail -20 /mnt/nas-backup/backup.log`; procure `!!! Backup FALHOU na etapa:` |
+| `ultimo backup ... tem Nh` | `tail -20 /mnt/nas-backup/backup.log` (AtendeFlow; procure `!!! Backup FALHOU na etapa:`), `tail -20 /var/log/backup-seafile.cron.log` (Seafile), `journalctl -u confianza-backup.service -n 30` (Confianza) |
 | `... provavelmente cortado` (tamanho) | rodar o backup à mão e conferir `gzip -t`/`tar tzf`; se o volume de dados **diminuiu de verdade**, ajustar o mínimo |
 | `container ... UNHEALTHY / nao esta rodando` | `docker ps -a`, `docker logs --tail 50 NOME`; Seafile: ver o bloco no `/usr/local/bin/confianza-subir-servicos` |
 | `disco do sistema (/) com N%` | `sudo du -xh --max-depth=1 / \| sort -h \| tail`; **não** rodar `docker image prune -a` (já apagou a imagem `alpine` e causou falha de backup) |
