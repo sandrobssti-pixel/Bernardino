@@ -65,7 +65,9 @@ Pastas copiadas (padrão) e onde caem no NAS:
 | `~/2026-10-12/c/outputs` | `cactus-outputs/` |
 | `~/2026-10-21/referenced-chatgpt-conversation-this-is-an/outputs` | `site-crm-outputs/` |
 
-Excluídos (recriáveis): `node_modules/`, `.cache/`, `__pycache__/`, `.wrangler/`.
+Excluídos (recriáveis): `node_modules/`, `.cache/`, `__pycache__/`, `.wrangler/`, `.venv/`, `venv/`.
+**Atalhos (links simbólicos) não são copiados** (o NAS não os guarda); o `rsync` avisa `skipping non-regular file` e segue.
+Na conferência abaixo use os mesmos `--exclude` e filtre esse aviso, senão aparecem diferenças que não são falha.
 Para mudar a lista, crie `/etc/confianza-arquivos.conf`:
 ```bash
 FONTES=( "$HOME/Sandro:Sandro" "$HOME/Projetos:Projetos" )    # "origem:pasta-no-destino"
@@ -75,7 +77,7 @@ FONTES=( "$HOME/Sandro:Sandro" "$HOME/Projetos:Projetos" )    # "origem:pasta-no
 
 ```bash
 # a copia bate com a origem? (nao deve listar nada alem de arquivos excluidos)
-rsync -rn --size-only --itemize-changes --exclude=node_modules/ --exclude=.cache/ ~/Sandro/ /mnt/nas-arquivos/Sandro/ | head
+rsync -rn --size-only --itemize-changes --exclude=node_modules/ --exclude=.cache/ --exclude=__pycache__/ --exclude=.wrangler/ --exclude=.venv/ --exclude=venv/ ~/Sandro/ /mnt/nas-arquivos/Sandro/ 2>&1 | grep -v 'skipping non-regular' | head
 
 # avisar no WhatsApp/e-mail se esse backup falhar ou parar:
 echo 'NAS_ARQUIVOS_DIR="/mnt/nas-arquivos"' | sudo tee -a /etc/confianza-alertas.conf

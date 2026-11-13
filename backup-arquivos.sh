@@ -31,7 +31,9 @@ FONTES=(
   "$HOME/2026-10-21/referenced-chatgpt-conversation-this-is-an/outputs:site-crm-outputs"
 )
 # Dependências recriáveis e caches: não vale gastar espaço no NAS com elas.
-EXCLUIR=( "node_modules/" ".cache/" "__pycache__/" ".wrangler/" )
+# Atalhos (links simbólicos) NÃO são copiados: o NAS (CIFS) não os guarda; o rsync avisa "skipping
+# non-regular file" e segue. Em projetos normais isso só atinge .venv/node_modules (já excluídos).
+EXCLUIR=( "node_modules/" ".cache/" "__pycache__/" ".wrangler/" ".venv/" "venv/" )
 
 # shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
