@@ -3,6 +3,8 @@
 Motivo: em outubro/2026 o NAS ficou ~10 dias sem receber backup (o IP dele mudou e os backups
 noturnos passaram a falhar) e **ninguém foi avisado**. Estes scripts avisam em poucas horas.
 
+Visão geral do estado final e rotina de conferência: `estado-final-e-rotina.md`.
+
 Há **duas camadas**, de propósito:
 
 | Camada | Onde roda | Avisa por | Cobre |
