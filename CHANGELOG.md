@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.281] — Correção: mensagem de erro do check-in invisível no tema escuro — 2026-11-13
+
+### Corrigido
+- **Bug real**: no Controle de Acesso, a mensagem de resultado do
+  "Registrar presença" (sucesso/erro) ficava com o TEXTO invisível no
+  tema escuro — só o ícone colorido aparecia. O fundo do aviso é claro
+  fixo, mas o texto não tinha cor definida e herdava a cor clara do
+  tema escuro (texto claro sobre fundo claro). Corrigido fixando a
+  mesma cor escura do ícone também no texto.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 255.
+
 ## [2.3.280] — Gerenciador CAC: Fase 4, API de check-in com geofencing — 2026-11-13
 
 ### Adicionado

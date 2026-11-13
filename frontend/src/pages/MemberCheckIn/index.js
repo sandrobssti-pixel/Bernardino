@@ -285,14 +285,14 @@ const MemberCheckIn = () => {
               {result.matched ? (
                 <Box display="flex" alignItems="center" justifyContent="center" gridGap={8}>
                   <CheckCircleIcon style={{ color: "#2e7d32" }} />
-                  <Typography variant="h6">
+                  <Typography variant="h6" style={{ color: "#1b5e20" }}>
                     Bem-vindo(a), {result.member.name}!
                   </Typography>
                 </Box>
               ) : (
                 <Box display="flex" alignItems="center" justifyContent="center" gridGap={8}>
                   <CancelIcon style={{ color: "#c62828" }} />
-                  <Typography variant="body1">
+                  <Typography variant="body1" style={{ color: "#b71c1c" }}>
                     {result.reason === "no-face"
                       ? "Nenhum rosto detectado — posicione o rosto na câmera e tente de novo."
                       : "Rosto não reconhecido. Procure a secretaria do clube."}

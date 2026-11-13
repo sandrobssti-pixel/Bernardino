@@ -19929,3 +19929,30 @@ web).
 `frontend/src/pages/MemberCheckIn/index.js`,
 `frontend/src/pages/MemberPortal/CheckIn.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 255. Bug real: mensagem de erro do check-in invisível no tema escuro (v2.3.281)
+
+Cliente reportou que, ao tentar "Registrar presença", só aparecia um
+ícone vermelho (um X), sem texto nenhum — testou no tema claro e a
+mensagem apareceu normalmente ("Rosto não reconhecido. Procure a
+secretaria do clube."), confirmando que não era um bug funcional (o
+reconhecimento facial em si funcionou logo depois, como já tinha
+funcionado antes — confirmado pelo próprio histórico "Últimas
+presenças" mostrando check-ins anteriores bem-sucedidos).
+
+**Causa raiz**: `frontend/src/pages/MemberCheckIn/index.js` — o box de
+resultado (sucesso/erro) usa fundo CLARO fixo (`#e8f5e9`/`#ffebee`,
+sempre a mesma cor em qualquer tema), e o ícone (`CheckCircleIcon`/
+`CancelIcon`) tinha cor fixa escura (`#2e7d32`/`#c62828`) — mas o
+`<Typography>` do TEXTO ao lado não tinha cor nenhuma definida, então
+herdava a cor padrão do tema. No tema escuro, essa cor padrão é clara
+(quase branca) — texto claro sobre fundo claro, literalmente invisível,
+enquanto o ícone (com cor própria) continuava aparecendo normalmente.
+
+**Corrigido** adicionando a mesma cor escura do ícone também no
+`<Typography>` do texto (`#1b5e20` sucesso, `#b71c1c` erro) — fica
+legível em qualquer tema, já que o fundo do box é sempre claro.
+Conferido que esse é o único lugar do projeto com esse padrão
+(ícone colorido + fundo claro fixo + texto sem cor).
+
+**Arquivos**: `frontend/src/pages/MemberCheckIn/index.js`.
