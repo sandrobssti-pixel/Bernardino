@@ -1534,6 +1534,14 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       />
                       <ListItemLink
                         small
+                        to="/financeiro?tab=cashRegister"
+                        primary="🗃️ Caixa Registradora"
+                        icon={<ReceiptIcon />}
+                        iconKey="financial"
+                        tooltip={collapsed}
+                      />
+                      <ListItemLink
+                        small
                         to="/financeiro?tab=paymentConfig"
                         primary="💳 Config. Pagamento"
                         icon={<MonetizationOnIcon />}

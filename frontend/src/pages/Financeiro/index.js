@@ -27,6 +27,8 @@ import {
   financeReceivableColumns,
   financeReceivableFields,
   financeReceivableFilters,
+  financeCashRegisterColumns,
+  financeCashRegisterFields,
 } from "./financeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -195,6 +197,19 @@ const Financeiro = () => {
           enablePayments={showPaymentTab}
           enablePeriodFilter
           periodDateLabel="Vencimento"
+          canDelete={canDeleteFinanceRecords}
+        />
+      );
+    }
+    if (financeTab === "cashRegister") {
+      return (
+        <FinanceRecordList
+          key={financeTab}
+          title="Caixa Registradora"
+          resource={finance.cashRegister}
+          columns={financeCashRegisterColumns}
+          fields={financeCashRegisterFields}
+          finance={finance}
           canDelete={canDeleteFinanceRecords}
         />
       );

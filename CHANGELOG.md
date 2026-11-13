@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.282] — Financeiro: "Caixa Registradora" (lembrete de valores físicos) — 2026-11-13
+
+### Adicionado
+- **"Caixa Registradora"** — novo item no menu Financeiro (logo abaixo
+  de "Contas a Receber") pra anotar valores físicos guardados na
+  empresa (dinheiro em espécie, promissórias, cheques): tipo, valor e
+  observações, com data/hora automática do registro. Sem nenhum
+  vínculo com o resto do Financeiro — é só um lembrete manual; se o
+  valor for usado, o usuário cadastra a Conta a Pagar à parte e remove
+  esta linha.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 256.
+
 ## [2.3.281] — Correção: mensagem de erro do check-in invisível no tema escuro — 2026-11-13
 
 ### Corrigido

@@ -11,6 +11,7 @@ import * as FinanceProductController from "../controllers/FinanceProductControll
 import * as FinanceWeaponUnitController from "../controllers/FinanceWeaponUnitController";
 import * as FinanceAmmoVolumeController from "../controllers/FinanceAmmoVolumeController";
 import * as FinanceExpenseController from "../controllers/FinanceExpenseController";
+import * as FinanceCashRegisterController from "../controllers/FinanceCashRegisterController";
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
 import * as FinanceImportController from "../controllers/FinanceImportController";
@@ -140,6 +141,14 @@ financeRoutes.get("/finance/expenses/:id", isAuth, FinanceExpenseController.show
 financeRoutes.post("/finance/expenses", isAuth, FinanceExpenseController.store);
 financeRoutes.put("/finance/expenses/:id", isAuth, FinanceExpenseController.update);
 financeRoutes.delete("/finance/expenses/:id", isAuth, FinanceExpenseController.remove);
+
+// "Caixa Registradora" — lembrete de valores físicos (dinheiro, promissória,
+// cheque), sem vínculo com o resto do Financeiro. Ver FinanceCashRegister.ts.
+financeRoutes.get("/finance/cash-register", isAuth, FinanceCashRegisterController.index);
+financeRoutes.get("/finance/cash-register/:id", isAuth, FinanceCashRegisterController.show);
+financeRoutes.post("/finance/cash-register", isAuth, FinanceCashRegisterController.store);
+financeRoutes.put("/finance/cash-register/:id", isAuth, FinanceCashRegisterController.update);
+financeRoutes.delete("/finance/cash-register/:id", isAuth, FinanceCashRegisterController.remove);
 
 financeRoutes.get("/finance/receivables", isAuth, FinanceReceivableController.index);
 financeRoutes.get("/finance/receivables/:id", isAuth, FinanceReceivableController.show);

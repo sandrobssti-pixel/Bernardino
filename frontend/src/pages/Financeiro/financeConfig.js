@@ -827,3 +827,43 @@ export const SALE_FREIGHT_RESPONSIBILITY_OPTIONS = [
   { value: "4", label: "4 - Transp. Próprio por Conta do Destinatário" },
   { value: "9", label: "9 - Sem Frete" },
 ];
+
+// "Caixa Registradora" — pedido do cliente: lembrete de valores físicos
+// dentro da empresa (dinheiro em espécie, promissórias, cheques), sem
+// nenhum vínculo com o resto do Financeiro (não gera Conta a Pagar/
+// Receber sozinho — se o valor for usado, o usuário cadastra a Conta a
+// Pagar manualmente e remove esta linha).
+export const CASH_REGISTER_TYPE_OPTIONS = [
+  { value: "physical_cash", label: "Dinheiro físico" },
+  { value: "promissory_note", label: "Promissória" },
+  { value: "check", label: "Cheque" },
+];
+
+export const financeCashRegisterColumns = [
+  {
+    field: "type",
+    label: "Tipo",
+    render: (r) =>
+      CASH_REGISTER_TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type,
+  },
+  { field: "value", label: "Valor", render: (r) => money(r.value) },
+  { field: "notes", label: "Observações" },
+  {
+    field: "createdAt",
+    label: "Registrado em",
+    render: (r) => moment(r.createdAt).format("DD/MM/YYYY HH:mm"),
+  },
+];
+
+export const financeCashRegisterFields = [
+  {
+    name: "type",
+    label: "Tipo",
+    type: "select",
+    options: CASH_REGISTER_TYPE_OPTIONS,
+    defaultValue: "physical_cash",
+    gridSize: 6,
+  },
+  { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 6 },
+  { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
+];

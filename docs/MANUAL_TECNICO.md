@@ -19956,3 +19956,55 @@ Conferido que esse é o único lugar do projeto com esse padrão
 (ícone colorido + fundo claro fixo + texto sem cor).
 
 **Arquivos**: `frontend/src/pages/MemberCheckIn/index.js`.
+
+## 256. Financeiro: "Caixa Registradora" — lembrete de valores físicos (v2.3.282)
+
+Pedido do cliente: um lugar pra anotar que existem valores FÍSICOS
+dentro da empresa (dinheiro em espécie, promissórias, cheques) — "só
+para lembrar que tem esses valores, que se usar tem que colocar em
+contas a pagar". Pedido explícito: **sem nenhum vínculo** com o resto
+do Financeiro — não gera Conta a Pagar/Receber sozinho, nem desconta
+de nada; é puramente um lembrete manual. Se o valor físico for
+realmente usado, o usuário cadastra a Conta a Pagar à parte e remove
+esta linha.
+
+- Novo item de menu **"🗃️ Caixa Registradora"**, logo abaixo de "Contas
+  a Receber" dentro do grupo Financeiro (pedido explícito de posição),
+  seguindo o MESMO padrão genérico de CRUD já usado em todas as outras
+  abas do Financeiro (`FinanceRecordList`/`makeResource`) — nenhum
+  componente novo precisou ser escrito no frontend além da configuração
+  de colunas/campos.
+- Campos: **Tipo** (select: Dinheiro físico / Promissória / Cheque),
+  **Valor (R$)**, **Observações** (texto livre) — e a data/hora do
+  registro (`createdAt`, automática, exibida como "Registrado em
+  DD/MM/AAAA HH:mm", nunca editável pelo usuário).
+- `FinanceCashRegister` (modelo novo) — `type`/`value`/`notes`/
+  `companyId`, sem FK pra nenhum outro recurso do Financeiro (de
+  propósito — é só um lembrete solto). CRUD completo (criar/editar/
+  excluir), mesma barra de acesso do resto do Financeiro
+  (`EnsureFinancialAccess`).
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend, arquivos tocados)
+  limpos.
+- Migração nova rodada contra o banco de teste local
+  (`create-finance-cash-registers`).
+- Testado via script Node de ponta a ponta: tipo inválido rejeitado;
+  criação de "Dinheiro físico" e "Promissória"; listagem (mais recente
+  primeiro); edição (promissória corrigida pra "Cheque"); exclusão dos
+  dois registros, confirmando lista vazia depois.
+- Testado visualmente via Playwright (navegador real): item de menu
+  aparece corretamente logo abaixo de "Contas a Receber"; tela lista
+  colunas Tipo/Valor/Observações/Registrado em; diálogo "Novo(a) Caixa
+  Registradora" com os 3 campos certos.
+
+**Arquivos**: `backend/src/models/FinanceCashRegister.ts`,
+`backend/src/database/migrations/20261113120000-*.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`backend/src/controllers/FinanceCashRegisterController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/{index,financeConfig}.js`,
+`frontend/src/layout/MainListItems.js`.

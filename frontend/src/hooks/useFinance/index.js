@@ -246,6 +246,7 @@ const useFinance = () => {
       },
     },
     expenses: makeResource("expenses"),
+    cashRegister: makeResource("cash-register"),
     receivables,
     paymentConfig,
     getPaymentAccess,
