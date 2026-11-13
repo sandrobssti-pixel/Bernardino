@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.287] — Revertido: "Saldo total" de Contas a Pagar volta a somar o filtro atual — 2026-11-13
+
+### Corrigido
+- **Saldo total de Contas a Pagar** volta a somar o que está filtrado/
+  visível na tela (reverte a mudança da v2.3.285) — cliente reportou
+  que, filtrando "Pendente", o Saldo total mostrava o total pago (não
+  batendo com os registros visíveis). Agora filtrar por "Pendente"
+  soma só o pendente, "Pago" soma só o pago, sem filtro soma tudo —
+  igual Contas a Receber.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 261.
+
 ## [2.3.286] — Painel Financeiro: fechamento anual + Lucro líquido por mês — 2026-11-13
 
 ### Alterado

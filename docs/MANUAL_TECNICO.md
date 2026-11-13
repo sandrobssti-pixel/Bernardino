@@ -20183,3 +20183,22 @@ simples").
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
 `frontend/src/components/FinancePainel/index.js`.
+
+## 261. Revertido: "Saldo total" de Contas a Pagar volta a somar o filtro atual (v2.3.287)
+
+Cliente testou a seção 259 em produção (filtro Status=Pendente, Período
+=Este mês): tela mostrava 4 registros pendentes somando R$ 9.772,47 na
+mão, mas o "Saldo total" mostrava R$ 26.290,21 (o total pago com
+vencimento este mês, ignorando o filtro "Pendente" como a seção 259
+tinha implementado) — reportado como "contando errado". Confirmado via
+pergunta direta: o cliente quer o Saldo total batendo com o que está
+filtrado/visível na tela, revertendo a decisão da seção 259.
+
+**Revertido** — `FinanceExpenseService.list` volta a somar
+`whereCondition` (o mesmo filtro aplicado à lista: busca/status/
+período), igual Contas a Receber já fazia. Testado via script Node:
+filtrando "Pendente" soma só o pendente, filtrando "Pago" soma só o
+pago, sem filtro soma tudo — batendo com o que aparece na tela em
+cada caso.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceExpenseService.ts`.

@@ -103,15 +103,14 @@ export const list = async ({
     };
   }
 
-  // "Saldo total" em Contas a Pagar só soma o que já foi PAGO (pedido do
-  // cliente, v2.3.285: "contas a pagar só computar os pagos no saldo
-  // total") — sempre `status: "paid"`, independente do filtro de status
-  // escolhido na tela (ex.: filtrando "Pendente", o Saldo total mostra o
-  // que já foi pago, não o que está pendente). Busca/período continuam
-  // valendo (pra "quanto já paguei de Aluguel", por exemplo). Diferente
-  // de Contas a Receber, que soma o que bate o filtro atual.
-  const paidWhereCondition = { ...whereCondition, status: "paid" };
-
+  // "Saldo total" — soma de TODOS os registros que batem o filtro atual
+  // (busca/status/período), não só os 20 da página. Revertido em
+  // v2.3.287: a v2.3.285 tinha mudado pra sempre somar só "paid",
+  // independente do filtro de status na tela — na prática o cliente viu
+  // o Saldo total não bater com a lista filtrada (ex.: filtrando
+  // "Pendente", o Saldo total mostrava o que já tinha sido pago, não os
+  // 4 registros pendentes visíveis) e pediu de volta o comportamento de
+  // somar o que está filtrado/visível, igual Contas a Receber.
   const [{ count, rows: records }, totalValue] = await Promise.all([
     FinanceExpense.findAndCountAll({
       where: whereCondition,
@@ -120,7 +119,7 @@ export const list = async ({
       order: [["dueDate", "ASC"]],
       include: [{ model: FinanceSupplier, as: "supplier", attributes: ["id", "name"] }]
     }),
-    sumModelValue(FinanceExpense, paidWhereCondition)
+    sumModelValue(FinanceExpense, whereCondition)
   ]);
 
   return { records, count, hasMore: count > offset + records.length, totalValue };
