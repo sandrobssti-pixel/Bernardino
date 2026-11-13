@@ -20110,3 +20110,25 @@ que só contam pendente/vencido/pago-recebido-no-mês).
 **Arquivos**: `backend/src/utils/financeSum.ts`,
 `backend/src/services/FinanceService/{FinanceReportService,FinanceExpenseService,FinanceReceivableService}.ts`,
 `frontend/src/components/{FinancePainel,FinanceRecordList}/index.js`.
+
+## 259. Ajuste: "Saldo total" em Contas a Pagar só soma o que já foi pago (v2.3.285)
+
+Pedido do cliente logo depois da seção 258: "contas a pagar só
+computar os pagos no saldo total". Diferente do que a seção 258 tinha
+feito (somar o que bate o filtro de status escolhido na tela), o Saldo
+total de Contas a Pagar agora SEMPRE soma só os registros com
+`status: "paid"` — **independente do filtro de status selecionado na
+tela**. Filtrar por "Pendente", por exemplo, continua mostrando a
+lista de pendentes normalmente, mas o Saldo total ali em cima mostra
+quanto já foi efetivamente pago, não o total do que está pendente.
+Busca e período continuam valendo no cálculo (útil pra "quanto já
+paguei de Aluguel", por exemplo).
+
+**Contas a Receber não mudou** — continua somando o que bate o filtro
+de status atual (pedido só mencionou Contas a Pagar).
+
+Testado via script Node: 1 pendente (R$ 100) + 2 pagas (R$ 200 +
+R$ 50,75) — Saldo total sempre R$ 250,75 nas três situações testadas
+(sem filtro, filtrando "Pendente", filtrando "Pago").
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceExpenseService.ts`.

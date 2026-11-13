@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.285] — Ajuste: "Saldo total" em Contas a Pagar só soma o que já foi pago — 2026-11-13
+
+### Corrigido
+- **Saldo total de Contas a Pagar** agora sempre soma só os registros
+  **pagos**, independente do filtro de status escolhido na tela —
+  filtrar por "Pendente" continua mostrando a lista normal, mas o
+  Saldo total mostra o que já foi pago, não o total pendente. Contas a
+  Receber não muda (continua somando o que bate o filtro atual).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 259.
+
 ## [2.3.284] — Painel Financeiro: Lucro líquido + "Saldo total" em Contas a Pagar/Receber — 2026-11-13
 
 ### Adicionado
