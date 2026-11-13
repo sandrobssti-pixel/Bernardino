@@ -29,6 +29,7 @@ interface ReceivableData {
   notes?: string;
   active?: boolean;
   customerId?: number | null;
+  paymentMethod?: string;
 }
 
 const receivableSchema = Yup.object().shape({

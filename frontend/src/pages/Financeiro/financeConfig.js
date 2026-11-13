@@ -666,6 +666,33 @@ const StatusChip = ({ label, color }) => (
   <Chip size="small" label={label} style={{ backgroundColor: color, color: "#fff", fontWeight: 600 }} />
 );
 
+// Forma de pagamento — lista exatamente como o contador passou (duas
+// opções, "À vista" e "Dinheiro", mapeiam pro mesmo código Sefaz "01" no
+// backend; ver PAYMENT_METHOD_CODES em FocusNFeService.ts).
+// "Importado do XML" removida (v2.3.217, pedido do cliente: "tirar a
+// opção errada que está lá importado do xml") — era só um valor técnico
+// deixado pela importação de planilha/XML de vendas antigas
+// (SaleImportService.ts), nunca fez sentido como opção escolhível à mão
+// na venda; vendas antigas que já tiverem esse valor salvo continuam
+// com ele (não é migração de dado, só sai da lista de opções do
+// formulário). "Venda Mista" nova no lugar, mesmo pedido: "as vezes o
+// cliente paga em dinheiro, pix e cartão" — ver os 3 campos de valor
+// que aparecem em SaleModal.js quando essa opção é escolhida.
+// Movida pra cima (v2.3.283) pra também ser usada em Contas a Pagar/
+// Receber (pedido do cliente: "coloque em contas a pagar e contas a
+// receber forma de pagamento, igual do modulo vendas") — aqui não tem
+// o desdobramento em 3 campos de valor que "mixed" tem na Venda.
+export const SALE_PAYMENT_METHOD_OPTIONS = [
+  { value: "", label: "—" },
+  { value: "cash_upfront", label: "À vista" },
+  { value: "credit_card", label: "Cartão de Crédito" },
+  { value: "debit_card", label: "Cartão de Débito" },
+  { value: "money", label: "Dinheiro" },
+  { value: "pix", label: "PIX" },
+  { value: "mixed", label: "Venda Mista" },
+  { value: "no_payment", label: "Sem pagamento" },
+];
+
 export const financeExpenseColumns = [
   { field: "description", label: "Descrição" },
   { field: "category", label: "Categoria" },
@@ -675,6 +702,12 @@ export const financeExpenseColumns = [
     render: (r) => (r.costType === "fixed" ? "Fixo" : "Variável"),
   },
   { field: "value", label: "Valor", render: (r) => money(r.value) },
+  {
+    field: "paymentMethod",
+    label: "Forma de pagamento",
+    render: (r) =>
+      SALE_PAYMENT_METHOD_OPTIONS.find((o) => o.value === r.paymentMethod)?.label || "—",
+  },
   { field: "dueDate", label: "Vencimento", render: (r) => formatDateBR(r.dueDate) },
   { field: "supplier", label: "Fornecedor", render: (r) => r.supplier?.name || "—" },
   {
@@ -694,6 +727,7 @@ export const financeExpenseFields = [
   { name: "costType", label: "Tipo de custo", type: "select", options: COST_TYPE_OPTIONS, defaultValue: "variable", gridSize: 4 },
   { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: EXPENSE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
+  { name: "paymentMethod", label: "Forma de pagamento", type: "select", options: SALE_PAYMENT_METHOD_OPTIONS, defaultValue: "", gridSize: 6 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "paymentDate", label: "Data de pagamento", type: "date", gridSize: 6 },
   { name: "supplierId", label: "Fornecedor", type: "asyncSelect", optionsResource: "suppliers", gridSize: 12 },
@@ -707,6 +741,12 @@ export const financeExpenseFilters = [
 export const financeReceivableColumns = [
   { field: "description", label: "Descrição" },
   { field: "value", label: "Valor", render: (r) => money(r.value) },
+  {
+    field: "paymentMethod",
+    label: "Forma de pagamento",
+    render: (r) =>
+      SALE_PAYMENT_METHOD_OPTIONS.find((o) => o.value === r.paymentMethod)?.label || "—",
+  },
   { field: "dueDate", label: "Vencimento", render: (r) => formatDateBR(r.dueDate) },
   { field: "customer", label: "Cliente", render: (r) => r.customer?.name || "—" },
   {
@@ -732,6 +772,7 @@ export const financeReceivableFields = [
   { name: "description", label: "Descrição", gridSize: 8 },
   { name: "value", label: "Valor (R$)", type: "currency", step: "0.01", defaultValue: "0", gridSize: 4 },
   { name: "status", label: "Status", type: "select", options: RECEIVABLE_STATUS_OPTIONS, defaultValue: "pending", gridSize: 4 },
+  { name: "paymentMethod", label: "Forma de pagamento", type: "select", options: SALE_PAYMENT_METHOD_OPTIONS, defaultValue: "", gridSize: 6 },
   { name: "dueDate", label: "Vencimento", type: "date", gridSize: 6 },
   { name: "receivedDate", label: "Data de recebimento", type: "date", gridSize: 6 },
   { name: "customerId", label: "Cliente", type: "asyncSelect", optionsResource: "customers", gridSize: 12 },
@@ -781,29 +822,6 @@ export const SALE_IE_INDICATOR_OPTIONS = [
   { value: "contributor", label: "Contribuinte" },
   { value: "non_contributor", label: "Não contribuinte" },
   { value: "exempt", label: "Contribuinte Isento" },
-];
-
-// Forma de pagamento — lista exatamente como o contador passou (duas
-// opções, "À vista" e "Dinheiro", mapeiam pro mesmo código Sefaz "01" no
-// backend; ver PAYMENT_METHOD_CODES em FocusNFeService.ts).
-// "Importado do XML" removida (v2.3.217, pedido do cliente: "tirar a
-// opção errada que está lá importado do xml") — era só um valor técnico
-// deixado pela importação de planilha/XML de vendas antigas
-// (SaleImportService.ts), nunca fez sentido como opção escolhível à mão
-// na venda; vendas antigas que já tiverem esse valor salvo continuam
-// com ele (não é migração de dado, só sai da lista de opções do
-// formulário). "Venda Mista" nova no lugar, mesmo pedido: "as vezes o
-// cliente paga em dinheiro, pix e cartão" — ver os 3 campos de valor
-// que aparecem em SaleModal.js quando essa opção é escolhida.
-export const SALE_PAYMENT_METHOD_OPTIONS = [
-  { value: "", label: "—" },
-  { value: "cash_upfront", label: "À vista" },
-  { value: "credit_card", label: "Cartão de Crédito" },
-  { value: "debit_card", label: "Cartão de Débito" },
-  { value: "money", label: "Dinheiro" },
-  { value: "pix", label: "PIX" },
-  { value: "mixed", label: "Venda Mista" },
-  { value: "no_payment", label: "Sem pagamento" },
 ];
 
 // "Finalidade da Emissão" + "Dados de Transporte" (v2.3.168) — tela de

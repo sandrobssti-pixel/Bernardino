@@ -20008,3 +20008,41 @@ esta linha.
 `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/pages/Financeiro/{index,financeConfig}.js`,
 `frontend/src/layout/MainListItems.js`.
+
+## 257. Financeiro: "Forma de pagamento" em Contas a Pagar e Contas a Receber (v2.3.283)
+
+Pedido do cliente: "coloque em contas a pagar e contas a receber forma
+de pagamento, igual do modulo vendas" — mesma lista de opções já usada
+no campo "Forma de pagamento" da Venda (`SALE_PAYMENT_METHOD_OPTIONS`:
+À vista, Cartão de Crédito, Cartão de Débito, Dinheiro, PIX, Venda
+Mista, Sem pagamento), agora também disponível nos dois cadastros do
+Financeiro operacional.
+
+- `FinanceExpense`/`FinanceReceivable` ganharam a coluna
+  `paymentMethod` (STRING, default `""`) — opcional, sem valor
+  obrigatório.
+- **Diferente da Venda**: aqui é só o registro de qual foi a forma
+  usada — não tem o desdobramento em 3 campos de valor (dinheiro/PIX/
+  cartão) que a opção "Venda Mista" aciona em `SaleModal.js`. Contas a
+  Pagar/Receber são sempre um valor único; escolher "Venda Mista" aqui
+  só grava o texto, sem efeito especial nenhum.
+- `SALE_PAYMENT_METHOD_OPTIONS` (frontend) foi movida pra mais cedo no
+  arquivo `financeConfig.js` (era declarada depois de onde as novas
+  colunas/campos de Contas a Pagar/Receber precisavam dela) — mesma
+  lista reaproveitada, nenhuma duplicata, pra não divergir se a Venda
+  ganhar uma forma de pagamento nova no futuro.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Migração nova rodada contra o banco de teste local
+  (`add-payment-method-to-expenses-and-receivables`).
+- Testado via script Node: criação de Conta a Pagar com
+  `paymentMethod: "pix"`, edição pra `"credit_card"`, criação de Conta
+  a Receber com `paymentMethod: "money"` — os três confirmados
+  corretamente salvos/atualizados via API.
+
+**Arquivos**: `backend/src/models/{FinanceExpense,FinanceReceivable}.ts`,
+`backend/src/database/migrations/20261113180000-*.ts`,
+`backend/src/services/FinanceService/{FinanceExpenseService,FinanceReceivableService}.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

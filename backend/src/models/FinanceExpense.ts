@@ -61,6 +61,15 @@ class FinanceExpense extends Model<FinanceExpense> {
   @Column(DataType.TEXT)
   notes: string;
 
+  // Mesmas opções do campo "Forma de pagamento" do módulo Vendas (ver
+  // SALE_PAYMENT_METHOD_OPTIONS) — pedido do cliente: "coloque em contas
+  // a pagar e contas a receber forma de pagamento, igual do modulo
+  // vendas". Aqui não tem o desdobramento em 3 campos de valor que
+  // "mixed" tem na Venda — é só o registro de qual foi a forma usada.
+  @Default("")
+  @Column
+  paymentMethod: string;
+
   @Default(true)
   @Column
   active: boolean;

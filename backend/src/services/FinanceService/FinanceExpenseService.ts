@@ -31,6 +31,7 @@ interface ExpenseData {
   notes?: string;
   active?: boolean;
   supplierId?: number | null;
+  paymentMethod?: string;
 }
 
 const expenseSchema = Yup.object().shape({

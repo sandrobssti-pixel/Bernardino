@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.283] — Financeiro: "Forma de pagamento" em Contas a Pagar/Receber — 2026-11-13
+
+### Adicionado
+- Campo **"Forma de pagamento"** em Contas a Pagar e Contas a Receber
+  (À vista, Cartão de Crédito, Cartão de Débito, Dinheiro, PIX, Venda
+  Mista, Sem pagamento) — mesma lista de opções já usada no módulo
+  Vendas, opcional, sem efeito especial (diferente da Venda, aqui não
+  desdobra em 3 campos de valor quando "Venda Mista" é escolhido).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 257.
+
 ## [2.3.282] — Financeiro: "Caixa Registradora" (lembrete de valores físicos) — 2026-11-13
 
 ### Adicionado
