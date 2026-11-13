@@ -5,7 +5,7 @@
 #
 # Pre-requisito: o compartilhamento do NAS ja estar montado em /mnt/nas-arquivos
 # (ver docs/backup-arquivos.md). Roda como o USUARIO que invocou o sudo (os arquivos sao dele),
-# todos os dias as 04:30 (depois dos backups das 02:37, 03:00 e 03:30). Pode repetir sem problema.
+# todos os dias as 04:30 (depois dos backups das ~02:41, 03:00 e 03:30). Pode repetir sem problema.
 
 set -eu
 
