@@ -4,6 +4,8 @@ import AppError from "../../errors/AppError";
 import authConfig from "../../config/auth";
 import Member from "../../models/Member";
 import MemberCheckIn from "../../models/MemberCheckIn";
+import { haversineDistanceMeters } from "../../utils/geo";
+import { getSettings as getGeofenceSettings } from "./MemberGeofenceService";
 
 // Portal do Associado — acesso próprio do associado (diferente do login
 // de equipe/Admin do AtendeFlow), pedido explícito do cliente pra ele
@@ -165,6 +167,29 @@ export const submitHabitualidade = async ({
     }
   }
 
+  // Geofencing (Fase 4) — só calcula/auto-aprova quando a empresa tem
+  // coordenada+raio configurados (ver MemberGeofenceService.ts); sem
+  // isso, comportamento idêntico a antes: sempre "pending", aprovação
+  // 100% manual do Admin.
+  const geofence = await getGeofenceSettings(companyId);
+  let distanceMeters: number | undefined;
+  let validationStatus = "pending";
+  let validationMethod = "manual";
+  let validatedAt: Date | undefined;
+  if (geofence.configured) {
+    distanceMeters = haversineDistanceMeters(
+      geofence.latitude as number,
+      geofence.longitude as number,
+      latitude,
+      longitude
+    );
+    if (distanceMeters <= (geofence.radiusMeters as number)) {
+      validationStatus = "valid";
+      validationMethod = "auto_geofence";
+      validatedAt = new Date();
+    }
+  }
+
   return MemberCheckIn.create({
     memberId,
     companyId,
@@ -173,7 +198,10 @@ export const submitHabitualidade = async ({
     logbookPhotoUrl,
     latitude,
     longitude,
-    validationStatus: "pending",
+    distanceMeters,
+    validationStatus,
+    validationMethod,
+    validatedAt,
     source: "portal"
   } as any);
 };

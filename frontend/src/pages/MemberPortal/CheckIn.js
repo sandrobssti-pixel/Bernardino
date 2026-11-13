@@ -82,6 +82,7 @@ const MemberPortalCheckIn = () => {
   const [capturingFace, setCapturingFace] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [submittedRecord, setSubmittedRecord] = useState(null);
 
   useEffect(() => {
     if (!getMemberPortalToken() || !member) {
@@ -141,12 +142,13 @@ const MemberPortalCheckIn = () => {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await memberPortal.submitHabitualidade({
+      const record = await memberPortal.submitHabitualidade({
         logbookPhoto,
         latitude: location.latitude,
         longitude: location.longitude,
         descriptor: member?.faceEnrolled ? descriptor : undefined,
       });
+      setSubmittedRecord(record);
       setDone(true);
     } catch (err) {
       toastError(err);
@@ -172,14 +174,16 @@ const MemberPortalCheckIn = () => {
                 Registro enviado!
               </Typography>
               <Typography variant="body2" color="textSecondary">
-                Sua entrada de habitualidade foi enviada e está aguardando a
-                validação do administrador do clube.
+                {submittedRecord?.validationStatus === "valid"
+                  ? "Sua entrada de habitualidade foi confirmada automaticamente — localização dentro do clube."
+                  : "Sua entrada de habitualidade foi enviada e está aguardando a validação do administrador do clube."}
               </Typography>
               <Box mt={3}>
                 <Button
                   variant="outlined"
                   onClick={() => {
                     setDone(false);
+                    setSubmittedRecord(null);
                     setLogbookPhoto(null);
                     setLogbookPhotoPreview(null);
                     setLocation(null);

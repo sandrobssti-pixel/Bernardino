@@ -62,6 +62,19 @@ class Company extends Model<Company> {
   @Column({ defaultValue: "" })
   logoUrl: string;
 
+  // Coordenada + raio do clube — Gerenciador CAC, Fase 4 (API de
+  // check-in com geofencing): null = geofencing desativado, toda
+  // entrada de habitualidade continua exigindo aprovação manual do
+  // Admin. Ver MemberGeofenceService.ts.
+  @Column(DataType.DOUBLE)
+  geofenceLatitude: number;
+
+  @Column(DataType.DOUBLE)
+  geofenceLongitude: number;
+
+  @Column
+  geofenceRadiusMeters: number;
+
   @Column
   lastLogin: Date;
 

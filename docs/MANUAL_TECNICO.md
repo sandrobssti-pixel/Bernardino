@@ -19847,3 +19847,85 @@ funções NÃO ficam expostas direto em `faceapi.*` (ex.:
 só testando de verdade, não só lendo a documentação/tipagem.
 
 **Arquivos**: `frontend/src/utils/faceRecognition.js`.
+
+## 254. Gerenciador CAC — Fase 4: API de check-in com geofencing (v2.3.280)
+
+Pedido do cliente: aprovar automaticamente a entrada de habitualidade
+quando a localização enviada pelo associado (foto do livro +
+geolocalização, Portal do Associado) está fisicamente dentro do clube,
+sem o Admin precisar conferir manualmente CADA entrada — passo
+preparatório explícito pro app mobile nativo que vem na Fase 5 (o app
+vai chamar essa mesma API de check-in; sem o geofencing automático, o
+app geraria o mesmo volume de revisão manual que já existia no Portal
+web).
+
+### Configuração (Admin)
+
+- **Coordenada + raio do clube** (`Company.geofenceLatitude`/
+  `geofenceLongitude`/`geofenceRadiusMeters`) — null nos três = recurso
+  desativado, comportamento 100% igual a antes (sempre aprovação
+  manual). Configurado no topo do Gerenciador CAC
+  (`CompanyGeofenceSettings.js`, ao lado do card do certificado
+  digital), admin-only, com botão "Usar minha localização atual" (o
+  Admin fica fisicamente no clube e captura a coordenada pelo GPS do
+  próprio navegador) ou digitação manual. Raio entre 20 e 5000 metros,
+  sugestão padrão 150m.
+
+### Cálculo automático (na hora da submissão)
+
+- `backend/src/utils/geo.ts` — `haversineDistanceMeters`, fórmula
+  padrão de distância entre duas coordenadas (raio da Terra 6371km).
+- `MemberPortalService.submitHabitualidade` — se a empresa tem
+  geofencing configurado, calcula a distância entre a localização
+  enviada e a coordenada do clube:
+  - **Dentro do raio** → `validationStatus: "valid"`,
+    `validationMethod: "auto_geofence"`, `validatedAt` preenchido na
+    hora — associado vê confirmação IMEDIATA no Portal ("confirmada
+    automaticamente"), nunca cai na fila de revisão do Admin.
+  - **Fora do raio** → continua `"pending"` (comportamento de sempre,
+    nunca auto-REJEITA — fora do raio pode ser GPS impreciso, não
+    necessariamente fraude), mas agora com `distanceMeters` gravado,
+    mostrado em vermelho na fila de revisão do Admin ("218m do clube —
+    fora do raio configurado") em vez de só o link pro mapa, agilizando
+    a decisão manual.
+  - **Sem geofencing configurado** → sempre `"pending"`/`"manual"`,
+    idêntico ao comportamento anterior a esta seção.
+- `MemberCheckIn` ganhou `distanceMeters` (FLOAT) e `validationMethod`
+  ("manual" | "auto_geofence") — nunca apaga o rastro de quem/como
+  aprovou, mesmo quando foi o próprio sistema.
+
+### API (admin-only, mesma barra do certificado digital — seção 249)
+
+- `GET/PUT/DELETE /company/geofence` — `MemberGeofenceController.ts`,
+  `MemberGeofenceService.ts`. `PUT` valida latitude (-90..90), longitude
+  (-180..180) e raio (20..5000m) antes de salvar.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend, arquivos tocados)
+  limpos.
+- Migrações novas rodadas contra o banco de teste local
+  (`add-geofence-fields-to-companies`,
+  `add-geofence-fields-to-member-check-ins`).
+- Testado via `curl`/script Node de ponta a ponta: coordenada/raio
+  inválidos rejeitados; configuração salva corretamente; submissão de
+  habitualidade na MESMA coordenada do clube → aprovada automaticamente
+  (`distanceMeters: 0`); submissão numa coordenada ~363km de distância
+  (São Paulo → Rio de Janeiro, distância real confirmada) → continua
+  "pending", com a distância gravada; fila de revisão do Admin
+  (`GET /members/checkins/pending`) confirmada mostrando SÓ a entrada
+  fora do raio, nunca a aprovada automaticamente.
+- Build de produção do frontend concluído com sucesso.
+
+**Arquivos**: `backend/src/utils/geo.ts`,
+`backend/src/models/{Company,MemberCheckIn}.ts`,
+`backend/src/database/migrations/20261113000000-*.ts`,
+`backend/src/database/migrations/20261113000100-*.ts`,
+`backend/src/services/MemberService/{MemberGeofenceService,MemberPortalService}.ts`,
+`backend/src/controllers/MemberGeofenceController.ts`,
+`backend/src/routes/{memberGeofenceRoutes,index}.ts`,
+`frontend/src/hooks/useCompanyGeofence/index.js`,
+`frontend/src/pages/Members/{index,CompanyGeofenceSettings}.js`,
+`frontend/src/pages/MemberCheckIn/index.js`,
+`frontend/src/pages/MemberPortal/CheckIn.js`,
+`frontend/src/translate/languages/pt.js`.

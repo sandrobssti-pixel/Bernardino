@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.280] — Gerenciador CAC: Fase 4, API de check-in com geofencing — 2026-11-13
+
+### Adicionado
+- **Geofencing automático de habitualidade** — configure a coordenada +
+  raio do clube (card novo no topo do Gerenciador CAC, admin-only) e a
+  entrada de habitualidade enviada pelo associado (foto do livro +
+  geolocalização, Portal do Associado) é **aprovada automaticamente**
+  quando está fisicamente dentro do raio — sem o Admin precisar
+  conferir manualmente cada uma. Fora do raio, continua exigindo
+  aprovação manual como sempre, agora mostrando a distância calculada
+  na fila de revisão. Sem configurar, nada muda (sempre manual, como
+  antes). Base necessária pro app mobile nativo da Fase 5.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 254.
+
 ## [2.3.279] — Correção: "Registrar presença" falhava sem WebGL — 2026-11-12
 
 ### Corrigido

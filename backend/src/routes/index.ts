@@ -72,6 +72,7 @@ import weaponArmoryRoutes from "./weaponArmoryRoutes";
 import memberRoutes from "./memberRoutes";
 import memberPortalRoutes from "./memberPortalRoutes";
 import companyCertificateRoutes from "./companyCertificateRoutes";
+import memberGeofenceRoutes from "./memberGeofenceRoutes";
 
 const routes = Router();
 
@@ -149,5 +150,6 @@ routes.use(weaponArmoryRoutes);
 routes.use(memberRoutes);
 routes.use(memberPortalRoutes);
 routes.use(companyCertificateRoutes);
+routes.use(memberGeofenceRoutes);
 
 export default routes;

@@ -10,6 +10,7 @@ import useMembers from "../../hooks/useMembers";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import MemberEditDialog from "./MemberEditDialog";
 import CompanyCertificateSettings from "./CompanyCertificateSettings";
+import CompanyGeofenceSettings from "./CompanyGeofenceSettings";
 import { memberColumns, memberFields } from "./membersConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -118,6 +119,7 @@ const Members = () => {
   return (
     <div className={classes.pageRoot}>
       <CompanyCertificateSettings />
+      <CompanyGeofenceSettings />
       <FinanceRecordList
         key={refreshToken}
         title="Associado"

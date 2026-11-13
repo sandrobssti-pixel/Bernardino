@@ -64,13 +64,27 @@ class MemberCheckIn extends Model<MemberCheckIn> {
   @Column(DataType.DOUBLE)
   longitude: number;
 
-  // "pending" | "valid" | "invalid" — o Admin confere a geolocalização
-  // acima contra o endereço do clube (manual nesta fase, sem cálculo
-  // automático de raio) e decide. Só tem sentido quando
+  // "pending" | "valid" | "invalid" — decidido automaticamente (quando a
+  // empresa tem geofencing configurado e a localização cai dentro do
+  // raio, ver MemberGeofenceService.ts) ou pelo Admin manualmente (Fase
+  // 4 — API de check-in com geofencing). Só tem sentido quando
   // `logbookPhotoUrl` existe.
   @Default("pending")
   @Column
   validationStatus: string;
+
+  // Distância (metros) até a coordenada do clube no momento do check-in
+  // — só calculada quando a empresa tem geofencing configurado. Null =
+  // geofencing desativado pra essa empresa (nunca foi calculado).
+  @Column(DataType.FLOAT)
+  distanceMeters: number;
+
+  // "manual" (Admin decidiu, como sempre foi) | "auto_geofence"
+  // (sistema aprovou sozinho, porque a localização bateu dentro do
+  // raio configurado) — nunca apaga o rastro de quem/como validou.
+  @Default("manual")
+  @Column
+  validationMethod: string;
 
   @ForeignKey(() => User)
   @Column

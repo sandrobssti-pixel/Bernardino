@@ -354,6 +354,11 @@ const MemberCheckIn = () => {
                     <Typography variant="caption" color="textSecondary" display="block">
                       {new Date(item.checkedInAt).toLocaleString("pt-BR")}
                     </Typography>
+                    {item.distanceMeters != null && (
+                      <Typography variant="caption" style={{ color: "#c62828", display: "block" }}>
+                        {`${Math.round(item.distanceMeters)}m do clube — fora do raio configurado`}
+                      </Typography>
+                    )}
                     {item.latitude != null && item.longitude != null && (
                       <Link
                         href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
