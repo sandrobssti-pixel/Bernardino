@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import useFiscal from "../../hooks/useFiscal";
-import { buildEmitterAddressLine } from "../../utils/financeFormat";
+import { buildEmitterAddressLine, money } from "../../utils/financeFormat";
 import { PERIOD_OPTIONS, resolvePeriodRange } from "../../utils/periodFilter";
 
 import { makeStyles } from "@material-ui/core/styles";
@@ -191,6 +191,13 @@ const FinanceRecordList = ({
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [count, setCount] = useState(0);
+  // "Saldo total" — pedido do cliente (v2.3.284): soma de TODOS os
+  // registros que batem o filtro atual (não só a página), mostrada em
+  // Contas a Pagar/Receber pra ficar mais fácil bater com o Painel
+  // Financeiro. `null` = o recurso não manda esse dado (ex.: Produtos,
+  // Clientes) — nesse caso a tela não mostra nada, comportamento igual a
+  // antes.
+  const [totalValue, setTotalValue] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [searchParam, setSearchParam] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
@@ -227,6 +234,7 @@ const FinanceRecordList = ({
       const data = await resource.list({ searchParam, pageNumber, ...filterValues, ...periodParams });
       setRecords(data.records || []);
       setCount(data.count || 0);
+      setTotalValue(data.totalValue !== undefined ? data.totalValue : null);
       setSelectedIds([]);
     } catch (err) {
       toastError(err);
@@ -680,6 +688,17 @@ const FinanceRecordList = ({
           </Button>
         </Box>
       </Box>
+
+      {totalValue !== null && (
+        <Box display="flex" justifyContent="flex-end" mb={1}>
+          <Chip
+            label={`Saldo total (${count} registro${count === 1 ? "" : "s"}): ${money(totalValue)}`}
+            color="primary"
+            variant="outlined"
+            style={{ fontWeight: 600 }}
+          />
+        </Box>
+      )}
 
       <Paper className={classes.tablePaper} variant="outlined">
         <Table size="small">

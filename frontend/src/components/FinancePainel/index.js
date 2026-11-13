@@ -330,6 +330,36 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
         </Grid>
       )}
 
+      {/* Receita bruta/despesas brutas/lucro líquido — pedido do cliente
+          (v2.3.284): soma de TODAS as contas já cadastradas (sem filtro
+          de status nem período, diferente dos cards acima), pra bater
+          com o que o cliente calcula manualmente somando as listas
+          inteiras de Contas a Receber/Pagar ("Saldo total" delas, ver
+          FinanceRecordList.js). Lucro líquido em verde quando positivo,
+          vermelho quando negativo — mesmo padrão do "Saldo previsto". */}
+      {summary && (
+        <Paper className={classes.chartPaper} variant="outlined">
+          <Typography className={classes.chartTitle}>
+            Receita × despesa × lucro (geral)
+          </Typography>
+          <Grid container spacing={2}>
+            <Grid item xs={6} sm={4}>
+              <SummaryCard label="Receita bruta" value={summary.grossRevenue} />
+            </Grid>
+            <Grid item xs={6} sm={4}>
+              <SummaryCard label="Despesas brutas" value={summary.grossExpenses} />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <SummaryCard
+                label="Lucro líquido"
+                value={summary.netProfit}
+                accent={summary.netProfit < 0 ? "#ef4444" : "#10b981"}
+              />
+            </Grid>
+          </Grid>
+        </Paper>
+      )}
+
       <Paper className={classes.chartPaper} variant="outlined">
         <Typography className={classes.chartTitle}>
           Fluxo de caixa (últimos 6 meses)

@@ -7,6 +7,7 @@ import Sale from "../../models/Sale";
 import SaleItem from "../../models/SaleItem";
 import FiscalConfig from "../../models/FiscalConfig";
 import { isProductionActive } from "../FiscalService/FiscalConfigService";
+import { sumValueLiteral, sumModelValue } from "../../utils/financeSum";
 
 const toNumber = (value: unknown): number => {
   const n = Number(value);
@@ -16,36 +17,17 @@ const toNumber = (value: unknown): number => {
 // "value" é salvo como string (evita imprecisão de ponto flutuante), então
 // todo SUM precisa de um CAST explícito pra numeric — o Postgres não soma
 // varchar direto (42883: function sum(character varying) does not exist).
-//
-// ⚠️ Bug real encontrado em produção (v2.3.24): o campo "Valor (R$)" dos
-// formulários de conta a pagar/receber/produto aceitava texto livre — um
-// valor digitado no formato brasileiro ("150,00", com vírgula) ficava salvo
-// como string não-numérica. Um CAST direto pra numeric QUEBRA com erro se a
-// string não for um número válido pro Postgres (ex.: "150,00" tem vírgula,
-// não é numeric válido) — isso derrubava o Painel Financeiro inteiro com
-// 500 assim que existisse UM registro com valor mal formatado. Corrigido
-// aqui com um CASE WHEN que só faz o CAST se o valor bater um regex de
-// número válido, tratando qualquer outra coisa como 0 (não quebra, só não
-// soma esse registro — o valor mal formatado precisa ser corrigido editando
-// o registro na tela, agora com o campo já sendo um input numérico).
-const sumValue = () =>
-  literal(
-    `SUM(CASE WHEN "value" ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN CAST("value" AS NUMERIC) ELSE 0 END)`
-  );
+// Ver utils/financeSum.ts pro bug real documentado (v2.3.24) por trás do
+// CASE WHEN abaixo — extraído pra lá pra ser reaproveitado também pelo
+// "Saldo total" das listas de Contas a Pagar/Receber (v2.3.284).
+const sumValue = sumValueLiteral;
 
 // Substitui Model.sum("value", ...) — esse helper do Sequelize gera
 // SUM("value") sem cast e quebra (42883) porque "value" é varchar.
-const sumWhere = async (
+const sumWhere = (
   model: typeof FinanceExpense | typeof FinanceReceivable,
   where: Record<string, unknown>
-): Promise<number> => {
-  const row: any = await (model as any).findOne({
-    attributes: [[sumValue(), "total"]],
-    where,
-    raw: true
-  });
-  return toNumber(row?.total);
-};
+): Promise<number> => sumModelValue(model as any, where);
 
 // Cartões de resumo do Painel Financeiro: pendências, vencidos, pago/
 // recebido no mês corrente, saldo previsto.
@@ -60,7 +42,9 @@ export const getSummary = async (companyId: number) => {
     pendingReceivablesNum,
     overdueReceivablesNum,
     paidThisMonthNum,
-    receivedThisMonthNum
+    receivedThisMonthNum,
+    grossRevenueNum,
+    grossExpensesNum
   ] = await Promise.all([
     sumWhere(FinanceExpense, { companyId, status: "pending" }),
     sumWhere(FinanceExpense, {
@@ -83,7 +67,15 @@ export const getSummary = async (companyId: number) => {
       companyId,
       status: "received",
       receivedDate: { [Op.between]: [monthStart, monthEnd] }
-    })
+    }),
+    // Receita/despesa bruta — pedido do cliente (v2.3.284): soma de
+    // TODAS as contas já cadastradas, sem filtro de status nem período
+    // (diferente de pendingReceivables/pendingExpenses acima, que só
+    // contam o que ainda está pendente). "Lucro líquido" abaixo é a
+    // diferença entre as duas, pra bater com o que o cliente calcula
+    // manualmente somando as duas listas inteiras.
+    sumWhere(FinanceReceivable, { companyId }),
+    sumWhere(FinanceExpense, { companyId })
   ]);
 
   return {
@@ -93,7 +85,10 @@ export const getSummary = async (companyId: number) => {
     overdueReceivables: overdueReceivablesNum,
     paidThisMonth: paidThisMonthNum,
     receivedThisMonth: receivedThisMonthNum,
-    projectedBalance: pendingReceivablesNum - pendingExpensesNum
+    projectedBalance: pendingReceivablesNum - pendingExpensesNum,
+    grossRevenue: grossRevenueNum,
+    grossExpenses: grossExpensesNum,
+    netProfit: grossRevenueNum - grossExpensesNum
   };
 };
 

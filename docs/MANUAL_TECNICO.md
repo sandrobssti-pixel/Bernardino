@@ -20046,3 +20046,67 @@ Financeiro operacional.
 `backend/src/database/migrations/20261113180000-*.ts`,
 `backend/src/services/FinanceService/{FinanceExpenseService,FinanceReceivableService}.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 258. Painel Financeiro: Receita bruta/Despesas brutas/Lucro líquido + "Saldo total" em Contas a Pagar/Receber (v2.3.284)
+
+Pedido do cliente: facilitar o entendimento do Painel Financeiro e
+deixar os números batendo com Contas a Pagar/Contas a Receber — deu
+como exemplo próprio: "receita bruta R$ 67.212,48, despesas brutas
+R$ 26.790,25, deveria ter um líquido de R$ 40.422,23". Confirmado via
+pergunta direta: "bruta" = soma de TODAS as contas já cadastradas,
+sem filtro de status nem período (diferente dos cards que já existiam,
+que só contam pendente/vencido/pago-recebido-no-mês).
+
+### Painel Financeiro — novo card "Receita × despesa × lucro (geral)"
+
+- `grossRevenue` (soma de TODAS as `FinanceReceivable.value`),
+  `grossExpenses` (soma de TODAS as `FinanceExpense.value`),
+  `netProfit` (a diferença) — adicionados em `getSummary`
+  (`FinanceReportService.ts`), expostos pelo mesmo endpoint
+  `GET /finance/reports/summary` que já alimentava os outros cards.
+- "Lucro líquido" em verde quando positivo, vermelho quando negativo
+  — mesmo padrão já usado em "Saldo previsto".
+- Testado batendo exatamente com os números do próprio exemplo do
+  cliente (verificado via script com dados reais: R$ 67.212,48 /
+  R$ 26.790,25 / R$ 40.422,23).
+
+### "Saldo total" em Contas a Pagar e Contas a Receber
+
+- Pedido do cliente: "quando eu filtar... coloco todos os pendentes...
+  quero que tenha um valor calculado". `FinanceExpenseService.list`/
+  `FinanceReceivableService.list` agora também somam (`totalValue`)
+  TODOS os registros que batem o filtro atual (busca/status/período),
+  não só os 20 da página — a mesma query de `where` usada na listagem,
+  só que com `SUM` em vez de paginação.
+- `FinanceRecordList.js` (componente genérico, usado por Produtos/
+  Clientes/etc. além de Contas a Pagar/Receber) mostra um chip "Saldo
+  total (N registros): R$ X" acima da tabela sempre que o recurso
+  devolve `totalValue` — outros recursos que não mandam esse campo
+  continuam exatamente como antes (sem chip nenhum).
+- Resultado prático: filtrar Contas a Pagar por "Pendente" mostra o
+  total de tudo que está pendente, direto na tela, sem precisar somar
+  manualmente linha por linha — e esse número bate com o card
+  correspondente do Painel Financeiro.
+
+### Reaproveitamento de código
+
+- `backend/src/utils/financeSum.ts` (novo) — extrai o `SUM` com CAST
+  seguro (já documentado como bug real de produção, v2.3.24, no
+  comentário original) que antes só existia dentro de
+  `FinanceReportService.ts`, pra ser reaproveitado também pelo "Saldo
+  total" das duas listas, sem duplicar a lógica.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via script Node com dados reais: `grossRevenue`/
+  `grossExpenses`/`netProfit` conferidos matematicamente corretos;
+  `totalValue` sem filtro bate com a soma total; `totalValue` com
+  `status=pending` bate só com os registros pendentes.
+- Testado visualmente via Playwright: os 3 novos cards do Painel
+  Financeiro e o chip "Saldo total" em Contas a Pagar/Receber,
+  renderizando com os números batendo entre as duas telas.
+
+**Arquivos**: `backend/src/utils/financeSum.ts`,
+`backend/src/services/FinanceService/{FinanceReportService,FinanceExpenseService,FinanceReceivableService}.ts`,
+`frontend/src/components/{FinancePainel,FinanceRecordList}/index.js`.

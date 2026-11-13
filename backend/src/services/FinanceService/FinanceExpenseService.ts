@@ -4,6 +4,7 @@ import AppError from "../../errors/AppError";
 import FinanceExpense from "../../models/FinanceExpense";
 import FinanceSupplier from "../../models/FinanceSupplier";
 import { findEntityIdsByNameOrDocument } from "../../utils/findEntityIdsByNameOrDocument";
+import { sumModelValue } from "../../utils/financeSum";
 
 interface ListRequest {
   companyId: number;
@@ -18,6 +19,7 @@ interface ListResponse {
   records: FinanceExpense[];
   count: number;
   hasMore: boolean;
+  totalValue: number;
 }
 
 interface ExpenseData {
@@ -101,15 +103,22 @@ export const list = async ({
     };
   }
 
-  const { count, rows: records } = await FinanceExpense.findAndCountAll({
-    where: whereCondition,
-    limit,
-    offset,
-    order: [["dueDate", "ASC"]],
-    include: [{ model: FinanceSupplier, as: "supplier", attributes: ["id", "name"] }]
-  });
+  const [{ count, rows: records }, totalValue] = await Promise.all([
+    FinanceExpense.findAndCountAll({
+      where: whereCondition,
+      limit,
+      offset,
+      order: [["dueDate", "ASC"]],
+      include: [{ model: FinanceSupplier, as: "supplier", attributes: ["id", "name"] }]
+    }),
+    // "Saldo total" — pedido do cliente (v2.3.284): soma de TODOS os
+    // registros que batem o filtro atual (busca/status/período), não só
+    // os 20 da página — pra bater com o que o cliente soma manualmente
+    // quando filtra, por exemplo, "Pendente".
+    sumModelValue(FinanceExpense, whereCondition)
+  ]);
 
-  return { records, count, hasMore: count > offset + records.length };
+  return { records, count, hasMore: count > offset + records.length, totalValue };
 };
 
 export const show = async (

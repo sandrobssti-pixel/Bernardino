@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.284] — Painel Financeiro: Lucro líquido + "Saldo total" em Contas a Pagar/Receber — 2026-11-13
+
+### Adicionado
+- Novo card no Painel Financeiro: **Receita bruta** / **Despesas
+  brutas** / **Lucro líquido** (em verde quando positivo) — soma de
+  TODAS as contas já cadastradas, pra dar uma visão geral além dos
+  cards de pendente/vencido/mês já existentes.
+- **"Saldo total"** em Contas a Pagar e Contas a Receber — soma de
+  TODOS os registros que batem o filtro atual (não só a página),
+  mostrada acima da lista; filtrar por "Pendente", por exemplo, já
+  mostra o total pendente direto na tela, batendo com o Painel
+  Financeiro.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 258.
+
 ## [2.3.283] — Financeiro: "Forma de pagamento" em Contas a Pagar/Receber — 2026-11-13
 
 ### Adicionado
