@@ -11,32 +11,39 @@ na cópia. (Custo: o destino só cresce; limpe à mão quando quiser.)
 ## 1. Criar o compartilhamento no NAS (DSM)
 
 **Painel de controle > Pasta compartilhada > Criar**
-1. Nome: `sandro-arquivos` · Descrição: backup dos arquivos de trabalho.
+1. Nome: `confianzatechnologies-arquivos` (minúsculas, sem espaço; **o nome precisa ser exatamente este**, é o que vai no `fstab`) · Descrição: backup dos arquivos de trabalho.
 2. **Desmarque** "Habilitar lixeira" (como nas outras pastas de backup).
 3. **Habilitar soma de verificação de dados** para Btrfs: marcado. **Cota**: opcional, por exemplo 200 GB.
-4. Permissões: dê **Leitura/Gravação** ao usuário `atendeflow-sync` (o mesmo das outras pastas).
-5. Clique em Concluir.
+4. **Criptografia:** não marque (senão o NAS não monta sozinho depois de um reinício).
+5. Permissões: dê **Leitura/Gravação** ao usuário `atendeflow-sync` (o mesmo das outras pastas).
+6. Clique em Concluir.
 
 ## 2. Montar no servidor
 
-Copie a linha que já existe para uma das outras pastas e troque o nome do compartilhamento e o ponto de montagem:
+A linha segue o mesmo padrão das outras pastas (mude só o compartilhamento e o ponto de montagem; confira
+`grep nas-confianza /etc/fstab` se as opções do seu servidor forem diferentes):
 
-```bash
-grep nas-confianza /etc/fstab
-```
-Exemplo do resultado (os valores de `uid`, `gid` e opções devem ser **os da sua linha**, não estes):
-```
-//192.168.100.77/confianza-backup /mnt/nas-confianza cifs credentials=/etc/samba/credentials-atendeflow-sync,vers=3.0,...,x-systemd.automount ... 0 0
-```
-Crie a pasta e a linha nova (mesmas opções, só mudando o compartilhamento e o destino):
 ```bash
 sudo mkdir -p /mnt/nas-arquivos
 sudo cp /etc/fstab /etc/fstab.bak-$(date +%F)
-sudo nano /etc/fstab        # acrescente a linha copiada, com //192.168.100.77/sandro-arquivos /mnt/nas-arquivos
+grep -q nas-arquivos /etc/fstab || echo '//192.168.100.77/confianzatechnologies-arquivos /mnt/nas-arquivos cifs credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,file_mode=0600,dir_mode=0700,iocharset=utf8,vers=3.0,_netdev,nofail,x-systemd.automount,x-systemd.after=network-online.target 0 0' | sudo tee -a /etc/fstab
 sudo systemctl daemon-reload
-sudo systemctl start 'mnt-nas\x2darquivos.automount'
-ls /mnt/nas-arquivos && df -h /mnt/nas-arquivos && touch /mnt/nas-arquivos/teste && rm /mnt/nas-arquivos/teste
+sudo systemctl restart 'mnt-nas\x2darquivos.automount'
+ls /mnt/nas-arquivos && mountpoint /mnt/nas-arquivos
+touch /mnt/nas-arquivos/teste && rm /mnt/nas-arquivos/teste && echo gravacao-ok
 ```
+Se o compartilhamento do DSM tiver outro nome, troque-o na linha do `fstab` (`sudo sed -i 's|/sandro-x|/novo-nome|' /etc/fstab`).
+
+**Se der erro** (monte à mão numa pasta de teste para ver o motivo real):
+```bash
+sudo mkdir -p /mnt/teste-arq
+sudo mount -t cifs //192.168.100.77/confianzatechnologies-arquivos /mnt/teste-arq -o credentials=/etc/samba/credentials-atendeflow-sync,uid=1000,gid=1000,vers=3.0
+sudo dmesg | tail -4
+```
+- `mount error(2)`: o compartilhamento **não existe** no NAS ou o nome não confere (maiúsculas, hífen, espaço).
+- `mount error(13)`: o `atendeflow-sync` está sem permissão de leitura/gravação nele.
+- `ls: ... No such device`: automount travado depois de uma falha; corrija a causa e rode o `restart` do `.automount`.
+
 Se `mountpoint -q /mnt/nas-arquivos` não retornar sucesso, **não siga**: o script se recusa a rodar fora do NAS.
 
 ## 3. Instalar e fazer a primeira cópia
@@ -48,7 +55,7 @@ sudo ./instalar-backup-arquivos.sh
 sudo systemctl start --no-block confianza-backup-arquivos.service
 tail -f ~/backup-arquivos.log             # termina com "Backup de arquivos concluído"
 ```
-A primeira vez copia ~20 GB (cerca de 6 a 15 minutos pela rede). Depois só vai o que mudou.
+A primeira vez copia ~20 GB (na instalação real levou ~8 minutos, 13/11/2026). Depois só vai o que mudou.
 
 Pastas copiadas (padrão) e onde caem no NAS:
 

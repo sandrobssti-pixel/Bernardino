@@ -56,7 +56,7 @@ Swap: **um** arquivo (`/srv/confianza/swapfile`, 8 GB, criado com `fallocate` + 
 ## 4. NAS do Paraguai e montagens
 
 Repita o que foi feito no Brasil (skill `nas-setup`): NAS com **SHR** (2 discos), usuário `atendeflow-sync`, compartilhamentos
-`atendeflow-backup`, `seafile-data`, `confianza-backup` e `sandro-arquivos`, montados por `fstab` com
+`atendeflow-backup`, `seafile-data`, `confianza-backup` e `confianzatechnologies-arquivos`, montados por `fstab` com
 `x-systemd.automount`. **No DSM:** IP por reserva no roteador, **nenhuma rota estática** em Rede > Rota Estática,
 depuração mensal e S.M.A.R.T. mensal (fora da janela dos backups). **Verificação:** `ping -c3 IP-DO-NAS` com `ttl=64`
 e `ip neigh show IP-DO-NAS` mostrando o MAC do NAS (sem `PERMANENT`).
