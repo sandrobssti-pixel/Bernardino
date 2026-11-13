@@ -34,6 +34,8 @@ CONF="${CONFIANZA_ALERTAS_CONF:-/etc/confianza-alertas.conf}"
 : "${NAS_BACKUP_DIR:=/mnt/nas-backup}"
 : "${NAS_SEAFILE_DIR:=/mnt/nas-seafile}"
 : "${NAS_CONFIANZA_DIR:=/mnt/nas-confianza}"
+# Opcional: so e conferido se estiver preenchido (ex.: /mnt/nas-arquivos). Ver backup-arquivos.sh.
+: "${NAS_ARQUIVOS_DIR=}"
 : "${MAX_AGE_HOURS:=26}"
 : "${MIN_ATENDEFLOW_DB_MB:=50}"
 : "${MIN_ATENDEFLOW_FILES_GB:=10}"
@@ -169,6 +171,16 @@ verificar_confianza() {
   fi
 }
 
+# Opcional (so roda se NAS_ARQUIVOS_DIR estiver definido): backup dos arquivos pessoais/de trabalho.
+verificar_arquivos() {
+  [ -n "$NAS_ARQUIVOS_DIR" ] || return 0
+  checar_diretorio "Arquivos (NAS)" "$NAS_ARQUIVOS_DIR" || return
+  checar_log "Arquivos" "$NAS_ARQUIVOS_DIR/backup-arquivos.log"
+  if [ -n "$(timeout 20 find "$NAS_ARQUIVOS_DIR/backup-arquivos.log" -mmin +$((MAX_AGE_HOURS * 60)) 2>/dev/null)" ]; then
+    problema "Arquivos: o backup-arquivos.log nao e atualizado ha mais de ${MAX_AGE_HOURS}h"
+  fi
+}
+
 verificar_servidor() {
   local c estado uso u
   if command -v docker >/dev/null 2>&1; then
@@ -266,6 +278,7 @@ fi
 verificar_atendeflow
 verificar_seafile
 verificar_confianza
+verificar_arquivos
 verificar_servidor
 
 mkdir -p "$STATE_DIR" 2>/dev/null || STATE_DIR="/tmp/confianza-alertas"

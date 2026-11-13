@@ -21,6 +21,7 @@ Os dois são **somente leitura**: não apagam nem alteram backups.
 - arquivos `.partial` com mais de 3 h (backup interrompido)
 - Confianza: o checksum `.sha256` confere
 - containers essenciais rodando e sem `unhealthy`; disco do sistema (`/`) abaixo de 90 %
+- **opcional:** backup dos arquivos de trabalho (`NAS_ARQUIVOS_DIR`, ver `docs/backup-arquivos.md`): destino montado, `backup-arquivos.log` terminando em "concluído" e atualizado há menos de 26 h
 
 Aviso sem enxurrada: o **mesmo problema** só é reenviado depois de 24 h; quando tudo volta ao
 normal, chega uma mensagem **RECUPERADO**.
