@@ -20,13 +20,13 @@ parte: `monitoramento-backups.md`, `backup-arquivos.md`, `servidor-paraguai.md`.
 
 ### Rotinas automáticas (horários locais)
 
-> Horários de Seafile e Confianza conforme combinado na manutenção; confirme com `crontab -l` e `systemctl list-timers --all` se mudar algo.
+> Só o horário do AtendeFlow (03:00) foi confirmado no log. Os de Seafile e Confianza (02:37 e 03:30, em alguma ordem) vieram dos combinados da manutenção: confirme com `crontab -l` (do usuário e do root) e `systemctl list-timers --all`.
 
 | Hora | O quê | Onde |
 |---|---|---|
-| 02:37 | backup do Seafile | servidor → `/mnt/nas-seafile` |
+| 02:37 | backup do Seafile **ou** do Confianza (conferir a ordem com `crontab -l`) | servidor → NAS |
 | 03:00 | backup do AtendeFlow (v2: tenta de novo, grava `.partial`, verifica, retenção de **10**) | servidor → `/mnt/nas-backup` |
-| 03:30 | backup cifrado do Confianza | servidor → `/mnt/nas-confianza` |
+| 03:30 | o outro dos dois (Seafile ↔ Confianza cifrado) | servidor → NAS |
 | 04:30 | cópia dos arquivos de trabalho (`~/Sandro`, `outputs`), sem apagar nada no destino | servidor → `/mnt/nas-arquivos` |
 | 05:00 | `Limpar backups antigos` | tarefa do DSM |
 | 06:30 e 14:00 | monitor de backups, aviso por **WhatsApp e e-mail** | servidor (systemd timer) |

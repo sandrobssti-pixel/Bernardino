@@ -28,6 +28,11 @@ conversas antigas sem registro.
   (`.claude/skills/atendeflow-dev/SKILL.md`)
 - **`api_oficial/`** (API Oficial do WhatsApp da Meta) → skill
   `api-oficial-dev` (`.claude/skills/api-oficial-dev/SKILL.md`)
+- **Scripts de manutenção/backup/monitoramento na raiz** (`monitor-backups.sh`,
+  `nas-verifica-backups.sh`, `backup-atendeflow.sh`, `backup-arquivos.sh`,
+  `check-servidor.sh`) e `docs/monitoramento-backups.md` /
+  `docs/estado-final-e-rotina.md` → skill `vps-manutencao-backups`
+  (`.claude/skills/vps-manutencao-backups/SKILL.md`); para NAS/rede, `nas-setup`
 
 Se um módulo novo ganhar procedimentos próprios que valha a pena
 reaproveitar (padrão de versionamento, de i18n, de validação, de

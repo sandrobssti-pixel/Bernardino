@@ -1,6 +1,6 @@
 ---
 name: seafile-deploy
-description: Use sempre que for implantar o Seafile (solução própria tipo "Google Drive" pra arquivos das empresas, hospedada na infraestrutura do próprio cliente) num servidor novo ou existente. Roteiro genérico, reaproveitável em qualquer cliente — stack Docker isolado, disco dedicado, túnel Cloudflare, backup pro NAS. Já inclui os 4 problemas reais encontrados e corrigidos na primeira implantação (Confiança Technologies, v2.3.56/`docs/MANUAL_TECNICO.md` seção 40), pra não precisar redescobrir cada um de novo.
+description: Use sempre que for implantar o Seafile (solução própria tipo "Google Drive" pra arquivos das empresas, hospedada na infraestrutura do próprio cliente) num servidor novo ou existente. Roteiro genérico, reaproveitável em qualquer cliente — stack Docker isolado, disco dedicado, túnel Cloudflare, backup pro NAS. Já inclui os 5 problemas reais encontrados e corrigidos na primeira implantação (Confiança Technologies, v2.3.56/`docs/MANUAL_TECNICO.md` seção 40), pra não precisar redescobrir cada um de novo.
 ---
 
 # Implantar o Seafile num servidor de cliente
@@ -124,6 +124,13 @@ abaixo antes de qualquer outra investigação.
      | docker exec -i <container-seafile> /opt/seafile/seafile-server-<versão>/reset-admin.sh
    ```
 
+5. **Depois de um reboot o Seafile pode subir `unhealthy`/sem o banco.** A política de reinício do Docker sobe os
+   containers **em paralelo**: o `depends_on: condition: service_healthy` só vale em `docker compose up`, não no
+   reinício automático. Correção usada: o script de boot (um `systemd` oneshot que roda
+   `/usr/local/bin/confianza-subir-servicos`) **espera o banco ficar `healthy`** e então roda
+   `docker compose -p seafile up -d --force-recreate seafile`. Conferir **sempre** com um reboot de verdade:
+   `docker ps --format '{{.Names}} {{.Status}}' | grep seafile` com todos `healthy` depois de ~1–2 minutos.
+
 ## 5. Acesso público (Cloudflare Tunnel)
 
 Reaproveitar o túnel já existente nesse servidor, se houver (mesma VPS,
@@ -171,6 +178,9 @@ Agendar no cron:
 ```
 30 3 * * * /home/<usuario>/scripts/backup-seafile.sh
 ```
+
+Retenção **por quantidade** (manter os N mais recentes), não por idade (a por idade apagou o histórico quando o NAS
+ficou 10 dias sem backup). Ligar o aviso de falha: skill `vps-manutencao-backups`.
 
 **Checkpoint**: rodar o script manualmente uma vez, conferir que dump
 (banco) e tar (arquivos) apareceram no destino com tamanho não-zero.

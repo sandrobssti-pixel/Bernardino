@@ -81,6 +81,15 @@ echo "UUID=<uuid>  /srv/<nome-do-cliente>  ext4  defaults  0 2" | sudo tee -a /e
 **Checkpoint**: `df -h` mostra o disco novo montado no caminho certo, com
 o tamanho esperado.
 
+### Swap e outras armadilhas de boot
+- **Um** arquivo de swap, criado com `dd`/`fallocate` num disco de dados, entrada no `fstab`. **Não** deixar um
+  `/swap.img` **esparso** (com "buracos"): o `swapon` o recusa (`skipping - it appears to have holes`) e o boot
+  registra `Failed to activate swap` a cada reinício. Conferir com `swapon --show` e `free -h`; comentar a entrada
+  velha no `fstab` e só então apagar o arquivo.
+- **Sem interface gráfica** (Ubuntu Server) quando for só servidor: o travamento da primeira implantação veio do
+  driver de vídeo (`nouveau` com uma GT 730). Se houver placa dedicada, usar o driver estável ou `nouveau.noaccel=1`.
+- Ver a skill `vps-manutencao-backups` para o watchdog de travamento (começar em modo **log**).
+
 ## 3. Docker
 
 ```bash
@@ -182,6 +191,13 @@ echo "//<ip-do-nas>/<pasta-compartilhada> /mnt/nas-backup cifs credentials=/etc/
 sudo mount -a
 ```
 
+**Antes de confiar no NAS, siga a skill `nas-setup`** (reserva de DHCP, pool espelhado, sem rota estática errada,
+S.M.A.R.T./depuração mensais) **e a skill `vps-manutencao-backups`** (monitor com aviso por WhatsApp/e-mail).
+Backup sem aviso de falha falha em silêncio: em 2026 o NAS ficou ~10 dias sem receber nada e ninguém soube.
+
+Retenção sempre **por quantidade** (mantém os N mais recentes, nunca apaga abaixo disso), **não por idade**:
+a retenção por idade apagou o histórico quando o NAS ficou sem backup por 10 dias.
+
 Depois, um script de backup (banco via `docker exec ... pg_dump`,
 arquivos via volume Docker nomeado — nunca caminho físico direto, ver
 skill `vps-disk-expansion` pra entender por quê isso importa) agendado
@@ -199,6 +215,9 @@ agendar no cron.
 - [ ] App abre no domínio público definitivo, login funciona.
 - [ ] Backup rodou manualmente pelo menos uma vez com sucesso, e está
       agendado no cron (`crontab -l`).
+- [ ] **Monitor de backups instalado** e com `--teste` recebido por WhatsApp **e** e-mail (skill `vps-manutencao-backups`).
+- [ ] **Reinício de teste** feito: IP, montagens do NAS, containers `healthy` e swap sobem sozinhos.
+- [ ] `journalctl -b -p err` do boot sem erro novo (swap, montagens).
 - [ ] Firewall (`ufw status`) com só as portas necessárias liberadas (SSH
       e o que mais for preciso — Cloudflare Tunnel não precisa de porta
       de entrada nenhuma).
