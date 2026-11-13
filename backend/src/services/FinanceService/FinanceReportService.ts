@@ -35,6 +35,16 @@ export const getSummary = async (companyId: number) => {
   const today = moment().format("YYYY-MM-DD");
   const monthStart = moment().startOf("month").format("YYYY-MM-DD");
   const monthEnd = moment().endOf("month").format("YYYY-MM-DD");
+  // Fechamento anual (pedido do cliente, v2.3.286: "sempre fechando
+  // anualmente começando de 01/01/2026 terminando dia 31/12/2026") —
+  // ano corrente, 1º de janeiro a 31 de dezembro. Receita Bruta/Despesa
+  // Bruta/Receita líquida Geral abaixo são a soma do que foi realmente
+  // REALIZADO (pago/recebido, mesma régua do Fluxo de Caixa) dentro
+  // desse intervalo — "soma de todos os meses do ano", sem interferir
+  // no cálculo mês a mês que já existe (é literalmente a soma dos
+  // mesmos meses, nunca um número à parte/divergente).
+  const yearStart = moment().startOf("year").format("YYYY-MM-DD");
+  const yearEnd = moment().endOf("year").format("YYYY-MM-DD");
 
   const [
     pendingExpensesNum,
@@ -68,14 +78,16 @@ export const getSummary = async (companyId: number) => {
       status: "received",
       receivedDate: { [Op.between]: [monthStart, monthEnd] }
     }),
-    // Receita/despesa bruta — pedido do cliente (v2.3.284): soma de
-    // TODAS as contas já cadastradas, sem filtro de status nem período
-    // (diferente de pendingReceivables/pendingExpenses acima, que só
-    // contam o que ainda está pendente). "Lucro líquido" abaixo é a
-    // diferença entre as duas, pra bater com o que o cliente calcula
-    // manualmente somando as duas listas inteiras.
-    sumWhere(FinanceReceivable, { companyId }),
-    sumWhere(FinanceExpense, { companyId })
+    sumWhere(FinanceReceivable, {
+      companyId,
+      status: "received",
+      receivedDate: { [Op.between]: [yearStart, yearEnd] }
+    }),
+    sumWhere(FinanceExpense, {
+      companyId,
+      status: "paid",
+      paymentDate: { [Op.between]: [yearStart, yearEnd] }
+    })
   ]);
 
   return {
@@ -88,7 +100,9 @@ export const getSummary = async (companyId: number) => {
     projectedBalance: pendingReceivablesNum - pendingExpensesNum,
     grossRevenue: grossRevenueNum,
     grossExpenses: grossExpensesNum,
-    netProfit: grossRevenueNum - grossExpensesNum
+    netProfit: grossRevenueNum - grossExpensesNum,
+    annualClosingStart: yearStart,
+    annualClosingEnd: yearEnd
   };
 };
 
@@ -142,11 +156,16 @@ export const getCashFlow = async (companyId: number, months = 6) => {
   for (let i = 0; i < months; i += 1) {
     const monthMoment = moment(start).add(i, "months");
     const key = monthMoment.format("YYYY-MM");
+    const income = incomeByMonth[key] || 0;
+    const expense = expenseByMonth[key] || 0;
     series.push({
       month: key,
       monthLabel: monthMoment.format("MMM/YY"),
-      income: incomeByMonth[key] || 0,
-      expense: expenseByMonth[key] || 0
+      income,
+      expense,
+      // Lucro líquido do mês — pedido do cliente (v2.3.286): "separa por
+      // mes receita - despesas = a lucro liquido, fica mais simples".
+      profit: income - expense
     });
   }
 

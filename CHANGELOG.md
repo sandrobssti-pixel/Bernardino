@@ -3,6 +3,21 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.286] — Painel Financeiro: fechamento anual + Lucro líquido por mês — 2026-11-13
+
+### Alterado
+- **Receita Bruta / Despesa Bruta / Receita líquida Geral** (antes
+  "Receita bruta"/"Despesas brutas"/"Lucro líquido") — agora somam só
+  o que foi pago/recebido dentro do ANO CORRENTE (1º de janeiro a 31
+  de dezembro), em vez do total vitalício de tudo já cadastrado. Mesma
+  régua do gráfico de Fluxo de Caixa, sem risco de divergir dele.
+
+### Adicionado
+- **Lucro líquido por mês** direto no gráfico "Fluxo de caixa" (nova
+  barra verde ao lado de Receita/Despesa).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 260.
+
 ## [2.3.285] — Ajuste: "Saldo total" em Contas a Pagar só soma o que já foi pago — 2026-11-13
 
 ### Corrigido

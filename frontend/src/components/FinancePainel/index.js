@@ -28,7 +28,7 @@ import {
 } from "recharts";
 
 import toastError from "../../errors/toastError";
-import { money } from "../../utils/financeFormat";
+import { money, formatDateBR } from "../../utils/financeFormat";
 
 // Painel com gráficos do Financeiro (Fase 2 — ver docs/MANUAL_TECNICO.md,
 // seção 6.2). Segue a skill de dataviz do projeto: paleta categórica
@@ -330,28 +330,34 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
         </Grid>
       )}
 
-      {/* Receita bruta/despesas brutas/lucro líquido — pedido do cliente
-          (v2.3.284): soma de TODAS as contas já cadastradas (sem filtro
-          de status nem período, diferente dos cards acima), pra bater
-          com o que o cliente calcula manualmente somando as listas
-          inteiras de Contas a Receber/Pagar ("Saldo total" delas, ver
-          FinanceRecordList.js). Lucro líquido em verde quando positivo,
-          vermelho quando negativo — mesmo padrão do "Saldo previsto". */}
+      {/* Receita Bruta/Despesa Bruta/Receita líquida Geral — pedido do
+          cliente (v2.3.286): fechamento ANUAL (1º de janeiro a 31 de
+          dezembro do ano corrente), somando só o que foi efetivamente
+          realizado (pago/recebido) — é literalmente a soma dos mesmos
+          meses mostrados no gráfico "Fluxo de caixa" abaixo, nunca um
+          número à parte/divergente ("sem ter interferência na receita
+          do mês e despesas do mês"). Receita líquida Geral em verde
+          quando positiva, vermelho quando negativa — mesmo padrão do
+          "Saldo previsto". */}
       {summary && (
         <Paper className={classes.chartPaper} variant="outlined">
-          <Typography className={classes.chartTitle}>
-            Receita × despesa × lucro (geral)
+          <Typography className={classes.chartTitle} style={{ marginBottom: 4 }}>
+            Receita Bruta × Despesa Bruta × Receita líquida Geral
+          </Typography>
+          <Typography variant="caption" color="textSecondary" style={{ display: "block", marginBottom: 16 }}>
+            Fechamento anual: {formatDateBR(summary.annualClosingStart)} a{" "}
+            {formatDateBR(summary.annualClosingEnd)} — soma do que já foi pago/recebido.
           </Typography>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={4}>
-              <SummaryCard label="Receita bruta" value={summary.grossRevenue} />
+              <SummaryCard label="Receita Bruta" value={summary.grossRevenue} />
             </Grid>
             <Grid item xs={6} sm={4}>
-              <SummaryCard label="Despesas brutas" value={summary.grossExpenses} />
+              <SummaryCard label="Despesa Bruta" value={summary.grossExpenses} />
             </Grid>
             <Grid item xs={12} sm={4}>
               <SummaryCard
-                label="Lucro líquido"
+                label="Receita líquida Geral"
                 value={summary.netProfit}
                 accent={summary.netProfit < 0 ? "#ef4444" : "#10b981"}
               />
@@ -371,8 +377,9 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
             <YAxis tickFormatter={(v) => money(v)} width={90} />
             <Tooltip formatter={currencyTooltipFormatter} />
             <Legend />
-            <Bar dataKey="income" name="Receitas" fill={COLOR_INCOME} radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expense" name="Despesas" fill={COLOR_EXPENSE} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="income" name="Receita" fill={COLOR_INCOME} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expense" name="Despesa" fill={COLOR_EXPENSE} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="profit" name="Lucro líquido" fill={COLOR_PROFIT} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Paper>

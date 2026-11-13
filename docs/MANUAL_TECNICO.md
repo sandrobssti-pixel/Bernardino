@@ -20132,3 +20132,54 @@ R$ 50,75) — Saldo total sempre R$ 250,75 nas três situações testadas
 (sem filtro, filtrando "Pendente", filtrando "Pago").
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceExpenseService.ts`.
+
+## 260. Painel Financeiro: fechamento anual + Lucro líquido por mês (v2.3.286)
+
+Pedido do cliente, revisando a seção 258 (que somava TUDO que já foi
+cadastrado, sem filtro de período): "sempre fechando anualmente
+começando de 01/01/2026 terminando dia 31/12/2026". Também pediu o
+Lucro líquido separado mês a mês no próprio gráfico de Fluxo de Caixa
+("separa por mes receita - despesas = a lucro liquido, fica mais
+simples").
+
+### Cards renomeados + escopo anual (substituindo a seção 258)
+
+- **Receita Bruta** / **Despesa Bruta** / **Receita líquida Geral**
+  (antes "Receita bruta"/"Despesas brutas"/"Lucro líquido") — agora
+  somam só o que foi **efetivamente pago/recebido** (mesma régua do
+  Fluxo de Caixa: `status: "paid"`/`"received"`, por
+  `paymentDate`/`receivedDate`) **dentro do ano corrente** (1º de
+  janeiro a 31 de dezembro), nunca mais o total vitalício de tudo que
+  já foi cadastrado. Caption no painel mostra o intervalo exato
+  (`annualClosingStart`/`annualClosingEnd`, novos campos de
+  `getSummary`).
+- Pedido explícito do cliente: "sem ter interferência na receita do
+  mês e despesas do mês" — por construção, esses 3 cards são
+  literalmente a SOMA dos mesmos meses mostrados no gráfico de Fluxo
+  de Caixa abaixo (mesmo filtro `status`+data), nunca um número
+  calculado por uma régua diferente que poderia divergir.
+- Pendentes (não realizados) e registros de anos anteriores
+  continuam de fora do cálculo — testado explicitamente (ver
+  Verificação).
+
+### Lucro líquido por mês no gráfico "Fluxo de caixa"
+
+- `FinanceReportService.getCashFlow` — cada mês da série agora também
+  traz `profit: income - expense`.
+- `FinancePainel.js` — terceira barra "Lucro líquido" (verde,
+  `COLOR_PROFIT`) ao lado de "Receita"/"Despesa" no mesmo gráfico de 6
+  meses que já existia (sem criar gráfico novo — "fica mais simples").
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via script Node: receita realizada dentro do ano corrente
+  conta; despesa realizada dentro do ano corrente conta; receita
+  PENDENTE não conta; receita realizada no ANO PASSADO não conta;
+  `profit` de cada mês do Fluxo de Caixa confere (receita - despesa).
+- Testado visualmente via Playwright: card com a legenda de fechamento
+  anual, valores batendo, gráfico de Fluxo de Caixa com as 3 barras
+  por mês (Receita/Despesa/Lucro líquido).
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
+`frontend/src/components/FinancePainel/index.js`.
