@@ -320,13 +320,6 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
           <Grid item xs={6} sm={4} md={3}>
             <SummaryCard label="Recebido no mês" value={summary.receivedThisMonth} />
           </Grid>
-          <Grid item xs={6} sm={4} md={3}>
-            <SummaryCard
-              label="Saldo previsto"
-              value={summary.projectedBalance}
-              accent={summary.projectedBalance < 0 ? "#ef4444" : "#10b981"}
-            />
-          </Grid>
         </Grid>
       )}
 

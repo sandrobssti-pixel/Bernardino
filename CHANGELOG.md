@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.288] — Removido: card "Saldo previsto" do Painel Financeiro — 2026-11-14
+
+### Removido
+- Card **"Saldo previsto"** (A Receber pendente − A Pagar pendente) —
+  confundia com os cards de fechamento anual, que mostram o que já foi
+  realizado. Cliente pediu remoção depois de entender o que significava.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 262.
+
 ## [2.3.287] — Revertido: "Saldo total" de Contas a Pagar volta a somar o filtro atual — 2026-11-13
 
 ### Corrigido

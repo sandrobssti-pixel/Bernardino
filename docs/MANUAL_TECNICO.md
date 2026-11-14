@@ -20202,3 +20202,18 @@ pago, sem filtro soma tudo — batendo com o que aparece na tela em
 cada caso.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceExpenseService.ts`.
+
+## 262. Removido: card "Saldo previsto" do Painel Financeiro (v2.3.288)
+
+Cliente perguntou o que "Saldo previsto" significava e, depois de
+explicado (A Receber pendente menos A Pagar pendente — uma projeção
+do que ainda vai entrar/sair, diferente dos cards de fechamento anual
+que olham só pro que já foi realizado), achou que era "um campo a
+mais que atrapalha o entendimento do financeiro". Confirmado via
+pergunta direta: remover.
+
+**Removido** — card e campo `projectedBalance` (não usado em mais
+nenhum lugar do sistema).
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
+`frontend/src/components/FinancePainel/index.js`.

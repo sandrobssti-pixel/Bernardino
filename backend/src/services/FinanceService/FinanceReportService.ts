@@ -97,7 +97,6 @@ export const getSummary = async (companyId: number) => {
     overdueReceivables: overdueReceivablesNum,
     paidThisMonth: paidThisMonthNum,
     receivedThisMonth: receivedThisMonthNum,
-    projectedBalance: pendingReceivablesNum - pendingExpensesNum,
     grossRevenue: grossRevenueNum,
     grossExpenses: grossExpensesNum,
     netProfit: grossRevenueNum - grossExpensesNum,
