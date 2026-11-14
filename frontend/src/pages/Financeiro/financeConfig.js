@@ -858,14 +858,15 @@ export const SALE_FREIGHT_RESPONSIBILITY_OPTIONS = [
 ];
 
 // "Caixa Registradora" — pedido do cliente: lembrete de valores físicos
-// dentro da empresa (dinheiro em espécie, promissórias, cheques), sem
-// nenhum vínculo com o resto do Financeiro (não gera Conta a Pagar/
-// Receber sozinho — se o valor for usado, o usuário cadastra a Conta a
-// Pagar manualmente e remove esta linha).
+// dentro da empresa (dinheiro em espécie, promissórias, cheques, venda
+// sem nota fiscal), sem nenhum vínculo com o resto do Financeiro (não
+// gera Conta a Pagar/Receber sozinho — se o valor for usado, o usuário
+// cadastra a Conta a Pagar manualmente e remove esta linha).
 export const CASH_REGISTER_TYPE_OPTIONS = [
   { value: "physical_cash", label: "Dinheiro físico" },
   { value: "promissory_note", label: "Promissória" },
   { value: "check", label: "Cheque" },
+  { value: "sale_without_invoice", label: "Venda sem nota fiscal" },
 ];
 
 export const financeCashRegisterColumns = [

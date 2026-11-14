@@ -4,8 +4,8 @@ import FinanceCashRegister from "../../models/FinanceCashRegister";
 import { sumModelValue } from "../../utils/financeSum";
 
 // "Caixa Registradora" — lembrete de valores físicos dentro da empresa
-// (dinheiro em espécie, promissórias, cheques), sem vínculo nenhum com
-// o resto do Financeiro. Ver FinanceCashRegister.ts.
+// (dinheiro em espécie, promissórias, cheques, venda sem nota fiscal),
+// sem vínculo nenhum com o resto do Financeiro. Ver FinanceCashRegister.ts.
 
 interface ListRequest {
   companyId: number;
@@ -25,7 +25,7 @@ interface CashRegisterData {
   notes?: string;
 }
 
-const VALID_TYPES = ["physical_cash", "promissory_note", "check"];
+const VALID_TYPES = ["physical_cash", "promissory_note", "check", "sale_without_invoice"];
 
 const cashRegisterSchema = Yup.object().shape({
   type: Yup.string()

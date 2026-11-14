@@ -20275,3 +20275,18 @@ nota fiscal para filtar so as vendas sem notas fiscais".
 **Arquivos**: `backend/src/services/FinanceService/FinanceReceivableService.ts`,
 `backend/src/controllers/FinanceReceivableController.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 265. "Caixa Registradora": novo tipo "Venda sem nota fiscal" (v2.3.291)
+
+Pedido do cliente: "coloque em caixa registradora a opção de entrada
+venda sem nota fiscal, tipo". Novo valor `sale_without_invoice` na
+lista de tipos (ao lado de Dinheiro físico/Promissória/Cheque) — mesmo
+uso dos outros: só um lembrete, sem vínculo nenhum com o resto do
+Financeiro.
+
+**Verificação**: `tsc --noEmit`/`eslint` limpos; testado via script
+Node criando um registro desse novo tipo com sucesso.
+
+**Arquivos**: `backend/src/models/FinanceCashRegister.ts`,
+`backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.291] — "Caixa Registradora": novo tipo "Venda sem nota fiscal" — 2026-11-14
+
+### Adicionado
+- Novo tipo **"Venda sem nota fiscal"** em Caixa Registradora, ao lado
+  de Dinheiro físico/Promissória/Cheque.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 265.
+
 ## [2.3.290] — Contas a Receber: filtro "Nota Fiscal" (venda com/sem nota) — 2026-11-14
 
 ### Adicionado
