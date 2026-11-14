@@ -228,7 +228,7 @@ const CashRegisterEntryDialog = ({ open, entryId, onClose }) => {
                 fullWidth
                 variant="outlined"
                 size="small"
-                label="Tipo"
+                label="Forma de pagamento"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
               >

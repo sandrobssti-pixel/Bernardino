@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.293] — Caixa Registradora: "Tipo" renomeado para "Forma de pagamento" + "Venda cartão de crédito" — 2026-11-14
+
+### Alterado
+- Campo "Tipo" do Caixa Registradora renomeado para **"Forma de
+  pagamento"** (coluna da listagem e campo do lançamento).
+
+### Adicionado
+- Nova opção **"Venda cartão de crédito"** na lista de formas de
+  pagamento.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 267.
+
 ## [2.3.292] — "Caixa Registradora" vira frente de caixa (cliente + itens) — 2026-11-14
 
 ### Adicionado

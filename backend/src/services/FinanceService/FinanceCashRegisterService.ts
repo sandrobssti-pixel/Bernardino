@@ -48,7 +48,13 @@ interface CashRegisterData {
   items?: CashRegisterItemData[];
 }
 
-const VALID_TYPES = ["physical_cash", "promissory_note", "check", "sale_without_invoice"];
+const VALID_TYPES = [
+  "physical_cash",
+  "promissory_note",
+  "check",
+  "sale_without_invoice",
+  "credit_card_sale",
+];
 
 const cashRegisterSchema = Yup.object().shape({
   type: Yup.string()

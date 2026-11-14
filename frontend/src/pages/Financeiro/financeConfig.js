@@ -867,12 +867,13 @@ export const CASH_REGISTER_TYPE_OPTIONS = [
   { value: "promissory_note", label: "Promissória" },
   { value: "check", label: "Cheque" },
   { value: "sale_without_invoice", label: "Venda sem nota fiscal" },
+  { value: "credit_card_sale", label: "Venda cartão de crédito" },
 ];
 
 export const financeCashRegisterColumns = [
   {
     field: "type",
-    label: "Tipo",
+    label: "Forma de pagamento",
     render: (r) =>
       CASH_REGISTER_TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type,
   },
@@ -898,7 +899,7 @@ export const financeCashRegisterColumns = [
 export const financeCashRegisterFields = [
   {
     name: "type",
-    label: "Tipo",
+    label: "Forma de pagamento",
     type: "select",
     options: CASH_REGISTER_TYPE_OPTIONS,
     defaultValue: "physical_cash",

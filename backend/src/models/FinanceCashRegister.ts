@@ -33,6 +33,7 @@ class FinanceCashRegister extends Model<FinanceCashRegister> {
   id: number;
 
   // "physical_cash" | "promissory_note" | "check" | "sale_without_invoice"
+  // | "credit_card_sale"
   @AllowNull(false)
   @Default("physical_cash")
   @Column

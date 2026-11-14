@@ -20386,3 +20386,39 @@ arquivo.
 `frontend/src/pages/Financeiro/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 267. Caixa Registradora: campo "Tipo" renomeado para "Forma de pagamento" + nova opção "Venda cartão de crédito" (v2.3.293)
+
+Pedido do cliente: "coloque venda caratão de credito em caixa
+registradora campo Forma de pagamento , troque o o nome tipo por forma
+de pagamento". Mudança só de rótulo e de lista de opções — o campo
+continua sendo o mesmo `type` do lançamento (sem vínculo com o resto
+do Financeiro, mesmo princípio das seções 263-266), só renomeado pra
+refletir melhor o que de fato representa.
+
+- `CASH_REGISTER_TYPE_OPTIONS` ganhou `{ value: "credit_card_sale",
+  label: "Venda cartão de crédito" }`.
+- Rótulo "Tipo" → "Forma de pagamento" na coluna da listagem, no campo
+  do diálogo de lançamento (`CashRegisterEntryDialog.js`) e na
+  configuração genérica de campos (`financeCashRegisterFields`). O
+  campo "Tipo" de cada ITEM dentro do carrinho (tipo da venda digitado
+  manualmente, ver seção 266) **não** foi alterado — é um campo
+  diferente, sem relação com forma de pagamento.
+- Backend: `credit_card_sale` adicionado a `VALID_TYPES`
+  (`FinanceCashRegisterService.ts`) e ao comentário do model.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend, arquivos tocados)
+  limpos.
+- Testado o schema Yup isoladamente (`ts-node --transpile-only`):
+  `credit_card_sale` aceito, tipo inválido continua rejeitado com
+  `ERR_FINANCE_CASH_REGISTER_INVALID_TYPE`.
+- Build de produção do frontend (`craco build`) concluído sem erros
+  novos (os dois avisos de "Critical dependency" já existiam antes
+  desta mudança, não relacionados).
+
+**Arquivos**: `backend/src/models/FinanceCashRegister.ts`,
+`backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/pages/Financeiro/CashRegisterEntryDialog.js`.
