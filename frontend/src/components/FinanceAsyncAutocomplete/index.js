@@ -3,6 +3,17 @@ import Autocomplete from "@material-ui/lab/Autocomplete";
 import TextField from "@material-ui/core/TextField";
 import CircularProgress from "@material-ui/core/CircularProgress";
 
+// Array estável (mesma referência sempre) pro default de `initialOptions`
+// — um `= []` direto no destructuring cria um array NOVO a cada render
+// de quem não passa essa prop (caso do campo "Cliente" em
+// CashRegisterEntryDialog.js), o que disparava o `useEffect` de baixo a
+// cada render (porque `[initialOptions]` mudava de referência toda vez),
+// chamando `setOptions` em loop e quebrando a digitação no campo — cada
+// tecla digitada era descartada por um re-render disparado por esse
+// efeito antes do React confirmar o texto. Bug real relatado pelo
+// cliente (v2.3.295): "não esta digitando para filtrar".
+const EMPTY_OPTIONS = [];
+
 // Campo de busca com filtro (autocomplete) pra escolher um registro de
 // outro cadastro (produto, cliente, fornecedor) sem precisar rolar uma
 // lista enorme catando um por um — pedido do cliente depois de importar
@@ -23,7 +34,7 @@ const FinanceAsyncAutocomplete = ({
   fetchOptions,
   getOptionLabel,
   renderOption,
-  initialOptions = [],
+  initialOptions = EMPTY_OPTIONS,
   size = "small",
   disabled = false,
   // `freeSolo` (v2.3.194) — pedido do cliente: campo de SKU com o mesmo
@@ -60,14 +71,23 @@ const FinanceAsyncAutocomplete = ({
   }, [freeSolo, value]);
 
   // Garante que as opções iniciais (ex.: registro já selecionado ao editar)
-  // sempre apareçam na lista, mesmo antes de qualquer busca.
+  // sempre apareçam na lista, mesmo antes de qualquer busca. Guarda
+  // defensiva: só chama `setOptions` se algum id de `initialOptions`
+  // realmente ainda não está em `prev` — evita disparar um novo state
+  // (e um novo render) a cada chamada só porque quem usa este
+  // componente passou um array NOVO (mesmo conteúdo) nesta renderização,
+  // como `SaleModal.js` faz com `[sale.customer, ...customers]`.
   useEffect(() => {
     setOptions((prev) => {
       const byId = new Map(prev.map((o) => [o.id, o]));
+      let changed = false;
       initialOptions.forEach((o) => {
-        if (o && o.id !== undefined) byId.set(o.id, o);
+        if (o && o.id !== undefined && !byId.has(o.id)) {
+          byId.set(o.id, o);
+          changed = true;
+        }
       });
-      return Array.from(byId.values());
+      return changed ? Array.from(byId.values()) : prev;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialOptions]);

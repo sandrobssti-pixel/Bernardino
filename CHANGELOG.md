@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.295] — Corrigido: não dava pra digitar no campo "Cliente" do Caixa Registradora — 2026-11-14
+
+### Corrigido
+- O campo "Cliente" do lançamento do Caixa Registradora literalmente
+  não aceitava digitação — um bug de re-render em loop no componente
+  de autocomplete (`FinanceAsyncAutocomplete`) descartava cada tecla
+  digitada antes dela aparecer na tela. Agora digitar funciona
+  normalmente e filtra a lista de clientes em tempo real.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 269.
+
 ## [2.3.294] — Corrigido: busca do Caixa Registradora não filtrava nada — 2026-11-14
 
 ### Corrigido

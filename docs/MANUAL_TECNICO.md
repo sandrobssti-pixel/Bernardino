@@ -20478,3 +20478,83 @@ filtrado, mesmo padrão já usado em Contas a Pagar/Receber.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
 `backend/src/controllers/FinanceCashRegisterController.ts`.
+
+## 269. Bug real: não dava pra digitar no campo "Cliente" do Caixa Registradora (v2.3.295)
+
+Pedido/relato do cliente, em duas mensagens seguidas: "em caixa
+registradora quando digita em clientes para achar não esta digitando
+para filtrar" e, depois de ver o campo abrir com a lista inteira de
+clientes (print real mostrando o dropdown cheio, ordem alfabética,
+scroll grande) sem filtrar nada ao digitar: "não digira nada nesse
+campo para filtrar" — confirmando que o campo literalmente **não
+aceitava nenhuma tecla digitada**, não era só uma questão de UX
+confusa.
+
+### Causa raiz
+
+`FinanceAsyncAutocomplete` (`frontend/src/components/
+FinanceAsyncAutocomplete/index.js`) tinha `initialOptions = []` como
+valor padrão do parâmetro — em JavaScript/React, um valor padrão assim
+("= []" direto no destructuring) **cria um array NOVO a cada
+renderização** de quem não passa essa prop explicitamente. O campo
+"Cliente" do `CashRegisterEntryDialog.js` não passa `initialOptions`
+(diferente do campo equivalente em `SaleModal.js`, que passa
+`[sale.customer, ...customers]` quando editando), então caía direto
+nesse caso.
+
+Isso fazia o `useEffect(() => {...}, [initialOptions])` (que mescla as
+opções iniciais no estado de `options`) disparar em TODA renderização
+do componente — mesmo sem nada mudar de verdade — porque a referência
+do array mudava a cada vez. Cada disparo chamava `setOptions` de novo
+(com um array novo, mesmo que com o mesmo conteúdo), causando mais uma
+renderização, que disparava o efeito de novo, e assim por diante. Esse
+ciclo competia com cada tecla digitada: o estado interno `inputValue`
+(que deveria guardar o texto digitado) acabava sendo descartado/
+sobrescrito antes do React assentar a letra digitada na tela — na
+prática, a cada tecla pressionada, o campo imediatamente "esquecia" o
+que foi digitado.
+
+Confirmado o diagnóstico de forma objetiva, sem adivinhar: um teste
+Playwright pressionando UMA tecla de cada vez (`page.keyboard.press`,
+sem usar `.fill()`, que não reproduz o bug porque não dispara eventos
+de teclado de verdade) e lendo `input.inputValue()` logo depois —
+antes do fix, o valor voltava sempre `""` mesmo depois de várias
+teclas; campos de texto comuns (`TextField`) no MESMO diálogo
+aceitavam digitação normalmente, confirmando que o problema era
+específico do componente Autocomplete, não um bloqueio de teclado
+genérico da tela.
+
+### Correção
+
+- `initialOptions` agora usa `EMPTY_OPTIONS` — uma constante de módulo
+  (criada uma única vez, fora do componente), em vez de `[]` inline no
+  destructuring. Quem não passa a prop recebe sempre a MESMA
+  referência entre renderizações, então o efeito só dispara quando
+  algo de fato muda.
+- Reforço extra no próprio efeito: agora ele só chama `setOptions` se
+  algum `id` de `initialOptions` realmente ainda não estiver nas
+  opções atuais — protege também contra quem passa um array NOVO a
+  cada render por conta própria (caso do `SaleModal.js`, que monta
+  `[sale.customer, ...customers]` inline na própria JSX — mesmo risco,
+  olhando pra frente, embora sem relato de bug até agora, porque lá só
+  acontece quando editando uma venda que já tem cliente).
+
+### Verificação
+
+- `eslint` (frontend) limpo.
+- Reproduzido o bug ANTES do fix (campo sempre voltava `""` mesmo
+  digitando de verdade via teclado) e confirmado resolvido DEPOIS do
+  fix, com o mesmo teste Playwright de tecla única (`"A"` → `"As"`
+  corretamente acumulado) rodando contra o servidor de desenvolvimento
+  (`craco start`, pra refletir a mudança sem precisar rebuildar a cada
+  teste).
+- Teste completo de digitação (`"Associado"`, caractere por caractere)
+  confirmado funcionando de ponta a ponta: o texto ficou certo no
+  campo, a busca debounced disparou `GET /finance/customers?
+  searchParam=Associado` pro backend, e o dropdown mostrou só os
+  clientes que batem com o texto digitado.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste (cliente semeado pro teste) removidos do banco depois
+  da verificação.
+
+**Arquivos**: `frontend/src/components/FinanceAsyncAutocomplete/index.js`.
