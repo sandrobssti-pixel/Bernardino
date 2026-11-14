@@ -1,6 +1,7 @@
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceCashRegister from "../../models/FinanceCashRegister";
+import { sumModelValue } from "../../utils/financeSum";
 
 // "Caixa Registradora" — lembrete de valores físicos dentro da empresa
 // (dinheiro em espécie, promissórias, cheques), sem vínculo nenhum com
@@ -15,6 +16,7 @@ interface ListResponse {
   records: FinanceCashRegister[];
   count: number;
   hasMore: boolean;
+  totalValue: number;
 }
 
 interface CashRegisterData {
@@ -38,14 +40,22 @@ export const list = async ({
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
 
-  const { count, rows: records } = await FinanceCashRegister.findAndCountAll({
-    where: { companyId },
-    limit,
-    offset,
-    order: [["createdAt", "DESC"]]
-  });
+  const whereCondition = { companyId };
 
-  return { records, count, hasMore: count > offset + records.length };
+  const [{ count, rows: records }, totalValue] = await Promise.all([
+    FinanceCashRegister.findAndCountAll({
+      where: whereCondition,
+      limit,
+      offset,
+      order: [["createdAt", "DESC"]]
+    }),
+    // "Soma total" — pedido do cliente (v2.3.289): soma de TODOS os
+    // registros (dinheiro físico + promissória + cheque juntos), não só
+    // os 20 da página. Mesmo padrão já usado em Contas a Pagar/Receber.
+    sumModelValue(FinanceCashRegister, whereCondition)
+  ]);
+
+  return { records, count, hasMore: count > offset + records.length, totalValue };
 };
 
 export const show = async (

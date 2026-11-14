@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.289] — "Caixa Registradora": soma total dos valores — 2026-11-14
+
+### Adicionado
+- Chip **"Saldo total"** em Caixa Registradora, somando dinheiro
+  físico + promissória + cheque — mesmo padrão já usado em Contas a
+  Pagar/Receber.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 263.
+
 ## [2.3.288] — Removido: card "Saldo previsto" do Painel Financeiro — 2026-11-14
 
 ### Removido

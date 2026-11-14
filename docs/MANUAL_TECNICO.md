@@ -20217,3 +20217,22 @@ nenhum lugar do sistema).
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
 `frontend/src/components/FinancePainel/index.js`.
+
+## 263. "Caixa Registradora": soma total dos valores (v2.3.289)
+
+Pedido do cliente: "em caixa registradora coloque a soma total dos
+valores". Mesmo padrão já usado em Contas a Pagar/Receber — a tela já
+usa o componente genérico `FinanceRecordList.js`, que mostra o chip
+"Saldo total" automaticamente sempre que o recurso devolve
+`totalValue` (nenhuma mudança de frontend precisou ser feita).
+
+- `FinanceCashRegisterService.list` agora também soma (`totalValue`)
+  TODOS os registros (dinheiro físico + promissória + cheque juntos),
+  não só os 20 da página — reaproveitando `sumModelValue` (mesmo
+  utilitário usado em Contas a Pagar/Receber).
+
+**Verificação**: testado via script Node — 3 registros
+(R$ 1.500,50 + R$ 800,00 + R$ 250,75) somando corretamente
+R$ 2.551,25.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceCashRegisterService.ts`.
