@@ -20422,3 +20422,59 @@ refletir melhor o que de fato representa.
 `backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/pages/Financeiro/CashRegisterEntryDialog.js`.
+
+## 268. Bug real: busca do Caixa Registradora não filtrava nada (v2.3.294)
+
+Pedido do cliente: "use a tabela clientes do financeiro para atualizar
+caixa registradora , quando for fazer um lançamento no caixa
+resgistradora usar como base a tabela de clientes , para cadastrar os
+campos automaticamente , pois não esta visualizando quando faz o
+filtro". A parte de "usar a tabela de clientes pra preencher os campos
+automaticamente" já existia desde a v2.3.292 (autocomplete de Cliente
+em `CashRegisterEntryDialog.js`, snapshot de nome/CPF/endereço — ver
+seção 266) — o problema real era a caixa de busca ("Pesquisar caixa
+registradora..") da listagem, que nunca funcionou.
+
+### Causa
+
+`FinanceRecordList` (componente genérico usado por toda tela do
+Financeiro) sempre manda `searchParam` na query de `list()`, pra
+qualquer recurso. Mas `FinanceCashRegisterController.index` nunca lia
+esse parâmetro de `req.query`, e `FinanceCashRegisterService.list`
+nunca tinha lógica nenhuma de busca — a caixa de busca aparecia na
+tela, o usuário digitava o nome do cliente, e nada acontecia (a lista
+sempre voltava TUDO, sem filtrar). Diferente de Contas a Pagar/Receber/
+Clientes, que sempre tiveram busca funcionando desde o início.
+
+### Correção
+
+`FinanceCashRegisterService.list` agora aceita `searchParam` e filtra
+por `name` (case-insensitive, `LOWER(...) LIKE`) ou `document` — os
+mesmos campos que já vêm preenchidos automaticamente a partir do
+cadastro único de clientes do Financeiro ao escolher o cliente no
+lançamento. Mesmo padrão de busca já usado em
+`FinanceCustomerService.list` (sem o campo `email`, que não existe
+nesse recurso). `FinanceCashRegisterController.index` agora extrai
+`searchParam` de `req.query` e repassa pro serviço.
+
+O chip "Saldo total" (já existente desde a v2.3.289) soma o
+`whereCondition` da busca — então, com essa correção, filtrar por um
+cliente também atualiza o total mostrado pra refletir só o que está
+filtrado, mesmo padrão já usado em Contas a Pagar/Receber.
+
+### Verificação
+
+- `tsc --noEmit` (backend) limpo.
+- Testado via API real (login + `curl`) contra o Postgres de teste: dois
+  lançamentos criados com nomes/CPFs diferentes (Carlos/Maria); busca
+  por nome parcial ("carlos") trouxe só o registro certo; busca por
+  trecho do CPF ("666777", presente no meio de "55566677788") também
+  isolou o registro certo; busca por nome em maiúsculas confirmou
+  case-insensitive; sem `searchParam` voltou os dois (comportamento
+  anterior preservado); busca sem nenhum resultado voltou lista vazia
+  sem erro. `totalValue` bateu certo em cada caso (filtrado, não
+  somando tudo).
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`backend/src/controllers/FinanceCashRegisterController.ts`.

@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.294] — Corrigido: busca do Caixa Registradora não filtrava nada — 2026-11-14
+
+### Corrigido
+- A caixa de busca ("Pesquisar caixa registradora...") nunca filtrava
+  nada — o backend ignorava o termo digitado. Agora busca por nome ou
+  CPF/CNPJ do cliente (os mesmos campos preenchidos automaticamente a
+  partir do cadastro único de clientes do Financeiro ao lançar uma
+  venda).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 268.
+
 ## [2.3.293] — Caixa Registradora: "Tipo" renomeado para "Forma de pagamento" + "Venda cartão de crédito" — 2026-11-14
 
 ### Alterado

@@ -13,9 +13,9 @@ const ensureAccess = async (req: Request): Promise<void> => {
 export const index = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;
-  const { pageNumber } = req.query as { pageNumber?: string };
+  const { searchParam, pageNumber } = req.query as { searchParam?: string; pageNumber?: string };
 
-  const result = await FinanceCashRegisterService.list({ companyId, pageNumber });
+  const result = await FinanceCashRegisterService.list({ companyId, searchParam, pageNumber });
   return res.status(200).json(result);
 };
 

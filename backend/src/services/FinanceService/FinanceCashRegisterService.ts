@@ -1,3 +1,4 @@
+import { Op, Sequelize } from "sequelize";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceCashRegister from "../../models/FinanceCashRegister";
@@ -14,6 +15,7 @@ import { sumModelValue } from "../../utils/financeSum";
 
 interface ListRequest {
   companyId: number;
+  searchParam?: string;
   pageNumber?: string | number;
 }
 
@@ -101,12 +103,29 @@ const sumItemsTotal = (items: CashRegisterItemData[]): number =>
 
 export const list = async ({
   companyId,
+  searchParam = "",
   pageNumber = "1"
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
 
-  const whereCondition = { companyId };
+  // Busca pelo nome/CPF-CNPJ do cliente — campos que já vêm preenchidos
+  // automaticamente a partir do cadastro único de clientes do Financeiro
+  // ao escolher o cliente no lançamento (snapshot, ver FinanceCustomer/
+  // CashRegisterEntryDialog.js). Antes desta correção, a caixa de busca
+  // da tela (FinanceRecordList) já mandava `searchParam`, mas o backend
+  // simplesmente ignorava — o filtro nunca filtrava nada.
+  const whereCondition: any = { companyId };
+  if (searchParam) {
+    whereCondition[Op.or] = [
+      Sequelize.where(
+        Sequelize.fn("LOWER", Sequelize.col("FinanceCashRegister.name")),
+        "LIKE",
+        `%${searchParam.toLowerCase().trim()}%`
+      ),
+      { document: { [Op.like]: `%${searchParam.trim()}%` } }
+    ];
+  }
 
   const [{ count, rows: records }, totalValue] = await Promise.all([
     FinanceCashRegister.findAndCountAll({
