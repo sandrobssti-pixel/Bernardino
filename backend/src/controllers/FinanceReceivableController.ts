@@ -24,12 +24,13 @@ const ensurePaymentAccess = async (req: Request): Promise<void> => {
 export const index = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;
-  const { searchParam, pageNumber, status, startDate, endDate } = req.query as {
+  const { searchParam, pageNumber, status, startDate, endDate, hasInvoice } = req.query as {
     searchParam?: string;
     pageNumber?: string;
     status?: string;
     startDate?: string;
     endDate?: string;
+    hasInvoice?: string;
   };
 
   const result = await FinanceReceivableService.list({
@@ -38,7 +39,8 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
     pageNumber,
     status,
     startDate,
-    endDate
+    endDate,
+    hasInvoice
   });
 
   return res.status(200).json(result);

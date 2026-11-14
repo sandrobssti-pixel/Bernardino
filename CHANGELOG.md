@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.290] — Contas a Receber: filtro "Nota Fiscal" (venda com/sem nota) — 2026-11-14
+
+### Adicionado
+- Novo filtro **"Nota Fiscal"** em Contas a Receber (Todos / Venda com
+  nota / Venda sem nota fiscal) — "com nota" conta só vendas com nota
+  de verdade autorizada pela Sefaz em Produção (nunca nota de teste);
+  "sem nota" inclui também contas a receber sem nenhuma venda por
+  trás.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 264.
+
 ## [2.3.289] — "Caixa Registradora": soma total dos valores — 2026-11-14
 
 ### Adicionado

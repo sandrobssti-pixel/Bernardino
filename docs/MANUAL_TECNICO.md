@@ -20236,3 +20236,42 @@ usa o componente genérico `FinanceRecordList.js`, que mostra o chip
 R$ 2.551,25.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceCashRegisterService.ts`.
+
+## 264. Contas a Receber: filtro "Nota Fiscal" (venda com/sem nota) (v2.3.290)
+
+Pedido do cliente: "em contas a receber faça um filtro venda com notas
+para listar so os valores com notas fiscais e faça um filtro venda sem
+nota fiscal para filtar so as vendas sem notas fiscais".
+
+- Novo filtro **"Nota Fiscal"** (Todos / Venda com nota / Venda sem
+  nota fiscal), ao lado do filtro "Status" já existente.
+- "Nota fiscal de verdade" usa a MESMA régua já estabelecida em outros
+  pontos do sistema: `FiscalDocument.status === "authorized"` (a nota
+  foi de fato autorizada pela Sefaz — "processing"/"error"/"cancelled"
+  não contam) **e** `environment === "production"` (nota de teste/
+  Homologação nunca conta como nota de verdade — mesmo critério já
+  usado no Dashboard de Lucro do Painel Financeiro).
+- `FinanceReceivableService.findReceivableIdsWithInvoice` — como o
+  vínculo é inverso (`Sale.receivableId`, não o contrário), a função
+  busca as Vendas da empresa com nota autorizada+produção e devolve os
+  `receivableId`s delas; "Venda sem nota fiscal" é tudo que NÃO está
+  nessa lista — inclui também Contas a Receber criadas direto (sem
+  nenhuma Venda por trás), que também não têm nota.
+- Pegadinha de SQL evitada de propósito: `Op.notIn` com array VAZIO
+  (nenhuma venda com nota ainda) gera `NOT IN (NULL)` no Postgres, que
+  nunca é verdadeiro — excluiria TUDO em vez de incluir tudo. Tratado
+  com um `Op.ne: null` como filtro neutro nesse caso.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via SQL + script Node, com uma Venda com nota autorizada em
+  Produção, uma Venda sem nota nenhuma, e uma Conta a Receber avulsa
+  (sem Venda nenhuma por trás): `hasInvoice=yes` trouxe só a primeira;
+  `hasInvoice=no` trouxe as outras duas; sem filtro trouxe as três.
+- Testado visualmente via Playwright: filtro "Nota Fiscal" aparecendo
+  corretamente ao lado de "Status" em Contas a Receber.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReceivableService.ts`,
+`backend/src/controllers/FinanceReceivableController.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

@@ -3,8 +3,41 @@ import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceReceivable from "../../models/FinanceReceivable";
 import FinanceCustomer from "../../models/FinanceCustomer";
+import Sale from "../../models/Sale";
+import FiscalDocument from "../../models/FiscalDocument";
 import { findEntityIdsByNameOrDocument } from "../../utils/findEntityIdsByNameOrDocument";
 import { sumModelValue } from "../../utils/financeSum";
+
+// "Venda com nota"/"Venda sem nota fiscal" (pedido do cliente, v2.3.290)
+// — "nota fiscal de verdade" é a mesma régua já usada em
+// `SaleService.assertSaleEditable` (`hasRealFiscalDocument`), só que
+// restrita a `status: "authorized"` (a nota foi de fato emitida/
+// autorizada pela Sefaz, não "processing"/"error"/"cancelled") e
+// `environment: "production"` (nunca conta nota de teste/Homologação
+// como "nota fiscal de verdade" — mesmo critério já usado no Dashboard
+// de Lucro, ver FinanceReportService.getProfitDashboard). Devolve os
+// ids de FinanceReceivable cuja Venda ligada tem pelo menos uma nota
+// assim.
+const findReceivableIdsWithInvoice = async (companyId: number): Promise<number[]> => {
+  const sales = await Sale.findAll({
+    where: { companyId, receivableId: { [Op.ne]: null } },
+    attributes: ["receivableId"],
+    include: [
+      {
+        model: FiscalDocument,
+        as: "fiscalDocuments",
+        attributes: [],
+        where: { status: "authorized", environment: "production" },
+        required: true
+      }
+    ],
+    raw: true
+  });
+  // Dedup — uma Venda com mais de uma nota autorizada (reemissão) geraria
+  // o mesmo receivableId repetido; inofensivo num Op.in, mas sem sentido
+  // manter duplicado.
+  return [...new Set(sales.map((row: any) => row.receivableId))];
+};
 
 interface ListRequest {
   companyId: number;
@@ -13,6 +46,10 @@ interface ListRequest {
   status?: string;
   startDate?: string;
   endDate?: string;
+  // "yes" = só Vendas com nota fiscal (autorizada, em Produção) | "no" =
+  // só Vendas sem nota fiscal (inclui contas a receber criadas direto,
+  // sem Venda nenhuma por trás — essas também não têm nota).
+  hasInvoice?: string;
 }
 
 interface ListResponse {
@@ -51,12 +88,29 @@ export const list = async ({
   pageNumber = "1",
   status,
   startDate,
-  endDate
+  endDate,
+  hasInvoice
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
 
   const whereCondition: any = { companyId };
+
+  if (hasInvoice === "yes" || hasInvoice === "no") {
+    const invoicedIds = await findReceivableIdsWithInvoice(companyId);
+    if (hasInvoice === "yes") {
+      // Lista vazia (nenhuma Venda com nota ainda) — `Op.in: []` sozinho
+      // já não bate com nada, mas o sentinela deixa explícito (nunca
+      // depende de como o Sequelize monta `IN ()` vazio).
+      whereCondition.id = { [Op.in]: invoicedIds.length ? invoicedIds : [-1] };
+    } else {
+      // `Op.notIn` com array VAZIO é uma pegadinha real de SQL: o
+      // Postgres gera "id NOT IN (NULL)", que avalia pra UNKNOWN em
+      // TODA linha (nunca TRUE) — excluiria tudo, não "nada tem nota
+      // então tudo entra", que é o comportamento certo aqui.
+      whereCondition.id = invoicedIds.length ? { [Op.notIn]: invoicedIds } : { [Op.ne]: null };
+    }
+  }
 
   if (searchParam) {
     // v2.3.262 — pedido do cliente: buscar também pelo nome/CPF-CNPJ do

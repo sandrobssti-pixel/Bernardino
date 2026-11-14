@@ -779,8 +779,19 @@ export const financeReceivableFields = [
   { name: "notes", label: "Observações", type: "textarea", gridSize: 12 },
 ];
 
+// "Venda com nota"/"Venda sem nota fiscal" (pedido do cliente, v2.3.290)
+// — filtra pela Venda ligada à conta a receber ter ou não uma nota
+// fiscal de verdade (autorizada, em Produção — nunca conta nota de
+// teste/Homologação). Ver FinanceReceivableService.findReceivableIdsWithInvoice.
+export const RECEIVABLE_INVOICE_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "yes", label: "Venda com nota" },
+  { value: "no", label: "Venda sem nota fiscal" },
+];
+
 export const financeReceivableFilters = [
   { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...RECEIVABLE_STATUS_OPTIONS] },
+  { name: "hasInvoice", label: "Nota Fiscal", options: RECEIVABLE_INVOICE_OPTIONS },
 ];
 
 // Campos fiscais da Venda pedidos pelo contador do cliente (v2.3.166) — ver
