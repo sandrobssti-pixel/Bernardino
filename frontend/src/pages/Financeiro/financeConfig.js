@@ -876,8 +876,18 @@ export const financeCashRegisterColumns = [
     render: (r) =>
       CASH_REGISTER_TYPE_OPTIONS.find((o) => o.value === r.type)?.label || r.type,
   },
+  { field: "name", label: "Cliente", render: (r) => r.name || "—" },
+  {
+    field: "items",
+    label: "Itens",
+    render: (r) =>
+      r.items?.length
+        ? `${r.items.length} item${r.items.length > 1 ? "ns" : ""}: ${r.items
+            .map((i) => i.description)
+            .join(", ")}`
+        : "—",
+  },
   { field: "value", label: "Valor", render: (r) => money(r.value) },
-  { field: "notes", label: "Observações" },
   {
     field: "createdAt",
     label: "Registrado em",

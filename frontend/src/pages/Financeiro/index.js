@@ -13,6 +13,7 @@ import useServices from "../../hooks/useServices";
 import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
 import FinancePaymentConfigPanel from "../../components/FinancePaymentConfigPanel";
+import CashRegisterEntryDialog from "./CashRegisterEntryDialog";
 import {
   financeCustomerColumns,
   financeCustomerFields,
@@ -99,6 +100,31 @@ const Financeiro = () => {
   const [paymentAccess, setPaymentAccess] = useState(null);
   const [financeTab, setFinanceTab] = useState(user.super ? "saas" : "painel");
   const location = useLocation();
+
+  // Caixa Registradora (v2.3.292) — abre CashRegisterEntryDialog (cliente
+  // + itens) em vez do modal genérico de campo-config do FinanceRecordList
+  // (onEditOverride/onCreateOverride), mesmo padrão já usado em
+  // Members/index.js (MemberEditDialog). `cashRegisterRefreshToken` força
+  // a lista a recarregar ao fechar o diálogo com algo salvo.
+  const [cashRegisterDialogOpen, setCashRegisterDialogOpen] = useState(false);
+  const [editingCashRegisterId, setEditingCashRegisterId] = useState(null);
+  const [cashRegisterRefreshToken, setCashRegisterRefreshToken] = useState(0);
+
+  const handleCashRegisterCreateOverride = () => {
+    setEditingCashRegisterId(null);
+    setCashRegisterDialogOpen(true);
+  };
+
+  const handleCashRegisterEditOverride = (record) => {
+    setEditingCashRegisterId(record.id);
+    setCashRegisterDialogOpen(true);
+  };
+
+  const handleCashRegisterDialogClose = (saved) => {
+    setCashRegisterDialogOpen(false);
+    setEditingCashRegisterId(null);
+    if (saved) setCashRegisterRefreshToken((t) => t + 1);
+  };
 
   // Navegação pelo menu lateral (MainListItems.js > Financeiro > ...) manda
   // a aba certa via query string (`?tab=products&type=weapon:national`), já
@@ -204,13 +230,15 @@ const Financeiro = () => {
     if (financeTab === "cashRegister") {
       return (
         <FinanceRecordList
-          key={financeTab}
+          key={`${financeTab}-${cashRegisterRefreshToken}`}
           title="Caixa Registradora"
           resource={finance.cashRegister}
           columns={financeCashRegisterColumns}
           fields={financeCashRegisterFields}
           finance={finance}
           canDelete={canDeleteFinanceRecords}
+          onCreateOverride={handleCashRegisterCreateOverride}
+          onEditOverride={handleCashRegisterEditOverride}
         />
       );
     }
@@ -331,6 +359,11 @@ const Financeiro = () => {
   return (
     <div className={classes.pageRoot}>
       <div className={classes.content}>{renderPanel()}</div>
+      <CashRegisterEntryDialog
+        open={cashRegisterDialogOpen}
+        entryId={editingCashRegisterId}
+        onClose={handleCashRegisterDialogClose}
+      />
     </div>
   );
 };

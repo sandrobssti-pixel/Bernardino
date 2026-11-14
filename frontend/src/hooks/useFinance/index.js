@@ -16,6 +16,14 @@ const useFinance = () => {
       const { data } = await api.get(`/finance/${basePath}`, { params });
       return data;
     },
+    // Busca um registro só, por id — pedido do "Caixa Registradora"
+    // (v2.3.292, precisa carregar os itens de um lançamento pra editar),
+    // mas genérico pra qualquer recurso que já tenha a rota GET /:id no
+    // backend (todos têm).
+    show: async (id) => {
+      const { data } = await api.get(`/finance/${basePath}/${id}`);
+      return data;
+    },
     save: async (data) => {
       const { data: responseData } = await api.post(`/finance/${basePath}`, data);
       return responseData;

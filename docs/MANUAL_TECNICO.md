@@ -20290,3 +20290,99 @@ Node criando um registro desse novo tipo com sucesso.
 **Arquivos**: `backend/src/models/FinanceCashRegister.ts`,
 `backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 266. "Caixa Registradora" vira frente de caixa — vendas sem nota fiscal com cliente e itens (v2.3.292)
+
+Pedido do cliente: "coloque em caixa registradora nome cpf data e hora
+do lançamento, cep, rua numero, complemento, bairro cidade, UF, coloque
+um campo tipo, que tenha opção de adcionar iserir o tipo da venda
+manualmente, descrição quantidade, valor, unidade, vai ser um frente de
+caixa qua so lança vendas sem nota fiscal". Duas rodadas de ajuste de
+escopo confirmaram: (1) os campos novos valem pra TODO lançamento do
+Caixa Registradora, não só pro tipo "Venda sem nota fiscal"; (2) cada
+lançamento aceita VÁRIOS itens (carrinho), não um valor único. Depois,
+correção do próprio cliente no meio da implementação: "o cadastro do
+cliente continuar sendo unico, ao digitar o nome ou cpf já preenche
+todos os campo igual a vendas, porem no campo resgistradora não afenta
+os valores do painel financeiro no resultado das vendas diaria no
+fechamento do caixa, fica independente, so vai lançar no painel valores
+que nsao pix e com nota fiscal" — ou seja: cliente é o MESMO cadastro
+único do Financeiro (não um campo avulso duplicado), e o Caixa
+Registradora continua sem nenhum vínculo com os totais oficiais do
+Painel Financeiro (que já só contam Pix/vendas com nota — princípio que
+já valia desde antes, só reforçado aqui).
+
+- **Cliente**: campo de busca (`FinanceAsyncAutocomplete`, mesmo
+  componente que `SaleModal.js` já usa) que busca no cadastro único de
+  clientes do Financeiro (`/finance/customers`, sem endpoint novo). Ao
+  selecionar, preenche nome/CPF/endereço automaticamente — é um
+  **snapshot** no momento do lançamento (mesmo padrão de
+  `Sale.recipientZipCode` etc.): se o cadastro do cliente mudar depois,
+  o lançamento antigo não muda retroativamente. `customerId` é uma FK
+  nova, opcional (`onDelete: SET NULL`) — lançamento sem cliente
+  vinculado continua funcionando normalmente (campo "Cliente" mostra
+  "—" na listagem).
+- **Endereço**: CEP com auto-preenchimento via ViaCEP (`onBlur`, reusa
+  `frontend/src/utils/cep.js`, mesma integração já usada em
+  `FinanceRecordModal`/`SaleModal`/`FiscalConfigPanel`).
+- **Itens**: lista repetível por lançamento (tipo da venda digitado
+  manualmente, descrição \*obrigatória\*, quantidade, unidade, valor
+  unitário) — nova tabela `FinanceCashRegisterItems`
+  (`cashRegisterId` FK `onDelete: CASCADE`). O valor total do
+  lançamento (`FinanceCashRegister.value`) agora é **sempre calculado**
+  (soma de quantidade × valor unitário de cada item), nunca mais
+  digitado direto pelo usuário.
+- **Edição**: ao editar um lançamento, os itens antigos são apagados e
+  recriados do zero (`destroy` + `bulkCreate`) — mesmo padrão já usado
+  em `SaleService` pra `SaleItem`.
+- **Independência do Painel Financeiro**: nenhuma mudança de
+  comportamento aqui além de adicionar a FK — o Caixa Registradora
+  nunca entrou nos cálculos de Receita Bruta/Despesa Bruta/Lucro
+  (`FinanceReportService`), que só somam Contas a Pagar/Receber
+  realizadas. Reconfirmado, não alterado.
+- `CashRegisterEntryDialog.js` (novo componente de diálogo próprio,
+  via `onCreateOverride`/`onEditOverride` do `FinanceRecordList` — mesmo
+  padrão já usado pro diálogo de Associados) substitui o modal genérico
+  de campos só pra esse recurso.
+- Novo `show(id)` genérico em `useFinance`'s `makeResource` (carrega um
+  registro com os itens inclusos, pra edição) — fica disponível pra
+  qualquer recurso construído em cima dele, não só Caixa Registradora.
+
+### Bug encontrado e corrigido durante o desenvolvimento
+
+Um `useState` inicial usava `document` como nome de variável
+(`const [document, setDocumentValue] = ...`) — isso **esconde o objeto
+global `document` do DOM** dentro do componente, e um `sed` de rename
+deixou uma chamada solta (`setDocumentValue("")` dentro de
+`resetForm()`) sem atualizar, causando erro `no-undef` no ESLint.
+Corrigido renomeando pra `documentNumber`/`setDocumentNumber` em todo o
+arquivo.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Script Node de ponta a ponta (`create`/`update`/`list`): validação
+  rejeita item sem descrição; total calculado corretamente na criação
+  (2×R$150 + 1×R$80 = R$380) e recalculado na edição (trocando por
+  1×R$500 = R$500); `list()` devolve `totalValue` certo; itens antigos
+  são substituídos (não acumulados) ao editar.
+- Build de produção do frontend (`craco build`) concluído sem erros.
+- Testado visualmente via Playwright: diálogo abre com todos os campos
+  esperados (Tipo, Cliente, Nome/CPF, endereço completo, seção Itens
+  com botão "Adicionar item", Total calculado, Observações); itens
+  preenchidos corretamente (Munição .38 caixa, 2×R$150 = R$300);
+  "Salvar" funciona (toast "Lançamento salvo"); lista atualiza com a
+  coluna "Itens" (contagem + descrições) e o chip "Saldo total"
+  recalculado.
+
+**Arquivos**: `backend/src/database/migrations/20261114120000-add-customer-and-address-to-finance-cash-registers.ts`,
+`backend/src/database/migrations/20261114120100-create-finance-cash-register-items.ts`,
+`backend/src/models/FinanceCashRegisterItem.ts` (novo),
+`backend/src/models/FinanceCashRegister.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/CashRegisterEntryDialog.js` (novo),
+`frontend/src/pages/Financeiro/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/translate/languages/pt.js`.

@@ -3,6 +3,22 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.292] — "Caixa Registradora" vira frente de caixa (cliente + itens) — 2026-11-14
+
+### Adicionado
+- Caixa Registradora agora funciona como **frente de caixa** pra
+  vendas sem nota fiscal: cliente (cadastro único do Financeiro, com
+  autocomplete e preenchimento automático de endereço, igual Vendas),
+  CEP com auto-preenchimento, e uma lista de **itens** por lançamento
+  (tipo digitado manualmente, descrição, quantidade, unidade, valor
+  unitário) — o valor total agora é calculado automaticamente a partir
+  dos itens.
+- Continua **completamente independente** do Painel Financeiro — os
+  totais oficiais (Receita/Despesa/Lucro) seguem contando só Contas a
+  Pagar/Receber realizadas, nunca o Caixa Registradora.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 266.
+
 ## [2.3.291] — "Caixa Registradora": novo tipo "Venda sem nota fiscal" — 2026-11-14
 
 ### Adicionado
