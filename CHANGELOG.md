@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.297] — Corrigido: erro ortográfico "itemns" na coluna Itens do Caixa Registradora — 2026-11-16
+
+### Corrigido
+- Coluna "Itens" do Caixa Registradora mostrava "itemns" (em vez de
+  "itens") quando o lançamento tinha mais de um item.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 271.
+
 ## [2.3.296] — Caixa Registradora ganha filtros (Forma de pagamento/Cliente/Período) — 2026-11-16
 
 ### Adicionado

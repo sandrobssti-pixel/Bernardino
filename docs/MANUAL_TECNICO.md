@@ -20614,3 +20614,18 @@ esses três.
 `backend/src/controllers/FinanceCashRegisterController.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`,
 `frontend/src/pages/Financeiro/index.js`.
+
+## 271. Erro ortográfico: "itemns" na coluna Itens do Caixa Registradora (v2.3.297)
+
+Pedido do cliente (print real da tela em produção): "corrija erro
+ortografico, quando coloca mais de um item fica itemns e o certo é
+Itens". A coluna "Itens" (v2.3.292) montava o plural concatenando
+"ns" direto em "item" (`` `item${length > 1 ? "ns" : ""}` ``), o que dá
+"itemns" em vez de "itens" — erro de digitação na hora de escrever o
+template string, não um bug de lógica. Trocado pra usar as duas
+palavras certas por extenso (`"item"`/`"itens"`).
+
+**Verificação**: `eslint` limpo; build de produção (`craco build`)
+concluído sem erros novos.
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`.

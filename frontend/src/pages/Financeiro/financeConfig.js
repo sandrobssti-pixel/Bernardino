@@ -883,7 +883,7 @@ export const financeCashRegisterColumns = [
     label: "Itens",
     render: (r) =>
       r.items?.length
-        ? `${r.items.length} item${r.items.length > 1 ? "ns" : ""}: ${r.items
+        ? `${r.items.length} ${r.items.length > 1 ? "itens" : "item"}: ${r.items
             .map((i) => i.description)
             .join(", ")}`
         : "—",
