@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.298] — Corrigido: vídeo enviado no Atendimento era salvo como áudio — 2026-11-16
+
+### Corrigido
+- Vídeo `.webm` enviado no Atendimento (ex.: gravação de tela/câmera)
+  era confundido com gravação de voz do navegador e tinha a faixa de
+  vídeo apagada, virando áudio sem querer. Agora o sistema sonda o
+  arquivo de verdade antes de decidir.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 272.
+
 ## [2.3.297] — Corrigido: erro ortográfico "itemns" na coluna Itens do Caixa Registradora — 2026-11-16
 
 ### Corrigido

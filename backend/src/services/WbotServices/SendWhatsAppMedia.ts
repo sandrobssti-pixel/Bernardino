@@ -162,9 +162,34 @@ const ensureCompanyFolder = (companyId: string) => {
   return dir;
 };
 
+// Sonda o arquivo com ffmpeg (mesma técnica já usada em
+// `getAudioDurationSeconds`, parseando o stderr) pra saber se ele tem
+// FAIXA DE VÍDEO de verdade, em vez de confiar só na extensão — ver bug
+// real corrigido logo abaixo em `looksLikeAudioContainer`.
+const probeHasVideoStream = async (filePath: string): Promise<boolean> => {
+  const cmd = `"${ffmpegPath.path}" -i "${filePath}" -f null -`;
+  return new Promise(resolve => {
+    exec(cmd, (_error, stdout, stderr) => {
+      const output = `${stdout || ""}\n${stderr || ""}`;
+      resolve(/Stream #\d+:\d+.*:\s*Video:/i.test(output));
+    });
+  });
+};
+
 // Heurística: alguns recipientes (ex.: .mpeg, .webm) podem vir como "video/*" mas serem usados como áudio.
 // Aqui decidimos extrair o áudio e mandar como PTT nesses casos.
-const looksLikeAudioContainer = (ext: string, mimetype: string) => {
+//
+// Bug real corrigido (relato do cliente: "mandando um vídeo de 14.7 mb e
+// esta salvando como audio"): a versão anterior tratava TODO arquivo
+// ".webm" como gravação de áudio de navegador, sem checar se o arquivo
+// tinha vídeo de verdade — um vídeo .webm legítimo (gravação de tela/
+// câmera, export de app) caía nesse "if" e tinha a faixa de vídeo
+// APAGADA (`processAudioToM4A` roda com `-vn`), virando áudio sem querer.
+// Agora só ".webm" SEM faixa de vídeo (sondado de verdade com ffmpeg,
+// não só a extensão) é tratado como áudio — preserva o caso original
+// (widget de gravação de voz do navegador, que às vezes manda mimetype
+// "video/webm" mesmo sendo só áudio) sem quebrar vídeo .webm de verdade.
+const looksLikeAudioContainer = async (ext: string, mimetype: string, filePath: string) => {
   const e = ext.toLowerCase();
   const mt = (mimetype || "").toLowerCase();
   if (mt.startsWith("audio/")) return true;
@@ -172,11 +197,15 @@ const looksLikeAudioContainer = (ext: string, mimetype: string) => {
   // Trata .mpeg/.mpg (muito comum o usuário enviar “Arquivo MPEG (.mpeg)” achando que é áudio)
   if (e === ".mpeg" || e === ".mpg") return true;
 
-  // Gravações web via navegador costumam vir em webm (com áudio Opus). Se quiser sempre PTT, trate como áudio:
-  if (e === ".webm" && mt.includes("webm")) return true;
-
   // Outros formatos de áudio comuns:
   if ([".mp3", ".m4a", ".aac", ".wav", ".oga", ".ogg"].includes(e)) return true;
+
+  // .webm pode ser vídeo de verdade OU gravação de voz do navegador —
+  // só decide pela sondagem real do arquivo, nunca só pela extensão.
+  if (e === ".webm" && mt.includes("webm")) {
+    const hasVideo = await probeHasVideoStream(filePath);
+    return !hasVideo;
+  }
 
   return false;
 };
@@ -254,7 +283,7 @@ export const getMessageOptions = async (
   try {
     let options: AnyMessageContent;
 
-    if (looksLikeAudioContainer(ext, mimeType)) {
+    if (await looksLikeAudioContainer(ext, mimeType, pathMedia)) {
       const converted = await processAudioToM4A(pathMedia, companyId || "0");
       const seconds = await getAudioDurationSeconds(converted);
       options = {
@@ -317,6 +346,11 @@ const SendWhatsAppMedia = async ({
     const ext = path.extname(media.originalname || pathMedia || "").toLowerCase();
     let options: AnyMessageContent;
     const bodyMedia = ticket ? formatBody(body, ticket) : body;
+    // Calculado uma única vez aqui (sondar o arquivo com ffmpeg tem custo)
+    // e reaproveitado mais abaixo pro resumo da última mensagem do
+    // ticket — nunca chamar `looksLikeAudioContainer` de novo depois
+    // deste ponto nesta função.
+    const isAudioMedia = !isSticker && (await looksLikeAudioContainer(ext, mimeType, pathMedia));
 
     if (isSticker) {
       // Figurinhas não têm legenda no WhatsApp
@@ -324,7 +358,7 @@ const SendWhatsAppMedia = async ({
         sticker: fs.readFileSync(pathMedia),
         contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded }
       };
-    } else if (looksLikeAudioContainer(ext, mimeType)) {
+    } else if (isAudioMedia) {
       // Mantém o mesmo AAC/M4A já compatível com iOS no canal WuzAPI.
       const converted = await processAudioToM4A(pathMedia, companyId);
       const seconds = await getAudioDurationSeconds(converted);
@@ -454,7 +488,6 @@ if (isPrivate === true) {
     // Envia
     const sentMessage = await wbot.sendMessage(number, payloadWithMentions, sendOptions);
 
-    const isAudioMedia = looksLikeAudioContainer(ext, mimeType);
     const normalizedBody = String(bodyMedia || "").trim();
     const normalizedOriginalName = String(
       media.originalname || media.filename || ""

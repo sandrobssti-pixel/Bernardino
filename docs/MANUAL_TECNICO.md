@@ -20629,3 +20629,65 @@ palavras certas por extenso (`"item"`/`"itens"`).
 concluído sem erros novos.
 
 **Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 272. Bug real: vídeo enviado no Atendimento era salvo como áudio (v2.3.298)
+
+Relato do cliente: "no atendimento estou mandondo um video de 14.7 mb e
+esta salvando como audio".
+
+### Causa raiz
+
+`SendWhatsAppMedia.ts`, função `looksLikeAudioContainer` — usada pra
+decidir se um arquivo anexado deve ser mandado como vídeo/documento/
+imagem ou extraído e mandado como áudio (PTT). A regra antiga tratava
+**TODO** arquivo `.webm` como gravação de voz de navegador, só pela
+extensão, sem checar se o arquivo tinha vídeo de verdade:
+
+```ts
+// ANTES (bug)
+if (e === ".webm" && mt.includes("webm")) return true;
+```
+
+Um vídeo `.webm` legítimo (gravação de tela/câmera, export de app,
+compartilhamento de celular) cai nesse "if" e tem a faixa de vídeo
+**literalmente apagada** por `processAudioToM4A` (que roda ffmpeg com
+`-vn`, "sem vídeo") antes de virar um áudio PTT — exatamente o sintoma
+relatado: vídeo de 14,7 MB sendo "salvo" (enviado) como áudio.
+
+O "if" existia por um motivo legítimo: alguns widgets de gravação de
+voz do navegador mandam o arquivo com mimetype `video/webm` mesmo
+sendo só áudio (quirk de codec do `MediaRecorder`) — só que a regra
+generalizou demais, tratando QUALQUER `.webm` assim, vídeo de verdade
+incluso.
+
+### Correção
+
+Adicionada `probeHasVideoStream(filePath)` — sonda o arquivo de
+verdade com `ffmpeg -i ... -f null -` (mesma técnica já usada em
+`getAudioDurationSeconds`, parseando o `stderr`) e procura uma linha
+`Stream #N:N...: Video:` na saída. `looksLikeAudioContainer` virou
+`async` e, só para `.webm`, agora decide pela sondagem real do
+arquivo: SEM faixa de vídeo → áudio (preserva o caso original do
+widget de gravação de voz); COM faixa de vídeo → vídeo de verdade,
+enviado normalmente. As outras extensões/mimetypes (`.mpeg`/`.mp3`/
+`.m4a`/etc., `audio/*`) continuam decidindo só pela extensão/mimetype
+— não precisam de sondagem, nunca tiveram esse problema.
+
+Os 3 pontos que chamavam a função viraram `await` (já estavam dentro
+de funções `async`). O terceiro ponto (montagem do resumo da última
+mensagem do ticket, depois do envio) deixou de chamar a função de novo
+— reaproveita o resultado já calculado uma vez no início da função
+(`isAudioMedia`), evitando sondar o mesmo arquivo com ffmpeg duas
+vezes à toa.
+
+### Verificação
+
+- `tsc --noEmit` limpo.
+- Gerados dois arquivos `.webm` de teste com ffmpeg (um vídeo de
+  verdade com faixa de vídeo+áudio, um só com áudio, simulando o
+  widget de gravação de voz) e testado `probeHasVideoStream`
+  isoladamente contra os dois: vídeo de verdade → `true` (tem faixa de
+  vídeo); áudio puro → `false` — confirmando que a sondagem distingue
+  os dois casos corretamente.
+
+**Arquivos**: `backend/src/services/WbotServices/SendWhatsAppMedia.ts`.
