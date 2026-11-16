@@ -896,6 +896,25 @@ export const financeCashRegisterColumns = [
   },
 ];
 
+// Filtros da listagem — pedido do cliente: "coloque um filtro como
+// consta nos outros filtros" (Contas a Pagar/Receber já têm "Status",
+// Contas a Receber também tem "Nota Fiscal"). Caixa Registradora não
+// tem status, então os filtros análogos aqui são Forma de pagamento
+// (campo categórico já existente) e se tem ou não cliente vinculado
+// (mesma ideia do filtro "Nota Fiscal"); Período usa o
+// `enablePeriodFilter` genérico do FinanceRecordList, igual Contas a
+// Pagar/Receber já usam.
+export const CASH_REGISTER_CUSTOMER_LINKED_OPTIONS = [
+  { value: "", label: "Todos" },
+  { value: "yes", label: "Com cliente vinculado" },
+  { value: "no", label: "Sem cliente vinculado" },
+];
+
+export const financeCashRegisterFilters = [
+  { name: "type", label: "Forma de pagamento", options: [{ value: "", label: "Todos" }, ...CASH_REGISTER_TYPE_OPTIONS] },
+  { name: "customerLinked", label: "Cliente", options: CASH_REGISTER_CUSTOMER_LINKED_OPTIONS },
+];
+
 export const financeCashRegisterFields = [
   {
     name: "type",

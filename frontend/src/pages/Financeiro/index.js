@@ -30,6 +30,7 @@ import {
   financeReceivableFilters,
   financeCashRegisterColumns,
   financeCashRegisterFields,
+  financeCashRegisterFilters,
 } from "./financeConfig";
 
 const useStyles = makeStyles((theme) => ({
@@ -235,7 +236,10 @@ const Financeiro = () => {
           resource={finance.cashRegister}
           columns={financeCashRegisterColumns}
           fields={financeCashRegisterFields}
+          filters={financeCashRegisterFilters}
           finance={finance}
+          enablePeriodFilter
+          periodDateLabel="Registrado em"
           canDelete={canDeleteFinanceRecords}
           onCreateOverride={handleCashRegisterCreateOverride}
           onEditOverride={handleCashRegisterEditOverride}

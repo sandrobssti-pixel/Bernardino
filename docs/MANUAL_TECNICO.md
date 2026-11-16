@@ -20558,3 +20558,59 @@ genérico da tela.
   da verificação.
 
 **Arquivos**: `frontend/src/components/FinanceAsyncAutocomplete/index.js`.
+
+## 270. Caixa Registradora ganha filtros (Forma de pagamento/Cliente/Período) (v2.3.296)
+
+Pedido do cliente: "em caixa registradora coloque um filtro como
+consta nos outros filtros" — confirmado via questionário (resposta com
+as três opções marcadas) que o pedido era pelos três ao mesmo tempo:
+Forma de pagamento, Período, e se tem ou não Cliente vinculado. Caixa
+Registradora não tem "Status" (não é pendente/pago, é um registro
+único), então os filtros análogos ao de Contas a Pagar/Receber são
+esses três.
+
+- **Forma de pagamento**: dropdown "Todos" + `CASH_REGISTER_TYPE_OPTIONS`
+  — mesmo padrão do filtro "Status" de Contas a Pagar/Receber.
+- **Cliente**: dropdown "Todos / Com cliente vinculado / Sem cliente
+  vinculado" — baseado em `customerId IS NOT NULL`/`IS NULL`, mesma
+  ideia do filtro "Nota Fiscal" de Contas a Receber (ter ou não algo
+  vinculado).
+- **Período**: usa o `enablePeriodFilter` genérico já existente no
+  `FinanceRecordList` (Hoje/Esta semana/Este mês/Personalizado).
+  Filtra por `createdAt` — a ÚNICA data que existe neste recurso
+  (coluna "Registrado em"), diferente de Contas a Pagar/Receber que
+  filtram por Vencimento. Como `createdAt` é timestamp completo (não
+  só data), os limites do período usam início/fim do dia
+  (`${data}T00:00:00`/`${data}T23:59:59`), mesmo padrão já usado em
+  `SaleService.listForReport` — evita cortar registros lançados no
+  próprio dia do limite.
+- Os três filtros combinam com AND, igual todo filtro deste padrão
+  (`FinanceRecordList` já monta `{...filterValues, ...periodParams}` e
+  manda tudo junto pro backend).
+- O chip "Saldo total" continua somando o `whereCondition` já com os
+  filtros aplicados (mesmo padrão desde a v2.3.289) — filtrar por
+  qualquer um dos três recalcula o total mostrado.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API real (login + curl): dois lançamentos criados
+  (Dinheiro físico com cliente vinculado e data de hoje; Cheque sem
+  cliente e com `createdAt` manualmente movido pra janeiro/2026) —
+  `type=check` isolou só o Cheque; `customerLinked=yes`/`no` isolaram
+  cada um corretamente; período de novembro/2026 isolou só o Dinheiro
+  físico; período de janeiro/2026 isolou só o Cheque; sem filtro nenhum
+  trouxe os dois.
+- Testado visualmente via Playwright: os três filtros aparecem na tela
+  com os rótulos certos ("Forma de pagamento", "Cliente", "Período
+  (Registrado em)"); selecionar "Cheque" filtra a lista pra 1 registro
+  e recalcula o Saldo total; combinando "Cheque" + "Com cliente
+  vinculado" (que não existe junto) corretamente mostra "Nenhum
+  registro encontrado" com Saldo total R$ 0,00.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceCashRegisterService.ts`,
+`backend/src/controllers/FinanceCashRegisterController.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`,
+`frontend/src/pages/Financeiro/index.js`.

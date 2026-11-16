@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.296] — Caixa Registradora ganha filtros (Forma de pagamento/Cliente/Período) — 2026-11-16
+
+### Adicionado
+- Três novos filtros na listagem do Caixa Registradora, no mesmo
+  padrão já usado em Contas a Pagar/Receber: **Forma de pagamento**,
+  **Cliente** (com/sem cliente vinculado) e **Período** (filtra pela
+  data/hora do lançamento).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 270.
+
 ## [2.3.295] — Corrigido: não dava pra digitar no campo "Cliente" do Caixa Registradora — 2026-11-14
 
 ### Corrigido

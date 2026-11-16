@@ -17,6 +17,10 @@ interface ListRequest {
   companyId: number;
   searchParam?: string;
   pageNumber?: string | number;
+  type?: string;
+  customerLinked?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 interface ListResponse {
@@ -104,7 +108,11 @@ const sumItemsTotal = (items: CashRegisterItemData[]): number =>
 export const list = async ({
   companyId,
   searchParam = "",
-  pageNumber = "1"
+  pageNumber = "1",
+  type,
+  customerLinked,
+  startDate,
+  endDate
 }: ListRequest): Promise<ListResponse> => {
   const limit = 20;
   const offset = limit * (+pageNumber - 1);
@@ -125,6 +133,34 @@ export const list = async ({
       ),
       { document: { [Op.like]: `%${searchParam.trim()}%` } }
     ];
+  }
+
+  // "Forma de pagamento" — mesmo filtro categórico já usado em "Status"
+  // de Contas a Pagar/Receber, pedido do cliente pra deixar a tela de
+  // Caixa Registradora com o mesmo padrão de filtro das outras.
+  if (type) {
+    whereCondition.type = type;
+  }
+
+  // "Cliente vinculado" — se o lançamento tem ou não um FinanceCustomer
+  // ligado (`customerId`), mesma ideia do filtro "Nota Fiscal" de Contas
+  // a Receber (ter ou não algo vinculado).
+  if (customerLinked === "yes") {
+    whereCondition.customerId = { [Op.ne]: null };
+  } else if (customerLinked === "no") {
+    whereCondition.customerId = null;
+  }
+
+  // Filtro de Período — filtra por data/hora do LANÇAMENTO (`createdAt`,
+  // única data que existe neste recurso, mostrada na coluna "Registrado
+  // em"). `startDate`/`endDate` chegam como "YYYY-MM-DD" (ver
+  // utils/periodFilter.js no frontend); como `createdAt` é timestamp
+  // completo, usa início/fim do dia pra não cortar registros do próprio
+  // dia (mesmo padrão de SaleService.listForReport).
+  if (startDate || endDate) {
+    whereCondition.createdAt = {};
+    if (startDate) whereCondition.createdAt[Op.gte] = new Date(`${startDate}T00:00:00`);
+    if (endDate) whereCondition.createdAt[Op.lte] = new Date(`${endDate}T23:59:59`);
   }
 
   const [{ count, rows: records }, totalValue] = await Promise.all([
