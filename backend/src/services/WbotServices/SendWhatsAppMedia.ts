@@ -210,6 +210,62 @@ const looksLikeAudioContainer = async (ext: string, mimetype: string, filePath: 
   return false;
 };
 
+// Sonda o codec de vídeo/áudio de verdade do arquivo — a EXTENSÃO
+// ".mp4" não garante nada: celulares modernos (sobretudo iPhone e
+// Android recentes) podem gravar em HEVC/H.265 dentro de um contêiner
+// .mp4, que o navegador (Chrome, usado no preview do Atendimento)
+// toca sem problema, mas o player nativo do WhatsApp no celular NÃO
+// reproduz de forma confiável — dá exatamente o erro relatado pelo
+// cliente ("este vídeo não está disponível porque há algo errado com
+// o arquivo de vídeo"), mesmo a tela do AtendeFlow mostrando o vídeo
+// tocando normalmente (ver seção 273 do manual técnico). Mesma técnica
+// de sondagem via ffmpeg já usada em `probeHasVideoStream`.
+const probeVideoCodecs = async (
+  filePath: string
+): Promise<{ videoCodec: string; audioCodec: string }> => {
+  const cmd = `"${ffmpegPath.path}" -i "${filePath}" -f null -`;
+  return new Promise(resolve => {
+    exec(cmd, (_error, stdout, stderr) => {
+      const output = `${stdout || ""}\n${stderr || ""}`;
+      const videoMatch = output.match(/Stream #\d+:\d+.*:\s*Video:\s*([a-z0-9_]+)/i);
+      const audioMatch = output.match(/Stream #\d+:\d+.*:\s*Audio:\s*([a-z0-9_]+)/i);
+      resolve({
+        videoCodec: (videoMatch?.[1] || "").toLowerCase(),
+        audioCodec: (audioMatch?.[1] || "").toLowerCase()
+      });
+    });
+  });
+};
+
+// WhatsApp espera H.264 (vídeo) + AAC (áudio, se houver) dentro de MP4
+// pra reproduzir de forma confiável — qualquer outra coisa (HEVC/H.265,
+// VP8/VP9, áudio em Opus/Vorbis/MP3...) precisa ser retranscodificada
+// antes de enviar, nunca mandar os bytes originais só porque a
+// EXTENSÃO do arquivo já é ".mp4"/".mov" etc.
+const needsVideoTranscode = (videoCodec: string, audioCodec: string): boolean => {
+  const videoOk = videoCodec === "h264";
+  const audioOk = !audioCodec || audioCodec === "aac";
+  return !(videoOk && audioOk);
+};
+
+// Retranscodifica pra H.264/AAC dentro de MP4 — mesmo padrão já usado
+// em `processAudioToM4A`. `-pix_fmt yuv420p` é obrigatório: vídeo HEVC
+// de iPhone/Android recente costuma vir em 10-bit (yuv420p10le), que
+// nenhum player de H.264 "baseline" (inclusive o do WhatsApp) aceita.
+const processVideoToMp4 = async (inputPath: string, companyId: string): Promise<string> => {
+  const dir = ensureCompanyFolder(companyId);
+  const outputPath = path.join(dir, `${Date.now()}.mp4`);
+
+  const cmd =
+    `"${ffmpegPath.path}" -y -i "${inputPath}" ` +
+    `-c:v libx264 -preset fast -crf 23 -pix_fmt yuv420p ` +
+    `-c:a aac -b:a 128k -movflags +faststart "${outputPath}"`;
+
+  return new Promise((resolve, reject) => {
+    exec(cmd, (error) => (error ? reject(error) : resolve(outputPath)));
+  });
+};
+
 // AAC em contêiner M4A é o formato enviado pelo WuzAPI e é reproduzido de
 // forma consistente pelos clientes iOS e Android.
 const processAudioToM4A = async (inputPath: string, companyId: string): Promise<string> => {
@@ -295,11 +351,18 @@ export const getMessageOptions = async (
       // opcional: apagar o convertido se não quiser manter
       // unlinkSync(converted);
     } else if (mimeType.startsWith("video/")) {
+      const { videoCodec, audioCodec } = await probeVideoCodecs(pathMedia);
+      const needsTranscode = needsVideoTranscode(videoCodec, audioCodec);
+      const videoPath = needsTranscode
+        ? await processVideoToMp4(pathMedia, companyId || "0")
+        : pathMedia;
       options = {
-        video: fs.readFileSync(pathMedia),
+        video: fs.readFileSync(videoPath),
+        mimetype: "video/mp4",
         caption: body || undefined,
         fileName
       };
+      if (needsTranscode) unlinkSync(videoPath);
     } else if (
       mimeType.startsWith("application/") ||
       mimeType.startsWith("text/") ||
@@ -373,12 +436,19 @@ const SendWhatsAppMedia = async ({
       // limpa arquivo convertido
       unlinkSync(converted);
     } else if (mimeType.startsWith("video/")) {
+      const { videoCodec, audioCodec } = await probeVideoCodecs(pathMedia);
+      const needsTranscode = needsVideoTranscode(videoCodec, audioCodec);
+      const videoPath = needsTranscode
+        ? await processVideoToMp4(pathMedia, companyId)
+        : pathMedia;
       options = {
-        video: fs.readFileSync(pathMedia),
+        video: fs.readFileSync(videoPath),
+        mimetype: "video/mp4",
         caption: bodyMedia || undefined,
         fileName: media.originalname.replace("/", "-"),
         contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded }
       };
+      if (needsTranscode) unlinkSync(videoPath);
     } else if (
       mimeType.startsWith("application/") ||
       mimeType.startsWith("text/") ||

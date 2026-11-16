@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.299] — Corrigido: vídeo .mp4 dava "não está disponível" no WhatsApp do celular — 2026-11-16
+
+### Corrigido
+- Vídeo `.mp4` gravado em HEVC/H.265 (comum em celulares modernos)
+  tocava normalmente no preview do Atendimento (navegador), mas dava
+  erro "este vídeo não está disponível" no WhatsApp de verdade no
+  celular — o player nativo do WhatsApp exige H.264/AAC. Agora o
+  sistema sonda o codec real do vídeo e retranscodifica pra H.264/AAC
+  quando necessário, antes de enviar.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 273.
+
 ## [2.3.298] — Corrigido: vídeo enviado no Atendimento era salvo como áudio — 2026-11-16
 
 ### Corrigido

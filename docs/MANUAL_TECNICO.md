@@ -20691,3 +20691,71 @@ vezes à toa.
   os dois casos corretamente.
 
 **Arquivos**: `backend/src/services/WbotServices/SendWhatsAppMedia.ts`.
+
+## 273. Bug real: vídeo .mp4 jogava "não está disponível" no celular, mas tocava normal no AtendeFlow (v2.3.299)
+
+Continuação da seção 272. Depois do fix do `.webm` (vídeo passou a ser
+reconhecido como vídeo), o cliente testou de novo e reportou: "na tela
+mostra ok" (o preview do Atendimento tocava o vídeo normalmente) mas
+"quando recebe no celular que dar esse eero" — a mensagem do WhatsApp
+"este vídeo não está disponível porque há algo errado com o arquivo de
+vídeo", só no celular de verdade.
+
+### Causa raiz
+
+O arquivo já era `.mp4` (confirmado pelo nome no print:
+`1794854226174_1794854226174.mp4`) — não é o mesmo bug da seção 272.
+**Extensão `.mp4` não garante o CODEC de dentro** — celulares modernos
+(iPhone e Android recentes) frequentemente gravam em **HEVC/H.265**
+dentro de um contêiner `.mp4`, não H.264. O Chrome (usado no preview
+web do Atendimento) decodifica HEVC sem problema — por isso "na tela
+mostra ok" —, mas o player NATIVO do WhatsApp no celular é rígido:
+exige H.264 (vídeo) + AAC (áudio) de verdade, e rejeita qualquer outra
+coisa com esse erro genérico de "arquivo com problema", mesmo o arquivo
+estando 100% íntegro e reproduzível em outros players.
+
+Agravante: `baileys/lib/Utils/messages.js` sempre rotula o campo
+`mimetype` da mensagem de vídeo como `"video/mp4"` por padrão, mesmo
+sem checar o codec real dos bytes enviados — então o app do WhatsApp
+recebe a mensagem "prometendo" um vídeo MP4/H.264 e encontra outra
+coisa dentro, daí o erro.
+
+### Correção
+
+- `probeVideoCodecs(filePath)` — sonda o arquivo de verdade com
+  `ffmpeg -i ... -f null -` (mesma técnica da seção 272) e extrai o
+  codec de vídeo E de áudio via regex no `stderr`
+  (`Video: <codec>`/`Audio: <codec>`).
+- `needsVideoTranscode(videoCodec, audioCodec)` — só considera
+  compatível vídeo `h264` com áudio `aac` (ou sem áudio nenhum,
+  vídeo mudo) — qualquer outra combinação (HEVC, VP8/VP9, áudio em
+  Opus/Vorbis/MP3...) precisa de conversão.
+- `processVideoToMp4(inputPath, companyId)` — retranscodifica com
+  `ffmpeg -c:v libx264 -pix_fmt yuv420p -c:a aac`, mesmo padrão já
+  usado em `processAudioToM4A`. `-pix_fmt yuv420p` é essencial: vídeo
+  HEVC de celular moderno costuma vir em 10-bit
+  (`yuv420p10le`), que nenhum player H.264 "baseline" aceita — sem
+  forçar 8-bit explicitamente, o vídeo recodificado ainda falharia.
+- Os dois pontos que montam a mensagem de vídeo (`SendWhatsAppMedia` —
+  envio direto no Atendimento — e `getMessageOptions` — usado por
+  filas/campanhas) passaram a sondar o codec ANTES de decidir, e só
+  retranscodificam quando `needsVideoTranscode` for `true` — vídeo já
+  compatível (H.264/AAC, o caso mais comum) segue enviado direto, sem
+  gastar tempo com ffmpeg à toa. `mimetype: "video/mp4"` agora é
+  setado explicitamente na mensagem (não fica mais implícito no
+  default do Baileys), já que depois do transcode os bytes realmente
+  SÃO mp4/h264.
+
+### Verificação
+
+- `tsc --noEmit` limpo.
+- Gerados dois `.mp4` de teste com ffmpeg (um HEVC+AAC, simulando
+  vídeo de celular moderno; um H.264+AAC, já compatível) e testada a
+  sondagem isoladamente: HEVC → `needsTranscode: true`; H.264/AAC →
+  `needsTranscode: false` (confirma que vídeo já compatível não é
+  retranscodificado à toa). Rodado o transcode de verdade no HEVC e
+  re-sondado o resultado: `{ videoCodec: "h264", audioCodec: "aac" }`
+  — confirma que a conversão produz um arquivo realmente compatível,
+  não só "sem erro no ffmpeg".
+
+**Arquivos**: `backend/src/services/WbotServices/SendWhatsAppMedia.ts`.
