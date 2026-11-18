@@ -451,7 +451,7 @@ const FinanceRecordModal = ({
     <Dialog
       open={open}
       onClose={handleClose}
-      maxWidth="sm"
+      maxWidth="md"
       fullWidth
       classes={{ paper: classes.dialogPaper }}
       scroll="paper"

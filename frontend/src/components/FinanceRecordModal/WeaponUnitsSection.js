@@ -288,6 +288,7 @@ const WeaponUnitsSection = ({ product, finance }) => {
           Nenhuma arma cadastrada ainda neste SKU.
         </Typography>
       ) : (
+        <Box style={{ overflowX: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -324,6 +325,7 @@ const WeaponUnitsSection = ({ product, finance }) => {
             ))}
           </TableBody>
         </Table>
+        </Box>
       )}
     </Box>
   );

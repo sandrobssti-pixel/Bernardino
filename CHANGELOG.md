@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.302] — Remove formulário duplicado; painel sem rolagem horizontal — 2026-11-18
+
+### Corrigido
+- Removido o formulário de "cadastrar remessa inteira" duplicado em
+  Caixinhas de munição — sobrou só um jeito de cadastrar, com o
+  seletor "Caixa grande" já existente.
+- Painel de edição de Produto (e todo o resto do Financeiro, que usa
+  o mesmo componente) ficou mais largo — as seções de munição/arma não
+  exigem mais rolagem horizontal pra ver a coluna "Ações".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 276.
+
 ## [2.3.301] — Validação dos campos de lote LE/LF da "caixa grande" — 2026-11-18
 
 ### Adicionado

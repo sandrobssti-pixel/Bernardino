@@ -242,6 +242,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
           Nenhuma caixa grande cadastrada ainda neste SKU.
         </Typography>
       ) : (
+        <Box style={{ overflowX: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -284,6 +285,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
             ))}
           </TableBody>
         </Table>
+        </Box>
       )}
     </Box>
   );

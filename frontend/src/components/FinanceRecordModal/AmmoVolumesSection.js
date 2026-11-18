@@ -94,11 +94,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
-  const [bulkBigBoxId, setBulkBigBoxId] = useState("");
-  const [bulkLot, setBulkLot] = useState("");
-  const [bulkQuantity, setBulkQuantity] = useState("");
-  const [bulkText, setBulkText] = useState("");
-  const [bulkSaving, setBulkSaving] = useState(false);
 
   const productId = product?.id;
 
@@ -189,50 +184,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
       status: volume.status || "in_stock",
       notes: volume.notes || "",
     });
-  };
-
-  // Uma remessa de caixa cheia vira várias caixinhas de uma vez — mesmo
-  // Lote e mesma Quantidade por caixinha pra todas (pedido do cliente:
-  // "na caixa cheia tem... 20 caixinhas pequenas que tem o lote da
-  // caixa grande e cada caixinha tem seu ID próprio"). Cola só os IDs,
-  // um por linha; uma linha "ID,quantidade" sobrescreve a quantidade
-  // padrão só naquela caixinha (exceção real: "as vezes pode acontecer
-  // que tem uma caixa" com quantidade diferente).
-  const handleBulkSave = async () => {
-    const lotNumber = bulkLot.trim();
-    const lines = bulkText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!bulkBigBoxId && !lotNumber) {
-      toast.warn("Informe a caixa grande ou o lote da remessa.");
-      return;
-    }
-    if (!bulkQuantity || lines.length === 0) {
-      toast.warn("Informe a quantidade padrão por caixinha, e cole pelo menos um ID.");
-      return;
-    }
-    setBulkSaving(true);
-    try {
-      const result = await finance.products.ammoVolumes.saveBulk(productId, {
-        bigBoxId: bulkBigBoxId || null,
-        lotNumber,
-        defaultUnitQuantity: Number(bulkQuantity),
-        lines,
-      });
-      if (result.created.length > 0) {
-        toast.success(`${result.created.length} caixinha(s) cadastrada(s).`);
-      }
-      if (result.duplicates.length > 0) {
-        toast.warn(`Já cadastrado/repetido/inválido, ignorado: ${result.duplicates.join(", ")}`);
-      }
-      setBulkText("");
-      await loadVolumes();
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setBulkSaving(false);
-    }
   };
 
   const handleRemove = async (volume) => {
@@ -350,68 +301,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
         )}
       </div>
 
-      <Box mb={2}>
-        <Typography variant="caption" color="textSecondary">
-          Cadastrar uma remessa inteira de uma vez (mesmo lote pra todas as caixinhas):
-        </Typography>
-        <div className={classes.formRow} style={{ marginTop: 4 }}>
-          <TextField
-            select
-            label="Caixa grande"
-            size="small"
-            variant="outlined"
-            value={bulkBigBoxId}
-            onChange={(e) => setBulkBigBoxId(e.target.value)}
-            style={{ minWidth: 160 }}
-          >
-            <MenuItem value="">Nenhuma (lote avulso)</MenuItem>
-            {bigBoxes.map((bigBox) => (
-              <MenuItem key={bigBox.id} value={bigBox.id}>
-                {bigBoxLabel(bigBox)}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            label="Lote da remessa *"
-            size="small"
-            variant="outlined"
-            value={bulkBigBoxId ? bigBoxLabel(bigBoxes.find((b) => b.id === bulkBigBoxId) || {}) : bulkLot}
-            onChange={(e) => setBulkLot(e.target.value)}
-            disabled={!!bulkBigBoxId}
-            helperText={bulkBigBoxId ? "Herdado da caixa grande" : undefined}
-            style={{ minWidth: 140 }}
-          />
-          <TextField
-            label="Unidades por caixinha (padrão) *"
-            type="number"
-            size="small"
-            variant="outlined"
-            value={bulkQuantity}
-            onChange={(e) => setBulkQuantity(e.target.value)}
-            style={{ minWidth: 190 }}
-          />
-        </div>
-        <TextField
-          label="IDs / códigos de barras (um por linha — ou 'ID,quantidade' pra sobrescrever a quantidade padrão numa caixinha)"
-          size="small"
-          variant="outlined"
-          fullWidth
-          multiline
-          minRows={3}
-          value={bulkText}
-          onChange={(e) => setBulkText(e.target.value)}
-        />
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={handleBulkSave}
-          disabled={bulkSaving}
-          style={{ marginTop: 8 }}
-        >
-          {bulkSaving ? <CircularProgress size={18} /> : "Adicionar todas"}
-        </Button>
-      </Box>
-
       {loading ? (
         <CircularProgress size={22} />
       ) : volumes.length === 0 ? (
@@ -419,6 +308,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
           Nenhuma caixinha cadastrada ainda neste SKU.
         </Typography>
       ) : (
+        <Box style={{ overflowX: "auto" }}>
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -461,6 +351,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
             ))}
           </TableBody>
         </Table>
+        </Box>
       )}
     </Box>
   );

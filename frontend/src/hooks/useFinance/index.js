@@ -258,15 +258,6 @@ const useFinance = () => {
           );
           return responseData;
         },
-        // Cadastro em lote (uma remessa de caixa cheia vira várias
-        // caixinhas de uma vez — mesmo lote, colar só os IDs).
-        saveBulk: async (productId, { lotNumber, defaultUnitQuantity, lines, bigBoxId }) => {
-          const { data } = await api.post(
-            `/finance/products/${productId}/ammo-volumes/bulk`,
-            { lotNumber, defaultUnitQuantity, lines, bigBoxId }
-          );
-          return data;
-        },
         update: async (productId, id, data) => {
           const { data: responseData } = await api.put(
             `/finance/products/${productId}/ammo-volumes/${id}`,

@@ -20919,3 +20919,71 @@ munição.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts`,
 `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 276. Remove formulário de cadastro em lote duplicado; painel de Produto sem rolagem horizontal (v2.3.302)
+
+Dois problemas reais reportados pelo cliente num print real da tela,
+logo depois da v2.3.300/301:
+
+1. **Formulário duplicado**: a seção "Caixinhas desta munição" tinha
+   DOIS jeitos de cadastrar (um de cada vez, com seletor "Caixa
+   grande"; e "Cadastrar uma remessa inteira de uma vez", com seu
+   PRÓPRIO seletor "Caixa grande" + campo "Lote da remessa" solto) —
+   confuso visualmente e na prática: o cliente relatou uma linha real
+   da tabela com vários IDs colados juntos num campo só
+   (`"1083687110/1083687111/.../1083687129"`), sinal de ter confundido
+   qual campo usar. Pedido: "tira essa parte duplicada só fica caixa
+   grande e depois cadastrar as caixinhas que estão dentro dessa caixa
+   grande".
+2. **Painel exigindo rolagem horizontal E vertical**: "quero um painel
+   visível total sem barra de rolagem laterais... pode deixar a barra
+   de rolagem para baixo mas na horizontal fica ruim para operar". O
+   `Dialog` do `FinanceRecordModal` (usado por todo o Financeiro, não
+   só Produto) tinha `maxWidth="sm"` (600px) — estreito demais pras
+   seções de munição/arma, com tabelas de 5-6 colunas que estouravam
+   a largura do diálogo e forçavam rolagem lateral pra ver a coluna
+   "Ações".
+
+### Correção
+
+- **Removido** o formulário "Cadastrar uma remessa inteira de uma vez"
+  inteiro (`AmmoVolumesSection.js`) — sobrou só o formulário de
+  adicionar uma caixinha por vez, que já tinha o seletor "Caixa
+  grande" (herdando o lote) desde a v2.3.300. Removido também o
+  endpoint de backend que só esse formulário usava
+  (`POST /finance/products/:productId/ammo-volumes/bulk`,
+  `FinanceAmmoVolumeService.createBulk`,
+  `FinanceAmmoVolumeController.storeBulk`) — sem nenhum outro
+  consumidor, ficaria código morto se mantido.
+- **`FinanceRecordModal`**: `Dialog` `maxWidth` de `"sm"` pra `"md"`
+  (600px → 960px) — afeta todo o Financeiro (único componente
+  compartilhado por todos os cadastros), mas só dá mais espaço de
+  sobra pros formulários simples, não quebra nenhum layout existente.
+- **Defesa extra, nas três seções com tabela larga**
+  (`AmmoBigBoxesSection.js`, `AmmoVolumesSection.js`,
+  `WeaponUnitsSection.js`): cada `<Table>` agora fica dentro de um
+  `<Box style={{ overflowX: "auto" }}>` próprio — se uma tabela algum
+  dia ainda for mais larga que o diálogo (observação muito longa,
+  tela muito estreita), só ELA ganha uma barrinha de rolagem lateral
+  local, pequena, nunca o painel inteiro.
+
+### Verificação
+
+- `tsc --noEmit`/`eslint` limpos.
+- Testado visualmente via Playwright: `dialog.scrollWidth ===
+  dialog.clientWidth` (960px, sem nenhum overflow) — confirmado sem
+  rolagem horizontal nenhuma no diálogo. Screenshot confirma as duas
+  seções (Caixas grandes/Caixinhas) cabendo inteiras, coluna "Ações"
+  visível sem cortar, e só UM formulário de cadastro de caixinha
+  (sem a parte duplicada).
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
+`frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`,
+`frontend/src/components/FinanceRecordModal/WeaponUnitsSection.js`,
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/hooks/useFinance/index.js`,
+`backend/src/controllers/FinanceAmmoVolumeController.ts`,
+`backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`backend/src/routes/financeRoutes.ts`.

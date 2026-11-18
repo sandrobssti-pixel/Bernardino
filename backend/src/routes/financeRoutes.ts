@@ -144,11 +144,6 @@ financeRoutes.post(
   isAuth,
   FinanceAmmoVolumeController.store
 );
-financeRoutes.post(
-  "/finance/products/:productId/ammo-volumes/bulk",
-  isAuth,
-  FinanceAmmoVolumeController.storeBulk
-);
 financeRoutes.put(
   "/finance/products/:productId/ammo-volumes/:id",
   isAuth,

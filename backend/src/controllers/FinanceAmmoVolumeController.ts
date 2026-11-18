@@ -39,30 +39,6 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   return res.status(200).json(volume);
 };
 
-// Cadastro em lote (uma remessa de caixa cheia vira várias caixinhas de
-// uma vez, mesmo lote pra todas).
-export const storeBulk = async (req: Request, res: Response): Promise<Response> => {
-  await ensureAccess(req);
-  const { companyId } = req.user;
-  const { productId } = req.params;
-  const { lotNumber, defaultUnitQuantity, lines, bigBoxId } = req.body as {
-    lotNumber: string;
-    defaultUnitQuantity: number | string;
-    lines: string[];
-    bigBoxId?: number | string | null;
-  };
-
-  const result = await FinanceAmmoVolumeService.createBulk(
-    productId,
-    lotNumber,
-    defaultUnitQuantity,
-    lines || [],
-    companyId,
-    bigBoxId
-  );
-  return res.status(200).json(result);
-};
-
 export const update = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   const { companyId } = req.user;
