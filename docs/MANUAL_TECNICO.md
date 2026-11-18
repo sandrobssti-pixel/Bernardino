@@ -21162,3 +21162,29 @@ batia direto numa violação de FK não tratada — virava um 500 puro
 `backend/src/controllers/FinanceAmmoVolumeController.ts`,
 `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`.
+
+## 280. Remove endereço do cabeçalho de impressão do Painel Financeiro (v2.3.306)
+
+Pedido do cliente: "tire todo endereço do layout so deixa a logomarca e
+no me da empresa" — sobre o cabeçalho personalizado (logo + endereço)
+que aparece só na impressão/PDF do Painel Financeiro, implantado na
+v2.3.121 (seção 102).
+
+- Removidas as linhas de endereço (`buildAddressLine`, montada a partir
+  do endereço do emitente em Configuração Fiscal) e de telefone
+  (`fiscalConfig.emitterPhone`) do cabeçalho.
+- Mantido: nome da empresa (`company.name`) e a logomarca, no mesmo
+  layout (nome à esquerda, logo à direita).
+- Removido também o código morto resultante: a função
+  `buildAddressLine`, a prop `fiscalConfig` do componente (não é mais
+  usada ali — o fetch de `fiscalConfig` em `pages/Financeiro/index.js`
+  continua existindo pra outros usos da página, só não é mais passado
+  pra esse componente) e a classe de estilo `letterheadAddress`.
+- O rodapé da impressão (nome + "Relatório gerado pelo AtendeFlow
+  em...") não tinha endereço nenhum — não precisou de mudança.
+
+### Verificação
+
+- `eslint` limpo no arquivo editado.
+
+**Arquivos**: `frontend/src/components/FinancePainel/index.js`.

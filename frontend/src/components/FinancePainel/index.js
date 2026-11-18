@@ -99,9 +99,6 @@ const useStyles = makeStyles((theme) => ({
   letterhead: {
     display: "none",
   },
-  letterheadAddress: {
-    color: theme.palette.text.secondary,
-  },
   letterheadLogo: {
     maxHeight: 64,
     maxWidth: 180,
@@ -176,27 +173,7 @@ const SummaryCard = ({ label, value, accent }) => {
 
 const currencyTooltipFormatter = (value) => money(value);
 
-// Mesmo formato da nota modelo que o cliente mandou (ex.: "RUA ESPATODEAS
-// ROXAS, 298 - JARDIM DAS MARGARIDAS - SALVADOR - BA - CEP: 41502-445") —
-// monta a partir do endereço do emitente já cadastrado em Configuração
-// Fiscal (FiscalConfig), nunca fixo no código (sistema multiempresa).
-const buildAddressLine = (config) => {
-  if (!config) return "";
-  const parts = [];
-  if (config.emitterStreet) {
-    parts.push(`${config.emitterStreet}${config.emitterNumber ? `, ${config.emitterNumber}` : ""}`);
-  }
-  if (config.emitterNeighborhood) parts.push(config.emitterNeighborhood);
-  const cityState = [config.emitterCity, config.emitterState].filter(Boolean).join(" - ");
-  if (cityState) parts.push(cityState);
-  let line = parts.join(" - ");
-  if (config.emitterZipCode) {
-    line = line ? `${line} - CEP: ${config.emitterZipCode}` : `CEP: ${config.emitterZipCode}`;
-  }
-  return line;
-};
-
-const FinancePainel = ({ finance, company, fiscalConfig }) => {
+const FinancePainel = ({ finance, company }) => {
   const classes = useStyles();
   const theme = useTheme();
   const [loading, setLoading] = useState(true);
@@ -261,7 +238,6 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
   }
 
   const logoSrc = typeof theme.calculatedLogoLight === "function" ? theme.calculatedLogoLight() : null;
-  const addressLine = buildAddressLine(fiscalConfig);
 
   return (
     <div id="finance-painel-print-area">
@@ -279,23 +255,14 @@ const FinancePainel = ({ finance, company, fiscalConfig }) => {
 
       {/* Cabeçalho personalizado — só aparece no papel/PDF (classes.letterhead
           é display:none na tela, "@media print" vira flex). Logo no canto
-          superior direito, nome + endereço da empresa à esquerda (pedido do
-          cliente, v2.3.121). */}
+          superior direito, nome da empresa à esquerda — sem endereço (pedido
+          do cliente, v2.3.306: "tire todo endereço do layout so deixa a
+          logomarca e no me da empresa"). */}
       <Box id="finance-painel-letterhead" className={classes.letterhead}>
         <div>
           <Typography variant="subtitle1" style={{ fontWeight: 700 }}>
             {company?.name}
           </Typography>
-          {addressLine && (
-            <Typography variant="body2" className={classes.letterheadAddress}>
-              {addressLine}
-            </Typography>
-          )}
-          {fiscalConfig?.emitterPhone && (
-            <Typography variant="body2" className={classes.letterheadAddress}>
-              Fone: {fiscalConfig.emitterPhone}
-            </Typography>
-          )}
         </div>
         {logoSrc && <img src={logoSrc} alt={company?.name || "logo"} className={classes.letterheadLogo} />}
       </Box>

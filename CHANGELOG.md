@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.306] — Remove endereço do cabeçalho de impressão do Painel Financeiro — 2026-11-18
+
+### Alterado
+- Cabeçalho personalizado da impressão/PDF do Painel Financeiro agora
+  mostra só a logomarca e o nome da empresa — removido o endereço e o
+  telefone do emitente.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 280.
+
 ## [2.3.305] — SKU na caixinha + exclusão forçada corrige erro 500 real — 2026-11-18
 
 ### Adicionado
