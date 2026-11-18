@@ -186,6 +186,12 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
     });
   };
 
+  // `force` (v2.3.305) — quando a caixinha está vinculada de verdade a
+  // um item de venda (`ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE`),
+  // pergunta explicitamente se quer excluir mesmo assim antes de
+  // tentar de novo com `force=true` — isso desvincula só a referência
+  // do item de venda antigo (a venda em si não é apagada), nunca
+  // silenciosamente.
   const handleRemove = async (volume) => {
     if (!window.confirm(`Excluir a caixinha de ID "${volume.barcodeId}"?`)) return;
     try {
@@ -194,6 +200,22 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
       if (draft.id === volume.id) setDraft(EMPTY_DRAFT);
       await loadVolumes();
     } catch (err) {
+      if (err.response?.data?.error === "ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE") {
+        const forceConfirmed = window.confirm(
+          `Esta caixinha está vinculada a um item de venda. Excluir mesmo assim? ` +
+            `A venda em si NÃO será apagada — só a referência a esta caixinha física será removida dela.`
+        );
+        if (!forceConfirmed) return;
+        try {
+          await finance.products.ammoVolumes.remove(productId, volume.id, true);
+          toast.success("Caixinha excluída.");
+          if (draft.id === volume.id) setDraft(EMPTY_DRAFT);
+          await loadVolumes();
+        } catch (forceErr) {
+          toastError(forceErr);
+        }
+        return;
+      }
       toastError(err);
     }
   };
@@ -208,6 +230,15 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
       </Typography>
 
       <div className={classes.formRow}>
+        <TextField
+          label="SKU/código"
+          size="small"
+          variant="outlined"
+          value={product.sku || ""}
+          disabled
+          helperText="Do produto"
+          style={{ minWidth: 140 }}
+        />
         <TextField
           select
           label="Caixa grande"
@@ -303,6 +334,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell>SKU</TableCell>
               <TableCell>Lote</TableCell>
               <TableCell>ID / código de barras</TableCell>
               <TableCell align="right">Unidades</TableCell>
@@ -314,6 +346,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
           <TableBody>
             {volumes.map((volume) => (
               <TableRow key={volume.id}>
+                <TableCell>{product.sku || "—"}</TableCell>
                 <TableCell>{volume.lotNumber}</TableCell>
                 <TableCell>{volume.barcodeId}</TableCell>
                 <TableCell align="right">{volume.unitQuantity}</TableCell>

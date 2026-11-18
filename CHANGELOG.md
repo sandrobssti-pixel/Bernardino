@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.305] — SKU na caixinha + exclusão forçada corrige erro 500 real — 2026-11-18
+
+### Adicionado
+- Campo "SKU/código" (somente leitura) também no formulário e na
+  tabela de Caixinhas de munição (mesmo padrão já aplicado à caixa
+  grande em v2.3.304).
+- Exclusão com `force=true` (admin-only, com segunda confirmação
+  explícita na UI): desvincula uma referência antiga de venda em vez
+  de bloquear, sem nunca apagar a Venda/SaleItem em si.
+
+### Corrigido
+- Exclusão de caixinha vinculada a uma venda só pelo lado inverso
+  (`SaleItem.ammoVolumeId`, sem o espelho `saleItemId` preenchido)
+  batia num erro 500 não tratado (violação de FK crua do Postgres) em
+  vez do 400 esperado — corrigido checando os dois sentidos do
+  vínculo antes de decidir bloquear.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 279.
+
 ## [2.3.304] — SKU/código exibido no cadastro de "caixa grande" — 2026-11-18
 
 ### Adicionado

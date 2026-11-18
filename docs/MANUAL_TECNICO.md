@@ -21082,3 +21082,83 @@ SKU "existia" só pelo contexto, sem aparecer explicitamente na seção).
 - Dados de teste removidos do banco depois da verificação.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 279. SKU na caixinha + erro 500 real na exclusão corrigido, com exclusão forçada pro Admin (v2.3.305)
+
+Dois pedidos do cliente nesta rodada:
+
+1. "quando for adicionar as caixinhas e tem que ter o SKU codigo
+   tambem" — mesmo campo somente-leitura já adicionado na caixa
+   grande (seção 278), agora também na caixinha: puxado de
+   `product.sku`, aparece no formulário e numa nova coluna "SKU" da
+   tabela de caixinhas. (O pedido mais amplo da mesma mensagem — baixa
+   de estoque batendo com vendas e painel financeiro — foi revisado
+   por inspeção de código: `reserveForSale`/`releaseForSaleItem`/
+   `markSoldForSaleItem`/`recalculateStockQuantity` já existem e já
+   estão ligados em `SaleService.ts`, e `FinanceReportService.
+   getStockHealth` já lê o mesmo `stockQuantity`. Nada novo precisava
+   ser criado — já implantado, conforme o próprio cliente pediu pra
+   não duplicar.)
+
+2. Erro real em produção, reportado com os logs do navegador: tentar
+   excluir certas caixinhas legadas (`ammo-volumes/1` e `/27` → 400,
+   `/48` → 500) e pedido explícito: "quero que delete todos esses
+   registros".
+
+### Causa raiz do 500
+
+A correção da v2.3.303 (seção 277) só checava o vínculo "pra frente"
+(`FinanceAmmoVolume.saleItemId`) antes de bloquear a exclusão. Mas em
+dados reais existe o vínculo inverso: um `SaleItem.ammoVolumeId`
+apontando pra caixinha, sem o campo espelho (`saleItemId`) estar
+preenchido do lado da caixinha — inconsistência de dados legada. Como
+`SaleItems.ammoVolumeId` não tem `ON DELETE` na migration (fica
+`NO ACTION`/`RESTRICT` por padrão do Postgres), `volume.destroy()`
+batia direto numa violação de FK não tratada — virava um 500 puro
+("Internal server error", sem mensagem), porque esse tipo de erro não
+é um `AppError` e não é pego pelo handler global de erro.
+
+### Correção
+
+- `FinanceAmmoVolumeService.remove()` agora checa os DOIS sentidos do
+  vínculo numa query só (`Op.or`: `saleItemId` da caixinha OU
+  `ammoVolumeId` do SaleItem apontando pra ela) — elimina o 500: toda
+  exclusão bloqueada agora devolve um 400 limpo
+  (`ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE`), nunca mais um crash.
+- Nova opção `force` (parâmetro de query `?force=true` no DELETE,
+  só chega no backend depois do Admin confirmar explicitamente num
+  segundo diálogo no frontend): quando há um vínculo real e `force`
+  está ligado, em vez de bloquear, desvincula a referência antiga
+  (`SaleItem.ammoVolumeId = null`) e segue com a exclusão da
+  caixinha. A Venda e o SaleItem em si NUNCA são apagados — só a
+  referência física-caixinha-pra-venda é limpa, pra permitir apagar
+  registros legados sem arriscar apagar uma venda real por engano.
+  Mesmo padrão de permissão admin-only já usado em
+  `FinanceAmmoBigBoxController`/`FinanceImportController`.
+- Frontend (`AmmoVolumesSection.js`, `handleRemove`): primeiro
+  `window.confirm` de sempre ("Excluir a caixinha de ID..."); se vier
+  o erro `ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE`, mostra um SEGUNDO
+  `window.confirm`, mais detalhado, explicando que a venda não será
+  apagada, e só então reenvia a exclusão com `force=true`.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Reprodução real via API: criado `Sales`/`SaleItems` genuínos com
+  `ammoVolumeId` apontando pra uma caixinha de teste (`saleItemId`
+  NULO do lado da caixinha, status "Em estoque") — exatamente a
+  inconsistência de produção. Sem `force`: 400 limpo (não 500). Com
+  `force=true`: 200, caixinha apagada; confirmado via SQL depois que
+  o `SaleItem` e o `Sales` continuam intactos, só o `ammoVolumeId`
+  ficou NULO.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Testado via Playwright na UI real: seedado produto + caixinha +
+  venda inconsistente, clicado no botão de excluir, os dois diálogos
+  `window.confirm` dispararam na ordem certa com o texto esperado, e
+  apareceu o toast verde "Caixinha excluída." no final.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`backend/src/controllers/FinanceAmmoVolumeController.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`.

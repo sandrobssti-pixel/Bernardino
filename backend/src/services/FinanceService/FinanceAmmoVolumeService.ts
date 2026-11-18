@@ -202,33 +202,56 @@ export const update = async (
 export const remove = async (
   id: string | number,
   productId: string | number,
-  companyId: number
+  companyId: number,
+  force = false
 ): Promise<void> => {
   const volume = await FinanceAmmoVolume.findOne({ where: { id, productId, companyId } });
   if (!volume) {
     throw new AppError("ERR_FINANCE_AMMO_VOLUME_NOT_FOUND", 404);
   }
-  // Caixinha presa numa venda (reservada ou já vendida) não pode ser
-  // excluída solta — perderia a rastreabilidade do item de venda que
-  // aponta pra ela. Cancelar a venda primeiro libera.
+  // Caixinha presa numa venda não pode ser excluída solta — perderia a
+  // rastreabilidade do item de venda que aponta pra ela. Cancelar a
+  // venda primeiro libera (ou usar `force`, ver abaixo).
   //
   // Bug real corrigido (v2.3.303): a checagem antiga confiava só no
   // texto de `status` ("reserved"/"sold"), sem checar se existe de
-  // verdade um `SaleItem` apontando pra essa caixinha. Lançamento
-  // antigo (de antes do fluxo de venda por caixinha existir direito,
-  // ou importado/editado manualmente com status errado) podia ficar
-  // "Vendida" pra sempre, sem jeito de remover, mesmo sem NENHUMA
-  // venda de verdade por trás (`saleItemId` nulo ou apontando pra um
-  // SaleItem que não existe mais). Agora só bloqueia quando o
-  // SaleItem referenciado realmente existe.
-  if (volume.status === "reserved" || volume.status === "sold") {
-    const linkedSaleItem = volume.saleItemId
-      ? await SaleItem.findOne({ where: { id: volume.saleItemId } })
-      : null;
-    if (linkedSaleItem) {
-      throw new AppError("ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE");
+  // verdade um `SaleItem`. Lançamento antigo podia ficar "Vendida" pra
+  // sempre, sem jeito de remover, mesmo sem NENHUMA venda real por
+  // trás.
+  //
+  // Bug real corrigido (v2.3.305): o vínculo pode existir em QUALQUER
+  // UMA das duas direções — o `saleItemId` guardado na própria
+  // caixinha, OU um `SaleItem.ammoVolumeId` apontando pra cá sem a
+  // caixinha ter o `saleItemId` correspondente (dado inconsistente
+  // real encontrado em produção). Checar só uma direção (como a
+  // v2.3.303 fazia) deixava passar esse segundo caso até o
+  // `volume.destroy()`, que então colidia com a restrição de chave
+  // estrangeira do Postgres (`SaleItems.ammoVolumeId` não tem `ON
+  // DELETE`) e virava um 500 cru, sem mensagem nenhuma — em vez do
+  // erro amigável `ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE`.
+  const linkedSaleItem = await SaleItem.findOne({
+    where: {
+      [Op.or]: [
+        ...(volume.saleItemId ? [{ id: volume.saleItemId }] : []),
+        { ammoVolumeId: volume.id }
+      ]
     }
+  });
+
+  if (linkedSaleItem && !force) {
+    throw new AppError("ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE");
   }
+
+  // Exclusão forçada (só Admin, depois de confirmar explicitamente que
+  // quer mesmo) — desvincula a referência do item de venda antigo
+  // (zera `ammoVolumeId`), SEM apagar a venda/item de venda em si. Só
+  // a rastreabilidade "esse item veio desta caixinha física" se perde
+  // — aceitável pra lançamento antigo/incorreto que o cliente confirmou
+  // explicitamente querer limpar.
+  if (linkedSaleItem && force) {
+    await SaleItem.update({ ammoVolumeId: null }, { where: { id: linkedSaleItem.id } });
+  }
+
   await volume.destroy();
   await recalculateStockQuantity(productId);
 };

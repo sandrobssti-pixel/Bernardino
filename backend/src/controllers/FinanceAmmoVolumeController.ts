@@ -53,7 +53,12 @@ export const remove = async (req: Request, res: Response): Promise<Response> => 
   ensureDeletePermission(req);
   const { companyId } = req.user;
   const { productId, id } = req.params;
+  // `force=true` (só chega aqui depois do Admin confirmar explicitamente
+  // num segundo clique no frontend) desvincula o item de venda antigo
+  // em vez de bloquear — ver comentário completo em
+  // FinanceAmmoVolumeService.remove.
+  const force = String(req.query.force || "").toLowerCase() === "true";
 
-  await FinanceAmmoVolumeService.remove(id, productId, companyId);
+  await FinanceAmmoVolumeService.remove(id, productId, companyId, force);
   return res.status(200).json({ message: "FinanceAmmoVolume deleted" });
 };

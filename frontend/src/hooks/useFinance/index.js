@@ -265,8 +265,13 @@ const useFinance = () => {
           );
           return responseData;
         },
-        remove: async (productId, id) => {
-          const { data } = await api.delete(`/finance/products/${productId}/ammo-volumes/${id}`);
+        // `force` (v2.3.305) — desvincula o item de venda antigo em vez
+        // de bloquear, só pra Admin, depois de confirmar explicitamente
+        // num segundo clique (ver AmmoVolumesSection.js/handleRemove).
+        remove: async (productId, id, force = false) => {
+          const { data } = await api.delete(`/finance/products/${productId}/ammo-volumes/${id}`, {
+            params: force ? { force: true } : undefined,
+          });
           return data;
         },
       },
