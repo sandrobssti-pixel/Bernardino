@@ -21224,3 +21224,28 @@ nível de caixinha/cartela):
 - Build de produção (`craco build`) concluído sem erros novos.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 282. "Caixinhas cadastradas"/"vendidas" também visíveis no formulário de edição (v2.3.308)
+
+Pedido do cliente, depois de ver as duas colunas novas (seção 281) só
+na tabela: "coloque para aparecer ela é automatica mas tem a opção de
+editar e colocar manual". Esclarecido antes de implementar — confirmado
+que continuam sendo contagem automática real (não é pra divergir da
+quantidade de caixinhas que realmente existem), só precisava **também
+aparecer no formulário**, não virar campo editável.
+
+- Dois campos novos somente-leitura (`disabled`, `helperText:
+  "Automático"`) no formulário de edição da caixa grande —
+  "Caixinhas cadastradas" e "Caixinhas vendidas" — com o mesmo valor
+  já calculado pra tabela (`volumes.length` / `volumes.filter(status
+  === "sold").length`).
+- Só aparecem quando está **editando** uma caixa grande já salva
+  (`draft.id` preenchido) — uma caixa grande nova ainda não tem
+  nenhuma caixinha vinculada, não faz sentido mostrar o campo vazio.
+
+### Verificação
+
+- `eslint` limpo.
+- Build de produção (`craco build`) concluído sem erros novos.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.

@@ -82,6 +82,16 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
 
   const productId = product?.id;
 
+  // Caixinhas cadastradas/vendidas são contagem automática real (não
+  // dá pra digitar por cima) — só aparecem no formulário quando está
+  // editando uma caixa grande já salva (uma nova ainda não tem
+  // caixinha vinculada). Pedido do cliente (v2.3.308): "coloque pra
+  // aparecer" no formulário, mas confirmado que continua automática,
+  // sem opção de editar manualmente.
+  const editingBigBox = draft.id ? bigBoxes.find((b) => b.id === draft.id) : null;
+  const registeredCount = editingBigBox?.volumes?.length ?? 0;
+  const soldCount = editingBigBox?.volumes?.filter((v) => v.status === "sold").length ?? 0;
+
   const loadBigBoxes = async () => {
     if (!productId) return;
     setLoading(true);
@@ -218,6 +228,28 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
           onChange={(e) => setDraft((d) => ({ ...d, totalUnits: e.target.value }))}
           style={{ minWidth: 160 }}
         />
+        {draft.id && (
+          <>
+            <TextField
+              label="Caixinhas cadastradas"
+              size="small"
+              variant="outlined"
+              value={registeredCount}
+              disabled
+              helperText="Automático"
+              style={{ minWidth: 150 }}
+            />
+            <TextField
+              label="Caixinhas vendidas"
+              size="small"
+              variant="outlined"
+              value={soldCount}
+              disabled
+              helperText="Automático"
+              style={{ minWidth: 150 }}
+            />
+          </>
+        )}
         <TextField
           label="Observações"
           size="small"

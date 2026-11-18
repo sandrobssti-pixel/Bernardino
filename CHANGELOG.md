@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.308] — "Caixinhas cadastradas"/"vendidas" visíveis no formulário de edição — 2026-11-18
+
+### Adicionado
+- Formulário de edição da caixa grande de munição agora mostra
+  "Caixinhas cadastradas" e "Caixinhas vendidas" (somente leitura,
+  automático) — já apareciam só na tabela.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 282.
+
 ## [2.3.307] — Coluna "Caixinhas vendidas" na caixa grande de munição — 2026-11-18
 
 ### Adicionado
