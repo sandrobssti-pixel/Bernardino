@@ -245,6 +245,14 @@ const useFinance = () => {
           const { data } = await api.delete(`/finance/products/${productId}/ammo-big-boxes/${id}`);
           return data;
         },
+        // Vincula caixinhas com o texto do lote batendo mas cadastradas
+        // sem selecionar essa caixa grande (dado legado) — v2.3.309.
+        linkMatchingVolumes: async (productId, id) => {
+          const { data } = await api.post(
+            `/finance/products/${productId}/ammo-big-boxes/${id}/link-matching-volumes`
+          );
+          return data;
+        },
       },
       ammoVolumes: {
         list: async (productId) => {

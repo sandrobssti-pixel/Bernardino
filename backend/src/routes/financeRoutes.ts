@@ -131,6 +131,13 @@ financeRoutes.delete(
   isAuth,
   FinanceAmmoBigBoxController.remove
 );
+// Vincula caixinhas cadastradas sem "Caixa grande" selecionada mas com
+// o texto do lote batendo (dado legado) — v2.3.309.
+financeRoutes.post(
+  "/finance/products/:productId/ammo-big-boxes/:id/link-matching-volumes",
+  isAuth,
+  FinanceAmmoBigBoxController.linkMatchingVolumes
+);
 
 // Caixinhas pequenas de munição (lote + ID/código de barras),
 // sub-cadastro do Produto (a "caixa cheia") — v2.3.223.

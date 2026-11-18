@@ -47,6 +47,15 @@ export const update = async (req: Request, res: Response): Promise<Response> => 
   return res.status(200).json(bigBox);
 };
 
+export const linkMatchingVolumes = async (req: Request, res: Response): Promise<Response> => {
+  await ensureAccess(req);
+  const { companyId } = req.user;
+  const { productId, id } = req.params;
+
+  const linkedCount = await FinanceAmmoBigBoxService.linkMatchingVolumes(id, productId, companyId);
+  return res.status(200).json({ linkedCount });
+};
+
 export const remove = async (req: Request, res: Response): Promise<Response> => {
   await ensureAccess(req);
   ensureDeletePermission(req);

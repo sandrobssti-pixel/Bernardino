@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.309] — Vincular caixinhas com lote batendo + "Caixinhas em estoque" — 2026-11-18
+
+### Adicionado
+- Botão "Vincular caixinhas" na tabela de caixa grande — vincula
+  automaticamente caixinhas com o texto do lote batendo mas
+  cadastradas sem selecionar a caixa grande (dado legado real
+  encontrado em produção).
+- Coluna/campo "Caixinhas em estoque" (automático) na caixa grande.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 283.
+
 ## [2.3.308] — "Caixinhas cadastradas"/"vendidas" visíveis no formulário de edição — 2026-11-18
 
 ### Adicionado

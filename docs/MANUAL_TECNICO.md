@@ -21249,3 +21249,66 @@ aparecer no formulário**, não virar campo editável.
 - Build de produção (`craco build`) concluído sem erros novos.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 283. Vincular caixinhas com lote batendo (dado legado) + coluna "Caixinhas em estoque" (v2.3.309)
+
+Pedido do cliente, ao testar a seção 282 em produção com dados reais:
+caixinhas visivelmente do lote HED11/7238 mostravam "0" em "Caixinhas
+cadastradas"/"vendidas", mesmo o cadastro "parecendo correto". Causa
+raiz confirmada junto com o cliente: essas caixinhas foram cadastradas
+digitando o texto do lote na mão, sem selecionar a caixa grande no
+dropdown "Caixa grande" — o campo real que a contagem usa
+(`bigBoxId`) ficou nulo, só o texto bate.
+
+### Botão "Vincular caixinhas"
+
+Novo ícone de link na tabela de caixa grande — vincula automaticamente
+toda caixinha do mesmo produto/empresa que:
+- ainda não tem `bigBoxId` (nunca troca um vínculo já existente), e
+- tem `lotNumber` batendo exatamente com `"${lotLE}/${lotLF}"` desta
+  caixa grande.
+
+Mostra quantas foram vinculadas (toast) e recarrega a tabela na hora.
+Reaproveitável pra qualquer caixa grande com o mesmo problema, não só
+esse caso — não precisa editar caixinha por caixinha na mão.
+
+- `FinanceAmmoBigBoxService.linkMatchingVolumes` (novo) — `UPDATE`
+  direto, sem tocar em status/estoque (vincular não muda
+  `stockQuantity`, só o agrupamento por caixa grande).
+- Rota `POST /finance/products/:productId/ammo-big-boxes/:id/link-matching-volumes`.
+
+### Coluna/campo "Caixinhas em estoque"
+
+Pedido na mesma mensagem: "Total de unidades, Caixinhas cadastradas,
+Caixinhas vendidas e criar caixinhas em estoque". Terceira contagem
+automática (somente leitura, mesmo padrão das outras duas) — conta
+`volumes.filter(status === "in_stock").length` — tabela e formulário
+de edição da caixa grande.
+
+### Confirmado (nenhuma mudança necessária)
+
+Pedido também incluía: "sempre se atentando que a baixa das caixinhas
+tem que ser polo ID pois cada caixinha tem um ID diferente" — já é
+assim por design: cada caixinha é uma linha própria (`barcodeId`
+único), toda baixa de estoque/venda (`markSoldForSaleItem`,
+`recalculateStockQuantity`) já opera por linha individual, nunca por
+lote agregado. Nada pra mudar aqui.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Reproduzido o cenário real via API/SQL: 2 caixinhas com lote
+  batendo e `bigBoxId` nulo (uma "Em estoque", uma "Vendida") + 1 já
+  vinculada + 1 de outro lote. Chamado o endpoint: `linkedCount: 2`
+  (as 2 certas, só essas). Rodado de novo: `linkedCount: 0`
+  (idempotente). Listagem confirmada depois: "Caixinhas cadastradas"
+  3, "Em estoque" 2, "Vendidas" 1 — batendo exatamente com o
+  esperado.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts`,
+`backend/src/controllers/FinanceAmmoBigBoxController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.

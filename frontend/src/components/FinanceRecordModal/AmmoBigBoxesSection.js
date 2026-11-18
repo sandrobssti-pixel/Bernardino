@@ -17,6 +17,7 @@ import AddIcon from "@material-ui/icons/Add";
 import EditIcon from "@material-ui/icons/Edit";
 import DeleteOutlineIcon from "@material-ui/icons/DeleteOutline";
 import CloseIcon from "@material-ui/icons/Close";
+import LinkIcon from "@material-ui/icons/Link";
 
 import toastError from "../../errors/toastError";
 
@@ -90,6 +91,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
   // sem opção de editar manualmente.
   const editingBigBox = draft.id ? bigBoxes.find((b) => b.id === draft.id) : null;
   const registeredCount = editingBigBox?.volumes?.length ?? 0;
+  const inStockCount = editingBigBox?.volumes?.filter((v) => v.status === "in_stock").length ?? 0;
   const soldCount = editingBigBox?.volumes?.filter((v) => v.status === "sold").length ?? 0;
 
   const loadBigBoxes = async () => {
@@ -168,6 +170,29 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
     });
   };
 
+  // Vincula caixinhas com o texto do lote batendo mas cadastradas sem
+  // selecionar essa caixa grande no formulário (dado legado real
+  // encontrado em produção — v2.3.309). Nunca troca vínculo já
+  // existente, só preenche onde está vazio.
+  const handleLinkMatching = async (bigBox) => {
+    try {
+      const { linkedCount } = await finance.products.ammoBigBoxes.linkMatchingVolumes(
+        productId,
+        bigBox.id
+      );
+      if (linkedCount > 0) {
+        toast.success(
+          `${linkedCount} caixinha(s) vinculada(s) a esta caixa grande.`
+        );
+      } else {
+        toast.info("Nenhuma caixinha com o lote batendo pra vincular.");
+      }
+      await loadBigBoxes();
+    } catch (err) {
+      toastError(err);
+    }
+  };
+
   const handleRemove = async (bigBox) => {
     if (!window.confirm(`Excluir a caixa grande do lote "${bigBox.lotLE}/${bigBox.lotLF}"?`)) return;
     try {
@@ -240,6 +265,15 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
               style={{ minWidth: 150 }}
             />
             <TextField
+              label="Caixinhas em estoque"
+              size="small"
+              variant="outlined"
+              value={inStockCount}
+              disabled
+              helperText="Automático"
+              style={{ minWidth: 150 }}
+            />
+            <TextField
               label="Caixinhas vendidas"
               size="small"
               variant="outlined"
@@ -292,6 +326,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
               <TableCell>Lote LF</TableCell>
               <TableCell align="right">Total de unidades</TableCell>
               <TableCell align="right">Caixinhas cadastradas</TableCell>
+              <TableCell align="right">Caixinhas em estoque</TableCell>
               <TableCell align="right">Caixinhas vendidas</TableCell>
               <TableCell>Observações</TableCell>
               <TableCell align="right">Ações</TableCell>
@@ -306,12 +341,22 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
                 <TableCell align="right">{bigBox.totalUnits}</TableCell>
                 <TableCell align="right">{bigBox.volumes?.length ?? 0}</TableCell>
                 <TableCell align="right">
+                  {bigBox.volumes?.filter((v) => v.status === "in_stock").length ?? 0}
+                </TableCell>
+                <TableCell align="right">
                   {bigBox.volumes?.filter((v) => v.status === "sold").length ?? 0}
                 </TableCell>
                 <TableCell>{bigBox.notes || "—"}</TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(bigBox)} title="Editar">
                     <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    size="small"
+                    onClick={() => handleLinkMatching(bigBox)}
+                    title="Vincular caixinhas com o lote batendo mas cadastradas sem essa caixa grande selecionada"
+                  >
+                    <LinkIcon fontSize="small" />
                   </IconButton>
                   {canDelete && (
                     <IconButton

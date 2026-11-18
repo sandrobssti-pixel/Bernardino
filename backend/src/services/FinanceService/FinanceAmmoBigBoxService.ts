@@ -115,6 +115,38 @@ export const update = async (
   return bigBox;
 };
 
+// Vincula automaticamente caixinhas que têm o texto do lote batendo
+// com esta caixa grande (ex.: "HED11/7238") mas foram cadastradas sem
+// selecionar a caixa grande no formulário (`bigBoxId` nulo) — dado
+// legado real encontrado em produção (v2.3.309, pedido do cliente:
+// "esta correto o cadatro mas não dar baixa e não aparece a
+// quantidade cadatrada" — a contagem automática de "Caixinhas
+// cadastradas"/"vendidas" só enxerga `bigBoxId`, não o texto do
+// lote). Só vincula onde o texto bate exatamente e ainda não tem
+// nenhuma caixa grande — nunca troca um vínculo já existente.
+export const linkMatchingVolumes = async (
+  id: string | number,
+  productId: string | number,
+  companyId: number
+): Promise<number> => {
+  const bigBox = await show(id, productId, companyId);
+  const expectedLot = `${bigBox.lotLE}/${bigBox.lotLF}`;
+
+  const [linkedCount] = await FinanceAmmoVolume.update(
+    { bigBoxId: bigBox.id },
+    {
+      where: {
+        productId,
+        companyId,
+        bigBoxId: null,
+        lotNumber: expectedLot
+      }
+    }
+  );
+
+  return linkedCount;
+};
+
 export const remove = async (
   id: string | number,
   productId: string | number,
