@@ -130,6 +130,10 @@ if [ -d /etc/cloudflared ]; then
   sudo -n cp -r /etc/cloudflared/. "$CONFIG_STAGE_DIR/cloudflared-etc/" 2>/dev/null \
     || cp -r /etc/cloudflared/. "$CONFIG_STAGE_DIR/cloudflared-etc/" 2>/dev/null \
     || log "Aviso: não foi possível copiar /etc/cloudflared (sem permissão) — pulando."
+  # A cópia via sudo acima deixa os arquivos com dono "root" — sem isso,
+  # o restante do script (tar/limpeza do stage dir) falha por permissão
+  # quando roda como usuário normal.
+  sudo -n chown -R "$(id -u):$(id -g)" "$CONFIG_STAGE_DIR/cloudflared-etc" 2>/dev/null || true
 fi
 if [ -d "$HOME/.cloudflared" ]; then
   mkdir -p "$CONFIG_STAGE_DIR/cloudflared-home"
