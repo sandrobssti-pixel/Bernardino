@@ -115,36 +115,45 @@ export const update = async (
   return bigBox;
 };
 
+// Normaliza o texto do lote pra comparar (ignora espaços e
+// maiúsculas/minúsculas) — caixinha cadastrada à mão pode ter vindo
+// como "HED11 / 7238", "hed11/7238", "HED11/ 7238" etc., todos devem
+// bater com a caixa grande "HED11/7238". Bug real encontrado em
+// produção (v2.3.311): comparação exata não achava nada porque o
+// texto digitado tinha espaço ao redor da barra.
+const normalizeLot = (value: string | null | undefined): string =>
+  (value || "").replace(/\s+/g, "").toUpperCase();
+
 // Vincula automaticamente caixinhas que têm o texto do lote batendo
-// com esta caixa grande (ex.: "HED11/7238") mas foram cadastradas sem
-// selecionar a caixa grande no formulário (`bigBoxId` nulo) — dado
-// legado real encontrado em produção (v2.3.309, pedido do cliente:
-// "esta correto o cadatro mas não dar baixa e não aparece a
-// quantidade cadatrada" — a contagem automática de "Caixinhas
-// cadastradas"/"vendidas" só enxerga `bigBoxId`, não o texto do
-// lote). Só vincula onde o texto bate exatamente e ainda não tem
-// nenhuma caixa grande — nunca troca um vínculo já existente.
+// com esta caixa grande (ex.: "HED11/7238", "HED11 / 7238" etc.) mas
+// foram cadastradas sem selecionar a caixa grande no formulário
+// (`bigBoxId` nulo) — dado legado real encontrado em produção
+// (v2.3.309, pedido do cliente: "esta correto o cadatro mas não dar
+// baixa e não aparece a quantidade cadatrada" — a contagem automática
+// de "Caixinhas cadastradas"/"vendidas" só enxerga `bigBoxId`, não o
+// texto do lote). Só vincula onde o texto bate (normalizado) e ainda
+// não tem nenhuma caixa grande — nunca troca um vínculo já existente.
 export const linkMatchingVolumes = async (
   id: string | number,
   productId: string | number,
   companyId: number
 ): Promise<number> => {
   const bigBox = await show(id, productId, companyId);
-  const expectedLot = `${bigBox.lotLE}/${bigBox.lotLF}`;
+  const expectedLot = normalizeLot(`${bigBox.lotLE}/${bigBox.lotLF}`);
 
-  const [linkedCount] = await FinanceAmmoVolume.update(
+  const candidates = await FinanceAmmoVolume.findAll({
+    where: { productId, companyId, bigBoxId: null }
+  });
+  const matches = candidates.filter((v) => normalizeLot(v.lotNumber) === expectedLot);
+
+  if (matches.length === 0) return 0;
+
+  await FinanceAmmoVolume.update(
     { bigBoxId: bigBox.id },
-    {
-      where: {
-        productId,
-        companyId,
-        bigBoxId: null,
-        lotNumber: expectedLot
-      }
-    }
+    { where: { id: matches.map((v) => v.id) } }
   );
 
-  return linkedCount;
+  return matches.length;
 };
 
 export const remove = async (

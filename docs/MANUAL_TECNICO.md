@@ -21356,3 +21356,37 @@ Investigado antes de implementar — a maior parte já existia:
 - Dados de teste removidos do banco depois da verificação.
 
 **Arquivos**: `frontend/src/components/SaleModal/index.js`.
+
+## 285. Bug real: "Vincular caixinhas" não achava nada por causa de espaço no lote (v2.3.311)
+
+Cliente testou o botão "Vincular caixinhas" (seção 283) em produção
+com os dados reais e recebeu "Nenhuma caixinha com o lote batendo pra
+vincular" — mesmo com as 20 caixinhas visivelmente do lote certo.
+
+### Causa raiz
+
+`linkMatchingVolumes` comparava o texto do lote **exato**
+(`"HED11/7238"`, sem espaço, formato que o sistema usa quando a
+caixinha é cadastrada selecionando a caixa grande no dropdown) contra
+o `lotNumber` real das caixinhas legadas — que foi **digitado à mão**
+como `"HED11 / 7238"` (com espaço ao redor da barra). Comparação exata
+nunca batia.
+
+### Correção
+
+Comparação agora normaliza os dois lados antes de comparar (remove
+todo espaço, maiúsculas) — `normalizeLot()`. `"HED11/7238"`,
+`"HED11 / 7238"`, `"hed11/7238"` etc. todos batem com a mesma caixa
+grande agora.
+
+### Verificação
+
+- `tsc --noEmit` limpo.
+- Reproduzido o bug exato via API/SQL: 3 caixinhas com
+  `lotNumber: "HED11 / 7238"` (com espaço, igual ao caso real) e
+  `bigBoxId` nulo — antes da correção dava `linkedCount: 0` (mesmo
+  erro relatado pelo cliente); depois da correção, `linkedCount: 3`,
+  as 3 vinculadas corretamente.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts`.

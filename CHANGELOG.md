@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.311] — Corrige "Vincular caixinhas" não achando lote com espaço — 2026-11-18
+
+### Corrigido
+- Botão "Vincular caixinhas" não encontrava nada quando o lote tinha
+  sido digitado com espaço ao redor da barra (ex.: "HED11 / 7238" em
+  vez de "HED11/7238") — comparação agora ignora espaços e
+  maiúsculas/minúsculas.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 285.
+
 ## [2.3.310] — Busca por lote ou ID ao escolher a caixinha na Venda — 2026-11-18
 
 ### Alterado
