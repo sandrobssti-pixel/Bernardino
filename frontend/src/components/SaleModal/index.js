@@ -23,6 +23,7 @@ import toastError from "../../errors/toastError";
 import { money } from "../../utils/financeFormat";
 import { fetchAddressByCep } from "../../utils/cep";
 import MenuItem from "@material-ui/core/MenuItem";
+import Autocomplete from "@material-ui/lab/Autocomplete";
 import CfopAutocomplete from "../CfopAutocomplete";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
 import {
@@ -848,35 +849,48 @@ const SaleModal = ({ open, onClose, onSave, sale, customers, products, defaultCf
                               linha (a caixinha é vendida inteira, nunca
                               fração). Baixa definitiva do estoque só
                               acontece quando a nota fiscal for emitida
-                              de verdade, igual a arma. */}
+                              de verdade, igual a arma.
+                              Campo de busca (Autocomplete), não dropdown
+                              simples — v2.3.310, pedido do cliente:
+                              "buscar por id ou por lote para ir
+                              adicionando os produtos" (SKU com muitas
+                              caixinhas cadastradas ficava difícil de
+                              rolar numa lista comum). Filtra enquanto
+                              digita, por lote OU ID (a busca padrão do
+                              MUI já compara contra o texto completo que
+                              getOptionLabel devolve, que inclui os dois). */}
                           {isAmmo && (
                             <>
                               <Grid item xs={12} sm={6}>
-                                <TextField
-                                  select
-                                  required
+                                <Autocomplete
                                   fullWidth
-                                  variant="outlined"
                                   size="small"
-                                  label="Caixinha (lote / ID)"
-                                  helperText={`${inStockAmmoVolumeCount} disponível(is) em estoque neste SKU`}
-                                  value={item.ammoVolumeId || ""}
-                                  onChange={(e) =>
-                                    handleAmmoVolumeChange(index, Number(e.target.value), ammoVolumesForItem, setFieldValue)
+                                  options={ammoVolumesForItem}
+                                  getOptionLabel={(volume) =>
+                                    `Lote ${volume.lotNumber} / ID ${volume.barcodeId} (${volume.unitQuantity} un.)${
+                                      volume.status !== "in_stock" ? " (reservada nesta venda)" : ""
+                                    }`
                                   }
-                                >
-                                  {ammoVolumesForItem.length === 0 && (
-                                    <MenuItem value="" disabled>
-                                      Nenhuma caixinha disponível neste SKU
-                                    </MenuItem>
+                                  noOptionsText="Nenhuma caixinha disponível neste SKU"
+                                  value={ammoVolumesForItem.find((v) => v.id === item.ammoVolumeId) || null}
+                                  onChange={(e, newValue) =>
+                                    handleAmmoVolumeChange(
+                                      index,
+                                      newValue ? newValue.id : null,
+                                      ammoVolumesForItem,
+                                      setFieldValue
+                                    )
+                                  }
+                                  renderInput={(params) => (
+                                    <TextField
+                                      {...params}
+                                      required
+                                      variant="outlined"
+                                      label="Caixinha (lote / ID)"
+                                      helperText={`${inStockAmmoVolumeCount} disponível(is) em estoque neste SKU — busque por lote ou ID`}
+                                    />
                                   )}
-                                  {ammoVolumesForItem.map((volume) => (
-                                    <MenuItem key={volume.id} value={volume.id}>
-                                      Lote {volume.lotNumber} / ID {volume.barcodeId} ({volume.unitQuantity} un.)
-                                      {volume.status !== "in_stock" ? " (reservada nesta venda)" : ""}
-                                    </MenuItem>
-                                  ))}
-                                </TextField>
+                                />
                               </Grid>
                               <Grid item xs={12} sm={6}>
                                 <Field

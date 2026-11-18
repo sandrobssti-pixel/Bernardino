@@ -21312,3 +21312,47 @@ lote agregado. Nada pra mudar aqui.
 `backend/src/routes/financeRoutes.ts`,
 `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 284. Busca por lote ou ID ao escolher a caixinha na Venda (v2.3.310)
+
+Pedido do cliente: "no campo vendas quando tiver cadastrados em
+produtos em venda buscar por id ou por lote para ir adicionando os
+produtos para lançar em nota fiscal, decriminando os itens tem que ter
+relação o modulo vendas diretamente com o modulo produtos
+munições/insumos, para qualquer itens cadatrados no estoque, essa
+relação é automatica na hora da venda, caso o oprador venda algo que
+não tenha em estoque o sistema passa uma mensagem informando que o
+produto esta zerado em estoque".
+
+Investigado antes de implementar — a maior parte já existia:
+
+- **Vínculo automático Vendas↔Produtos (munição/arma/estoque)**: já
+  implementado desde a v2.3.207/222/223 —
+  `SaleService.reserveAmmoVolumes`/`markAmmoVolumesSold` (munição, por
+  `ammoVolumeId`), `reserveForSale` (arma, por `weaponUnitId`), e
+  `ensureStockAvailable` (produto genérico com `controlStock`). Nada
+  pra duplicar aqui.
+- **Mensagem de estoque zerado/insuficiente ao vender**: já existia —
+  `ensureStockAvailable` bloqueia a confirmação com "Estoque
+  insuficiente: {produto} (disponível: 0, pedido: N)" pra produto
+  genérico; pra munição, a lista de caixinhas só oferece as realmente
+  "Em estoque" (zero caixinha = "Nenhuma caixinha disponível neste
+  SKU" direto no campo).
+- **Faltava mesmo**: o campo "Caixinha (lote / ID)" em Vendas era um
+  `<select>` comum (lista pra rolar) — difícil de usar em SKU com
+  muitas caixinhas cadastradas. Trocado por um campo de busca
+  (Autocomplete do MUI) que filtra a lista digitando qualquer parte do
+  lote OU do ID — sem mudar nenhuma lógica de baixa/reserva de
+  estoque por trás, só a forma de escolher.
+
+### Verificação
+
+- `eslint` limpo; build de produção (`craco build`) concluído sem
+  erros novos.
+- Testado via Playwright na UI real: produto de munição com 2
+  caixinhas de lote/ID bem diferentes — digitar parte do ID de uma
+  delas filtrou a lista pra só ela aparecer; digitar parte do lote da
+  outra, mesma coisa. Confirmado visualmente por screenshot.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/components/SaleModal/index.js`.

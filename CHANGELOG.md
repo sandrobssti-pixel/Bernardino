@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.310] — Busca por lote ou ID ao escolher a caixinha na Venda — 2026-11-18
+
+### Alterado
+- Campo "Caixinha (lote / ID)" na tela de Nova venda agora é um campo
+  de busca (filtra digitando lote ou ID), em vez de uma lista comum
+  pra rolar.
+
+### Confirmado (já existia, sem duplicar)
+- Relação automática Vendas↔Produtos (munição/arma/estoque genérico)
+  e mensagem de estoque insuficiente/zerado ao tentar vender sem
+  disponibilidade.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 284.
+
 ## [2.3.309] — Vincular caixinhas com lote batendo + "Caixinhas em estoque" — 2026-11-18
 
 ### Adicionado
