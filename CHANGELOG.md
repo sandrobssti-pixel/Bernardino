@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.303] — Corrigido: caixinha "Vendida" sem venda real ficava travada pra sempre — 2026-11-18
+
+### Corrigido
+- Caixinha de munição marcada "Vendida"/"Reservada" só por um status
+  desatualizado (sem nenhuma venda de verdade por trás) não podia ser
+  excluída — agora o sistema confirma se existe mesmo uma venda antes
+  de bloquear.
+
+### Removido
+- Parágrafo explicativo genérico em Caixinhas de munição (não refletia
+  que cada caixa grande pode ter uma quantidade diferente).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 277.
+
 ## [2.3.302] — Remove formulário duplicado; painel sem rolagem horizontal — 2026-11-18
 
 ### Corrigido

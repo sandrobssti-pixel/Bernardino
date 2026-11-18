@@ -4,6 +4,7 @@ import AppError from "../../errors/AppError";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceAmmoVolume from "../../models/FinanceAmmoVolume";
 import FinanceAmmoBigBox from "../../models/FinanceAmmoBigBox";
+import SaleItem from "../../models/SaleItem";
 
 // Caixinha pequena de munição — sub-cadastro do Produto (a "caixa
 // cheia"/SKU), uma linha por caixinha física aberta dela (v2.3.223,
@@ -210,8 +211,23 @@ export const remove = async (
   // Caixinha presa numa venda (reservada ou já vendida) não pode ser
   // excluída solta — perderia a rastreabilidade do item de venda que
   // aponta pra ela. Cancelar a venda primeiro libera.
+  //
+  // Bug real corrigido (v2.3.303): a checagem antiga confiava só no
+  // texto de `status` ("reserved"/"sold"), sem checar se existe de
+  // verdade um `SaleItem` apontando pra essa caixinha. Lançamento
+  // antigo (de antes do fluxo de venda por caixinha existir direito,
+  // ou importado/editado manualmente com status errado) podia ficar
+  // "Vendida" pra sempre, sem jeito de remover, mesmo sem NENHUMA
+  // venda de verdade por trás (`saleItemId` nulo ou apontando pra um
+  // SaleItem que não existe mais). Agora só bloqueia quando o
+  // SaleItem referenciado realmente existe.
   if (volume.status === "reserved" || volume.status === "sold") {
-    throw new AppError("ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE");
+    const linkedSaleItem = volume.saleItemId
+      ? await SaleItem.findOne({ where: { id: volume.saleItemId } })
+      : null;
+    if (linkedSaleItem) {
+      throw new AppError("ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE");
+    }
   }
   await volume.destroy();
   await recalculateStockQuantity(productId);

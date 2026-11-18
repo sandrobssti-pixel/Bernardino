@@ -20987,3 +20987,65 @@ logo depois da v2.3.300/301:
 `backend/src/controllers/FinanceAmmoVolumeController.ts`,
 `backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
 `backend/src/routes/financeRoutes.ts`.
+
+## 277. Bug real: caixinha "Vendida" sem venda de verdade ficava travada pra sempre; remove texto explicativo da seção (v2.3.303)
+
+Cliente mandou print de dados reais de produção: 4 caixinhas antigas
+(lotes 7238/HEC74/HED73), uma com o campo "ID/código de barras"
+contendo literalmente `"CADA CAIXA CONTEM 50 UNIDADES"` (uma anotação,
+não um código de verdade) e outra com ~20 IDs colados num campo só
+(`"1083687110/1083687111/.../1083687129"`) — sinais claros de erro de
+digitação na tela antiga (confundindo o campo de ID com o campo de
+colar vários de uma vez, removido na v2.3.302). Três das quatro
+estavam marcadas "Vendida", e o cliente reportou "está dando erro para
+remover". Perguntado se havia venda de verdade por trás, respondeu que
+são registros antigos e pediu só pra "deixar limpo essa parte do
+painel", mantendo a estrutura de produtos já cadastrados.
+
+### Causa raiz
+
+`FinanceAmmoVolumeService.remove` bloqueava a exclusão só checando o
+TEXTO do campo `status` (`"reserved"`/`"sold"`), sem nunca confirmar
+se existe de verdade um `SaleItem` apontando pra aquela caixinha
+(`saleItemId`). Uma caixinha com status errado/antigo (editado à mão,
+ou de antes do fluxo de venda por caixinha existir direito) ficava
+PRESA PRA SEMPRE, sem nenhum jeito de excluir — mesmo sem nenhuma
+venda real por trás pra proteger.
+
+### Correção
+
+- `FinanceAmmoVolumeService.remove`: antes de bloquear por
+  `status === "reserved"/"sold"`, agora confirma de verdade — busca o
+  `SaleItem` pelo `saleItemId` da caixinha. Só bloqueia
+  (`ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE`) se esse `SaleItem`
+  REALMENTE existir. Caixinha com status desatualizado/errado, sem
+  nenhum `SaleItem` de verdade (ou `saleItemId` nulo), agora exclui
+  normalmente.
+- Frontend (`AmmoVolumesSection.js`): botão de excluir não fica mais
+  desabilitado por conta do campo `status` sozinho — deixa o backend
+  decidir de verdade (mostra o erro certo via toast se realmente
+  estiver preso numa venda).
+- Removido também o parágrafo explicativo abaixo do título "Caixinhas
+  desta munição (lote + ID)" (e a soma de unidades em estoque que
+  vinha junto) — pedido do cliente: "tem caixas que tem 1000 unidades
+  mas tem caixas que tem 320 (são 32 cartelas de 10)... pode tirar
+  essa explicação acima" — o texto genérico não refletia a realidade
+  (cada caixa grande pode ter uma quantidade diferente, lançado
+  manualmente caso a caso).
+
+### Verificação
+
+- `tsc --noEmit`/`eslint` limpos.
+- Testado via API real: caixinha criada e forçada pra `status="sold"`
+  SEM nenhum `saleItemId`/`SaleItem` real — exclusão funcionou
+  (antes, dava `ERR_FINANCE_AMMO_VOLUME_LINKED_TO_SALE` sempre que
+  status fosse "sold", mesmo sem venda nenhuma).
+- Testado visualmente via Playwright: criado um produto com caixinha
+  "Vendida" sem venda real, botão de excluir habilitado (não mais
+  acinzentado), clique confirma e mostra "Caixinha excluída." — lista
+  atualiza vazia. Parágrafo explicativo confirmado removido da tela.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`.

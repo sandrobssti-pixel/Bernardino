@@ -198,10 +198,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
     }
   };
 
-  const totalUnitsInStock = volumes
-    .filter((v) => v.status === "in_stock")
-    .reduce((sum, v) => sum + (Number(v.unitQuantity) || 0), 0);
-
   const selectedBigBox = bigBoxes.find((b) => b.id === draft.bigBoxId);
   const draftLotDisplay = selectedBigBox ? bigBoxLabel(selectedBigBox) : draft.lotNumber;
 
@@ -209,11 +205,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
     <Box className={classes.wrapper}>
       <Typography variant="subtitle2" className={classes.title}>
         Caixinhas desta munição (lote + ID)
-      </Typography>
-      <Typography className={classes.helpText}>
-        Cada caixinha/cartela física aberta da caixa cheia entra aqui com
-        o próprio ID (código de barras) — todas da mesma remessa
-        compartilham o mesmo lote. {volumes.length > 0 && `${totalUnitsInStock} unidade(s) em estoque, em ${volumes.filter((v) => v.status === "in_stock").length} caixinha(s).`}
       </Typography>
 
       <div className={classes.formRow}>
@@ -336,12 +327,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
                     <IconButton
                       size="small"
                       onClick={() => handleRemove(volume)}
-                      disabled={volume.status === "reserved" || volume.status === "sold"}
-                      title={
-                        volume.status === "reserved" || volume.status === "sold"
-                          ? "Presa numa venda — cancele a venda pra liberar"
-                          : "Excluir"
-                      }
+                      title="Excluir"
                     >
                       <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
