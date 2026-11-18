@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.300] — "Caixa grande" de munição — nível acima da caixinha pequena — 2026-11-18
+
+### Adicionado
+- Novo cadastro **"Caixa grande"** no Produto de munição/insumo — lote
+  em dois campos (LE/LF), total de unidades. Cadastra-se a caixa
+  grande primeiro; as caixinhas/cartelas de dentro dela (cadastro que
+  já existia) agora se vinculam a ela e herdam o lote automaticamente,
+  em vez de digitar de novo.
+- Exclusão de caixa grande ou caixinha agora é restrita ao Admin.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 274.
+
 ## [2.3.299] — Corrigido: vídeo .mp4 dava "não está disponível" no WhatsApp do celular — 2026-11-16
 
 ### Corrigido

@@ -68,6 +68,7 @@ import FinanceProduct from "../models/FinanceProduct";
 import FinanceWeaponUnit from "../models/FinanceWeaponUnit";
 import FinanceWeaponUnitEvent from "../models/FinanceWeaponUnitEvent";
 import FinanceAmmoVolume from "../models/FinanceAmmoVolume";
+import FinanceAmmoBigBox from "../models/FinanceAmmoBigBox";
 import FinanceExpense from "../models/FinanceExpense";
 import FinanceCashRegister from "../models/FinanceCashRegister";
 import FinanceCashRegisterItem from "../models/FinanceCashRegisterItem";
@@ -188,6 +189,7 @@ const models = [
   FinanceWeaponUnit,
   FinanceWeaponUnitEvent,
   FinanceAmmoVolume,
+  FinanceAmmoBigBox,
   FinanceExpense,
   FinanceCashRegister,
   FinanceCashRegisterItem,

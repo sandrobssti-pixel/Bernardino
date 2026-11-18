@@ -30,6 +30,7 @@ import ImageIcon from "@material-ui/icons/Image";
 import toastError from "../../errors/toastError";
 import FinanceAsyncAutocomplete from "../FinanceAsyncAutocomplete";
 import WeaponUnitsSection from "./WeaponUnitsSection";
+import AmmoBigBoxesSection from "./AmmoBigBoxesSection";
 import AmmoVolumesSection from "./AmmoVolumesSection";
 import { fetchAddressByCep } from "../../utils/cep";
 
@@ -124,6 +125,7 @@ const buildInitialValues = (fields, record) => {
       field.type === "photo" ||
       field.type === "serviceSelect" ||
       field.type === "weaponUnits" ||
+      field.type === "ammoBigBoxes" ||
       field.type === "ammoVolumes"
     )
       return;
@@ -184,6 +186,11 @@ const FinanceRecordModal = ({
 }) => {
   const classes = useStyles();
   const { user } = useContext(AuthContext);
+  // Exclusão de caixa grande/caixinha de munição é só do Admin (v2.3.300,
+  // pedido explícito do cliente) — mais restrito que o `canDelete`
+  // genérico deste módulo (que aqui nem chega a ser usado pelas duas
+  // seções de munição, que calculam a própria permissão).
+  const canDeleteAmmo = user.profile === "admin" || !!user.super;
   // Rodapé com endereço/telefone/e-mail da empresa (v2.3.184) — ver
   // comentário completo em FinanceRecordList/index.js.
   const fiscal = useFiscal();
@@ -549,10 +556,18 @@ const FinanceRecordModal = ({
                     );
                   }
 
+                  if (field.type === "ammoBigBoxes") {
+                    return (
+                      <Grid item xs={12} key={field.name}>
+                        <AmmoBigBoxesSection product={record} finance={finance} canDelete={canDeleteAmmo} />
+                      </Grid>
+                    );
+                  }
+
                   if (field.type === "ammoVolumes") {
                     return (
                       <Grid item xs={12} key={field.name}>
-                        <AmmoVolumesSection product={record} finance={finance} />
+                        <AmmoVolumesSection product={record} finance={finance} canDelete={canDeleteAmmo} />
                       </Grid>
                     );
                   }

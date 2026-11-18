@@ -523,6 +523,12 @@ export const financeProductFields = [
   // formulário por ficarem redundantes/enganosos com múltiplos lotes em
   // estoque ao mesmo tempo — mesma decisão já tomada pro SIGMA/SINARM da
   // arma (v2.3.210); colunas continuam no banco, dado antigo não é apagado.
+  // "Caixa grande" (v2.3.300, pedido do cliente) — nível ACIMA da
+  // caixinha pequena abaixo: a compra chega numa caixa fechada maior
+  // (20/32/10/12 unidades, conforme o produto), com lote em dois
+  // campos (LE/LF). Cadastra-se ela primeiro; as caixinhas de dentro
+  // (abaixo) se vinculam a ela e herdam o lote.
+  { name: "ammoBigBoxesSection", type: "ammoBigBoxes", gridSize: 12, visibleWhen: isAmmunition },
   { name: "ammoVolumesSection", type: "ammoVolumes", gridSize: 12, visibleWhen: isAmmunition },
 
   {

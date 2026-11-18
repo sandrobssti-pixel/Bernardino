@@ -3,16 +3,28 @@ import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceProduct from "../../models/FinanceProduct";
 import FinanceAmmoVolume from "../../models/FinanceAmmoVolume";
+import FinanceAmmoBigBox from "../../models/FinanceAmmoBigBox";
 
 // Caixinha pequena de munição — sub-cadastro do Produto (a "caixa
 // cheia"/SKU), uma linha por caixinha física aberta dela (v2.3.223,
 // pedido do cliente). Mesmo ciclo de vida já usado pra arma por número
 // de série (FinanceWeaponUnitService.ts) — ver comentário completo em
 // FinanceAmmoVolume.ts e docs/MANUAL_TECNICO.md.
+//
+// `bigBoxId` (v2.3.300, opcional) — vincula a caixinha à "caixa
+// grande" de onde ela veio. Quando informado, o lote NÃO é digitado
+// manualmente aqui — vem automaticamente da caixa grande (LE/LF),
+// gravado em `lotNumber` como snapshot (`"LE/LF"`) no momento do
+// vínculo, mesmo princípio de snapshot já usado em todo o projeto
+// (Sale.sku/ncm/cfop etc.) — editar o lote da caixa grande depois não
+// muda retroativamente caixinha já criada. Caixinha SEM `bigBoxId`
+// (cadastro antigo, ou nova caixinha avulsa) continua exigindo
+// `lotNumber` digitado à mão, exatamente como antes desta versão.
 export const STATUS_OPTIONS = ["in_stock", "reserved", "sold"];
 
 interface VolumeData {
-  lotNumber: string;
+  lotNumber?: string;
+  bigBoxId?: number | string | null;
   barcodeId: string;
   unitQuantity: number | string;
   status?: string;
@@ -20,7 +32,11 @@ interface VolumeData {
 }
 
 const volumeSchema = Yup.object().shape({
-  lotNumber: Yup.string().required("ERR_FINANCE_AMMO_VOLUME_LOT_REQUIRED").min(1),
+  lotNumber: Yup.string().when("bigBoxId", {
+    is: (value: any) => !value,
+    then: Yup.string().required("ERR_FINANCE_AMMO_VOLUME_LOT_REQUIRED").min(1),
+    otherwise: Yup.string().nullable()
+  }),
   barcodeId: Yup.string().required("ERR_FINANCE_AMMO_VOLUME_BARCODE_REQUIRED").min(1),
   unitQuantity: Yup.number()
     .typeError("ERR_FINANCE_AMMO_VOLUME_QUANTITY_INVALID")
@@ -38,6 +54,22 @@ const ensureProduct = async (productId: string | number, companyId: number): Pro
     throw new AppError("ERR_FINANCE_PRODUCT_NOT_FOUND", 404);
   }
   return product;
+};
+
+// Confere que a caixa grande existe, pertence ao MESMO produto/empresa
+// (nunca deixar vincular caixinha de um produto a caixa grande de
+// outro), e devolve o lote dela pra snapshot em `lotNumber`.
+const resolveBigBoxLot = async (
+  bigBoxId: number | string | null | undefined,
+  productId: string | number,
+  companyId: number
+): Promise<string | null> => {
+  if (!bigBoxId) return null;
+  const bigBox = await FinanceAmmoBigBox.findOne({ where: { id: bigBoxId, productId, companyId } });
+  if (!bigBox) {
+    throw new AppError("ERR_FINANCE_AMMO_BIG_BOX_NOT_FOUND", 404);
+  }
+  return `${bigBox.lotLE}/${bigBox.lotLF}`;
 };
 
 // stockQuantity do produto-munição = SOMA das unidades (cartuchos) das
@@ -81,6 +113,7 @@ export const list = async (
 
   return FinanceAmmoVolume.findAll({
     where: { productId, companyId },
+    include: [{ model: FinanceAmmoBigBox, as: "bigBox" }],
     order: [["lotNumber", "ASC"], ["barcodeId", "ASC"]]
   });
 };
@@ -100,12 +133,14 @@ export const create = async (
 
   const barcodeId = data.barcodeId.trim();
   await ensureBarcodeIsUnique(barcodeId, companyId);
+  const bigBoxLot = await resolveBigBoxLot(data.bigBoxId, productId, companyId);
 
   try {
     const volume = await FinanceAmmoVolume.create({
       productId,
       companyId,
-      lotNumber: data.lotNumber.trim(),
+      bigBoxId: data.bigBoxId || null,
+      lotNumber: bigBoxLot ?? data.lotNumber?.trim(),
       barcodeId,
       unitQuantity: Number(data.unitQuantity) || 0,
       status: data.status || "in_stock",
@@ -132,11 +167,13 @@ export const createBulk = async (
   lotNumber: string,
   defaultUnitQuantity: number | string,
   linesRaw: string[],
-  companyId: number
+  companyId: number,
+  bigBoxId?: number | string | null
 ): Promise<{ created: FinanceAmmoVolume[]; duplicates: string[] }> => {
   await ensureProduct(productId, companyId);
 
-  const trimmedLot = (lotNumber || "").trim();
+  const bigBoxLot = await resolveBigBoxLot(bigBoxId, productId, companyId);
+  const trimmedLot = bigBoxLot ?? (lotNumber || "").trim();
   if (!trimmedLot) {
     throw new AppError("ERR_FINANCE_AMMO_VOLUME_LOT_REQUIRED");
   }
@@ -189,6 +226,7 @@ export const createBulk = async (
     const volume = await FinanceAmmoVolume.create({
       productId,
       companyId,
+      bigBoxId: bigBoxId || null,
       lotNumber: trimmedLot,
       barcodeId,
       unitQuantity,
@@ -226,10 +264,12 @@ export const update = async (
 
   const barcodeId = data.barcodeId.trim();
   await ensureBarcodeIsUnique(barcodeId, companyId, volume.id);
+  const bigBoxLot = await resolveBigBoxLot(data.bigBoxId, productId, companyId);
 
   try {
     await volume.update({
-      lotNumber: data.lotNumber.trim(),
+      bigBoxId: data.bigBoxId || null,
+      lotNumber: bigBoxLot ?? data.lotNumber?.trim(),
       barcodeId,
       unitQuantity: Number(data.unitQuantity) || 0,
       status: data.status || volume.status,

@@ -20759,3 +20759,137 @@ coisa dentro, daí o erro.
   não só "sem erro no ffmpeg".
 
 **Arquivos**: `backend/src/services/WbotServices/SendWhatsAppMedia.ts`.
+
+## 274. "Caixa grande" de munição — nível acima da caixinha pequena (v2.3.300)
+
+Pedido do cliente: "vamos melhorar o painel de cadastro de munições/
+insumos, hoje funciona dessa forma, compramos uma caixa fechada,
+dentro da caixa grande vem outras caixas menores, para cadastrar tudo
+temos que cadastrar a caixa grande e dentro dessa caixa cadastrar os
+outros itens menores pois vem com o lote, ID (...) caixa grande tem
+numero de lote LE e LF dois campos para cadastrar, nome do produto,
+sku/codigo (...) tem que colocar o total de unidades (...) depois que
+adicionar as caixas grandes vai para as caixinhas ou cartelas onde tem
+lote LE e LF, que tem vínculo com a caixa grande do lote, obrigatório
+o preenchimento de todos os campos, coloque a opção de adicionar,
+editar e excluir onde só o adm tem poder de excluir algum campo".
+
+Duas rodadas de `AskUserQuestion` confirmaram: (1) "caixa grande" é um
+cadastro NOVO, separado do Produto, não um campo a mais nele; (2) "ID/
+numeração" e "código de barras" da caixinha continuam sendo o MESMO
+campo único já existente (`barcodeId`) — confirmado também
+explicitamente depois: "é a mesma coisa o ID é o código de barras,
+quando for implantar o leitor de código de barras já vai estar pronto"
+(o campo já serve pra digitação OU leitura por scanner, sem mudança
+de código necessária quando isso acontecer).
+
+### Modelo de dados
+
+Já existia `FinanceAmmoVolume` (v2.3.223) — a "caixinha pequena",
+vinculada direto ao Produto (a "caixa cheia"/SKU), com um `lotNumber`
+único digitado à mão por caixinha. Esta versão acrescenta um nível
+ACIMA dela, sem remover nada do que já existia ("manter o cadastro que
+já tem sem excluir nenhum cadastro adicionado", confirmado pelo
+cliente):
+
+- **`FinanceAmmoBigBox`** (nova tabela) — a "caixa grande": `productId`
+  (vinculada a um Produto já cadastrado), `lotLE`/`lotLF` (dois campos
+  de texto — nomenclatura própria do fabricante, NUNCA um campo só
+  juntando os dois, pedido explícito), `totalUnits` (total de unidades
+  declarado), `notes`.
+- **`FinanceAmmoVolume`** ganhou `bigBoxId` (FK nullable, `ON DELETE
+  SET NULL`) — vincula a caixinha à caixa grande de onde ela veio.
+  `lotNumber` virou OPCIONAL no banco (`ALTER COLUMN ... DROP NOT
+  NULL`): caixinha vinculada a uma caixa grande não digita lote de
+  novo — ele é **gravado como snapshot** em `lotNumber`
+  (`"LE/LF"`, formato `"LE999/LF888"`) no momento da criação, mesmo
+  princípio de snapshot já usado em todo o projeto (`Sale.sku`/`ncm`/
+  `cfop` etc. — editar o lote da caixa grande depois não muda
+  retroativamente caixinha já criada). Caixinha SEM `bigBoxId` (cadastro
+  anterior a esta versão, ou cadastro avulso novo) continua funcionando
+  exatamente como antes, com `lotNumber` digitado à mão — nenhum dado
+  antigo foi tocado.
+- Yup `when` (sintaxe 0.32.x antiga, ver seção 11 da skill
+  `atendeflow-dev`) torna `lotNumber` obrigatório SÓ quando `bigBoxId`
+  não foi informado.
+- Excluir uma caixa grande que ainda tenha caixinha vinculada é
+  bloqueado (`ERR_FINANCE_AMMO_BIG_BOX_HAS_VOLUMES`) — precisa excluir/
+  desvincular as caixinhas primeiro (mesmo princípio de proteção já
+  usado pra caixinha presa numa venda).
+
+### Exclusão só do Admin
+
+Pedido explícito: "só o adm tem poder de excluir algum campo".
+Diferente do resto do módulo Financeiro (onde `canDeleteFinanceRecords`
+em `Financeiro/index.js` já libera qualquer usuário com acesso
+financeiro a excluir), aqui a exclusão é mais restrita — checada tanto
+no backend (`ensureDeletePermission` nos dois controllers, mesmo padrão
+de `FinanceImportController.ensureImportPermission`: `user.profile ===
+"admin" || user.super`, devolve `ERR_FINANCE_AMMO_DELETE_ADMIN_ONLY`
+403 se não for) quanto no frontend (botão de excluir só renderiza se
+`canDelete`, calculado em `FinanceRecordModal/index.js` e passado pras
+duas seções). Checar no backend importa de verdade aqui — não dá pra
+confiar só em esconder o botão.
+
+### Frontend
+
+- **`AmmoBigBoxesSection.js`** (novo componente, mesmo padrão de
+  `AmmoVolumesSection.js`/`WeaponUnitsSection.js`) — tabela com
+  Adicionar/Editar/Excluir da caixa grande, mostrando quantas caixinhas
+  já estão vinculadas a cada uma (e bloqueando exclusão enquanto houver
+  alguma).
+- **`AmmoVolumesSection.js`** ganhou um seletor "Caixa grande" (tanto no
+  formulário de adicionar uma caixinha por vez quanto no de cadastro em
+  lote) — "Nenhuma (lote avulso)" mantém o fluxo antigo; escolher uma
+  caixa grande desabilita o campo "Lote" (mostra o valor herdado,
+  somente leitura) e dispensa digitá-lo.
+  Pseudo-campo novo `ammoBigBoxesSection`/tipo `"ammoBigBoxes"` em
+  `financeConfig.js`, **antes** de `ammoVolumesSection` na ordem dos
+  campos (pedido do cliente: "começa cadastrando por elas") — mesmo
+  mecanismo de `"weaponUnits"`/`"photo"`/`"sectionTitle"` em
+  `FinanceRecordModal/index.js`.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Migrations rodadas contra o Postgres de teste local; `\d` confirmou
+  `lotNumber` nullable e a FK `bigBoxId` com `ON DELETE SET NULL`.
+- Testado via API real (login como Admin e como usuário comum com
+  acesso financeiro liberado, mas NÃO admin): produto de munição →
+  caixa grande (LE123/LF456, 1000 unidades) → duas caixinhas vinculadas
+  (lote herdado `"LE123/LF456"` confirmado na resposta) → caixinha
+  avulsa sem caixa grande (lote digitado à mão, compatibilidade
+  confirmada) → tentativa sem lote e sem caixa grande (rejeitada,
+  `ERR_FINANCE_AMMO_VOLUME_LOT_REQUIRED`) → tentativa de vincular a uma
+  caixa grande inexistente (rejeitada, `ERR_FINANCE_AMMO_BIG_BOX_NOT_FOUND`)
+  → usuário comum tentando excluir caixinha OU caixa grande (ambos
+  bloqueados, 403 `ERR_FINANCE_AMMO_DELETE_ADMIN_ONLY`) → Admin tentando
+  excluir caixa grande ainda vinculada (bloqueado,
+  `ERR_FINANCE_AMMO_BIG_BOX_HAS_VOLUMES`) → Admin excluindo as
+  caixinhas e só depois a caixa grande (funcionou) → cadastro em lote
+  vinculado a uma caixa grande (3 caixinhas de uma vez, lote herdado
+  confirmado nas 3).
+- Build de produção (`craco build`) concluído sem erros novos; testado
+  visualmente via Playwright — as duas seções aparecem na tela de
+  edição do Produto de munição, na ordem certa, com os seletores de
+  "Caixa grande" funcionando e o lote herdado aparecendo corretamente
+  na tabela de caixinhas (`"LE999/LF888"` nas 3 linhas do cadastro em
+  lote).
+- Dados de teste (produto, caixa grande, caixinhas, usuário comum)
+  removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/database/migrations/20261118001924-create-finance-ammo-big-boxes.ts`,
+`backend/src/database/migrations/20261118001930-add-big-box-to-finance-ammo-volumes.ts`,
+`backend/src/models/FinanceAmmoBigBox.ts` (novo),
+`backend/src/models/FinanceAmmoVolume.ts`,
+`backend/src/database/index.ts`,
+`backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts` (novo),
+`backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`backend/src/controllers/FinanceAmmoBigBoxController.ts` (novo),
+`backend/src/controllers/FinanceAmmoVolumeController.ts`,
+`backend/src/routes/financeRoutes.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js` (novo),
+`frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
+`frontend/src/components/FinanceRecordModal/index.js`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

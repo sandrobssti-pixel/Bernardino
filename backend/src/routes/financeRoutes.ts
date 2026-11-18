@@ -10,6 +10,7 @@ import * as FinanceSupplierController from "../controllers/FinanceSupplierContro
 import * as FinanceProductController from "../controllers/FinanceProductController";
 import * as FinanceWeaponUnitController from "../controllers/FinanceWeaponUnitController";
 import * as FinanceAmmoVolumeController from "../controllers/FinanceAmmoVolumeController";
+import * as FinanceAmmoBigBoxController from "../controllers/FinanceAmmoBigBoxController";
 import * as FinanceExpenseController from "../controllers/FinanceExpenseController";
 import * as FinanceCashRegisterController from "../controllers/FinanceCashRegisterController";
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
@@ -105,6 +106,30 @@ financeRoutes.delete(
   "/finance/products/:productId/weapon-units/:id",
   isAuth,
   FinanceWeaponUnitController.remove
+);
+
+// "Caixa grande" de munição (lote LE/LF + total de unidades),
+// sub-cadastro do Produto — v2.3.300. Nível ACIMA da caixinha pequena
+// (abaixo) — cada caixinha se vincula a uma caixa grande (mesmo lote).
+financeRoutes.get(
+  "/finance/products/:productId/ammo-big-boxes",
+  isAuth,
+  FinanceAmmoBigBoxController.index
+);
+financeRoutes.post(
+  "/finance/products/:productId/ammo-big-boxes",
+  isAuth,
+  FinanceAmmoBigBoxController.store
+);
+financeRoutes.put(
+  "/finance/products/:productId/ammo-big-boxes/:id",
+  isAuth,
+  FinanceAmmoBigBoxController.update
+);
+financeRoutes.delete(
+  "/finance/products/:productId/ammo-big-boxes/:id",
+  isAuth,
+  FinanceAmmoBigBoxController.remove
 );
 
 // Caixinhas pequenas de munição (lote + ID/código de barras),

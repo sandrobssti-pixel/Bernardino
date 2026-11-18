@@ -47,12 +47,18 @@ const useStyles = makeStyles((theme) => ({
 
 const EMPTY_DRAFT = {
   id: null,
+  bigBoxId: "",
   lotNumber: "",
   barcodeId: "",
   unitQuantity: "",
   status: "in_stock",
   notes: "",
 };
+
+// Rótulo da caixa grande no seletor — mesmo formato usado pra
+// snapshotar `lotNumber` no backend (ver resolveBigBoxLot,
+// FinanceAmmoVolumeService.ts).
+const bigBoxLabel = (bigBox) => `${bigBox.lotLE}/${bigBox.lotLF}`;
 
 const STATUS_LABELS = {
   in_stock: "Em estoque",
@@ -70,12 +76,25 @@ const statusLabel = (value) => STATUS_LABELS[value] || value || "—";
 // verificar pelo ID de cada uma". Mesmo padrão de WeaponUnitsSection.js
 // (ação salva na hora, não espera o "Salvar" do produto — a caixinha só
 // pode existir depois que o Produto/SKU já tem id salvo).
-const AmmoVolumesSection = ({ product, finance }) => {
+//
+// `bigBoxId` (v2.3.300) — cada caixinha agora pode se vincular a uma
+// "caixa grande" (AmmoBigBoxesSection.js, cadastrada ACIMA desta),
+// herdando o lote dela (LE/LF) em vez de digitar de novo. Caixinha
+// avulsa (sem caixa grande) continua funcionando exatamente como
+// antes, com o campo "Lote" digitado à mão — mantido pra cadastro
+// antigo/caso simples sem caixa grande.
+//
+// Exclusão só do Admin (pedido explícito do cliente: "só o adm tem
+// poder de excluir algum campo") — `canDelete` vem de cima
+// (FinanceRecordModal, calculado a partir do usuário logado).
+const AmmoVolumesSection = ({ product, finance, canDelete }) => {
   const classes = useStyles();
   const [volumes, setVolumes] = useState([]);
+  const [bigBoxes, setBigBoxes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  const [bulkBigBoxId, setBulkBigBoxId] = useState("");
   const [bulkLot, setBulkLot] = useState("");
   const [bulkQuantity, setBulkQuantity] = useState("");
   const [bulkText, setBulkText] = useState("");
@@ -87,8 +106,12 @@ const AmmoVolumesSection = ({ product, finance }) => {
     if (!productId) return;
     setLoading(true);
     try {
-      const data = await finance.products.ammoVolumes.list(productId);
-      setVolumes(data);
+      const [volumesData, bigBoxesData] = await Promise.all([
+        finance.products.ammoVolumes.list(productId),
+        finance.products.ammoBigBoxes.list(productId),
+      ]);
+      setVolumes(volumesData);
+      setBigBoxes(bigBoxesData);
     } catch (err) {
       toastError(err);
     } finally {
@@ -98,6 +121,7 @@ const AmmoVolumesSection = ({ product, finance }) => {
 
   useEffect(() => {
     setVolumes([]);
+    setBigBoxes([]);
     setDraft(EMPTY_DRAFT);
     loadVolumes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -119,15 +143,20 @@ const AmmoVolumesSection = ({ product, finance }) => {
   }
 
   const handleSave = async () => {
-    const lotNumber = draft.lotNumber.trim();
     const barcodeId = draft.barcodeId.trim();
-    if (!lotNumber || !barcodeId || !draft.unitQuantity) {
-      toast.warn("Informe lote, ID e quantidade de unidades.");
+    const lotNumber = draft.lotNumber.trim();
+    if (!draft.bigBoxId && !lotNumber) {
+      toast.warn("Informe a caixa grande ou o lote, o ID e a quantidade de unidades.");
+      return;
+    }
+    if (!barcodeId || !draft.unitQuantity) {
+      toast.warn("Informe o ID e a quantidade de unidades.");
       return;
     }
     setSaving(true);
     try {
       const payload = {
+        bigBoxId: draft.bigBoxId || null,
         lotNumber,
         barcodeId,
         unitQuantity: Number(draft.unitQuantity),
@@ -153,7 +182,8 @@ const AmmoVolumesSection = ({ product, finance }) => {
   const handleEdit = (volume) => {
     setDraft({
       id: volume.id,
-      lotNumber: volume.lotNumber,
+      bigBoxId: volume.bigBoxId || "",
+      lotNumber: volume.lotNumber || "",
       barcodeId: volume.barcodeId,
       unitQuantity: String(volume.unitQuantity ?? ""),
       status: volume.status || "in_stock",
@@ -174,13 +204,18 @@ const AmmoVolumesSection = ({ product, finance }) => {
       .split("\n")
       .map((s) => s.trim())
       .filter(Boolean);
-    if (!lotNumber || !bulkQuantity || lines.length === 0) {
-      toast.warn("Informe o lote, a quantidade padrão por caixinha, e cole pelo menos um ID.");
+    if (!bulkBigBoxId && !lotNumber) {
+      toast.warn("Informe a caixa grande ou o lote da remessa.");
+      return;
+    }
+    if (!bulkQuantity || lines.length === 0) {
+      toast.warn("Informe a quantidade padrão por caixinha, e cole pelo menos um ID.");
       return;
     }
     setBulkSaving(true);
     try {
       const result = await finance.products.ammoVolumes.saveBulk(productId, {
+        bigBoxId: bulkBigBoxId || null,
         lotNumber,
         defaultUnitQuantity: Number(bulkQuantity),
         lines,
@@ -216,6 +251,9 @@ const AmmoVolumesSection = ({ product, finance }) => {
     .filter((v) => v.status === "in_stock")
     .reduce((sum, v) => sum + (Number(v.unitQuantity) || 0), 0);
 
+  const selectedBigBox = bigBoxes.find((b) => b.id === draft.bigBoxId);
+  const draftLotDisplay = selectedBigBox ? bigBoxLabel(selectedBigBox) : draft.lotNumber;
+
   return (
     <Box className={classes.wrapper}>
       <Typography variant="subtitle2" className={classes.title}>
@@ -229,11 +267,29 @@ const AmmoVolumesSection = ({ product, finance }) => {
 
       <div className={classes.formRow}>
         <TextField
+          select
+          label="Caixa grande"
+          size="small"
+          variant="outlined"
+          value={draft.bigBoxId}
+          onChange={(e) => setDraft((d) => ({ ...d, bigBoxId: e.target.value }))}
+          style={{ minWidth: 160 }}
+        >
+          <MenuItem value="">Nenhuma (lote avulso)</MenuItem>
+          {bigBoxes.map((bigBox) => (
+            <MenuItem key={bigBox.id} value={bigBox.id}>
+              {bigBoxLabel(bigBox)}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
           label="Lote *"
           size="small"
           variant="outlined"
-          value={draft.lotNumber}
+          value={draftLotDisplay}
           onChange={(e) => setDraft((d) => ({ ...d, lotNumber: e.target.value }))}
+          disabled={!!draft.bigBoxId}
+          helperText={draft.bigBoxId ? "Herdado da caixa grande" : undefined}
           style={{ minWidth: 140 }}
         />
         <TextField
@@ -300,11 +356,29 @@ const AmmoVolumesSection = ({ product, finance }) => {
         </Typography>
         <div className={classes.formRow} style={{ marginTop: 4 }}>
           <TextField
+            select
+            label="Caixa grande"
+            size="small"
+            variant="outlined"
+            value={bulkBigBoxId}
+            onChange={(e) => setBulkBigBoxId(e.target.value)}
+            style={{ minWidth: 160 }}
+          >
+            <MenuItem value="">Nenhuma (lote avulso)</MenuItem>
+            {bigBoxes.map((bigBox) => (
+              <MenuItem key={bigBox.id} value={bigBox.id}>
+                {bigBoxLabel(bigBox)}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
             label="Lote da remessa *"
             size="small"
             variant="outlined"
-            value={bulkLot}
+            value={bulkBigBoxId ? bigBoxLabel(bigBoxes.find((b) => b.id === bulkBigBoxId) || {}) : bulkLot}
             onChange={(e) => setBulkLot(e.target.value)}
+            disabled={!!bulkBigBoxId}
+            helperText={bulkBigBoxId ? "Herdado da caixa grande" : undefined}
             style={{ minWidth: 140 }}
           />
           <TextField
@@ -368,18 +442,20 @@ const AmmoVolumesSection = ({ product, finance }) => {
                   <IconButton size="small" onClick={() => handleEdit(volume)} title="Editar">
                     <EditIcon fontSize="small" />
                   </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleRemove(volume)}
-                    disabled={volume.status === "reserved" || volume.status === "sold"}
-                    title={
-                      volume.status === "reserved" || volume.status === "sold"
-                        ? "Presa numa venda — cancele a venda pra liberar"
-                        : "Excluir"
-                    }
-                  >
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
+                  {canDelete && (
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemove(volume)}
+                      disabled={volume.status === "reserved" || volume.status === "sold"}
+                      title={
+                        volume.status === "reserved" || volume.status === "sold"
+                          ? "Presa numa venda — cancele a venda pra liberar"
+                          : "Excluir"
+                      }
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

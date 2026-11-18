@@ -219,6 +219,33 @@ const useFinance = () => {
       },
       // Caixinhas pequenas de munição (lote + ID/código de barras) —
       // sub-cadastro do Produto/SKU (a "caixa cheia"), v2.3.223.
+      // "Caixa grande" de munição (lote LE/LF + total de unidades) —
+      // v2.3.300, nível ACIMA da caixinha pequena (ammoVolumes, logo
+      // abaixo). Cada caixinha se vincula a uma caixa grande.
+      ammoBigBoxes: {
+        list: async (productId) => {
+          const { data } = await api.get(`/finance/products/${productId}/ammo-big-boxes`);
+          return data;
+        },
+        save: async (productId, data) => {
+          const { data: responseData } = await api.post(
+            `/finance/products/${productId}/ammo-big-boxes`,
+            data
+          );
+          return responseData;
+        },
+        update: async (productId, id, data) => {
+          const { data: responseData } = await api.put(
+            `/finance/products/${productId}/ammo-big-boxes/${id}`,
+            data
+          );
+          return responseData;
+        },
+        remove: async (productId, id) => {
+          const { data } = await api.delete(`/finance/products/${productId}/ammo-big-boxes/${id}`);
+          return data;
+        },
+      },
       ammoVolumes: {
         list: async (productId) => {
           const { data } = await api.get(`/finance/products/${productId}/ammo-volumes`);
@@ -233,10 +260,10 @@ const useFinance = () => {
         },
         // Cadastro em lote (uma remessa de caixa cheia vira várias
         // caixinhas de uma vez — mesmo lote, colar só os IDs).
-        saveBulk: async (productId, { lotNumber, defaultUnitQuantity, lines }) => {
+        saveBulk: async (productId, { lotNumber, defaultUnitQuantity, lines, bigBoxId }) => {
           const { data } = await api.post(
             `/finance/products/${productId}/ammo-volumes/bulk`,
-            { lotNumber, defaultUnitQuantity, lines }
+            { lotNumber, defaultUnitQuantity, lines, bigBoxId }
           );
           return data;
         },

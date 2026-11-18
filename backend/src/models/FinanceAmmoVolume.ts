@@ -13,6 +13,7 @@ import {
 } from "sequelize-typescript";
 import Company from "./Company";
 import FinanceProduct from "./FinanceProduct";
+import FinanceAmmoBigBox from "./FinanceAmmoBigBox";
 
 // Volume pequeno de munição (v2.3.223, pedido do cliente) — mesmo
 // princípio já usado pra arma por número de série (FinanceWeaponUnit,
@@ -29,6 +30,15 @@ import FinanceProduct from "./FinanceProduct";
 // por produto) é o que permite saber exatamente qual lote saiu em cada
 // venda, e evita vender a mesma caixinha física duas vezes (conferida
 // pelo ID). Ver docs/MANUAL_TECNICO.md, seção correspondente.
+//
+// `bigBoxId` (v2.3.300) — liga a caixinha à "caixa grande"
+// (FinanceAmmoBigBox) de onde ela veio, nível acrescentado ACIMA desta
+// tabela: a compra chega numa caixa fechada maior, com várias
+// caixinhas dentro, todas do mesmo lote da caixa grande. Nullable de
+// propósito — caixinha cadastrada ANTES desta versão (sem caixa
+// grande) continua existindo, com o próprio `lotNumber` preenchido;
+// caixinha NOVA, vinculada a uma caixa grande, herda o lote dela (LE/
+// LF) em vez de repetir manualmente.
 @Table
 class FinanceAmmoVolume extends Model<FinanceAmmoVolume> {
   @PrimaryKey
@@ -49,9 +59,18 @@ class FinanceAmmoVolume extends Model<FinanceAmmoVolume> {
   // cliente: "dentro da caixa cheia só tem o mesmo lote"), mas pode
   // divergir entre caixinhas de remessas/épocas diferentes do mesmo
   // produto, por isso mora aqui (por caixinha), não só no Produto.
-  @AllowNull(false)
+  // Opcional a partir da v2.3.300 — quando `bigBoxId` está preenchido,
+  // o lote de verdade é lido da caixa grande (LE/LF); este campo
+  // continua existindo só pra caixinha antiga (sem caixa grande).
   @Column
   lotNumber: string;
+
+  @ForeignKey(() => FinanceAmmoBigBox)
+  @Column
+  bigBoxId: number;
+
+  @BelongsTo(() => FinanceAmmoBigBox)
+  bigBox: FinanceAmmoBigBox;
 
   // Código de barras/ID da caixinha pequena — único por empresa,
   // diferente em cada uma das caixinhas de uma mesma caixa cheia. É o
