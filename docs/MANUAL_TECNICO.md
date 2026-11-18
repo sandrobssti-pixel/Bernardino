@@ -21049,3 +21049,36 @@ venda real por trás pra proteger.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
 `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`.
+
+## 278. SKU/código exibido no cadastro de "caixa grande" (v2.3.304)
+
+Pedido do cliente: "colocar o SKU/codigo no cadastro de caixas
+grandes" — já fazia parte do pedido original da v2.3.300 ("caixa
+grande tem... nome do produto, sku/codigo"), mas tinha ficado implícito
+(a caixa grande já vive dentro da tela de edição do Produto, então o
+SKU "existia" só pelo contexto, sem aparecer explicitamente na seção).
+
+- Novo campo "SKU/código" no formulário de cadastro da caixa grande —
+  somente leitura (`disabled`), puxado direto de `product.sku` (o
+  Produto sendo editado), com `helperText: "Do produto"` deixando
+  claro que não é editável ali (edita no cadastro do Produto, não
+  aqui).
+- Nova coluna "SKU" na tabela de caixas grandes já cadastradas, mesmo
+  valor.
+- Sem campo novo no banco — é só exibição do `sku` que o Produto já
+  tem, sem duplicar/snapshotar (diferente do lote, que É snapshotado
+  na caixinha por design — aqui não faz sentido snapshotar porque o
+  SKU do Produto não muda o significado de uma caixa grande já
+  cadastrada).
+
+### Verificação
+
+- `eslint` limpo; build de produção (`craco build`) concluído sem
+  erros novos.
+- Testado visualmente via Playwright: campo "SKU/código" aparece
+  pré-preenchido e travado com o SKU do produto de teste
+  (`"MUN-SKU-TESTE-9876"`), e a mesma informação aparece na coluna
+  nova da tabela.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.

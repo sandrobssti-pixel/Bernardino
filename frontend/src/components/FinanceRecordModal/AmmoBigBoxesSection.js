@@ -183,6 +183,15 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
 
       <div className={classes.formRow}>
         <TextField
+          label="SKU/código"
+          size="small"
+          variant="outlined"
+          value={product.sku || ""}
+          disabled
+          helperText="Do produto"
+          style={{ minWidth: 140 }}
+        />
+        <TextField
           label="Lote LE *"
           size="small"
           variant="outlined"
@@ -246,6 +255,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
         <Table size="small">
           <TableHead>
             <TableRow>
+              <TableCell>SKU</TableCell>
               <TableCell>Lote LE</TableCell>
               <TableCell>Lote LF</TableCell>
               <TableCell align="right">Total de unidades</TableCell>
@@ -257,6 +267,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
           <TableBody>
             {bigBoxes.map((bigBox) => (
               <TableRow key={bigBox.id}>
+                <TableCell>{product.sku || "—"}</TableCell>
                 <TableCell>{bigBox.lotLE}</TableCell>
                 <TableCell>{bigBox.lotLF}</TableCell>
                 <TableCell align="right">{bigBox.totalUnits}</TableCell>

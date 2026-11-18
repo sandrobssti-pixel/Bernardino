@@ -3,6 +3,14 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.304] — SKU/código exibido no cadastro de "caixa grande" — 2026-11-18
+
+### Adicionado
+- Campo "SKU/código" (somente leitura) no formulário e na tabela de
+  Caixas grandes de munição, puxado direto do Produto sendo editado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 278.
+
 ## [2.3.303] — Corrigido: caixinha "Vendida" sem venda real ficava travada pra sempre — 2026-11-18
 
 ### Corrigido
