@@ -260,6 +260,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
               <TableCell>Lote LF</TableCell>
               <TableCell align="right">Total de unidades</TableCell>
               <TableCell align="right">Caixinhas cadastradas</TableCell>
+              <TableCell align="right">Caixinhas vendidas</TableCell>
               <TableCell>Observações</TableCell>
               <TableCell align="right">Ações</TableCell>
             </TableRow>
@@ -272,6 +273,9 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
                 <TableCell>{bigBox.lotLF}</TableCell>
                 <TableCell align="right">{bigBox.totalUnits}</TableCell>
                 <TableCell align="right">{bigBox.volumes?.length ?? 0}</TableCell>
+                <TableCell align="right">
+                  {bigBox.volumes?.filter((v) => v.status === "sold").length ?? 0}
+                </TableCell>
                 <TableCell>{bigBox.notes || "—"}</TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(bigBox)} title="Editar">

@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.307] — Coluna "Caixinhas vendidas" na caixa grande de munição — 2026-11-18
+
+### Adicionado
+- Coluna "Caixinhas vendidas" na tabela de caixas grandes de munição,
+  contando quantas caixinhas vinculadas estão com status Vendida.
+
+### Confirmado (já existia, sem duplicar)
+- Baixa automática de estoque do Produto a cada caixinha
+  cadastrada/vendida, e a coluna "Caixinhas cadastradas".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 281.
+
 ## [2.3.306] — Remove endereço do cabeçalho de impressão do Painel Financeiro — 2026-11-18
 
 ### Alterado

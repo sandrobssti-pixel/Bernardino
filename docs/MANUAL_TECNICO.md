@@ -21188,3 +21188,39 @@ v2.3.121 (seção 102).
 - `eslint` limpo no arquivo editado.
 
 **Arquivos**: `frontend/src/components/FinancePainel/index.js`.
+
+## 281. Coluna "Caixinhas vendidas" na tabela de caixa grande (v2.3.307)
+
+Pedido do cliente: "quando lançar as caixinhas tem que colocar
+automaticamente em total de unidades, em caixinhas cadatradas o total
+de caixinhas já preencher automaticamente, criar um campo caixinhas
+vendidas dando baixa automaticamente, quando for vendendo dar baixa
+automaticamente em total de unidades tambem para ter o controle de
+estoque". Esclarecido com o cliente antes de implementar (o "Total de
+unidades" da própria caixa grande continua manual — a solicitação é a
+nível de caixinha/cartela):
+
+- **"Dar baixa automaticamente em total de unidades" já estava
+  implementado** (confirmado por inspeção de código, sem duplicar) —
+  `FinanceAmmoVolumeService.recalculateStockQuantity` já recalcula o
+  `stockQuantity` do Produto como soma das unidades das caixinhas "Em
+  estoque" toda vez que uma caixinha é criada/editada/removida, e esse
+  total cai sozinho quando uma caixinha muda pra "Vendida" (sai do
+  filtro `status: "in_stock"`). Painel financeiro/estoque já reflete
+  isso automaticamente — nada novo precisou ser criado aqui.
+- **"Caixinhas cadastradas" já existia** na tabela de caixa grande
+  (`AmmoBigBoxesSection.js`, coluna já implantada na v2.3.300/302),
+  contando `bigBox.volumes.length` — o array de caixinhas já vem
+  junto na resposta de `FinanceAmmoBigBoxService.list` (`include:
+  FinanceAmmoVolume`), sem precisar de endpoint novo.
+- **Novo**: coluna "Caixinhas vendidas" na mesma tabela, contando
+  `bigBox.volumes.filter(v => v.status === "sold").length` — só
+  cálculo no frontend com o dado que já chega, sem mudança nenhuma no
+  backend.
+
+### Verificação
+
+- `eslint` limpo no arquivo editado.
+- Build de produção (`craco build`) concluído sem erros novos.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
