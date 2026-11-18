@@ -53,6 +53,13 @@ const EMPTY_DRAFT = {
   notes: "",
 };
 
+// Lote LE aceita letras e números; lote LF é só números — pedido
+// explícito do cliente. Filtra em tempo real enquanto o usuário digita
+// (mesma validação é reforçada no backend, ver bigBoxSchema em
+// FinanceAmmoBigBoxService.ts).
+const sanitizeLotLE = (value) => value.replace(/[^A-Za-z0-9]/g, "");
+const sanitizeLotLF = (value) => value.replace(/[^0-9]/g, "");
+
 // Sub-cadastro "caixa grande" de munição — v2.3.300, pedido do
 // cliente: "compramos uma caixa fechada, dentro da caixa grande vem
 // outras caixas menores... pra cadastrar tudo temos que cadastrar a
@@ -180,7 +187,8 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
           size="small"
           variant="outlined"
           value={draft.lotLE}
-          onChange={(e) => setDraft((d) => ({ ...d, lotLE: e.target.value }))}
+          onChange={(e) => setDraft((d) => ({ ...d, lotLE: sanitizeLotLE(e.target.value) }))}
+          helperText="Letras e números"
           style={{ minWidth: 120 }}
         />
         <TextField
@@ -188,7 +196,8 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
           size="small"
           variant="outlined"
           value={draft.lotLF}
-          onChange={(e) => setDraft((d) => ({ ...d, lotLF: e.target.value }))}
+          onChange={(e) => setDraft((d) => ({ ...d, lotLF: sanitizeLotLF(e.target.value) }))}
+          helperText="Só números"
           style={{ minWidth: 120 }}
         />
         <TextField

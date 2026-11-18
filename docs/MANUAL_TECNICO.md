@@ -20893,3 +20893,29 @@ confiar só em esconder o botão.
 `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
 `frontend/src/components/FinanceRecordModal/index.js`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 275. Validação dos campos de lote LE/LF da "caixa grande" (v2.3.301)
+
+Pedido do cliente, logo depois da v2.3.300: "o lote LE pega letras e
+números, lote LF só números" — formato real usado pelo fabricante da
+munição.
+
+- Backend (`FinanceAmmoBigBoxService.ts`, `bigBoxSchema`): `lotLE`
+  validado com `/^[A-Za-z0-9]+$/` (letras e números, sem espaço nem
+  caractere especial); `lotLF` com `/^[0-9]+$/` (só números).
+- Frontend (`AmmoBigBoxesSection.js`): filtro em tempo real enquanto
+  digita (`sanitizeLotLE`/`sanitizeLotLF`) — caractere inválido nunca
+  chega a aparecer no campo, em vez de só rejeitar no Salvar.
+
+### Verificação
+
+- `tsc --noEmit`/`eslint` limpos.
+- Testado via API real: LE alfanumérico (`"LE12A"`) + LF numérico
+  (`"4567"`) aceito; LF com letra rejeitado
+  (`ERR_FINANCE_AMMO_BIG_BOX_LOT_LF_INVALID`); LE com espaço/traço
+  rejeitado (`ERR_FINANCE_AMMO_BIG_BOX_LOT_LE_INVALID`); LE só com
+  números aceito (números são válidos dentro de "letras e números").
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts`,
+`frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.

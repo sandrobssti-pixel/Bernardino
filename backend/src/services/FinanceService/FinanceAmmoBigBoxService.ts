@@ -19,9 +19,16 @@ interface BigBoxData {
   notes?: string;
 }
 
+// Lote LE aceita letras e números (ex.: "LE123A"); lote LF é só
+// números (ex.: "4567") — pedido explícito do cliente, formato real
+// usado pelo fabricante da munição.
 const bigBoxSchema = Yup.object().shape({
-  lotLE: Yup.string().required("ERR_FINANCE_AMMO_BIG_BOX_LOT_LE_REQUIRED").min(1),
-  lotLF: Yup.string().required("ERR_FINANCE_AMMO_BIG_BOX_LOT_LF_REQUIRED").min(1),
+  lotLE: Yup.string()
+    .required("ERR_FINANCE_AMMO_BIG_BOX_LOT_LE_REQUIRED")
+    .matches(/^[A-Za-z0-9]+$/, "ERR_FINANCE_AMMO_BIG_BOX_LOT_LE_INVALID"),
+  lotLF: Yup.string()
+    .required("ERR_FINANCE_AMMO_BIG_BOX_LOT_LF_REQUIRED")
+    .matches(/^[0-9]+$/, "ERR_FINANCE_AMMO_BIG_BOX_LOT_LF_INVALID"),
   totalUnits: Yup.number()
     .typeError("ERR_FINANCE_AMMO_BIG_BOX_TOTAL_UNITS_INVALID")
     .required("ERR_FINANCE_AMMO_BIG_BOX_TOTAL_UNITS_INVALID")

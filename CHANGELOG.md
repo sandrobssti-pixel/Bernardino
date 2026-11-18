@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.301] — Validação dos campos de lote LE/LF da "caixa grande" — 2026-11-18
+
+### Adicionado
+- Campo "Lote LE" da caixa grande de munição aceita letras e números;
+  "Lote LF" aceita só números — validado no formulário (em tempo real)
+  e no backend.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 275.
+
 ## [2.3.300] — "Caixa grande" de munição — nível acima da caixinha pequena — 2026-11-18
 
 ### Adicionado
