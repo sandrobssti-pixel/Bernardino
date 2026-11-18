@@ -123,6 +123,51 @@ compartilhada**:
   memcached, app genérico — não só o caso específico do Redis que já
   aconteceu.
 
+## 4.1 Bug conhecido: botão "Deploy" falha com erro do Buildx (`fs.read`)
+
+Se um recurso do tipo **"Service"** (docker-compose colado direto no
+Coolify, diferente de "Application" que clona Git sozinho) der esse
+erro ao clicar em "Deploy":
+
+```
+additional privileges requested: pass "--allow=fs.read=..." to grant
+requested privileges
+```
+
+**Causa real (confirmada, não é flaky)**: recursos "Service" no
+Coolify não clonam o repositório Git — eles só salvam o
+`docker-compose.yml`/`.env` em `/data/coolify/services/<id>/`. Se o
+compose usa `build: context: ./backend` (ou qualquer pasta que devia
+vir do código-fonte) e essa pasta nunca foi colocada ali manualmente,
+o Docker Buildx (a partir da correção de segurança GHSA-gwr2-q96m-6682,
+Buildx v0.37.2+) recusa resolver o contexto de build por segurança, em
+vez de simplesmente dar "pasta não encontrada". Isso é o bug
+coollabsio/coolify#9525 (corrigido parcialmente pro tipo "Application"
+na v4.7.0, mas não pro tipo "Service").
+
+**Diagnóstico rápido**: confirmar se as pastas de código realmente
+existem onde o compose espera:
+```bash
+sudo ls /data/coolify/services/<id>/
+```
+Se só tiver `.env` e `docker-compose.yml` (sem `backend/`/`frontend/`
+etc.), é isso — o build nunca teve como funcionar por ali.
+
+**Não é esse o jeito certo de resolver** (tentado, não ajudou sozinho):
+setar `BUILDX_BAKE_ENTITLEMENTS_FS=0` em `/etc/environment` ou no
+`.env` do próprio Coolify (`/data/coolify/source/.env` +
+`docker compose restart` nesse diretório) — pode nem chegar a ser lido
+pelo processo que builda, e reiniciar o Coolify em si é arriscado sem
+necessidade.
+
+**Correção real**: achar onde o app está *de fato* rodando — geralmente
+não é esse recurso "Service", é um `docker compose` rodado direto por
+SSH em alguma pasta clonada do Git (ver `atendeflow-deploy`, seção 2.1,
+pro passo a passo de achar o diretório/arquivo certo via
+`docker inspect ... com.docker.compose.project.working_dir`). Atualizar
+ali, por fora do botão do Coolify, até esse recurso "Service" ser
+reconfigurado certo (ou abandonado).
+
 ## 5. Checklist final
 
 - [ ] Painel Coolify acessível, admin configurado.

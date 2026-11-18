@@ -62,6 +62,62 @@ reiniciando ou o backend não conseguir autenticar nele, ver a lição de
 colisão de nome de serviço na skill `coolify-deploy` (etapa 4) — é
 exatamente esse o incidente real que já aconteceu aqui.
 
+## 2.1 Atualizar um AtendeFlow já em produção (redeploy de código novo)
+
+Incidente real (Confiança Technologies, v2.3.305,
+`docs/MANUAL_TECNICO.md` seção 279): um pedido simples de "deploy" virou
+horas de investigação porque o servidor tinha **três caminhos
+paralelos**, só um deles sendo o real:
+
+1. **PM2 puro** (`~/Bernardino`, `pm2 restart atendeflow-backend`) — se
+   existir nesse servidor, é um ambiente **morto/paralelo**, sem
+   relação nenhuma com o que o domínio público serve. Atualizar ali não
+   muda nada em produção. Não perder tempo nele — confirmar antes com
+   `docker inspect <container-real> --format '{{index
+   .Config.Labels "com.docker.compose.project.working_dir"}}'` (ver
+   item 3 abaixo) qual é o caminho de verdade.
+2. **Botão "Deploy" no recurso "Service" do Coolify** — nesse cliente,
+   esse recurso específico (tipo "Service", não "Application") nunca
+   teve o código-fonte (`backend/`, `frontend/`) de verdade na pasta
+   que o Coolify usa (`/data/coolify/services/<id>/`), porque esse
+   tipo de recurso não clona o Git sozinho. Clicar em "Deploy" sempre
+   falhava com `additional privileges requested: pass
+   "--allow=fs.read=..."` (bug conhecido do Buildx Bake + Coolify,
+   issue coollabsio/coolify#9525 — cobrir na skill `coolify-deploy` se
+   acontecer de novo em outro cliente). Esse recurso está desconectado
+   dos containers reais — **não é esse o jeito certo de atualizar
+   aqui**.
+3. **O caminho real**: o(s) container(s) que o Cloudflare Tunnel
+   realmente usa (confirmar via `docker inspect
+   atendeflow-cloudflared` e a rede Docker que ele compartilha com
+   `backend`/`frontend`, e os nomes de "Service" nas rotas do túnel no
+   painel Cloudflare — `http://backend:8080`/`http://frontend:3000`).
+   Achar o diretório certo com:
+   ```bash
+   docker inspect atendeflow-backend-1 --format \
+     '{{index .Config.Labels "com.docker.compose.project.working_dir"}}'
+   docker inspect atendeflow-backend-1 --format \
+     '{{index .Config.Labels "com.docker.compose.project.config_files"}}'
+   ```
+   Isso dá o diretório (aqui: `~/atendeflow`) e o arquivo de compose
+   exato em uso (aqui: `docker-compose.coolify.yml` — **não** o
+   `docker-compose.yml` da raiz, que é só Postgres+Redis de dev local).
+   Atualizar assim, direto por SSH, sem depender do painel do Coolify:
+   ```bash
+   cd ~/atendeflow
+   git pull origin <branch-de-produção>
+   docker compose -f docker-compose.coolify.yml build backend frontend
+   docker compose -f docker-compose.coolify.yml up -d backend frontend
+   ```
+   Isso recria só `backend`/`frontend` (mesmo nome de projeto Compose
+   já em uso, então não dá conflito de porta) — não toca em
+   `redis`/`cloudflared`, então o túnel não é interrompido.
+
+**Checkpoint**: `curl -s https://<dominio-backend>/version` mostra a
+versão nova, de fora (não só `localhost` no servidor — o
+`cf-cache-status: DYNAMIC` no header confirma que não é cache do
+Cloudflare).
+
 ## 3. Migrations do banco
 
 A primeira subida do `backend` já roda `npx sequelize-cli db:migrate`
