@@ -21390,3 +21390,34 @@ grande agora.
 - Dados de teste removidos do banco depois da verificação.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceAmmoBigBoxService.ts`.
+
+## 286. Remove endereço do rodapé do "Relatório de Notas Fiscais - Resumido" (v2.3.312)
+
+Pedido do cliente, depois de já ter removido o endereço do Painel
+Financeiro (seção 280): "na nota fiscal ainda esta com os dados do
+endereço, tem que deixar só o nome de empresa e a logomarca". Lugar
+diferente do já corrigido — o Painel Financeiro (`FinancePainel.js`)
+já estava sem endereço; quem ainda mostrava era o rodapé do
+**"Relatório de Notas Fiscais - Resumido"**, em `SaleList.js`
+(impressão/PDF do relatório de vendas, v2.3.247/251).
+
+- Removido o rodapé que mostrava endereço/telefone/e-mail do emitente
+  (`emitterFooter`, montado com `buildEmitterAddressLine` de
+  `fiscal.config.show()`).
+- Mantido o cabeçalho (logomarca fixa da Federação Baiana + nome fixo
+  "FEDERAÇÃO BAIANA DE TIRO DEFENSIVO & OLIMPICO LTDA" + título do
+  relatório + período) — já não tinha endereço nenhum, não precisou
+  mudar.
+- Removido código morto junto: o `useEffect` que buscava
+  `fiscal.config.show()` só pra isso, e o import de
+  `buildEmitterAddressLine` (função ainda usada em outros relatórios
+  não relacionados a nota fiscal — `FinanceRecordList`,
+  `FinanceRecordModal`, `WeaponArmoryServiceModal` — esses não foram
+  tocados, o cliente não pediu).
+
+### Verificação
+
+- `eslint` limpo; build de produção (`craco build`) concluído sem
+  erros novos.
+
+**Arquivos**: `frontend/src/components/SaleList/index.js`.

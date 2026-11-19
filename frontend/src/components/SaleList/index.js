@@ -42,7 +42,7 @@ import ConfirmationModal from "../ConfirmationModal";
 import SaleModal from "../SaleModal";
 import SaleDetailModal from "../SaleDetailModal";
 import toastError from "../../errors/toastError";
-import { money, formatDateBR, buildEmitterAddressLine } from "../../utils/financeFormat";
+import { money, formatDateBR } from "../../utils/financeFormat";
 import { SALE_ISSUANCE_PURPOSE_OPTIONS } from "../../pages/Financeiro/financeConfig";
 import federacaoBaianaLogo from "../../assets/federacao-baiana-logo.webp";
 
@@ -227,22 +227,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
   // impressão é disparada, não ficam guardados à toa.
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportSnapshot, setReportSnapshot] = useState(null);
-  const [emitterFooter, setEmitterFooter] = useState(null);
-  useEffect(() => {
-    (async () => {
-      try {
-        const config = await fiscal.config.show();
-        setEmitterFooter({
-          address: buildEmitterAddressLine(config),
-          phone: config.emitterPhone,
-          email: config.emitterEmail,
-        });
-      } catch (err) {
-        setEmitterFooter(null);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const fetchSales = useCallback(async () => {
     setLoading(true);
@@ -1094,14 +1078,6 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
           <div style={{ fontSize: "0.7rem", marginTop: 8 }}>
             Emissão: {moment(reportSnapshot.generatedAt).format("DD/MM/YYYY")}
           </div>
-
-          {emitterFooter && (
-            <div style={{ fontSize: "0.7rem", color: "#666", marginTop: 16 }}>
-              {emitterFooter.address && <div>{emitterFooter.address}</div>}
-              {emitterFooter.phone && <div>Fone: {emitterFooter.phone}</div>}
-              {emitterFooter.email && <div>{emitterFooter.email}</div>}
-            </div>
-          )}
         </div>
       )}
     </div>

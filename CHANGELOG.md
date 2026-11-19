@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.312] — Remove endereço do rodapé do Relatório de Notas Fiscais — 2026-11-19
+
+### Alterado
+- Rodapé da impressão/PDF do "Relatório de Notas Fiscais - Resumido"
+  não mostra mais endereço/telefone/e-mail do emitente — só a
+  logomarca e o nome já ficavam no cabeçalho.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 286.
+
 ## [2.3.311] — Corrige "Vincular caixinhas" não achando lote com espaço — 2026-11-18
 
 ### Corrigido
