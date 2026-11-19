@@ -112,7 +112,7 @@ export const getCashFlow = async (companyId: number, months = 6) => {
   const start = moment().subtract(months - 1, "months").startOf("month");
   const end = moment().endOf("month");
 
-  const [expenseRows, receivableRows] = await Promise.all([
+  const [expenseRows, receivableRows, pendingReceivableRows] = await Promise.all([
     FinanceExpense.findAll({
       attributes: [
         [fn("to_char", col("paymentDate"), "YYYY-MM"), "month"],
@@ -138,6 +138,26 @@ export const getCashFlow = async (companyId: number, months = 6) => {
       } as any,
       group: [literal('1') as any],
       raw: true
+    }),
+    // Pendente (inclui em atraso — "vencido" é só pending com vencimento no
+    // passado) agrupado pelo mês de VENCIMENTO, nunca o de recebimento (que
+    // nem existe ainda pra quem está pending) — pedido do cliente
+    // (v2.3.313): "contas a receber tem registros de venda pendente mas no
+    // painel financeiro... não esta tendo uma relação entre os dois
+    // modulos". Fica como série separada (não soma em `income`) de
+    // propósito — este gráfico é fluxo de caixa REAL, não previsão.
+    FinanceReceivable.findAll({
+      attributes: [
+        [fn("to_char", col("dueDate"), "YYYY-MM"), "month"],
+        [sumValue(), "total"]
+      ],
+      where: {
+        companyId,
+        status: "pending",
+        dueDate: { [Op.between]: [start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")] }
+      } as any,
+      group: [literal('1') as any],
+      raw: true
     })
   ]);
 
@@ -151,6 +171,11 @@ export const getCashFlow = async (companyId: number, months = 6) => {
     incomeByMonth[row.month] = toNumber(row.total);
   });
 
+  const pendingByMonth: Record<string, number> = {};
+  (pendingReceivableRows as any[]).forEach((row) => {
+    pendingByMonth[row.month] = toNumber(row.total);
+  });
+
   const series = [];
   for (let i = 0; i < months; i += 1) {
     const monthMoment = moment(start).add(i, "months");
@@ -162,6 +187,7 @@ export const getCashFlow = async (companyId: number, months = 6) => {
       monthLabel: monthMoment.format("MMM/YY"),
       income,
       expense,
+      pending: pendingByMonth[key] || 0,
       // Lucro líquido do mês — pedido do cliente (v2.3.286): "separa por
       // mes receita - despesas = a lucro liquido, fica mais simples".
       profit: income - expense

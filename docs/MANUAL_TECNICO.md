@@ -21421,3 +21421,47 @@ já estava sem endereço; quem ainda mostrava era o rodapé do
   erros novos.
 
 **Arquivos**: `frontend/src/components/SaleList/index.js`.
+
+## 287. 3ª barra "Pendente" no gráfico de Fluxo de caixa (v2.3.313)
+
+Pedido do cliente, comparando dois prints lado a lado (Contas a
+Receber com 4 vendas pendentes somando R$ 14.970,00, e o Painel
+Financeiro): "contas a receber tem registros de venda pendente mas no
+painel financeiro teria que mostrar essas pendencia e não esta
+mostrando... não esta tendo uma relação entre os dois módulos".
+
+Investigado antes de implementar: o card "A Receber (Pendente)" no
+Painel Financeiro **já mostrava** o valor certo (R$ 14.970,00, batendo
+exato com Contas a Receber) — o que faltava era só no **gráfico** de
+"Fluxo de caixa (últimos 6 meses)", que por desenho deliberado
+(v2.3.xxx original) só mostra o que já foi pago/recebido de verdade
+(`status: "received"`/`"paid"`, nunca o pendente) — pra representar o
+caixa real, não uma previsão.
+
+Esclarecido com o cliente antes de mexer: o pendente (inclui em
+atraso — "vencido" é só pending com vencimento no passado, mesma
+definição já usada no resto do sistema) entra como uma **3ª barra
+separada** no mesmo gráfico, agrupada pelo mês de **vencimento** (não
+tem data de recebimento ainda) — nunca somado dentro de "Receita"
+nem usado no cálculo de "Lucro líquido" (que continua só caixa real).
+
+- `FinanceReportService.getCashFlow`: nova query (`FinanceReceivable`,
+  `status: "pending"`, agrupada por `to_char(dueDate, 'YYYY-MM')`),
+  resultado em `series[].pending`.
+- `FinancePainel.js`: nova `<Bar dataKey="pending" name="Pendente"
+  fill={COLOR_PENDING} />` (âmbar `#f59e0b`, próxima cor livre da
+  paleta categórica já validada do projeto — índigo/verde/vermelho já
+  em uso nesse gráfico).
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API com dado real: criado um recebível pendente de
+  R$ 1.234,56 com vencimento no mês atual — `pending` do mês
+  apareceu somado corretamente, `income`/`profit` não mudaram (prova
+  que pendente não contaminou o cálculo de caixa real).
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dado de teste removido do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
+`frontend/src/components/FinancePainel/index.js`.

@@ -46,6 +46,7 @@ const COLOR_INCOME = "#6366f1";
 const COLOR_EXPENSE = "#ef4444";
 const COLOR_CATEGORY = "#6366f1";
 const COLOR_PROFIT = "#10b981";
+const COLOR_PENDING = "#f59e0b";
 const COLOR_COST = "#f59e0b";
 const COLOR_TAX = "#ef4444";
 
@@ -340,6 +341,12 @@ const FinancePainel = ({ finance, company }) => {
             <Bar dataKey="income" name="Receita" fill={COLOR_INCOME} radius={[4, 4, 0, 0]} />
             <Bar dataKey="expense" name="Despesa" fill={COLOR_EXPENSE} radius={[4, 4, 0, 0]} />
             <Bar dataKey="profit" name="Lucro líquido" fill={COLOR_PROFIT} radius={[4, 4, 0, 0]} />
+            {/* Pendente (inclui em atraso — "vencido" é só pending com
+                vencimento no passado) agrupado pelo mês de VENCIMENTO, não
+                de recebimento (ainda não recebeu) — pedido do cliente
+                (v2.3.313): comparar visualmente sem misturar com o que já
+                entrou de verdade no caixa (Receita acima é só "received"). */}
+            <Bar dataKey="pending" name="Pendente" fill={COLOR_PENDING} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </Paper>

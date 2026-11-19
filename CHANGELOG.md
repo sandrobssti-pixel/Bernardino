@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.313] — 3ª barra "Pendente" no gráfico de Fluxo de caixa — 2026-11-19
+
+### Adicionado
+- Gráfico "Fluxo de caixa" do Painel Financeiro ganha uma 3ª barra
+  "Pendente" (inclui em atraso), agrupada pelo mês de vencimento —
+  sem entrar no cálculo de receita/lucro líquido (que continuam só
+  caixa real).
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 287.
+
 ## [2.3.312] — Remove endereço do rodapé do Relatório de Notas Fiscais — 2026-11-19
 
 ### Alterado
