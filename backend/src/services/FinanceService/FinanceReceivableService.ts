@@ -1,4 +1,5 @@
 import { Op, Sequelize } from "sequelize";
+import moment from "moment";
 import * as Yup from "yup";
 import AppError from "../../errors/AppError";
 import FinanceReceivable from "../../models/FinanceReceivable";
@@ -126,7 +127,18 @@ export const list = async ({
     ];
   }
 
-  if (status) {
+  // "Vencido" não é um status gravado de verdade — é derivado (pending +
+  // vencimento no passado, mesma definição usada no chip da tabela,
+  // `isOverdue` em financeConfig.js). Pedido do cliente (v2.3.314):
+  // "coloque vencido na lista em contas a receber" — filtro novo no
+  // dropdown de Status, ao lado de Pendente/Recebido/Cancelado.
+  if (status === "overdue") {
+    whereCondition.status = "pending";
+    whereCondition.dueDate = {
+      ...(whereCondition.dueDate || {}),
+      [Op.lt]: moment().format("YYYY-MM-DD")
+    };
+  } else if (status) {
     whereCondition.status = status;
   }
 

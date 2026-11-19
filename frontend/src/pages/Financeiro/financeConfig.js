@@ -654,6 +654,11 @@ const EXPENSE_STATUS_OPTIONS = [
 
 const RECEIVABLE_STATUS_OPTIONS = [
   { value: "pending", label: "Pendente" },
+  // "Vencido" não é um status gravado de verdade — é derivado (pending +
+  // vencimento no passado, mesma definição do chip da tabela, `isOverdue`
+  // abaixo). O backend (FinanceReceivableService.list) trata esse valor
+  // especial como pending + dueDate < hoje. Pedido do cliente (v2.3.314).
+  { value: "overdue", label: "Vencido" },
   { value: "received", label: "Recebido" },
   // v2.3.189 — conta a receber de uma venda cancelada (ver SaleService.cancel)
   // passa pra esse status, em vez de continuar "Pendente"/"Recebido" como se

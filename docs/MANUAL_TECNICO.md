@@ -21465,3 +21465,29 @@ nem usado no cálculo de "Lucro líquido" (que continua só caixa real).
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
 `frontend/src/components/FinancePainel/index.js`.
+
+## 288. Filtro "Vencido" em Contas a Receber (v2.3.314)
+
+Pedido do cliente: "coloque vencido na lista em contas a receber" —
+o dropdown de Status só tinha Todos/Pendente/Recebido/Cancelado; a
+tabela já mostrava o chip "Vencido" por linha (`isOverdue` em
+`financeConfig.js`), mas não dava pra FILTRAR só pelos vencidos.
+
+"Vencido" não é um status gravado — é derivado (pending + vencimento
+no passado, mesma definição do chip). Novo valor especial `"overdue"`
+no filtro: `FinanceReceivableService.list` trata esse valor como
+`status: "pending" AND dueDate < hoje`, em vez de comparar igual ao
+campo `status` como os outros valores.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API: criados 2 recebíveis reais — um vencido há 5 dias,
+  um pendente com vencimento em 5 dias. Filtro `status=overdue`
+  trouxe só o vencido; filtro `status=pending` continuou trazendo os
+  dois (vencido é pending por baixo, comportamento já esperado).
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReceivableService.ts`,
+`frontend/src/pages/Financeiro/financeConfig.js`.

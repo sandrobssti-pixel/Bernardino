@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.314] — Filtro "Vencido" em Contas a Receber — 2026-11-19
+
+### Adicionado
+- Dropdown de Status em Contas a Receber ganha a opção "Vencido"
+  (pendente + vencimento no passado), além de Pendente/Recebido/
+  Cancelado.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 288.
+
 ## [2.3.313] — 3ª barra "Pendente" no gráfico de Fluxo de caixa — 2026-11-19
 
 ### Adicionado
