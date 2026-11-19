@@ -3,6 +3,15 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.315] — "Vencido" vira série própria no gráfico de Fluxo de caixa — 2026-11-19
+
+### Alterado
+- Gráfico "Fluxo de caixa" agora tem 5 barras: a barra "Pendente"
+  passa a contar só o que ainda não venceu, e "Vencido" (nova,
+  roxa) entra separada com o que já passou do vencimento.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 289.
+
 ## [2.3.314] — Filtro "Vencido" em Contas a Receber — 2026-11-19
 
 ### Adicionado

@@ -112,7 +112,7 @@ export const getCashFlow = async (companyId: number, months = 6) => {
   const start = moment().subtract(months - 1, "months").startOf("month");
   const end = moment().endOf("month");
 
-  const [expenseRows, receivableRows, pendingReceivableRows] = await Promise.all([
+  const [expenseRows, receivableRows, pendingReceivableRows, overdueReceivableRows] = await Promise.all([
     FinanceExpense.findAll({
       attributes: [
         [fn("to_char", col("paymentDate"), "YYYY-MM"), "month"],
@@ -139,9 +139,9 @@ export const getCashFlow = async (companyId: number, months = 6) => {
       group: [literal('1') as any],
       raw: true
     }),
-    // Pendente (inclui em atraso — "vencido" é só pending com vencimento no
-    // passado) agrupado pelo mês de VENCIMENTO, nunca o de recebimento (que
-    // nem existe ainda pra quem está pending) — pedido do cliente
+    // Pendente (SÓ o que ainda não venceu — "vencido" vira série própria
+    // logo abaixo) agrupado pelo mês de VENCIMENTO, nunca o de recebimento
+    // (que nem existe ainda pra quem está pending) — pedido do cliente
     // (v2.3.313): "contas a receber tem registros de venda pendente mas no
     // painel financeiro... não esta tendo uma relação entre os dois
     // modulos". Fica como série separada (não soma em `income`) de
@@ -154,7 +154,31 @@ export const getCashFlow = async (companyId: number, months = 6) => {
       where: {
         companyId,
         status: "pending",
-        dueDate: { [Op.between]: [start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")] }
+        dueDate: {
+          [Op.between]: [start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")],
+          [Op.gte]: moment().format("YYYY-MM-DD")
+        }
+      } as any,
+      group: [literal('1') as any],
+      raw: true
+    }),
+    // Vencido — mesma definição usada no filtro "Vencido" de Contas a
+    // Receber e no card "A Receber (Vencido)" do resumo (pending +
+    // vencimento no passado). Separado de "Pendente" em série própria,
+    // com cor diferente no gráfico — pedido do cliente (v2.3.315):
+    // "coloque a receber vencido no grafico com outra cor".
+    FinanceReceivable.findAll({
+      attributes: [
+        [fn("to_char", col("dueDate"), "YYYY-MM"), "month"],
+        [sumValue(), "total"]
+      ],
+      where: {
+        companyId,
+        status: "pending",
+        dueDate: {
+          [Op.between]: [start.format("YYYY-MM-DD"), end.format("YYYY-MM-DD")],
+          [Op.lt]: moment().format("YYYY-MM-DD")
+        }
       } as any,
       group: [literal('1') as any],
       raw: true
@@ -176,6 +200,11 @@ export const getCashFlow = async (companyId: number, months = 6) => {
     pendingByMonth[row.month] = toNumber(row.total);
   });
 
+  const overdueByMonth: Record<string, number> = {};
+  (overdueReceivableRows as any[]).forEach((row) => {
+    overdueByMonth[row.month] = toNumber(row.total);
+  });
+
   const series = [];
   for (let i = 0; i < months; i += 1) {
     const monthMoment = moment(start).add(i, "months");
@@ -188,6 +217,7 @@ export const getCashFlow = async (companyId: number, months = 6) => {
       income,
       expense,
       pending: pendingByMonth[key] || 0,
+      overdue: overdueByMonth[key] || 0,
       // Lucro líquido do mês — pedido do cliente (v2.3.286): "separa por
       // mes receita - despesas = a lucro liquido, fica mais simples".
       profit: income - expense

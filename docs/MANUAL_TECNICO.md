@@ -21491,3 +21491,33 @@ campo `status` como os outros valores.
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceReceivableService.ts`,
 `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 289. "Vencido" vira série própria (outra cor) no gráfico de Fluxo de caixa (v2.3.315)
+
+Pedido do cliente, depois de ver a barra "Pendente" (seção 287):
+"coloque a receber vencido no grafico com outra cor".
+
+- `pending` (série já existente) agora conta só o que **ainda não
+  venceu** (`dueDate >= hoje`).
+- `overdue` (nova série) conta o que **já venceu** (`dueDate < hoje`)
+  — mesma definição usada no filtro "Vencido" de Contas a Receber
+  (seção 288) e no card "A Receber (Vencido)" do resumo.
+- Gráfico ganha uma 5ª barra "Vencido", cor roxa (`#8b5cf6`) — próxima
+  cor livre da paleta categórica já validada do projeto (índigo,
+  verde, âmbar e vermelho já em uso nesse gráfico pelas outras 4
+  séries; roxo evita reusar o vermelho de "Despesa" pra um
+  significado diferente no mesmo gráfico).
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API: criado um recebível vencido (R$ 300) e um pendente
+  futuro (R$ 500) no mesmo mês. `pending` trouxe só os R$ 500
+  (excluindo o vencido); `overdue` trouxe o vencido somado aos
+  vencidos pré-existentes — nenhum valor duplicado entre as duas
+  séries.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
+`frontend/src/components/FinancePainel/index.js`.
