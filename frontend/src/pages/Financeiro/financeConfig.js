@@ -652,18 +652,29 @@ const EXPENSE_STATUS_OPTIONS = [
   { value: "paid", label: "Pago" },
 ];
 
+// Status REAIS que o banco aceita (usado no formulário de cadastro/edição,
+// `financeReceivableFields` abaixo) — "Vencido" NUNCA entra aqui: não é um
+// valor que o model grava, é derivado (ver RECEIVABLE_FILTER_STATUS_OPTIONS
+// mais abaixo, só pro filtro da lista). Colocar "Vencido" aqui de novo
+// quebra o salvar (bug real, v2.3.316: "coloquei vencido... e não salvou").
 const RECEIVABLE_STATUS_OPTIONS = [
   { value: "pending", label: "Pendente" },
-  // "Vencido" não é um status gravado de verdade — é derivado (pending +
-  // vencimento no passado, mesma definição do chip da tabela, `isOverdue`
-  // abaixo). O backend (FinanceReceivableService.list) trata esse valor
-  // especial como pending + dueDate < hoje. Pedido do cliente (v2.3.314).
-  { value: "overdue", label: "Vencido" },
   { value: "received", label: "Recebido" },
   // v2.3.189 — conta a receber de uma venda cancelada (ver SaleService.cancel)
   // passa pra esse status, em vez de continuar "Pendente"/"Recebido" como se
   // a cobrança ainda valesse.
   { value: "cancelled", label: "Cancelado" },
+];
+
+// Só pro FILTRO da lista (nunca pro formulário de cadastro/edição) —
+// "Vencido" é derivado (pending + vencimento no passado, mesma definição do
+// chip da tabela, `isOverdue` abaixo); o backend
+// (FinanceReceivableService.list) trata esse valor especial como
+// pending + dueDate < hoje. Pedido do cliente (v2.3.314).
+const RECEIVABLE_FILTER_STATUS_OPTIONS = [
+  RECEIVABLE_STATUS_OPTIONS[0],
+  { value: "overdue", label: "Vencido" },
+  ...RECEIVABLE_STATUS_OPTIONS.slice(1),
 ];
 
 // Vencido = ainda pendente e a data de vencimento já passou — usado tanto na
@@ -801,7 +812,7 @@ export const RECEIVABLE_INVOICE_OPTIONS = [
 ];
 
 export const financeReceivableFilters = [
-  { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...RECEIVABLE_STATUS_OPTIONS] },
+  { name: "status", label: "Status", options: [{ value: "", label: "Todos" }, ...RECEIVABLE_FILTER_STATUS_OPTIONS] },
   { name: "hasInvoice", label: "Nota Fiscal", options: RECEIVABLE_INVOICE_OPTIONS },
 ];
 

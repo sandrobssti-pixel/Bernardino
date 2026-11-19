@@ -21521,3 +21521,56 @@ Pedido do cliente, depois de ver a barra "Pendente" (seção 287):
 
 **Arquivos**: `backend/src/services/FinanceService/FinanceReportService.ts`,
 `frontend/src/components/FinancePainel/index.js`.
+
+## 290. Bug real: "Vencido" no formulário de cadastro salvava status inválido (v2.3.316)
+
+Bug meu (introduzido na v2.3.314, seção 288): adicionei "Vencido" num
+array (`RECEIVABLE_STATUS_OPTIONS`) que é usado em DOIS lugares —
+o filtro da lista (onde "Vencido" devia entrar) E o campo "Status" do
+formulário de cadastro/edição (onde "Vencido" NUNCA deveria aparecer,
+porque não é um valor real que o model aceita). Cliente reportou:
+"adcionei dois registros e coloquei vencido com a data de ontem e não
+salvou".
+
+### Causa raiz confirmada
+
+Não existe validação Yup nem enum no banco pro campo `status` de
+`FinanceReceivable` — é uma coluna de texto livre. Então escolher
+"Vencido" no formulário e salvar **não dava erro nenhum**: o
+`status: "overdue"` ia literal pro banco (confirmado via API de teste:
+`HTTP 200`, registro criado com `status: "overdue"` gravado de
+verdade). Só que nenhum filtro da lista procura por esse valor —
+"Pendente" procura `status = "pending"` exato, "Vencido" procura
+`status = "pending" AND dueDate < hoje` — então o registro fica
+invisível em QUALQUER filtro de status específico (só aparece em
+"Todos", mostrando como "Pendente" na coluna por causa do fallback
+do `render`). Por isso pareceu "não salvou".
+
+### Correção
+
+- `RECEIVABLE_STATUS_OPTIONS` volta a ter só os 3 status reais
+  (Pendente/Recebido/Cancelado) — é o que alimenta o campo do
+  formulário.
+- Novo array `RECEIVABLE_FILTER_STATUS_OPTIONS` (Pendente/**Vencido**/
+  Recebido/Cancelado) — só pro filtro da lista, nunca pro formulário.
+
+### Registros já afetados em produção
+
+Qualquer "Conta a Receber" cadastrada entre a v2.3.314 e esta correção
+com "Vencido" escolhido no formulário ficou com `status: "overdue"`
+gravado — precisa editar manualmente e trocar pra "Pendente" (ou
+"Recebido", se já tiver sido recebida) pra voltar a aparecer nos
+filtros certos. Localizável filtrando por "Todos" + período "Todo o
+período".
+
+### Verificação
+
+- `eslint` limpo.
+- Reproduzido o bug exato via API antes de corrigir (criado com
+  `status: "overdue"`, confirmado gravado literal no banco) — depois
+  da correção o formulário não oferece mais essa opção, só a lista
+  oferece.
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dado de teste removido do banco depois da verificação.
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`.

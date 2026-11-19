@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.316] — Corrige "Vencido" no cadastro salvando status inválido — 2026-11-19
+
+### Corrigido
+- O campo "Status" do formulário de cadastro/edição de Contas a
+  Receber oferecia "Vencido" por engano (bug da v2.3.314) — escolher
+  essa opção salvava `status: "overdue"` literal no banco, sem erro
+  nenhum, deixando o registro invisível em qualquer filtro. Agora o
+  formulário só oferece Pendente/Recebido/Cancelado; "Vencido"
+  continua só no filtro da lista.
+
+**Atenção**: registros cadastrados com "Vencido" entre a v2.3.314 e
+agora precisam ser editados manualmente (trocar o Status pra
+Pendente/Recebido) — ver `docs/MANUAL_TECNICO.md`, seção 290.
+
 ## [2.3.315] — "Vencido" vira série própria no gráfico de Fluxo de caixa — 2026-11-19
 
 ### Alterado
