@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.319] — Trava "Quantidade em estoque" de munição/arma como automático — 2026-11-20
+
+### Corrigido
+- O campo "Quantidade em estoque" do cadastro de produto, pra
+  munição/arma, era editável igual qualquer outro produto — dava pra
+  digitar um valor manual ali e sobrescrever o total real calculado
+  pelas caixinhas/unidades cadastradas. Agora fica travado (só
+  leitura) pra essas duas categorias, com o backend também ignorando
+  esse campo no payload por segurança.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 294.
+
 ## [2.3.318] — Corrige estoque que não devolvia ao excluir venda confirmada — 2026-11-20
 
 ### Corrigido

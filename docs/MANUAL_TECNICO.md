@@ -21727,3 +21727,63 @@ v2.3.118) — confirmado que sim, sempre devolver.
 `backend/src/routes/financeRoutes.ts`,
 `frontend/src/hooks/useFinance/index.js`,
 `frontend/src/pages/Financeiro/index.js`.
+
+## 294. Campo "Quantidade em estoque" trava pra munição/arma — sempre automático, nunca digitado (v2.3.319)
+
+Pedido do cliente, ao ver o campo "Quantidade em estoque" do
+formulário de edição de produto zerado enquanto cadastrava a 1ª caixa
+grande de um produto novo: "quantidade em estoque nesse campo tem que
+preencher automaticamente".
+
+O campo em si sempre refletiu o valor real do produto (não é bug de
+exibição — o produto daquele print realmente tinha 0 cadastrado até
+aquele momento, a caixa grande ainda nem tinha sido salva). O problema
+real é outro, mais sério: pra munição/arma (`type` "ammunition"/
+"weapon"), esse campo é um `<input type="number">` **editável**,
+igual em qualquer outro produto — nada impedia o operador de digitar
+um número à mão ali, e esse valor digitado, ao salvar o formulário,
+sobrescrevia o total real calculado pelas caixinhas/unidades cadastradas
+(`FinanceAmmoVolumeService`/`FinanceWeaponUnitService.
+recalculateStockQuantity`). Pior: mesmo sem digitar nada, se o
+operador cadastrasse caixinha nova com o formulário de edição do
+produto ainda aberto (campo em memória com o valor ANTIGO) e depois
+clicasse em salvar os outros dados do produto, o valor antigo
+sobrescrevia o novo total certo — mesma classe de bug já corrigida
+antes neste módulo (seção 290, "Vencido": um campo que devia ser só
+derivado/calculado, exposto como editável, deixava sobrescrever
+silenciosamente um valor que devia ser sempre automático).
+
+### Correção
+
+- **Frontend**: campo "Quantidade em estoque" agora usa
+  `disabledWhen: isWeaponOrAmmunition` (mesmo padrão já usado nos
+  outros campos condicionais deste formulário) — fica desabilitado
+  (cinza, não editável) só pra munição/arma, com texto de ajuda
+  "Calculado automaticamente pelas caixinhas/unidades cadastradas
+  abaixo." Continua editável normalmente pra qualquer outro tipo de
+  produto (que não tem sub-cadastro de unidade pra calcular daí).
+- **Backend** (defesa em profundidade — o campo desabilitado no front
+  ainda viaja no payload do PUT, só não pode ser digitado):
+  `FinanceProductService.create`/`update` agora ignoram silenciosamente
+  `stockQuantity` recebido no corpo da requisição sempre que
+  `type === "ammunition"` ou `"weapon"` (`stripAutoComputedStockField`,
+  mesmo princípio já usado em `stripDeprecatedWeaponFields`) — esse
+  caminho nunca é mais a fonte de verdade do estoque dessas duas
+  categorias, só `recalculateStockQuantity` escreve nesse campo pra
+  elas.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API: produto de munição com 1 caixinha de 500 unidades
+  (estoque real = 500) — `PUT` no produto mandando
+  `stockQuantity: 0` no corpo (simulando formulário desatualizado) foi
+  ignorado, estoque real continuou 500 depois.
+- Testado no navegador (Playwright): produto de munição abre com o
+  campo desabilitado mostrando "500" + texto de ajuda; produto
+  genérico (não munição/arma) abre com o mesmo campo normal, editável,
+  sem nenhuma mudança de comportamento.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`,
+`backend/src/services/FinanceService/FinanceProductService.ts`.

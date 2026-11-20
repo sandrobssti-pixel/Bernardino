@@ -417,7 +417,22 @@ export const financeProductFields = [
     disabledWhen: reform2027Disabled,
     visibleWhen: isNotServiceAndNotWeaponAmmo,
   },
-  { name: "stockQuantity", label: "Quantidade em estoque", type: "number", defaultValue: 0, gridSize: 6, visibleWhen: hasStockControl },
+  // Munição/arma: `stockQuantity` é recalculado automaticamente a cada
+  // caixinha/unidade cadastrada ou vendida (ver FinanceAmmoVolumeService/
+  // FinanceWeaponUnitService.recalculateStockQuantity) — nunca editável
+  // aqui, senão um valor digitado à mão sobrescreveria o total real na
+  // próxima vez que o cadastro fosse salvo (pedido do cliente, v2.3.318:
+  // "esse campo tem que preencher automaticamente").
+  {
+    name: "stockQuantity",
+    label: "Quantidade em estoque",
+    type: "number",
+    defaultValue: 0,
+    gridSize: 6,
+    visibleWhen: hasStockControl,
+    disabledWhen: isWeaponOrAmmunition,
+    disabledHelperText: "Calculado automaticamente pelas caixinhas/unidades cadastradas abaixo.",
+  },
   {
     name: "minStockQuantity",
     label: "Estoque mínimo (aviso no painel, 0 = sem aviso)",

@@ -80,6 +80,23 @@ const stripDeprecatedWeaponFields = (data: ProductData): ProductData => {
   return cleaned;
 };
 
+// Munição/arma: `stockQuantity` é recalculado automaticamente a cada
+// caixinha/unidade cadastrada ou vendida (ver
+// FinanceAmmoVolumeService/FinanceWeaponUnitService.recalculateStockQuantity)
+// — nunca aceito aqui nesse caminho, senão o formulário genérico de
+// Produto (campo desabilitado no front, v2.3.318, mas que ainda viaja
+// no payload do PUT) poderia sobrescrever o total real com um valor
+// antigo (ex.: 0, se o form abriu antes de cadastrar as caixinhas e foi
+// salvo depois, sem recarregar). Mesmo princípio de
+// `stripDeprecatedWeaponFields` acima — silenciosamente ignorado, nunca
+// erro, pra não travar o salvamento dos outros campos do produto.
+const stripAutoComputedStockField = (data: ProductData): ProductData => {
+  if (data.type !== "weapon" && data.type !== "ammunition") return data;
+  const cleaned = { ...data } as any;
+  delete cleaned.stockQuantity;
+  return cleaned;
+};
+
 // Campos numéricos (INTEGER/FLOAT no Postgres, FK incluída) são
 // opcionais, mas o formulário manda "" (nunca undefined) quando a pessoa
 // deixa em branco/não escolhe nada, ou quando `stripHiddenFieldValues`
@@ -220,7 +237,7 @@ export const create = async (
   }
 
   const record = await FinanceProduct.create({
-    ...stripDeprecatedWeaponFields(validatedData),
+    ...stripAutoComputedStockField(stripDeprecatedWeaponFields(validatedData)),
     companyId
   } as any);
   return record;
@@ -240,7 +257,7 @@ export const update = async (
     throw new AppError(err.message);
   }
 
-  await record.update(stripDeprecatedWeaponFields(validatedData));
+  await record.update(stripAutoComputedStockField(stripDeprecatedWeaponFields(validatedData)));
   return record;
 };
 
