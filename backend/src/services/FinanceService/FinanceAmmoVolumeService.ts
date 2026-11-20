@@ -293,3 +293,34 @@ export const markSoldForSaleItem = async (saleItemId: number, companyId: number)
   await volume.update({ status: "sold", soldAt: new Date() });
   await recalculateStockQuantity(volume.productId);
 };
+
+// Repara caixinha órfã deixada pelo bug corrigido na v2.3.318: antes
+// dessa versão, excluir uma venda CONFIRMADA direto (sem cancelar antes)
+// apagava o `SaleItem` sem devolver a caixinha pro estoque — ela ficava
+// travada em "reserved"/"sold" apontando pra um `saleItemId` que não
+// existe mais, some do estoque pra sempre. Acha toda caixinha nessa
+// situação (dado antigo, de antes do fix) e devolve pra "in_stock".
+export const repairOrphanedFromDeletedSales = async (companyId: number): Promise<number> => {
+  const orphans = (await FinanceAmmoVolume.sequelize!.query(
+    `SELECT v.id, v."productId" FROM "FinanceAmmoVolumes" v
+     WHERE v."companyId" = :companyId
+       AND v."saleItemId" IS NOT NULL
+       AND v.status IN ('reserved', 'sold')
+       AND NOT EXISTS (SELECT 1 FROM "SaleItems" si WHERE si.id = v."saleItemId")`,
+    { replacements: { companyId }, type: "SELECT" }
+  )) as unknown as { id: number; productId: number }[];
+
+  if (orphans.length === 0) return 0;
+
+  await FinanceAmmoVolume.update(
+    { status: "in_stock", saleItemId: null, soldAt: null },
+    { where: { id: orphans.map(o => o.id) } }
+  );
+
+  const productIds = [...new Set(orphans.map(o => o.productId))];
+  for (const productId of productIds) {
+    await recalculateStockQuantity(productId);
+  }
+
+  return orphans.length;
+};

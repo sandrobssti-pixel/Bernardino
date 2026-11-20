@@ -21615,3 +21615,115 @@ de busca já existente desta tela, não um filtro separado novo.
 
 **Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
 `frontend/src/components/SaleList/index.js`.
+
+## 292. Busca por lote/ID/observações também dentro do cadastro de produto (v2.3.318)
+
+Pedido do cliente, depois de já ter pedido o mesmo filtro na tela de
+Vendas (seção 291): "o filtro é nesse local" (telas de "Caixas grandes
+desta munição" e "Caixinhas desta munição", dentro do formulário de
+edição do produto) — confirmado explicitamente "nesses dois locais".
+
+- `AmmoBigBoxesSection.js`: campo "Buscar por lote ou observações"
+  acima da tabela de caixas grandes (só aparece quando já existe
+  alguma cadastrada), filtra por `lotLE`, `lotLF`, `"LE/LF"` junto ou
+  `notes`. Mensagem "Nenhuma caixa grande encontrada pra essa busca"
+  quando a busca não acha nada.
+- `AmmoVolumesSection.js`: mesmo padrão, campo "Buscar por lote, ID ou
+  observações" filtrando por `lotNumber`, `barcodeId` ou `notes`.
+
+Mesmo princípio de busca já usado na tela de Vendas — filtro só no
+front (`Array.filter` sobre a lista já carregada), sem chamada nova ao
+backend.
+
+### Verificação
+
+- `eslint` limpo nos dois arquivos.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`,
+`frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`.
+
+## 293. Bug real: estoque de munição/arma não somava em tempo real — venda excluída direto deixava caixinha/arma travada pra sempre (v2.3.318)
+
+Pedido do cliente: "na tela principal de cadatro de produto de
+munições/insumos campo estoque somar todas as munições em tempo real
+... observe a tela 2 que tem lançada 2000 + 2000 + 750 na tela 1
+principal só ficou 750 teria que ter 4750 unidades ... mesma coisa
+para o painel de vendas de armas ou qualquer painel de outros produtos
+de vendas".
+
+### Investigação
+
+Reproduzido localmente com dados reais (2 caixas grandes, 40 + 15
+caixinhas "em estoque" + 5 "vendidas") — `recalculateStockQuantity`
+(soma todas as caixinhas "em estoque" do produto, não por caixa
+grande) estava correto e somava certo em tempo real a cada
+cadastro/venda. Perguntado ao cliente se as 3 caixas grandes (2000 +
+2000 + 750) tinham mesmo caixinha individual cadastrada em todas —
+confirmado que sim, as 3 tinham, mesmo assim só 750 era contado.
+
+### Causa raiz
+
+`SaleService.remove` (exclusão direta de uma venda, sem cancelar
+antes) — permitida desde a v2.3.118 pra limpar venda de teste/
+homologação — apagava os `SaleItem`s de uma venda **confirmada** sem
+nunca devolver estoque/arma/caixinha antes (proposital na época:
+"limpeza de teste não deve alterar o estoque atual"). Na prática,
+qualquer venda confirmada DE VERDADE (já tinha descontado uma
+caixinha/arma/produto real do estoque) que fosse excluída direto —
+não cancelada — deixava aquela unidade travada pra sempre em
+"reserved"/"sold", com `saleItemId` apontando pra um registro que não
+existe mais, nunca mais contada no estoque do produto. Bug
+reproduzido e confirmado passo a passo: confirmar venda com 1
+caixinha → estoque desconta certo → excluir a venda direto → estoque
+NÃO volta, caixinha fica órfã em "reserved" pra sempre.
+
+Perguntado ao cliente se isso deveria mudar (reverter a decisão da
+v2.3.118) — confirmado que sim, sempre devolver.
+
+### Correção
+
+- `SaleService.remove`: antes de apagar os itens de uma venda
+  **confirmada**, agora chama `adjustStock(sale, -1)`,
+  `releaseWeaponUnits` e `releaseAmmoVolumes` — exatamente o mesmo
+  bloco que `cancel`/`update` já usavam. Cobre de uma vez munição,
+  arma por número de série e qualquer produto genérico com
+  `controlStock` (mesma função `adjustStock` usada nos três).
+- **Reparo do dado legado** (as caixinhas/armas que já ficaram
+  travadas ANTES desta correção): nova ação
+  `FinanceAmmoVolumeService.repairOrphanedFromDeletedSales` /
+  `FinanceWeaponUnitService.repairOrphanedFromDeletedSales` — acha
+  toda caixinha/arma com `saleItemId` preenchido, status
+  "reserved"/"sold", apontando pra um `SaleItem` que não existe mais
+  (órfã), devolve pra "in_stock" e recalcula o estoque do(s)
+  produto(s) afetado(s). Exposta em
+  `POST /finance/stock/repair-orphaned` (admin-only, mesmo padrão de
+  outras ações de manutenção do módulo) e num botão "Corrigir estoque
+  travado" na aba Produtos do Financeiro (só visível pra Admin/Master),
+  que mostra quantas caixinhas/armas foram corrigidas e atualiza a
+  lista na hora.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Reproduzido o bug exato (confirmar venda com 1 caixinha de 100
+  unidades → excluir a venda direto → estoque ficava faltando as 100
+  unidades pra sempre) e confirmado que, com a correção aplicada, o
+  mesmo fluxo devolve o estoque certinho na hora.
+- Testado o reparo do dado legado: criada uma caixinha órfã do jeito
+  que o bug antigo deixava (status "reserved", `saleItemId` de uma
+  venda já apagada) — `POST /finance/stock/repair-orphaned` devolveu
+  `in_stock` e o estoque do produto voltou a somar certo.
+- Testado end-to-end no navegador (Playwright): logado como Admin,
+  aberta a aba Produtos, clicado em "Corrigir estoque travado" — toast
+  "Estoque corrigido: 1 caixinha(s) e 0 arma(s) devolvidas ao
+  estoque." e a coluna Estoque da lista atualizou na hora, sem
+  precisar recarregar a página.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`,
+`backend/src/services/FinanceService/FinanceWeaponUnitService.ts`,
+`backend/src/controllers/FinanceStockRepairController.ts` (novo),
+`backend/src/routes/financeRoutes.ts`,
+`frontend/src/hooks/useFinance/index.js`,
+`frontend/src/pages/Financeiro/index.js`.

@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useContext } from "react";
 import { useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
 import { makeStyles } from "@material-ui/core/styles";
 import Box from "@material-ui/core/Box";
 import Typography from "@material-ui/core/Typography";
 import CircularProgress from "@material-ui/core/CircularProgress";
+import Button from "@material-ui/core/Button";
+import BuildIcon from "@material-ui/icons/Build";
 
 import { AuthContext } from "../../context/Auth/AuthContext";
 import GlobalConfig from "../GlobalConfig";
@@ -14,6 +17,7 @@ import FinanceRecordList from "../../components/FinanceRecordList";
 import FinancePainel from "../../components/FinancePainel";
 import FinancePaymentConfigPanel from "../../components/FinancePaymentConfigPanel";
 import CashRegisterEntryDialog from "./CashRegisterEntryDialog";
+import toastError from "../../errors/toastError";
 import {
   financeCustomerColumns,
   financeCustomerFields,
@@ -190,6 +194,34 @@ const Financeiro = () => {
   const canDeleteFinanceRecords =
     user.profile === "admin" || user.super || !!user.financialAccess;
 
+  // "Corrigir estoque travado" (v2.3.318) — repara caixinha/arma órfã
+  // deixada pelo bug corrigido nesta versão (excluir venda confirmada
+  // direto não devolvia estoque). Admin-only, só na aba de produtos —
+  // ver FinanceStockRepairController no backend.
+  const isFinanceAdmin = user.profile === "admin" || user.super;
+  const [repairingStock, setRepairingStock] = useState(false);
+  const [productsRefreshToken, setProductsRefreshToken] = useState(0);
+
+  const handleRepairOrphanedStock = async () => {
+    setRepairingStock(true);
+    try {
+      const { ammoVolumesFixed, weaponUnitsFixed } = await finance.stockRepair.repairOrphaned();
+      const total = ammoVolumesFixed + weaponUnitsFixed;
+      if (total === 0) {
+        toast.success("Nenhuma caixinha ou arma travada encontrada — estoque já está consistente.");
+      } else {
+        toast.success(
+          `Estoque corrigido: ${ammoVolumesFixed} caixinha(s) e ${weaponUnitsFixed} arma(s) devolvidas ao estoque.`
+        );
+        setProductsRefreshToken((token) => token + 1);
+      }
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setRepairingStock(false);
+    }
+  };
+
   const renderPanel = () => {
     if (financeTab === "painel") {
       return <FinancePainel finance={finance} company={user.company} fiscalConfig={fiscalConfig} />;
@@ -294,35 +326,50 @@ const Financeiro = () => {
     }
     if (financeTab === "products") {
       return (
-        <FinanceRecordList
-          key={`products-${productTypeParam}`}
-          title="Produto"
-          resource={finance.products}
-          columns={financeProductColumns}
-          fields={getProductFieldsForCategory(productTypeParam)}
-          // Dropdown "Tipo" só aparece quando a tela abriu sem categoria
-          // definida (link "Todos os produtos", ou "/financeiro" direto) —
-          // chegando por um link de categoria específica do menu lateral
-          // (Armas nacionais, Munições/Insumos etc.), já está dentro do
-          // painel daquela categoria, não faz sentido oferecer escolher
-          // outra ali (pedido do cliente).
-          filters={productTypeParam ? [] : financeProductFilters}
-          initialFilterValues={{ type: productTypeParam }}
-          allowImport
-          allowTemplateDownload
-          templateFilename="modelo-importacao-produtos.xlsx"
-          context={financeRecordContext}
-          enablePhotoUpload
-          // Faltava — sem isso, `FinanceRecordModal` não tinha acesso a
-          // `finance.suppliers` (campo "Distribuidor/Fornecedor
-          // Principal" nunca retornava resultado nenhum ao buscar) nem a
-          // `finance.products.weaponUnits` (seção "Armas deste modelo"
-          // quebrava ao tentar listar/salvar unidade). Bug relatado pelo
-          // cliente: "quando digita fornecedor não aparece os
-          // cadastrados". Ver docs/MANUAL_TECNICO.md, seção 188.
-          finance={finance}
-          canDelete={canDeleteFinanceRecords}
-        />
+        <>
+          {isFinanceAdmin && (
+            <Box display="flex" justifyContent="flex-end" mb={1}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<BuildIcon />}
+                disabled={repairingStock}
+                onClick={handleRepairOrphanedStock}
+              >
+                {repairingStock ? "Corrigindo..." : "Corrigir estoque travado"}
+              </Button>
+            </Box>
+          )}
+          <FinanceRecordList
+            key={`products-${productTypeParam}-${productsRefreshToken}`}
+            title="Produto"
+            resource={finance.products}
+            columns={financeProductColumns}
+            fields={getProductFieldsForCategory(productTypeParam)}
+            // Dropdown "Tipo" só aparece quando a tela abriu sem categoria
+            // definida (link "Todos os produtos", ou "/financeiro" direto) —
+            // chegando por um link de categoria específica do menu lateral
+            // (Armas nacionais, Munições/Insumos etc.), já está dentro do
+            // painel daquela categoria, não faz sentido oferecer escolher
+            // outra ali (pedido do cliente).
+            filters={productTypeParam ? [] : financeProductFilters}
+            initialFilterValues={{ type: productTypeParam }}
+            allowImport
+            allowTemplateDownload
+            templateFilename="modelo-importacao-produtos.xlsx"
+            context={financeRecordContext}
+            enablePhotoUpload
+            // Faltava — sem isso, `FinanceRecordModal` não tinha acesso a
+            // `finance.suppliers` (campo "Distribuidor/Fornecedor
+            // Principal" nunca retornava resultado nenhum ao buscar) nem a
+            // `finance.products.weaponUnits` (seção "Armas deste modelo"
+            // quebrava ao tentar listar/salvar unidade). Bug relatado pelo
+            // cliente: "quando digita fornecedor não aparece os
+            // cadastrados". Ver docs/MANUAL_TECNICO.md, seção 188.
+            finance={finance}
+            canDelete={canDeleteFinanceRecords}
+          />
+        </>
       );
     }
     if (financeTab === "saas") {

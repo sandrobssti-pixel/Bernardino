@@ -80,6 +80,12 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  // Busca por lote ou observações — pedido do cliente (v2.3.318):
+  // "o filtro é nesse local" (cadastro de caixa grande/caixinha dentro
+  // do produto), pra achar mais rápido com muita linha cadastrada.
+  // SKU não entra na busca aqui porque é sempre o mesmo pra todo mundo
+  // nesta tela (já é o produto aberto).
+  const [search, setSearch] = useState("");
 
   const productId = product?.id;
 
@@ -93,6 +99,15 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
   const registeredCount = editingBigBox?.volumes?.length ?? 0;
   const inStockCount = editingBigBox?.volumes?.filter((v) => v.status === "in_stock").length ?? 0;
   const soldCount = editingBigBox?.volumes?.filter((v) => v.status === "sold").length ?? 0;
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredBigBoxes = normalizedSearch
+    ? bigBoxes.filter((b) =>
+        [b.lotLE, b.lotLF, `${b.lotLE}/${b.lotLF}`, b.notes]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(normalizedSearch))
+      )
+    : bigBoxes;
 
   const loadBigBoxes = async () => {
     if (!productId) return;
@@ -310,11 +325,26 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
         )}
       </div>
 
+      {bigBoxes.length > 0 && (
+        <TextField
+          label="Buscar por lote ou observações"
+          size="small"
+          variant="outlined"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ minWidth: 260, marginBottom: 12 }}
+        />
+      )}
+
       {loading ? (
         <CircularProgress size={22} />
       ) : bigBoxes.length === 0 ? (
         <Typography className={classes.helpText}>
           Nenhuma caixa grande cadastrada ainda neste SKU.
+        </Typography>
+      ) : filteredBigBoxes.length === 0 ? (
+        <Typography className={classes.helpText}>
+          Nenhuma caixa grande encontrada pra essa busca.
         </Typography>
       ) : (
         <Box style={{ overflowX: "auto" }}>
@@ -333,7 +363,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {bigBoxes.map((bigBox) => (
+            {filteredBigBoxes.map((bigBox) => (
               <TableRow key={bigBox.id}>
                 <TableCell>{product.sku || "—"}</TableCell>
                 <TableCell>{bigBox.lotLE}</TableCell>

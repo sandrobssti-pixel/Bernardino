@@ -368,3 +368,32 @@ export const markSoldForSaleItem = async (saleItemId: number, companyId: number)
   await unit.update({ status: "sold", soldAt: new Date() });
   await recalculateStockQuantity(unit.productId);
 };
+
+// Repara arma órfã deixada pelo bug corrigido na v2.3.318 — mesmo
+// princípio de `FinanceAmmoVolumeService.repairOrphanedFromDeletedSales`:
+// antes do fix, excluir uma venda CONFIRMADA direto deixava a arma
+// travada em "reserved"/"sold" apontando pra um `saleItemId` já apagado.
+export const repairOrphanedFromDeletedSales = async (companyId: number): Promise<number> => {
+  const orphans = (await FinanceWeaponUnit.sequelize!.query(
+    `SELECT u.id, u."productId" FROM "FinanceWeaponUnits" u
+     WHERE u."companyId" = :companyId
+       AND u."saleItemId" IS NOT NULL
+       AND u.status IN ('reserved', 'sold')
+       AND NOT EXISTS (SELECT 1 FROM "SaleItems" si WHERE si.id = u."saleItemId")`,
+    { replacements: { companyId }, type: "SELECT" }
+  )) as unknown as { id: number; productId: number }[];
+
+  if (orphans.length === 0) return 0;
+
+  await FinanceWeaponUnit.update(
+    { status: "in_stock", saleItemId: null, soldAt: null },
+    { where: { id: orphans.map(o => o.id) } }
+  );
+
+  const productIds = [...new Set(orphans.map(o => o.productId))];
+  for (const productId of productIds) {
+    await recalculateStockQuantity(productId);
+  }
+
+  return orphans.length;
+};

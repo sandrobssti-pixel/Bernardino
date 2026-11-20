@@ -290,6 +290,15 @@ const useFinance = () => {
     paymentConfig,
     getPaymentAccess,
     reports,
+    stockRepair: {
+      // Corrige caixinha/arma órfã deixada pelo bug corrigido na v2.3.318
+      // (excluir venda confirmada direto não devolvia estoque) — ver
+      // docs/MANUAL_TECNICO.md.
+      repairOrphaned: async () => {
+        const { data } = await api.post("/finance/stock/repair-orphaned");
+        return data;
+      },
+    },
   };
 };
 

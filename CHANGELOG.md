@@ -3,6 +3,25 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.318] — Corrige estoque que não devolvia ao excluir venda confirmada — 2026-11-20
+
+### Corrigido
+- **Bug real**: excluir uma venda **confirmada** direto (sem cancelar
+  antes) não devolvia estoque/caixinha/arma — deixava a caixinha/arma
+  vendida travada pra sempre, nunca mais contada no estoque do
+  produto. Agora excluir devolve estoque igual já fazia cancelar,
+  cobrindo munição, arma por número de série e produto genérico.
+- Busca por lote/ID/observações (igual já existia em Vendas) também
+  dentro do formulário de edição do produto, nas tabelas de "Caixas
+  grandes" e "Caixinhas".
+
+### Adicionado
+- Botão "Corrigir estoque travado" (Admin/Master, aba Produtos) —
+  repara caixinha/arma que já ficou órfã por causa do bug acima,
+  antes desta correção.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seções 292 e 293.
+
 ## [2.3.317] — Coluna "Lote/ID" + busca por lote/ID em Vendas — 2026-11-20
 
 ### Adicionado

@@ -942,9 +942,18 @@ export const cancel = async (
 // antes/depois de passar pra Produção. Só permitido quando a venda NUNCA
 // teve um FiscalDocument de Produção (nota real) — caso contrário seria
 // apagar uma venda de verdade, e o caminho correto ali é cancelar
-// (`cancel`), não excluir. Explicitamente SEM tocar em estoque, mesmo que
-// a venda tenha "descontado" ao confirmar — pedido do cliente: a limpeza
-// de teste não deve alterar o estoque atual.
+// (`cancel`), não excluir.
+//
+// BUG REAL corrigido (v2.3.318, pedido do cliente: "estoque de munição não
+// soma em tempo real") — até aqui, excluir uma venda CONFIRMADA direto (sem
+// cancelar antes) apagava os itens sem nunca devolver estoque/arma/caixinha
+// (era proposital, pensado só pra teste sem estoque real envolvido — ver
+// histórico). Na prática, qualquer venda confirmada de verdade (consumiu
+// caixinha/arma/produto real) que fosse excluída direto deixava aquela
+// unidade travada pra sempre como "reservada/vendida", nunca mais contada
+// no estoque do produto — reproduzido e confirmado com o cliente. Agora,
+// igual a `cancel`, devolve estoque/arma/caixinha ANTES de apagar os itens
+// quando a venda estava confirmada.
 // `force` (v2.3.143): bypassa as duas checagens de "nota de Produção"
 // abaixo — só é honrado quando quem pediu é Admin/Master (checado no
 // CONTROLLER, antes de chegar aqui, não neste service). Pedido explícito do
@@ -978,6 +987,12 @@ export const remove = async (
     if (config && isProductionActive(config)) {
       throw new AppError("ERR_SALE_NOT_EDITABLE");
     }
+  }
+
+  if (sale.status === "confirmed") {
+    await adjustStock(sale, -1);
+    await releaseWeaponUnits(sale, companyId);
+    await releaseAmmoVolumes(sale, companyId);
   }
 
   await FiscalDocument.destroy({ where: { saleId: sale.id, companyId } });

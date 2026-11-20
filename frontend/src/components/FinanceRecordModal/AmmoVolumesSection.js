@@ -94,8 +94,22 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  // Busca por lote, ID/código de barras ou observações — pedido do
+  // cliente (v2.3.318): "o filtro é nesse local" (mesmo campo da
+  // seção de caixa grande, AmmoBigBoxesSection.js), pra achar mais
+  // rápido com muita caixinha cadastrada.
+  const [search, setSearch] = useState("");
 
   const productId = product?.id;
+
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredVolumes = normalizedSearch
+    ? volumes.filter((v) =>
+        [v.lotNumber, v.barcodeId, v.notes]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(normalizedSearch))
+      )
+    : volumes;
 
   const loadVolumes = async () => {
     if (!productId) return;
@@ -323,11 +337,26 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
         )}
       </div>
 
+      {volumes.length > 0 && (
+        <TextField
+          label="Buscar por lote, ID ou observações"
+          size="small"
+          variant="outlined"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ minWidth: 260, marginBottom: 12 }}
+        />
+      )}
+
       {loading ? (
         <CircularProgress size={22} />
       ) : volumes.length === 0 ? (
         <Typography className={classes.helpText}>
           Nenhuma caixinha cadastrada ainda neste SKU.
+        </Typography>
+      ) : filteredVolumes.length === 0 ? (
+        <Typography className={classes.helpText}>
+          Nenhuma caixinha encontrada pra essa busca.
         </Typography>
       ) : (
         <Box style={{ overflowX: "auto" }}>
@@ -344,7 +373,7 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {volumes.map((volume) => (
+            {filteredVolumes.map((volume) => (
               <TableRow key={volume.id}>
                 <TableCell>{product.sku || "—"}</TableCell>
                 <TableCell>{volume.lotNumber}</TableCell>

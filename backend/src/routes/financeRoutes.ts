@@ -16,6 +16,7 @@ import * as FinanceCashRegisterController from "../controllers/FinanceCashRegist
 import * as FinanceReceivableController from "../controllers/FinanceReceivableController";
 import * as FinanceReportController from "../controllers/FinanceReportController";
 import * as FinanceImportController from "../controllers/FinanceImportController";
+import * as FinanceStockRepairController from "../controllers/FinanceStockRepairController";
 import * as FinancePaymentConfigController from "../controllers/FinancePaymentConfigController";
 import * as FinancePaymentAccessController from "../controllers/FinancePaymentAccessController";
 
@@ -160,6 +161,15 @@ financeRoutes.delete(
   "/finance/products/:productId/ammo-volumes/:id",
   isAuth,
   FinanceAmmoVolumeController.remove
+);
+
+// Corrige caixinha/arma órfã deixada pelo bug corrigido na v2.3.318
+// (exclusão direta de venda confirmada não devolvia estoque) — ver
+// FinanceStockRepairController.
+financeRoutes.post(
+  "/finance/stock/repair-orphaned",
+  isAuth,
+  FinanceStockRepairController.repairOrphanedStock
 );
 
 // Fase 2 — Financeiro operacional (custos, contas a pagar/receber, relatórios)
