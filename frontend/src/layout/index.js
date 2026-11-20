@@ -42,6 +42,9 @@ import toastError from "../errors/toastError";
 import AnnouncementsPopover from "../components/AnnouncementsPopover";
 import TopAnnouncementBanner from "../components/TopAnnouncementBanner";
 import ChatPopover from "../pages/Chat/ChatPopover";
+import { WorkspaceProvider, useWorkspace } from "../context/Workspace";
+import WorkspaceTabBar from "../components/WorkspaceTabBar";
+import WorkspaceViewport from "../components/WorkspaceViewport";
 
 import { useDate } from "../hooks/useDate";
 import UserLanguageSelector from "../components/UserLanguageSelector";
@@ -443,7 +446,7 @@ const StyledBadge = withStyles((theme) => ({
   },
 }))(Badge);
 
-const LoggedInLayout = ({ children }) => {
+const LoggedInLayoutInner = ({ children }) => {
   const classes = useStyles();
   const [userToken, setUserToken] = useState("disabled");
   const [userModalOpen, setUserModalOpen] = useState(false);
@@ -456,6 +459,7 @@ const LoggedInLayout = ({ children }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerVariant, setDrawerVariant] = useState("permanent");
   const { user, socket } = useContext(AuthContext);
+  const { activeTabId } = useWorkspace();
 
   const theme = useTheme();
   const { colorMode } = useContext(ColorModeContext);
@@ -932,10 +936,28 @@ const LoggedInLayout = ({ children }) => {
         <div className={classes.topAnnouncementSticky}>
           <TopAnnouncementBanner />
         </div>
-        {children ? children : null}
+        <WorkspaceTabBar />
+        {/* "Principal" (sistema mãe) — a navegação normal de sempre,
+            só escondida (não desmontada) quando uma aba extra está em
+            primeiro plano, pra nunca perder o que estava preenchido
+            nela ao voltar. */}
+        <div style={{ display: activeTabId === null ? "block" : "none", height: "100%" }}>
+          {children ? children : null}
+        </div>
+        <WorkspaceViewport />
       </main>
     </div>
   );
 };
+
+// Multi-telas (v2.3.324) — `WorkspaceProvider` precisa envolver tanto o
+// menu lateral (botão "abrir em nova aba") quanto a área de conteúdo
+// (barra de abas + telas extras), por isso entra aqui por fora, não
+// dentro do componente em si.
+const LoggedInLayout = (props) => (
+  <WorkspaceProvider>
+    <LoggedInLayoutInner {...props} />
+  </WorkspaceProvider>
+);
 
 export default LoggedInLayout;

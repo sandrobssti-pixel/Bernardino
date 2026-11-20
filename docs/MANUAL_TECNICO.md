@@ -21949,3 +21949,112 @@ situação que é só um aviso informativo.
 
 **Arquivos**: `frontend/src/errors/toastError.js`,
 `frontend/src/translate/languages/pt.js`.
+
+## 299. Multi-Telas (Workspace) — abrir Atendimento, Vendas, Financeiro/Produtos e RH ao mesmo tempo (v2.3.324)
+
+Pedido do cliente, depois de uma troca longa sobre arquitetura
+genérica de "multi-telas" (abas internas, split-view, pop-out de
+janela): esclarecido que o uso real é **abas internas simples**, até
+**3 telas abertas ao mesmo tempo** (contando a navegação normal como
+1), trocando por clique na abinha (nunca atalho de teclado, porque Tab
+já navega entre campos de formulário). Abrir uma aba extra é sempre
+uma **ação explícita** — clicar no menu lateral continua trocando a
+tela normalmente, como sempre foi; só um botão específico abre "por
+cima" como aba nova.
+
+### Por que não o template genérico (Zustand/Tailwind/BroadcastChannel)
+
+O pedido original veio como um prompt genérico de arquitetura
+SaaS White Label (Zustand, Tailwind, pop-out de janela com
+BroadcastChannel pra sincronizar entre janelas reais do SO). Nada
+disso bate com o stack real do AtendeFlow (React + Material-UI, Context
+API nos moldes de `AuthContext`/`TicketsContext`, sem Zustand/Tailwind)
+e, mais importante: como ficou decidido que são só ABAS INTERNAS (nunca
+janela separada), não existe o problema que BroadcastChannel resolve
+(múltiplas janelas reais do navegador precisando sincronizar) — tudo
+roda dentro da mesma aba do navegador, com o mesmo Socket.IO único de
+sempre.
+
+### Arquitetura
+
+- **`context/Workspace/index.js`** (novo) — Context API simples
+  (mesmo padrão de `ActiveMenuContext`). Guarda só as abas EXTRAS
+  (`tabs: [{id, moduleKey, label, to}]`) — a navegação normal nunca
+  entra nessa lista, ela é sempre a aba "Principal" implícita
+  (`activeTabId: null`). `MAX_EXTRA_TABS = 2` (3 no total, somando a
+  Principal) — tentar abrir uma 4ª tela (3ª extra) mostra um aviso
+  (`toast.warn`) e bloqueia, sem fechar nada sozinho.
+- **`components/WorkspaceViewport/index.js`** (novo) — registro
+  (`MODULE_REGISTRY`) dos módulos que podem abrir como aba extra.
+  Começa só com os 4 que o cliente citou de exemplo: `tickets`
+  (Atendimento), `vendas`, `financeiro`, `rh`. Cada aba extra roda
+  dentro do PRÓPRIO `MemoryRouter` (react-router-dom v5), isolado da
+  URL de verdade do navegador — é isso que resolve dois problemas de
+  uma vez: (1) a aba abre já na rota certa (ex.:
+  `/financeiro?tab=products`) sem depender de qual é a URL atual da
+  tela Principal; (2) navegação interna da própria tela (trocar de
+  sub-aba dentro do Financeiro, por exemplo) fica isolada, não mexe na
+  URL real nem nas outras abas abertas. Todas as abas ficam sempre
+  MONTADAS (escondidas com `display: none` quando não ativas) — é isso
+  que preserva formulário preenchido e posição de rolagem ao trocar de
+  aba, requisito explícito do cliente.
+- **`components/WorkspaceTabBar/index.js`** (novo) — barra de
+  abinhas (`Chip` do Material-UI) no topo do conteúdo, com "Principal"
+  sempre presente + 1 chip por aba extra (com botão de fechar). **Só
+  aparece quando existe pelo menos 1 aba extra aberta** — quem nunca
+  usa a feature não vê nada diferente.
+- **`layout/index.js`**: `LoggedInLayout` virou um wrapper fino que
+  envolve o componente de verdade (renomeado `LoggedInLayoutInner`) com
+  `<WorkspaceProvider>` — precisa estar por fora porque tanto o menu
+  lateral (botão "abrir em nova aba") quanto a área de conteúdo (barra
+  de abas + telas extras) precisam do mesmo contexto. Dentro de
+  `<main>`, o conteúdo roteado de sempre (`{children}`) agora fica
+  dentro de uma `<div>` que só esconde (nunca desmonta) quando uma aba
+  extra está em primeiro plano — zero risco de perder o que tava
+  preenchido na tela Principal ao abrir uma aba por cima.
+- **`layout/MainListItems.js`**: `ListItemLink` ganhou uma prop opcional
+  `moduleKey` — só os itens de menu que passam essa prop ganham o
+  ícone "abrir em nova aba" (↗) ao lado do texto, chamando
+  `openInNewTab(moduleKey, primary, to)`. Item sem `moduleKey` fica
+  100% igual a antes da feature (a grande maioria do menu). Wired nos 4
+  pilotos: "Atendimentos" (`to="/tickets"`), "🛒 Vendas", "RH", e os
+  dois pontos de entrada de "📦 Produtos"/"📦 Todos os produtos" dentro
+  do Financeiro (ambos usam `moduleKey="financeiro"` — a função já
+  deduplica por `to`, então abrir os dois não cria 2 abas).
+
+### Extensão futura (pra quando o cliente pedir mais módulos)
+
+Pra outro módulo ganhar o botão "abrir em nova aba": (1) adicionar uma
+entrada no `MODULE_REGISTRY` de `WorkspaceViewport.js` apontando pro
+`lazy(() => import(...))` da página; (2) passar `moduleKey="..."` no(s)
+`<ListItemLink>` correspondente(s) em `MainListItems.js`. Testar cada
+módulo novo isoladamente antes (preservar formulário/scroll ao trocar
+de aba não é automático pra toda tela — depende de ela não usar nada
+que dependa de ser a única instância montada, ex.: algum `id` fixo em
+`localStorage` sem escopo por instância).
+
+### Verificação
+
+- `eslint` limpo (mesmos warnings pré-existentes de sempre, nenhum
+  novo).
+- Testado no navegador (Playwright): aberto "Vendas" como aba extra a
+  partir do Painel Financeiro (tela Principal) — URL do navegador NÃO
+  mudou (`/financeiro`, nunca `/vendas`), confirmando isolamento;
+  conteúdo real do módulo Vendas renderizou corretamente dentro da
+  aba (inclusive a própria mensagem de "módulo não disponível" do
+  gate de plano, prova que a página rodou de verdade, não só montou
+  em branco).
+- Aberta uma 2ª aba extra (RH) — 3 abas visíveis (Principal + Vendas +
+  RH), trocando entre elas por clique.
+- Tentativa de abrir uma 3ª aba extra (Produtos) corretamente
+  bloqueada com aviso "Você já tem 2 tela(s) extra(s) aberta(s) — feche
+  uma antes de abrir outra." — continuou só com as 3 abas que já
+  existiam, nenhuma fechada sozinha.
+- Navegação normal do menu (itens sem `moduleKey`) não testada
+  individualmente um por um, mas nenhum arquivo de rota
+  (`routes/index.js`) foi tocado — mecanismo é puramente aditivo.
+
+**Arquivos**: `frontend/src/context/Workspace/index.js` (novo),
+`frontend/src/components/WorkspaceViewport/index.js` (novo),
+`frontend/src/components/WorkspaceTabBar/index.js` (novo),
+`frontend/src/layout/index.js`, `frontend/src/layout/MainListItems.js`.

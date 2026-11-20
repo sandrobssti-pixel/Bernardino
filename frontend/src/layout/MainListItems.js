@@ -14,7 +14,9 @@ import List from "@material-ui/core/List";
 import Tooltip from "@material-ui/core/Tooltip";
 import Typography from "@material-ui/core/Typography";
 import Chip from "@material-ui/core/Chip";
+import IconButton from "@material-ui/core/IconButton";
 import MenuBookIcon from "@material-ui/icons/MenuBook";
+import OpenInNewIcon from "@material-ui/icons/OpenInNew";
 
 import WhatsAppIcon from "@material-ui/icons/WhatsApp";
 import DashboardOutlinedIcon from "@material-ui/icons/DashboardOutlined";
@@ -70,6 +72,7 @@ import { WhatsAppsContext } from "../context/WhatsApp/WhatsAppsContext";
 import { AuthContext } from "../context/Auth/AuthContext";
 import { TicketsContext } from "../context/Tickets/TicketsContext";
 import { useActiveMenu } from "../context/ActiveMenuContext";
+import { useWorkspace } from "../context/Workspace";
 
 import { Can } from "../components/Can";
 
@@ -273,10 +276,16 @@ function ListItemLink(props) {
     badgeDot,
     iconKey,
     small,
-    onClick
+    onClick,
+    // Multi-telas (v2.3.324) — só os itens que passam `moduleKey` ganham
+    // o botão "abrir em nova aba" (ver WorkspaceViewport pelo registro
+    // de módulos suportados). Item sem `moduleKey` fica 100% igual a
+    // antes da feature.
+    moduleKey,
   } = props;
   const classes = useStyles();
   const { activeMenu } = useActiveMenu();
+  const { openInNewTab } = useWorkspace();
   const location = useLocation();
   // Sub-itens do Financeiro (ver "Financeiro" em MainListItems) usam a
   // mesma rota com query strings diferentes (`/financeiro?tab=products`) —
@@ -370,6 +379,20 @@ function ListItemLink(props) {
                 </Typography>
               }
             />
+          )}
+          {moduleKey && !isIconOnly && (
+            <Tooltip title="Abrir em nova aba (multi-telas)">
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  openInNewTab(moduleKey, primary, to);
+                }}
+              >
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           )}
         </ListItem>
       </li>
@@ -1011,6 +1034,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
         showBadge={hasTicketUnread}
         badgeDot
         tooltip={collapsed}
+        moduleKey="tickets"
       />
 
       <ListItemLink
@@ -1596,6 +1620,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           icon={<StoreIcon />}
                           iconKey="financial"
                           tooltip={collapsed}
+                          moduleKey="financeiro"
                         />
                       )}
                       <Collapse
@@ -1612,6 +1637,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                             icon={<ListIcon />}
                             iconKey="financial"
                             tooltip={collapsed}
+                            moduleKey="financeiro"
                           />
                           <ListItemLink
                             small
@@ -1693,6 +1719,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 icon={<ShoppingCartIcon />}
                 iconKey="financial"
                 tooltip={collapsed}
+                moduleKey="vendas"
               />
             )}
             {(user.profile === "admin" || user.super || user.hrAccess) && (
@@ -1704,6 +1731,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   icon={<WorkOutlineIcon />}
                   iconKey="rh"
                   tooltip={collapsed}
+                  moduleKey="rh"
                 />
             )}
             <Can

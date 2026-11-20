@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.324] — Multi-Telas: Atendimento, Vendas, Financeiro e RH em abas — 2026-11-20
+
+### Adicionado
+- Botão "abrir em nova aba" (ícone ↗) no menu lateral de Atendimentos,
+  Vendas, Produtos (Financeiro) e RH — abre o módulo "por cima" da
+  navegação normal, em até 3 telas simultâneas (contando a navegação
+  normal como 1), sem perder o que já estava preenchido em nenhuma
+  delas. Clicar no menu continua funcionando exatamente como sempre —
+  abrir em aba é uma ação separada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 299.
+
 ## [2.3.323] — Aviso de "já cadastrado" vira amarelo, não vermelho — 2026-11-20
 
 ### Corrigido
