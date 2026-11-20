@@ -21574,3 +21574,44 @@ período".
 - Dado de teste removido do banco depois da verificação.
 
 **Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`.
+
+## 291. Coluna "Lote/ID" + busca por lote/ID + SKU sem duplicar na tela de Vendas (v2.3.317)
+
+Pedido do cliente (tela de Vendas): "deixar a caixinha Lote/ID na tela
+principal depois do codigo do produto... colocar um filtro em caixa
+grande e caixinha... os mesmo filtos que ja existem... na tela
+printada acima no codigo do produto aparecer só um SKU ou se tiver SKU
+diferentes nunca aparecer duplicado".
+
+Esclarecido antes de implementar: a coluna nova lista todos os
+lotes/IDs da venda (igual já fazia a coluna de SKU), e o "filtro"
+pedido é o mesmo padrão de busca por texto já usado no campo de
+Caixinha da tela de Nova Venda (v2.3.310) — incluído direto no campo
+de busca já existente desta tela, não um filtro separado novo.
+
+- **Dedup do SKU**: `{(sale.items||[]).map(i=>i.sku)...join(", ")}`
+  virou `{[...new Set(...)].join(", ")}` — venda com 4 caixinhas do
+  mesmo SKU mostrava "10026608, 10026608, 10026608, 10026608"; agora
+  mostra só uma vez.
+- **Nova coluna "Lote/ID"**: logo depois de "Código do produto",
+  junta `ammoLot`/`packageId` de cada item (`"LOTE/ID"`), separados
+  por vírgula quando a venda tem mais de um item de munição.
+- **Busca por lote/ID**: o campo "Pesquisar venda, cliente, CPF/CNPJ,
+  lote ou ID..." (texto do placeholder atualizado) agora também acha
+  a venda pelo `ammoLot`/`packageId` de qualquer item dela —
+  `SaleService.list`, subquery em `SaleItem` adicionada ao mesmo
+  `Op.or` que já buscava por observação/cliente.
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado com dados reais: venda com 3 itens (2 do mesmo SKU, lotes/
+  IDs diferentes, 1 de SKU diferente). Busca por `"LOTE-DEDUP-X"` e
+  por `"BARCODE-DEDUP-003"` achou a venda certa (count: 1 nos dois
+  casos); busca por texto aleatório não achou nada (count: 0, sem
+  falso positivo).
+- Build de produção (`craco build`) concluído sem erros novos.
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `backend/src/services/FiscalService/SaleService.ts`,
+`frontend/src/components/SaleList/index.js`.

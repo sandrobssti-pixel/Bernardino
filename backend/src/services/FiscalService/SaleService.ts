@@ -335,9 +335,26 @@ export const list = async ({
     // v2.3.262 — pedido do cliente: buscar também pelo nome/CPF-CNPJ do
     // cliente ligado à venda, não só pelas observações.
     const customerIds = await findEntityIdsByNameOrDocument(FinanceCustomer, companyId, searchParam);
+    // v2.3.317 — pedido do cliente: localizar venda pelo lote ou
+    // ID/código de barras da caixinha de munição vendida nela
+    // (`SaleItem.ammoLot`/`packageId`), mesmo padrão de busca já usado
+    // pra escolher a caixinha em Nova Venda (SaleModal).
+    const saleIdsByAmmoLotOrId = (
+      await SaleItem.findAll({
+        attributes: ["saleId"],
+        where: {
+          [Op.or]: [
+            { ammoLot: { [Op.iLike]: `%${searchParam.trim()}%` } },
+            { packageId: { [Op.iLike]: `%${searchParam.trim()}%` } }
+          ]
+        },
+        raw: true
+      })
+    ).map((item: any) => item.saleId);
     whereCondition[Op.or] = [
       { notes: { [Op.iLike]: `%${searchParam.trim()}%` } },
-      ...(customerIds.length ? [{ customerId: { [Op.in]: customerIds } }] : [])
+      ...(customerIds.length ? [{ customerId: { [Op.in]: customerIds } }] : []),
+      ...(saleIdsByAmmoLotOrId.length ? [{ id: { [Op.in]: saleIdsByAmmoLotOrId } }] : [])
     ];
   }
 

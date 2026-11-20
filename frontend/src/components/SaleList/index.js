@@ -616,7 +616,7 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
       <Box className={classes.mainHeader}>
         <Box display="flex" alignItems="center" style={{ gap: 8 }}>
           <TextField
-            placeholder="Pesquisar venda, cliente, CPF/CNPJ..."
+            placeholder="Pesquisar venda, cliente, CPF/CNPJ, lote ou ID..."
             variant="outlined"
             size="small"
             style={{ minWidth: 260 }}
@@ -807,10 +807,16 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
               {/* Código do produto + Nº da nota fiscal (v2.3.217, pedido do
                   cliente) — antes só apareciam entrando no detalhe da
                   venda. Código do produto junta o SKU de todos os itens
-                  (uma venda pode ter mais de um produto); nº da nota vem
-                  do documento AUTORIZADO mais recente (mesmo
-                  `sale.fiscalDocuments` que já decide o chip de Status). */}
+                  (uma venda pode ter mais de um produto, sem repetir o
+                  mesmo SKU — v2.3.317, pedido do cliente: "nunca aparecer
+                  duplicado"); nº da nota vem do documento AUTORIZADO mais
+                  recente (mesmo `sale.fiscalDocuments` que já decide o
+                  chip de Status). */}
               <TableCell>Código do produto</TableCell>
+              {/* Lote/ID das caixinhas de munição vendidas nesta venda —
+                  v2.3.317, pedido do cliente: "deixar a caixinha Lote/ID
+                  na tela principal depois do codigo do produto". */}
+              <TableCell>Lote/ID</TableCell>
               <TableCell>Nº Nota Fiscal</TableCell>
               <TableCell>Status</TableCell>
               <TableCell align="right">Ações</TableCell>
@@ -839,7 +845,13 @@ const SaleList = ({ fiscal, finance, customers, products, fiscalConfig }) => {
                 <TableCell>{formatDateBR(sale.saleDate)}</TableCell>
                 <TableCell align="right">{money(sale.totalValue)}</TableCell>
                 <TableCell>
-                  {(sale.items || []).map((item) => item.sku).filter(Boolean).join(", ") || "—"}
+                  {[...new Set((sale.items || []).map((item) => item.sku).filter(Boolean))].join(", ") || "—"}
+                </TableCell>
+                <TableCell>
+                  {(sale.items || [])
+                    .map((item) => [item.ammoLot, item.packageId].filter(Boolean).join("/"))
+                    .filter(Boolean)
+                    .join(", ") || "—"}
                 </TableCell>
                 {/* Mostra TODO documento com número (autorizado ou
                     cancelado), não só o autorizado atual (v2.3.221,

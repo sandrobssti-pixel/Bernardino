@@ -3,6 +3,19 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.317] — Coluna "Lote/ID" + busca por lote/ID em Vendas — 2026-11-20
+
+### Adicionado
+- Coluna "Lote/ID" na lista de Vendas (depois de Código do produto).
+- Busca por lote ou ID/código de barras de caixinha no campo de busca
+  de Vendas.
+
+### Corrigido
+- "Código do produto" mostrava o mesmo SKU repetido quando a venda
+  tinha vários itens dele — agora nunca duplica.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 291.
+
 ## [2.3.316] — Corrige "Vencido" no cadastro salvando status inválido — 2026-11-19
 
 ### Corrigido
