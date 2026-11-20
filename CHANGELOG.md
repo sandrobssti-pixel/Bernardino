@@ -3,6 +3,18 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.321] — Destrava campo "Lote" da caixinha pra correção manual — 2026-11-20
+
+### Corrigido
+- O campo "Lote" da caixinha ficava travado (sem jeito de editar)
+  sempre que ela estava vinculada a uma caixa grande — mesmo com a
+  trava tirada do formulário, o backend reescrevia o lote sozinho a
+  cada salvamento. Continua preenchendo automático ao vincular, mas
+  agora dá pra corrigir manualmente um lote digitado errado sem perder
+  o vínculo com a caixa grande.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 296.
+
 ## [2.3.320] — Coluna "Soma cadastrada" na Caixa Grande, pra achar quantidade errada — 2026-11-20
 
 ### Adicionado

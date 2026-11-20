@@ -178,12 +178,22 @@ export const update = async (
 
   const barcodeId = data.barcodeId.trim();
   await ensureBarcodeIsUnique(barcodeId, companyId, volume.id);
+  // Só re-tira o snapshot do lote da caixa grande quando o vínculo é
+  // NOVO ou mudou de caixa grande (`resolveBigBoxLot` já valida que ela
+  // existe e pertence a este produto/empresa, mesmo nesse caso). Se a
+  // caixinha já estava vinculada à MESMA caixa grande de antes,
+  // respeita o `lotNumber` que vier no payload — pedido do cliente
+  // (v2.3.321): "deixa editável todos os campos caso necesite corrigir
+  // manual", depois de uma caixinha ter sido cadastrada com a
+  // quantidade errada e o campo Lote aparecer travado (sem jeito de
+  // corrigir manualmente um lote digitado errado, mesmo linkado).
+  const bigBoxIdChanged = (data.bigBoxId || null) !== (volume.bigBoxId || null);
   const bigBoxLot = await resolveBigBoxLot(data.bigBoxId, productId, companyId);
 
   try {
     await volume.update({
       bigBoxId: data.bigBoxId || null,
-      lotNumber: bigBoxLot ?? data.lotNumber?.trim(),
+      lotNumber: (bigBoxIdChanged ? bigBoxLot : null) ?? (data.lotNumber?.trim() || volume.lotNumber),
       barcodeId,
       unitQuantity: Number(data.unitQuantity) || 0,
       status: data.status || volume.status,

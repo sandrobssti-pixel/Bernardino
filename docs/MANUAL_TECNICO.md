@@ -21831,3 +21831,55 @@ completo), sem rota nova no backend.
 - Dados de teste removidos do banco depois da verificação.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
+
+## 296. Campo "Lote" da caixinha travado impedia corrigir erro de digitação manual (v2.3.321)
+
+Ao tentar corrigir a caixinha `1083689165` (seção 295, 49→50 unidades),
+cliente relatou: "encontrei, mas não tem opção de editar, o campo fica
+travado para editar" — e pediu explicitamente: "deixa editável todos
+os campos caso necesite corrigir manual" (depois esclarecido: "vai ser
+tudo automatico como esta, mas se tiver um erro individual que possa
+editar e corrigir" — ou seja, manter o preenchimento automático normal,
+só destravar pra correção manual pontual quando precisar).
+
+### Causa raiz
+
+O campo "Lote" da caixinha (`AmmoVolumesSection.js`) ficava com
+`disabled={!!draft.bigBoxId}` sempre que a caixinha estava vinculada a
+uma caixa grande — e o valor exibido era recalculado toda hora a partir
+da caixa grande (`draftLotDisplay`), nunca do que estava realmente
+gravado (`draft.lotNumber`). Mesmo tirando o `disabled` no front, o
+BACKEND (`FinanceAmmoVolumeService.update`) também re-tirava o
+snapshot do lote da caixa grande em TODA atualização, sempre que
+`bigBoxId` estivesse presente — ignorando qualquer `lotNumber` mandado
+no payload. Duas travas, uma no front e uma no backend.
+
+### Correção
+
+- **Frontend**: campo "Lote" não tem mais `disabled` — mostra sempre
+  `draft.lotNumber` (editável). O preenchimento automático acontece só
+  no momento de ESCOLHER a caixa grande no dropdown (efeito pontual no
+  `onChange`), não mais recalculado a cada render.
+- **Backend**: `update` só re-tira o snapshot do lote da caixa grande
+  quando o vínculo é NOVO ou MUDOU de caixa grande
+  (`bigBoxIdChanged`) — se a caixinha já estava vinculada à MESMA caixa
+  grande de antes, respeita o `lotNumber` que vier no payload (permite
+  corrigir um lote digitado errado à mão, sem perder o vínculo com a
+  caixa grande).
+
+### Verificação
+
+- `tsc --noEmit` (backend) e `eslint` (frontend) limpos.
+- Testado via API: caixinha vinculada (bigBoxId sem mudar) + `lotNumber`
+  manual no PUT → valor manual respeitado (não sobrescrito).
+- Regressão confirmada: caixinha nova vinculada (sem lotNumber no
+  payload) → continua auto-preenchendo do lote da caixa grande; mudar
+  o `bigBoxId` pra OUTRA caixa grande → continua re-tirando o
+  snapshot da caixa NOVA (ignora `lotNumber` velho/errado mandado).
+- Testado no navegador (Playwright): campo "Lote" aparece editável
+  (fundo branco, não cinza) com a mensagem "Preenchido pela caixa
+  grande — pode corrigir à mão se precisar".
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
+`backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`.

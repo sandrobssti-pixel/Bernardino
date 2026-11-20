@@ -234,9 +234,6 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
     }
   };
 
-  const selectedBigBox = bigBoxes.find((b) => b.id === draft.bigBoxId);
-  const draftLotDisplay = selectedBigBox ? bigBoxLabel(selectedBigBox) : draft.lotNumber;
-
   return (
     <Box className={classes.wrapper}>
       <Typography variant="subtitle2" className={classes.title}>
@@ -259,7 +256,18 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
           size="small"
           variant="outlined"
           value={draft.bigBoxId}
-          onChange={(e) => setDraft((d) => ({ ...d, bigBoxId: e.target.value }))}
+          onChange={(e) => {
+            const bigBoxId = e.target.value;
+            const bigBox = bigBoxes.find((b) => b.id === bigBoxId);
+            setDraft((d) => ({
+              ...d,
+              bigBoxId,
+              // Preenche o lote automaticamente ao escolher a caixa grande
+              // (só nesse momento — depois disso o campo "Lote" fica livre
+              // pra corrigir à mão, se precisar, sem ficar travado).
+              lotNumber: bigBox ? bigBoxLabel(bigBox) : d.lotNumber,
+            }));
+          }}
           style={{ minWidth: 160 }}
         >
           <MenuItem value="">Nenhuma (lote avulso)</MenuItem>
@@ -273,10 +281,9 @@ const AmmoVolumesSection = ({ product, finance, canDelete }) => {
           label="Lote *"
           size="small"
           variant="outlined"
-          value={draftLotDisplay}
+          value={draft.lotNumber}
           onChange={(e) => setDraft((d) => ({ ...d, lotNumber: e.target.value }))}
-          disabled={!!draft.bigBoxId}
-          helperText={draft.bigBoxId ? "Herdado da caixa grande" : undefined}
+          helperText={draft.bigBoxId ? "Preenchido pela caixa grande — pode corrigir à mão se precisar" : undefined}
           style={{ minWidth: 140 }}
         />
         <TextField
