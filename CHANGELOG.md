@@ -3,6 +3,16 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.323] — Aviso de "já cadastrado" vira amarelo, não vermelho — 2026-11-20
+
+### Corrigido
+- Código de barras/número de série já cadastrado mostrava toast
+  vermelho de "erro", parecendo uma falha do sistema quando é só um
+  aviso de duplicidade. Agora aparece amarelo, com a mensagem
+  começando por "Caixinha já cadastrada —"/"Arma já cadastrada —".
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 298.
+
 ## [2.3.322] — Traduz erros de Caixa Grande/Caixinha/Arma que apareciam crus — 2026-11-20
 
 ### Corrigido

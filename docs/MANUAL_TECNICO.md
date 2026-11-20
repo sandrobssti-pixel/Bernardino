@@ -21918,3 +21918,34 @@ barras — confira se não é duplicado antes de lançar."
   pré-existentes, em linhas não relacionadas a esta mudança).
 
 **Arquivos**: `frontend/src/translate/languages/pt.js`.
+
+## 298. Aviso de "já cadastrado" não deve parecer um erro (v2.3.323)
+
+Depois da tradução da seção 297, cliente confirmou: "tudo certo, as
+cixinhas já estavam cadatrado so foi o nome mesmo que parecia ser um
+erro, coloque um nome de aviso tipo 'PRODUTO JÁ CADASTRADO'" — ou seja,
+o problema nunca foi o sistema travar (certo, barcode duplicado tem
+que bloquear mesmo), foi só a cor/tom vermelho de "erro" pra uma
+situação que é só um aviso informativo.
+
+### Correção
+
+- `toastError.js` ganhou uma lista `WARNING_BACKEND_ERRORS` — só pros
+  2 códigos de "já existe cadastro com esse dado"
+  (`ERR_FINANCE_AMMO_VOLUME_DUPLICATE_BARCODE` e
+  `ERR_FINANCE_WEAPON_UNIT_DUPLICATE_SERIAL`), mostrados com
+  `toast.warn` (amarelo) em vez de `toast.error` (vermelho). Os outros
+  20 códigos deste módulo continuam vermelhos — são bloqueios de
+  verdade (venda confirmada, caixa com vínculo, campo obrigatório
+  faltando etc.), não um "isso já existe".
+- Texto de `pt.js` dos 2 casos começa agora com "Caixinha já
+  cadastrada —"/"Arma já cadastrada —", deixando claro de cara que é
+  um aviso de duplicidade, não uma falha.
+
+### Verificação
+
+- `eslint` limpo (mesmos 2 warnings pré-existentes de sempre em
+  `pt.js`, não relacionados).
+
+**Arquivos**: `frontend/src/errors/toastError.js`,
+`frontend/src/translate/languages/pt.js`.
