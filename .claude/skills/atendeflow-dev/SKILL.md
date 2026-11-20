@@ -1327,3 +1327,62 @@ parece erro no registro inteiro) → primeira pergunta é sempre "o
 arquivo anexado é grande demais (>5MB) ou de tipo errado (não é JPG/
 PNG/WEBP)?", ANTES de ler código ou pedir log do servidor.
 
+
+## 28. Multi-Telas (Workspace) — abrir um módulo em aba extra sem perder o que já estava aberto
+
+v2.3.324, pedido do cliente: operador quer ter Atendimento + Vendas (ou
+Financeiro, RH...) abertos "ao mesmo tempo" sem perder o formulário
+preenchido em nenhuma das duas. Pedido chegou como um prompt genérico
+de arquitetura SaaS White Label (Zustand, Tailwind, split-view,
+pop-out de janela com BroadcastChannel pra sincronizar entre janelas
+reais do SO) — **nada disso serve aqui**: depois de esclarecido com o
+cliente (ver `docs/MANUAL_TECNICO.md`, seção 299), o que ele queria de
+verdade era bem mais simples — **abas internas, máximo 3 telas ao
+mesmo tempo, nunca split-view nem janela separada, troca só por
+clique (nunca atalho de teclado, porque Tab já navega entre campos de
+formulário)**. Perguntar antes de implementar, igual a regra 0 deste
+arquivo manda, evitou construir uma arquitetura 10x mais complexa (e
+errada) do que o pedido real.
+
+### Peças (já prontas, só adicionar módulo novo)
+
+- `context/Workspace/index.js` — Context API (mesmo molde de
+  `ActiveMenuContext`), guarda só as abas EXTRAS (`tabs`), nunca a
+  navegação normal (que é sempre a aba "Principal" implícita,
+  `activeTabId: null`). `MAX_EXTRA_TABS = 2` (3 no total contando a
+  Principal) — excedendo isso, avisa (`toast.warn`) e bloqueia, nunca
+  fecha nada sozinho.
+- `components/WorkspaceViewport/index.js` — `MODULE_REGISTRY` mapeia
+  `moduleKey → lazy(() => import(".../pages/X"))`. Cada aba extra roda
+  dentro do PRÓPRIO `MemoryRouter` (react-router-dom v5) — isolado da
+  URL de verdade do navegador, então abre já na rota certa
+  (`/financeiro?tab=products`) independente de onde a tela Principal
+  está, e navegação interna da própria tela não mexe na URL real nem
+  nas outras abas. Todas ficam sempre MONTADAS (`display: none` quando
+  inativas) — é isso que preserva formulário/scroll.
+- `components/WorkspaceTabBar/index.js` — barra de abinhas, só
+  aparece quando existe ≥1 aba extra aberta.
+- `layout/index.js` — `LoggedInLayout` é um wrapper fino que só
+  coloca o `<WorkspaceProvider>` por fora do componente de verdade
+  (`LoggedInLayoutInner`), porque tanto o menu lateral quanto a área de
+  conteúdo (`{children}` + `<WorkspaceViewport />`) precisam do mesmo
+  contexto.
+- `layout/MainListItems.js` — `ListItemLink` ganhou a prop opcional
+  `moduleKey`; só item que passa essa prop ganha o ícone "abrir em
+  nova aba" (↗).
+
+### Pra adicionar um módulo novo à lista
+
+1. Entrada nova em `MODULE_REGISTRY` (`WorkspaceViewport.js`).
+2. `moduleKey="..."` no(s) `<ListItemLink>` correspondente(s) em
+   `MainListItems.js` — se o mesmo destino (`to`) tiver mais de uma
+   entrada no menu (ex.: item colapsado + item dentro de submenu
+   expandido), repetir o `moduleKey` nos dois; `openInNewTab` já
+   deduplica por `to` (não cria 2 abas da mesma tela).
+3. **Testar isolado antes de liberar** — nem toda tela é automaticamente
+   segura rodando numa instância extra em paralelo: qualquer coisa que
+   dependa de ser a ÚNICA instância montada (um id fixo em
+   `localStorage` sem escopo por aba, um singleton, uma conexão própria
+   que não seja o Socket.IO já compartilhado) pode se comportar mal com
+   2 instâncias da mesma tela abertas ao mesmo tempo (ex.: Atendimento
+   em 2 abas simultâneas, cada uma puxando a MESMA lista de tickets).
