@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.320] — Coluna "Soma cadastrada" na Caixa Grande, pra achar quantidade errada — 2026-11-20
+
+### Adicionado
+- Coluna "Soma cadastrada (un.)" na tabela de Caixas grandes — soma as
+  unidades de todas as caixinhas já cadastradas daquela caixa e
+  destaca em vermelho quando é diferente do "Total de unidades"
+  declarado, pra achar rápido qual caixinha foi cadastrada com
+  quantidade errada.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 295.
+
 ## [2.3.319] — Trava "Quantidade em estoque" de munição/arma como automático — 2026-11-20
 
 ### Corrigido

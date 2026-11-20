@@ -44,6 +44,10 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "wrap",
     marginBottom: theme.spacing(1.5),
   },
+  mismatch: {
+    color: theme.palette.error.main,
+    fontWeight: 700,
+  },
 }));
 
 const EMPTY_DRAFT = {
@@ -355,6 +359,7 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
               <TableCell>Lote LE</TableCell>
               <TableCell>Lote LF</TableCell>
               <TableCell align="right">Total de unidades</TableCell>
+              <TableCell align="right">Soma cadastrada (un.)</TableCell>
               <TableCell align="right">Caixinhas cadastradas</TableCell>
               <TableCell align="right">Caixinhas em estoque</TableCell>
               <TableCell align="right">Caixinhas vendidas</TableCell>
@@ -363,12 +368,36 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredBigBoxes.map((bigBox) => (
+            {filteredBigBoxes.map((bigBox) => {
+              // Soma real das unidades de TODAS as caixinhas já cadastradas
+              // dessa caixa grande (em estoque + vendidas) — comparar contra
+              // "Total de unidades" (declarado na hora de cadastrar a caixa
+              // grande, não recalculado) ajuda a achar na hora qual caixinha
+              // foi digitada com a quantidade errada, pedido do cliente
+              // (v2.3.320): "tem 4.750 e no sistema apresentou 4.749".
+              const registeredUnitsSum = (bigBox.volumes || []).reduce(
+                (sum, v) => sum + (Number(v.unitQuantity) || 0),
+                0
+              );
+              const hasMismatch =
+                (bigBox.volumes?.length ?? 0) > 0 &&
+                bigBox.totalUnits !== "" &&
+                bigBox.totalUnits !== null &&
+                Number(bigBox.totalUnits) !== registeredUnitsSum;
+              return (
               <TableRow key={bigBox.id}>
                 <TableCell>{product.sku || "—"}</TableCell>
                 <TableCell>{bigBox.lotLE}</TableCell>
                 <TableCell>{bigBox.lotLF}</TableCell>
                 <TableCell align="right">{bigBox.totalUnits}</TableCell>
+                <TableCell align="right" className={hasMismatch ? classes.mismatch : undefined}>
+                  {registeredUnitsSum}
+                  {hasMismatch && (
+                    <Typography component="span" variant="caption" display="block">
+                      (diferente do total)
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell align="right">{bigBox.volumes?.length ?? 0}</TableCell>
                 <TableCell align="right">
                   {bigBox.volumes?.filter((v) => v.status === "in_stock").length ?? 0}
@@ -404,7 +433,8 @@ const AmmoBigBoxesSection = ({ product, finance, canDelete }) => {
                   )}
                 </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
           </TableBody>
         </Table>
         </Box>

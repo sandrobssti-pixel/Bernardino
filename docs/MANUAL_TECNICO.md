@@ -21787,3 +21787,47 @@ silenciosamente um valor que devia ser sempre automático).
 
 **Arquivos**: `frontend/src/pages/Financeiro/financeConfig.js`,
 `backend/src/services/FinanceService/FinanceProductService.ts`.
+
+## 295. Coluna "Soma cadastrada" pra achar a caixinha com quantidade errada (v2.3.320)
+
+Depois do deploy da v2.3.319, cliente relatou: "tem 4.750 e no sistema
+apresentou 4.749 fui em corrigir estoque e continuou a mesma coisa".
+
+### Investigação
+
+"Corrigir estoque travado" (seção 293) não resolveu porque esse NÃO é
+o mesmo problema — aquele botão só repara caixinha ÓRFÃ (presa por uma
+venda excluída, bug já corrigido). Aqui as caixinhas estão todas
+corretamente "em estoque", só que a SOMA real das unidades delas é 1
+unidade menor que o declarado nas caixas grandes. Reproduzido
+localmente: caixa grande com "Total de unidades" = 2000 (valor
+digitado manualmente ao cadastrar a caixa, nunca recalculado) e 40
+caixinhas dentro — 39 com 50 unidades cada e 1 digitada com 49 por
+engano — fecha exatamente a mesma conta do cliente: soma real 1999,
+1 unidade a menos que o declarado. `stockQuantity` do produto é a
+SOMA REAL das caixinhas (está certo, não é bug de cálculo) — o "Total
+de unidades" é só um valor de referência digitado na hora de cadastrar
+a caixa grande, nunca comparado/validado contra a soma das caixinhas
+reais cadastradas dentro dela.
+
+### Correção
+
+Nova coluna "Soma cadastrada (un.)" na tabela de "Caixas grandes desta
+munição", ao lado de "Total de unidades" — soma `unitQuantity` de
+TODAS as caixinhas já cadastradas daquela caixa grande (em estoque +
+vendidas). Quando esse valor é diferente do "Total de unidades"
+declarado, aparece em vermelho com "(diferente do total)" — dá pra
+comparar caixa por caixa e achar rapidinho qual tem a caixinha com a
+quantidade digitada errada, sem precisar olhar unidade por unidade.
+Só cálculo no front (soma sobre `bigBox.volumes` que a API já retorna
+completo), sem rota nova no backend.
+
+### Verificação
+
+- `eslint` limpo.
+- Reproduzido o cenário exato do cliente (39 caixinhas de 50 + 1 de 49
+  numa caixa declarada com 2000) — coluna mostrou "1999 (diferente do
+  total)" em vermelho, confirmado no navegador (Playwright).
+- Dados de teste removidos do banco depois da verificação.
+
+**Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoBigBoxesSection.js`.
