@@ -898,6 +898,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
       <div onClick={handleDrawerCloseOnLinkClick} className={classes.menuRoot}>
         <ListItemLink
           to="/settings?tab=subscription"
+          moduleKey="settings"
           primary="Assinatura"
           icon={<LocalAtmIcon />}
           iconKey="financial"
@@ -993,6 +994,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                     <ListItemLink
                       small
                       to="/"
+                      moduleKey="dashboard"
                       primary="Dashboard"
                       icon={<DashboardOutlinedIcon />}
                       iconKey="dashboard"
@@ -1001,6 +1003,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                     <ListItemLink
                       small
                       to="/reports"
+                      moduleKey="reports"
                       primary={i18n.t(
                         "mainDrawer.listItems.reports"
                       )}
@@ -1016,6 +1019,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 <ListItemLink
                   small
                   to="/moments"
+                  moduleKey="moments"
                   primary={i18n.t("mainDrawer.listItems.chatsTempoReal")}
                   icon={<ForumIcon />}
                   iconKey="dashboard"
@@ -1039,6 +1043,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
       <ListItemLink
         to="/quick-messages"
+        moduleKey="quick-messages"
         primary={i18n.t("mainDrawer.listItems.quickMessages")}
         icon={<FlashOnIcon />}
         iconKey="messages"
@@ -1047,6 +1052,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
       <ListItemLink
         to="/todolist"
+        moduleKey="todolist"
         primary={i18n.t("todo.task")}
         icon={<AssignmentTurnedInIcon />}
         iconKey="tasks"
@@ -1059,6 +1065,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
         <>
           <ListItemLink
             to="/kanban"
+            moduleKey="kanban"
             primary={i18n.t("mainDrawer.listItems.kanban")}
             icon={<ViewKanban />}
             iconKey="kanban"
@@ -1080,6 +1087,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
       <ListItemLink
         to="/contacts"
+        moduleKey="contacts"
         primary={i18n.t("mainDrawer.listItems.contacts")}
         icon={<ContactPhoneOutlinedIcon />}
         iconKey="contacts"
@@ -1090,6 +1098,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
         <>
           <ListItemLink
             to="/schedules"
+            moduleKey="schedules"
             primary={i18n.t("mainDrawer.listItems.schedules")}
             icon={<Schedule />}
             iconKey="schedules"
@@ -1100,6 +1109,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
 
       <ListItemLink
         to="/tags"
+        moduleKey="tags"
         primary={i18n.t("mainDrawer.listItems.tags")}
         icon={<LocalOfferIcon />}
         iconKey="tags"
@@ -1110,6 +1120,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
         <>
           <ListItemLink
             to="/chats"
+            moduleKey="chats"
             primary={i18n.t("mainDrawer.listItems.chats")}
             icon={
               <Badge
@@ -1130,6 +1141,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
       {hasHelps && (
         <ListItemLink
           to="/helps"
+          moduleKey="helps"
           primary={i18n.t("mainDrawer.listItems.helps")}
           icon={<HelpOutlineIcon />}
           iconKey="helps"
@@ -1249,6 +1261,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <List dense component="div" disablePadding>
                         <ListItemLink
                           to="/campaigns"
+                          moduleKey="campaigns"
                           primary={i18n.t(
                             "campaigns.subMenus.list"
                           )}
@@ -1258,6 +1271,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                         />
                         <ListItemLink
                           to="/contact-lists"
+                          moduleKey="contact-lists"
                           primary={i18n.t(
                             "campaigns.subMenus.listContacts"
                           )}
@@ -1267,6 +1281,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                         />
                         <ListItemLink
                           to="/campaigns-config"
+                          moduleKey="campaigns-config"
                           primary={i18n.t(
                             "campaigns.subMenus.settings"
                           )}
@@ -1288,6 +1303,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 yes={() => (
                   <ListItemLink
                     to="/flowbuilders/conversation"
+                    moduleKey="flowbuilders"
                     primary={i18n.t(
                       "mainDrawer.listItems.flowbuilder"
                     )}
@@ -1302,6 +1318,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
             {user.super && (
               <ListItemLink
                 to="/announcements"
+                moduleKey="announcements"
                 primary={i18n.t(
                   "mainDrawer.listItems.annoucements"
                 )}
@@ -1314,6 +1331,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
             {user.super && (
               <ListItemLink
                 to="/payroll-tables"
+                moduleKey="payroll-tables"
                 primary="Tabelas INSS/IRRF"
                 icon={<AccountBalanceWalletIcon />}
                 iconKey="payrollTables"
@@ -1329,6 +1347,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                   yes={() => (
                     <ListItemLink
                       to="/messages-api"
+                      moduleKey="messages-api"
                       primary={i18n.t(
                         "mainDrawer.listItems.messagesAPI"
                       )}
@@ -1346,6 +1365,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/users"
+                  moduleKey="users"
                   primary={i18n.t("mainDrawer.listItems.users")}
                   icon={<PeopleAltOutlinedIcon />}
                   iconKey="users"
@@ -1359,6 +1379,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/birthday-settings"
+                  moduleKey="birthday-settings"
                   primary={i18n.t("mainDrawer.listItems.birthdaySettings")}
                   icon={<CakeIcon />}
                   iconKey="birthday"
@@ -1372,6 +1393,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/queues"
+                  moduleKey="queues"
                   primary={i18n.t("mainDrawer.listItems.queues")}
                   icon={<AccountTreeOutlinedIcon />}
                   iconKey="queues"
@@ -1387,6 +1409,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 yes={() => (
                   <ListItemLink
                     to="/prompts"
+                    moduleKey="prompts"
                     primary={i18n.t(
                       "mainDrawer.listItems.prompts"
                     )}
@@ -1405,6 +1428,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                 yes={() => (
                   <ListItemLink
                     to="/queue-integration"
+                    moduleKey="queue-integration"
                     primary={i18n.t(
                       "mainDrawer.listItems.queueIntegration"
                     )}
@@ -1426,6 +1450,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/connections"
+                  moduleKey="connections"
                   primary={i18n.t(
                     "mainDrawer.listItems.connections"
                   )}
@@ -1441,6 +1466,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
             {user.super && (
               <ListItemLink
                 to="/allConnections"
+                moduleKey="all-connections"
                 primary={i18n.t("mainDrawer.listItems.allConnections")}
                 icon={<SignalCellularConnectedNoInternet4BarIcon />}
                 iconKey="connections"
@@ -1453,6 +1479,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/files"
+                  moduleKey="files"
                   primary={i18n.t("mainDrawer.listItems.files")}
                   icon={<AttachFile />}
                   iconKey="files"
@@ -1535,6 +1562,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=painel"
+                        moduleKey="financeiro"
                         primary="📊 Painel Financeiro"
                         icon={<Dashboard />}
                         iconKey="financial"
@@ -1543,6 +1571,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=expenses"
+                        moduleKey="financeiro"
                         primary="💸 Contas a Pagar"
                         icon={<ReceiptIcon />}
                         iconKey="financial"
@@ -1551,6 +1580,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=receivables"
+                        moduleKey="financeiro"
                         primary="💰 Contas a Receber"
                         icon={<MonetizationOnIcon />}
                         iconKey="financial"
@@ -1559,6 +1589,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=cashRegister"
+                        moduleKey="financeiro"
                         primary="🗃️ Caixa Registradora"
                         icon={<ReceiptIcon />}
                         iconKey="financial"
@@ -1567,6 +1598,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=paymentConfig"
+                        moduleKey="financeiro"
                         primary="💳 Config. Pagamento"
                         icon={<MonetizationOnIcon />}
                         iconKey="financial"
@@ -1575,6 +1607,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=customers"
+                        moduleKey="financeiro"
                         primary="👥 Clientes"
                         icon={<PeopleIcon />}
                         iconKey="financial"
@@ -1642,6 +1675,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=weapon:national"
+                            moduleKey="financeiro"
                             primary="🔫 Armas nacionais"
                             icon={<FlagIcon />}
                             iconKey="financial"
@@ -1650,6 +1684,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=weapon:imported"
+                            moduleKey="financeiro"
                             primary="🌎 Armas importadas"
                             icon={<PublicIcon />}
                             iconKey="financial"
@@ -1658,6 +1693,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=ammunition"
+                            moduleKey="financeiro"
                             primary="🧰 Munições/Insumos"
                             icon={<BuildIcon />}
                             iconKey="financial"
@@ -1666,6 +1702,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=accessory"
+                            moduleKey="financeiro"
                             primary="🎒 Acessórios"
                             icon={<LocalOfferIcon />}
                             iconKey="financial"
@@ -1674,6 +1711,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                           <ListItemLink
                             small
                             to="/financeiro?tab=products&type=hunting_fishing"
+                            moduleKey="financeiro"
                             primary="🎣 Caça & Pesca"
                             icon={<NatureIcon />}
                             iconKey="financial"
@@ -1696,6 +1734,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       <ListItemLink
                         small
                         to="/financeiro?tab=suppliers"
+                        moduleKey="financeiro"
                         primary="🚚 Fornecedores"
                         icon={<LocalShippingIcon />}
                         iconKey="financial"
@@ -1740,6 +1779,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/weapon-dispatch"
+                  moduleKey="weapon-dispatch"
                   primary={i18n.t(
                     "mainDrawer.listItems.weaponDispatch"
                   )}
@@ -1755,6 +1795,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/services"
+                  moduleKey="services"
                   primary={i18n.t(
                     "mainDrawer.listItems.services"
                   )}
@@ -1770,6 +1811,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/weapon-armory"
+                  moduleKey="weapon-armory"
                   primary={i18n.t(
                     "mainDrawer.listItems.weaponArmory"
                   )}
@@ -1849,6 +1891,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                     <List dense component="div" disablePadding>
                       <ListItemLink
                         to="/members"
+                        moduleKey="members"
                         primary={i18n.t("mainDrawer.listItems.members")}
                         icon={<BadgeIcon />}
                         iconKey="members"
@@ -1856,6 +1899,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
                       />
                       <ListItemLink
                         to="/member-checkin"
+                        moduleKey="member-checkin"
                         primary={i18n.t("mainDrawer.listItems.memberCheckIn")}
                         icon={<FaceIcon />}
                         iconKey="memberCheckIn"
@@ -1872,6 +1916,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/attendance-schedule"
+                  moduleKey="attendance-schedule"
                   primary={i18n.t(
                     "mainDrawer.listItems.attendanceSchedule"
                   )}
@@ -1887,6 +1932,7 @@ const MainListItems = ({ collapsed, drawerClose }) => {
               yes={() => (
                 <ListItemLink
                   to="/settings"
+                  moduleKey="settings"
                   primary={i18n.t(
                     "mainDrawer.listItems.settings"
                   )}

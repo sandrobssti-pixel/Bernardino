@@ -1386,3 +1386,19 @@ errada) do que o pedido real.
    que não seja o Socket.IO já compartilhado) pode se comportar mal com
    2 instâncias da mesma tela abertas ao mesmo tempo (ex.: Atendimento
    em 2 abas simultâneas, cada uma puxando a MESMA lista de tickets).
+
+### v2.3.325 — estendido pra quase todo o menu
+
+Pedido do cliente logo em seguida: "pode extender para todos os
+serviços, modulos, cadastros, relatorios todos". `MODULE_REGISTRY`
+passou de 4 pra 36 entradas (praticamente todo item do menu lateral) —
+inserção da prop `moduleKey` em cada `<ListItemLink>` feita em lote
+(script Python pontual por número de linha, conferindo antes que cada
+linha alvo realmente tinha um `to="..."` — mais seguro que editar um
+por um numa lista desse tamanho). Dois tipos de item ficaram de FORA
+de propósito, documentados direto no comentário do
+`MODULE_REGISTRY`: (1) item de menu que reusa a MESMA rota de outro mas
+muda estado por fora da URL (ex.: "Grupos", mesma rota `/tickets` de
+Atendimentos, via `setTabOpen("group")` — não isolável pelo
+`MemoryRouter`); (2) tela que não é item de menu de verdade (acessada
+por um botão de dentro de outra tela, não pela barra lateral).

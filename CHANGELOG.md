@@ -3,6 +3,20 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.325] — Multi-Telas estendido pra quase todo o menu — 2026-11-20
+
+### Adicionado
+- Botão "abrir em nova aba" agora em praticamente todos os itens do
+  menu lateral (Vendas, RH e Financeiro já tinham desde a v2.3.324) —
+  Dashboard, Respostas rápidas, Tarefas, Kanban, Contatos,
+  Agendamentos, Tags, Chat Interno, Ajuda, Campanhas, Listas de
+  Contato, Flowbuilders, Anúncios, Tabelas de Folha, API de Mensagens,
+  Usuários, Filas/Setores, Assistente IA, Conexões, Arquivos,
+  Relatórios, Configurações, Despachante Bélico, Serviços
+  Administrativos, Serviço Armaria, Associados e mais.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 300.
+
 ## [2.3.324] — Multi-Telas: Atendimento, Vendas, Financeiro e RH em abas — 2026-11-20
 
 ### Adicionado

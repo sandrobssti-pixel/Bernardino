@@ -22058,3 +22058,56 @@ que dependa de ser a única instância montada, ex.: algum `id` fixo em
 `frontend/src/components/WorkspaceViewport/index.js` (novo),
 `frontend/src/components/WorkspaceTabBar/index.js` (novo),
 `frontend/src/layout/index.js`, `frontend/src/layout/MainListItems.js`.
+
+## 300. Multi-Telas estendido pra praticamente todo o menu lateral (v2.3.325)
+
+Pedido do cliente, depois de validado o piloto com 4 módulos (seção
+299): "pode extender para todos os serviços, modulos, cadastros,
+relatorios todos".
+
+### O que foi feito
+
+- `WorkspaceViewport.js` — `MODULE_REGISTRY` ganhou mais 32 entradas
+  (total 36), cobrindo praticamente toda página que já existia como
+  item do menu lateral: Dashboard, Atendimentos, Respostas rápidas,
+  Tarefas, Kanban, Contatos, Agendamentos, Tags, Chat Interno, Ajuda,
+  Campanhas, Listas de Contato, Config. de Campanhas, Flowbuilders,
+  Anúncios, Tabelas de Folha, API de Mensagens, Usuários, Config. de
+  Aniversário, Filas/Setores, Assistente IA (Prompts), Integração de
+  Filas, Conexões, Todas as Conexões, Arquivos, Chats em Tempo Real,
+  Relatórios, Configurações, Vendas, Financeiro (todas as sub-abas e
+  filtros de Produtos), RH, Despachante Bélico, Serviços
+  Administrativos, Serviço Armaria, Associados (Gerenciador CAC),
+  Check-in de Associado, Horário de Atendimento.
+- `MainListItems.js` — prop `moduleKey` adicionada em cada
+  `<ListItemLink>` correspondente (inserção em lote, script Python
+  pontual por número de linha — conferido depois que cada linha
+  alterada realmente tinha um `to="..."` antes de aplicar).
+
+### Ficou de fora de propósito
+
+- **"Grupos"** (mesma rota `/tickets` de Atendimentos, mas que
+  depende de `setTabOpen("group")` — estado fora da URL, não isolável
+  pelo `MemoryRouter` de cada aba). Clicar em "Grupos" continua
+  navegando normalmente (comportamento de sempre), só não ganhou o
+  botão de abrir em aba.
+- Telas que não são item de menu de verdade (acessadas por um botão
+  de dentro de outra tela, ex.: importar contatos, relatório de uma
+  campanha específica, configurações globais de SaaS, métricas do
+  servidor, empresas do SaaS) — fora do escopo "menu lateral" que foi
+  pedido.
+
+### Verificação
+
+- `eslint` limpo nos dois arquivos (mesmos warnings pré-existentes de
+  sempre, nenhum novo).
+- Testado no navegador (Playwright), abrindo e fechando cada um como
+  aba extra, isolado: Tags, Filas/Setores, Assistente IA, Lista de
+  arquivos, Respostas rápidas, Config. Aniversário, Conexões, Config.
+  Pagamento, Despachante Bélico, Serviço Armaria, Usuários, Kanban,
+  Contatos, Agendamentos, Tarefas, Chat Interno — 16 módulos
+  diferentes, todos renderizaram conteúdo real (não vazio/quebrado) e
+  zero erro de JavaScript no console em qualquer um deles.
+
+**Arquivos**: `frontend/src/components/WorkspaceViewport/index.js`,
+`frontend/src/layout/MainListItems.js`.
