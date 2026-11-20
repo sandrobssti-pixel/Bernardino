@@ -138,6 +138,9 @@ const useStyles = makeStyles((theme) => ({
       "& $iconWrap": {
         color: theme.mode === "light" ? "#1e293b" : "#f1f5f9",
       },
+      "& $openInTabButton": {
+        opacity: 1,
+      },
     },
   },
   listItemIconOnly: {
@@ -180,6 +183,14 @@ const useStyles = makeStyles((theme) => ({
   },
   listItemText: {
     margin: 0,
+    minWidth: 0,
+    overflow: "hidden",
+  },
+  // Reserva espaço pro botão "abrir em nova aba" (absoluto, só some no
+  // hover) não ficar por cima do fim do texto quando o nome do item é
+  // comprido — some com o `moduleKey` definido (ver render abaixo).
+  listItemTextWithTabButton: {
+    paddingRight: 22,
   },
   listItemWrapper: {
     listStyle: "none",
@@ -192,6 +203,24 @@ const useStyles = makeStyles((theme) => ({
     letterSpacing: "0.005em",
     color: theme.mode === "light" ? "#3f4a5c" : "#cbd5e1",
     lineHeight: 1.15,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  // Multi-telas (v2.3.324/325) — botão "abrir em nova aba" sai do fluxo
+  // normal do flex (`position: absolute`) e só aparece no hover da
+  // linha inteira (`.listItem:hover`, ver acima) — adicionar mais um
+  // filho flex ao lado do texto, pra ~35 itens de menu de uma vez,
+  // estava estourando a largura da barra lateral e cortando o texto
+  // (relatado pelo cliente com print, v2.3.326).
+  openInTabButton: {
+    position: "absolute",
+    right: 4,
+    top: "50%",
+    transform: "translateY(-50%)",
+    opacity: 0,
+    transition: "opacity 0.12s ease",
+    padding: 4,
   },
   iconWrap: {
     display: "inline-flex",
@@ -372,7 +401,9 @@ function ListItemLink(props) {
           ) : null}
           {!isIconOnly && (
             <ListItemText
-              className={classes.listItemText}
+              className={`${classes.listItemText} ${
+                moduleKey ? classes.listItemTextWithTabButton : ""
+              }`}
               primary={
                 <Typography className={classes.listItemLabel}>
                   {primary}
@@ -384,13 +415,14 @@ function ListItemLink(props) {
             <Tooltip title="Abrir em nova aba (multi-telas)">
               <IconButton
                 size="small"
+                className={classes.openInTabButton}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   openInNewTab(moduleKey, primary, to);
                 }}
               >
-                <OpenInNewIcon fontSize="small" />
+                <OpenInNewIcon style={{ fontSize: 15 }} />
               </IconButton>
             </Tooltip>
           )}

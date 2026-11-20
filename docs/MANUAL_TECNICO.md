@@ -22111,3 +22111,45 @@ relatorios todos".
 
 **Arquivos**: `frontend/src/components/WorkspaceViewport/index.js`,
 `frontend/src/layout/MainListItems.js`.
+
+## 301. Botão "abrir em nova aba" estourava a barra lateral e cortava o texto (v2.3.326)
+
+Depois de estender o Multi-Telas pra quase todo o menu (seção 300),
+cliente mandou print: ícone de abrir em nova aba ficava espremido
+contra o texto do item, cortando nomes mais compridos (ex.: "Config.
+Pagamento" virava "Config. Pagament" sem reticências, ícone quase
+colado).
+
+### Causa raiz
+
+O `IconButton` novo entrava no fluxo normal do flexbox do `ListItem`
+(ícone do menu + texto + botão, todos disputando a mesma largura) sem
+nenhum `overflow`/`text-overflow` configurado no texto — com ~35
+itens de menu ganhando o botão de uma vez (antes eram só 4), o
+problema que passava despercebido em poucos itens ficou visível em
+vários.
+
+### Correção
+
+- `openInTabButton`: `position: absolute` (tira do fluxo do flex),
+  `opacity: 0` por padrão, só fica visível (`opacity: 1`) no hover da
+  linha inteira (`.listItem:hover`) — reduz a poluição visual de ter
+  ~35 ícones novos sempre visíveis de uma vez.
+- `listItemLabel`: ganhou `overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap` — nome comprido agora trunca com "..." em vez
+  de estourar a largura.
+- `listItemTextWithTabButton` (nova classe, só aplicada quando o item
+  tem `moduleKey`): `paddingRight: 22` — reserva o espaço do botão
+  absoluto, pra garantir que o texto trunque ANTES de chegar embaixo
+  dele, nunca por cima.
+
+### Verificação
+
+- `eslint` limpo.
+- Testado no navegador (Playwright): hover em "Config. Pagamento" e
+  "Horário de Atendimento" (os dois do print do cliente) — texto
+  trunca limpo ("Config. Pagam...", "Horário de Atendi..."), ícone
+  alinhado na borda direita sem sobrepor nem cortar o texto, some
+  completamente quando não está em hover.
+
+**Arquivos**: `frontend/src/layout/MainListItems.js`.

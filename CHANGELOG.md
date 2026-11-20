@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.326] — Corrige ícone do Multi-Telas estourando a barra lateral — 2026-11-20
+
+### Corrigido
+- O botão "abrir em nova aba" ficava espremido contra o texto, cortando
+  nomes de item mais compridos ("Config. Pagamento", "Horário de
+  Atendimento"). Agora só aparece no hover da linha, e o texto trunca
+  com reticências reservando espaço pro ícone — nunca mais sobrepõe
+  nem corta.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 301.
+
 ## [2.3.325] — Multi-Telas estendido pra quase todo o menu — 2026-11-20
 
 ### Adicionado
