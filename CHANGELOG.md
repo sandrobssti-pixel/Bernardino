@@ -3,6 +3,17 @@
 Todas as etapas de desenvolvimento do projeto são registradas aqui, na ordem em que foram entregues.
 Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
+## [2.3.322] — Traduz erros de Caixa Grande/Caixinha/Arma que apareciam crus — 2026-11-20
+
+### Corrigido
+- Os 22 erros do módulo de Caixa Grande/Caixinha/Arma por número de
+  série (ex.: código de barras duplicado, lote obrigatório, caixinha
+  vinculada a venda) nunca tinham tradução — apareciam como código
+  cru na tela ("ERR_FINANCE_AMMO_VOLUME_DUPLICATE_BARCODE"). Agora
+  mostram mensagem legível em português.
+
+Detalhes em `docs/MANUAL_TECNICO.md`, seção 297.
+
 ## [2.3.321] — Destrava campo "Lote" da caixinha pra correção manual — 2026-11-20
 
 ### Corrigido

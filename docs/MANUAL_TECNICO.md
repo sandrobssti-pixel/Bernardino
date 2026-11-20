@@ -21883,3 +21883,38 @@ no payload. Duas travas, uma no front e uma no backend.
 
 **Arquivos**: `frontend/src/components/FinanceRecordModal/AmmoVolumesSection.js`,
 `backend/src/services/FinanceService/FinanceAmmoVolumeService.ts`.
+
+## 297. Erro de código interno aparecendo cru pro usuário (v2.3.322)
+
+Ao tentar lançar uma caixinha com ID/código de barras já usado por
+outra (`1083694312`, já cadastrada como "Vendida" no mesmo produto),
+cliente recebeu o erro "ERR_FINANCE_AMMO_VOLUME_DUPLICATE_BARCODE" na
+tela, em vez de uma mensagem legível.
+
+### Causa raiz
+
+Nenhum dos 22 códigos de erro do módulo de Caixa Grande/Caixinha/Arma
+por número de série tinha tradução cadastrada em `pt.js`
+(`toastError.js` mostra o código cru quando não acha
+`backendErrors.<código>` no i18n) — gap criado desde que esses
+sub-cadastros foram implementados (v2.3.204/v2.3.223/v2.3.300), nunca
+preenchido. Confirmado que este projeto usa `fallbackLng: "pt"` (único
+idioma de fato traduzido pra erro de backend — os outros 4 idiomas
+caem automaticamente no texto em português quando não têm a chave),
+então só precisou mexer em `pt.js`.
+
+### Correção
+
+Adicionadas as 22 traduções faltando em `pt.js` (bloco
+`backendErrors`): toda a família `ERR_FINANCE_AMMO_BIG_BOX_*`,
+`ERR_FINANCE_AMMO_VOLUME_*`, `ERR_FINANCE_AMMO_DELETE_ADMIN_ONLY` e
+`ERR_FINANCE_WEAPON_UNIT_*`. O erro de código de barras duplicado
+agora mostra: "Já existe uma caixinha cadastrada com esse ID/código de
+barras — confira se não é duplicado antes de lançar."
+
+### Verificação
+
+- `eslint` limpo (os 2 warnings que aparecem em `pt.js` são
+  pré-existentes, em linhas não relacionadas a esta mudança).
+
+**Arquivos**: `frontend/src/translate/languages/pt.js`.
